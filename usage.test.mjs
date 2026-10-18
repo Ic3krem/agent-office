@@ -26,9 +26,12 @@ import { creditLog } from './usage.mjs';
 test('credits spent are the increases between checks, and a monthly reset starts from zero', () => {
   const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ao-c-')), 'credits.json');
   let c = creditLog(f);
-  c.observe(24.66); assert.equal(Object.values(c.days()).at(-1), 0, 'first check is only a baseline');
-  c.observe(26.16); c = creditLog(f); c.observe(27);
+  c.observe(24.66, true); assert.equal(Object.values(c.days()).at(-1), 0, 'first check is only a baseline');
+  c.observe(26.16, true); c = creditLog(f); c.observe(27, true);
   assert.equal(+Object.values(c.days()).at(-1).toFixed(2), 2.34);
-  c.observe(1.5);
+  c.observe(1.5, true);
   assert.equal(+Object.values(c.days()).at(-1).toFixed(2), 3.84);
+  // a late-posted charge seen while under the limits goes to the last over-limit day (here: today), never invents spend
+  const g = creditLog(f + '2'); g.observe(10); g.observe(15);
+  assert.equal(Object.values(g.days()).reduce((a, b) => a + b, 0), 0, 'never over a limit: no daily spend');
 });
