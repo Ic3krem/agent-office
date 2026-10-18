@@ -92,11 +92,15 @@ export function creditLog(file) {
   let s = { last: null, days: {} };
   try { s = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   return {
-    observe(used) {
+    // Credits are only charged past a plan limit, and the counter posts late. So an increase seen while under
+    // every limit belongs to the last day a limit was hit, not to today.
+    observe(used, overLimit = false) {
       if (typeof used !== 'number') return;
+      if (overLimit) s.lastOver = dayOf(Date.now());
       if (s.last !== null && used !== s.last) {
-        const day = dayOf(Date.now()), delta = used < s.last ? used : used - s.last; // drop = new month, count from zero
-        s.days[day] = (s.days[day] || 0) + delta;
+        const delta = used < s.last ? used : used - s.last; // drop = new month, count from zero
+        const day = overLimit ? dayOf(Date.now()) : s.lastOver;
+        if (day) s.days[day] = (s.days[day] || 0) + delta; else s.unplaced = (s.unplaced || 0) + delta;
       }
       s.last = used; s.first ||= dayOf(Date.now());
       const keep = new Set(lastDays()); for (const d of Object.keys(s.days)) if (!keep.has(d)) delete s.days[d];

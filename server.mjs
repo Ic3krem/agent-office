@@ -75,7 +75,7 @@ const ledger = usageLedger(PROJECTS);
 let limits = null;
 const credits = creditLog(path.join(CFG_DIR, 'credits.json'));
 const overLimit = () => !!limits && !limits.error && [limits.session, limits.weekly].some(w => w && w.pct >= 100);
-const refreshLimits = () => planLimits(query, LEAN).then(l => { limits = l; credits.observe(l.extra?.used); guard(); bump(); }).catch(e => { limits = { error: e.message, at: Date.now() }; bump(); });
+const refreshLimits = () => planLimits(query, LEAN).then(l => { limits = l; credits.observe(l.extra?.used, overLimit()); guard(); bump(); }).catch(e => { limits = { error: e.message, at: Date.now() }; bump(); });
 setInterval(() => { ledger.refresh(); bump(); }, 30e3);
 // Check limits every 5 minutes, every 2 while Kiro is working (it is what spends them).
 let lastLimits = 0;

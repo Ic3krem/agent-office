@@ -557,7 +557,7 @@ class Component extends DCLogic {
       refreshLimits:()=>api('/api/limits').then(()=>this.showToast('Plan limits updated')).catch(e=>this.showToast(e.message)),
       costToday:$(today.cost),tokToday:tok(today.tokens),creditsToday:$(crToday),
       creditDays:days.map((d,i)=>{const v=cr[d.day]||0,before=since&&d.day<since;return {amount:before?'–':$(v),label:i===days.length-1?'Today':new Date(d.day+'T12:00').toLocaleDateString([], {weekday:'short'}),fg:v>0?'#ffb547':'#8c8278',border:v>0?'#6b4f2a':'#2a211b'};}),
-      creditNote:(L.extra?'Month to date: '+$(L.extra.used)+(L.extra.limit?' of your '+$(L.extra.limit)+' limit':'')+'. ':'Extra usage is off or unknown. ')+(since?'Agent Office has been counting daily spend since '+since+'; earlier days show “–”. ':'')+'Credits are used only after a plan limit is reached.',
+      creditNote:(L.extra?'Month to date: '+$(L.extra.used)+(L.extra.limit?' of your '+$(L.extra.limit)+' limit':'')+'. ':'Extra usage is off or unknown. ')+(since?'Agent Office has been counting daily spend since '+since+'; earlier days show “–”. ':'')+'Credits are only charged after a plan limit is reached, and the counter covers your whole account and posts late, so an increase is counted on the last day a limit was hit.',
       weekPct:pct(L.weekly),sessPct:pct(L.session),weekColor:sev(L.weekly&&L.weekly.pct),sessColor:sev(L.session&&L.session.pct),
       weekBorder:L.weekly&&L.weekly.pct>=75?sev(L.weekly.pct):'#3a2e25',
       planName:(L.plan||'unknown plan').toUpperCase(),
