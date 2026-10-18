@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<script src="./office-objects.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#0f0c0d;overflow:hidden}
+a{color:#ffcf6b}a:hover{color:#ffe3a3}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.6px)}}
+@keyframes jump{0%{transform:translateY(0)}18%{transform:translateY(-14px)}36%{transform:translateY(0) rotate(-5deg)}52%{transform:translateY(-6px) rotate(4deg)}68%,100%{transform:translateY(0) rotate(0)}}
+@keyframes scroll{from{transform:translateY(0)}to{transform:translateY(-12px)}}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes steam{0%{opacity:0;transform:translateY(0)}50%{opacity:.8}100%{opacity:0;transform:translateY(-7px)}}
+@keyframes mote{0%,100%{opacity:.1}50%{opacity:.9}}
+@keyframes ping{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.4);opacity:0}}
+@keyframes drift{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}
+@keyframes frames2{from{transform:translateX(0)}to{transform:translateX(-96px)}}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+input::placeholder{color:#6f645a}
+@keyframes smoke{0%{transform:translateY(0) scale(.6);opacity:.85}100%{transform:translateY(-26px) scale(1.5);opacity:0}}
+@keyframes pace{0%,100%{transform:translateX(-10px)}50%{transform:translateX(10px)}}
+@keyframes tap{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes note{0%{transform:translate(0,0);opacity:0}20%{opacity:1}100%{transform:translate(14px,-40px);opacity:0}}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 2px #ffcf6b)}50%{filter:drop-shadow(0 0 9px #ffcf6b)}}
+</style>
+</helmet>
+<div style="display:flex; width:100vw; height:100vh; background:#0f0c0d; font-family:'Instrument Sans',sans-serif; color:#f0e4d4;">
+  <div ref="{{ wrapRef }}" style="position:relative; flex:1; min-width:0; overflow:hidden; background:radial-gradient(ellipse at 45% 45%, #2b201a 0%, #151012 60%, #0d0a0b 100%);">
+
+    <div style="position:absolute; left:50%; top:52%; width:1240px; height:800px; transform:translate(-50%,-50%) scale({{ scale }}); transform-origin:center;">
+      <svg width="1240" height="800" viewBox="0 0 1240 800" style="position:absolute; left:0; top:0; z-index:0;">
+        <polygon points="66,477 620,200 620,10 66,287" style="fill:#2e3058"></polygon>
+        <polygon points="620,200 1174,477 1174,287 620,10" style="fill:#25274a"></polygon>
+        <polyline points="66,287 620,10 1174,287" style="fill:none; stroke:#40437a; stroke-width:6"></polyline>
+        <polyline points="66,477 620,200 1174,477" style="fill:none; stroke:#5a3a1e; stroke-width:6"></polyline>
+        <polygon points="66,477 620,754 620,770 66,493" style="fill:#6b4a2e"></polygon>
+        <polygon points="620,754 1174,477 1174,493 620,770" style="fill:#4e341f"></polygon>
+      </svg>
+      <div style="position:absolute; left:620px; top:477px; width:784px; height:784px; transform:translate(-50%,-50%) scaleY(0.5) rotate(45deg); z-index:0; background-image:radial-gradient(circle at 22% 30%, rgba(255,205,130,.28), transparent 55%), radial-gradient(circle at 50% 50%, transparent 45%, rgba(20,10,6,.5) 100%), linear-gradient(rgba(60,30,10,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(60,30,10,.18) 1px, transparent 1px), conic-gradient(#c88f55 25%, #b37a45 0 50%, #c88f55 0 75%, #b37a45 0); background-size:auto, auto, 56px 56px, 56px 56px, 112px 112px;"></div>
+
+      <div style="position:absolute; left:149px; top:275px; width:83px; height:110px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:5px solid #6b4220; background:repeating-linear-gradient(to bottom, rgba(140,80,25,.4) 0 2px, transparent 2px 9px), linear-gradient(#ffe7ae, #f2b35c); box-shadow:0 0 40px rgba(255,200,110,.45);"></div>
+      <div style="position:absolute; left:343px; top:178px; width:83px; height:110px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:5px solid #6b4220; background:repeating-linear-gradient(to bottom, rgba(140,80,25,.4) 0 2px, transparent 2px 9px), linear-gradient(#ffe7ae, #f2b35c); box-shadow:0 0 40px rgba(255,200,110,.45);"></div>
+      <div style="position:absolute; left:481px; top:119px; width:111px; height:150px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:6px solid #7a4a22; background:repeating-linear-gradient(to bottom, transparent 0 31px, #7a4a22 31px 37px), repeating-linear-gradient(90deg, #8f3b2e 0 7px, #3f6b4a 7px 12px, #c99a3c 12px 18px, #2f4a72 18px 24px, #6b3a5a 24px 29px, #d8cdb5 29px 33px);"></div>
+      <div style="position:absolute; left:1036px; top:258px; width:100px; height:150px; transform:skewY(26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:6px solid #6a3f1c; background:repeating-linear-gradient(to bottom, transparent 0 31px, #6a3f1c 31px 37px), repeating-linear-gradient(90deg, #2f4a72 0 6px, #8f3b2e 6px 12px, #d8cdb5 12px 15px, #3f6b4a 15px 22px, #c99a3c 22px 27px, #6b3a5a 27px 33px); filter:brightness(.85);"></div>
+
+      <div onClick="{{ openUsage }}" title="Usage and plan limits" style="position:absolute; left:731px; top:90px; width:166px; height:92px; transform:skewY(26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:4px solid #9a9fa8; background:#f3eee2; padding:5px 8px; font-family:'Pixelify Sans',sans-serif; color:#2b2b36; display:flex; flex-direction:column; gap:2px; filter:brightness(.88); cursor:pointer;">
+        <div style="font-size:9px; letter-spacing:.08em; color:#a2463a;">USAGE · TODAY</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 8px; font-size:9.5px; line-height:1.2;">
+          <span>Credits {{ creditsToday }}</span><span style="color:{{ weekColor }};">Week {{ weekPct }}</span>
+          <span>{{ tokToday }} tok</span><span style="color:{{ sessColor }};">5h {{ sessPct }}</span>
+        </div>
+        <div style="flex:1; display:flex; align-items:flex-end; gap:3px; border-bottom:1px solid #b9b3a6;">
+          <sc-for list="{{ bars }}" as="b" hint-placeholder-count="12">
+            <div style="flex:1; height:{{ b.h }}%; background:{{ b.c }};"></div>
+          </sc-for>
+        </div>
+      </div>
+
+      
+      <svg width="80" height="110" viewBox="0 0 80 110" style="position:absolute; left:1082px; top:385px; z-index:770; overflow:visible;">
+        <circle cx="40" cy="40" r="20" style="fill:#355f2e"></circle><circle cx="25" cy="55" r="16" style="fill:#3d6b34"></circle><circle cx="55" cy="55" r="16" style="fill:#2e5428"></circle><circle cx="40" cy="25" r="13" style="fill:#4c7f3e"></circle>
+        <polygon points="24,68 56,68 52,96 28,96" style="fill:#8f5226"></polygon><rect x="22" y="64" width="36" height="7" style="fill:#a65f2c"></rect>
+      </svg>
+
+      <div style="position:absolute; left:83px; top:334px; width:55px; height:135px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:5px solid #4a2c14; border-bottom:none; background:linear-gradient(90deg,#7a4a26,#8c5a30); display:flex; align-items:center; justify-content:flex-end; padding-right:6px;"><div style="width:5px; height:5px; border-radius:50%; background:#e8c070;"></div></div>
+      <div style="position:absolute; left:92px; top:318px; width:36px; height:11px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; background:#1d5a34; color:#bff2cf; font-family:'Pixelify Sans',sans-serif; font-size:8px; line-height:11px; text-align:center;">EXIT</div>
+      <div style="position:absolute; left:949px; top:196px; width:28px; height:28px; transform:skewY(26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border-radius:50%; border:3px solid #3b2a1a; background:#f3eee2;"><div style="position:absolute; left:11.5px; top:4px; width:2px; height:10px; background:#2b2b36;"></div><div style="position:absolute; left:12px; top:12px; width:8px; height:2px; background:#a2463a;"></div></div>
+      <sc-for list="{{ furn }}" as="f" hint-placeholder-count="20">
+        <svg width="{{ f.w }}" height="{{ f.h }}" style="position:absolute; left:{{ f.l }}px; top:{{ f.t }}px; z-index:{{ f.z }}; overflow:visible; pointer-events:none;">
+          <polygon points="{{ f.ps }}" style="fill:#140800; opacity:{{ f.so }};"></polygon>
+          <polygon points="{{ f.pl }}" style="fill:{{ f.cl }}; stroke:{{ f.st }}; stroke-width:.7;"></polygon>
+          <polygon points="{{ f.pr }}" style="fill:{{ f.cr }}; stroke:{{ f.st }}; stroke-width:.7;"></polygon>
+          <polygon points="{{ f.pt }}" style="fill:{{ f.ct }}; stroke:{{ f.st }}; stroke-width:.7;"></polygon>
+        </svg>
+      </sc-for>
+      <div style="position:absolute; left:880px; top:242px; width:32px; height:116px; transform:skewY(26.57deg); transform-origin:0 0; z-index:460; box-sizing:border-box; padding:8px 5px; display:flex; flex-direction:column; gap:7px; pointer-events:none;">
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:{{ ledColor }}; animation:flash .7s infinite;"></div><div style="width:3px; height:3px; background:{{ ledColor }}; animation:flash 1.3s infinite;"></div><div style="width:3px; height:3px; background:#ffb547;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:{{ ledColor }}; animation:flash 1.1s infinite;"></div><div style="width:3px; height:3px; background:#7cc4ff; animation:flash .5s infinite;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:{{ ledColor }}; animation:flash .9s infinite;"></div><div style="width:3px; height:3px; background:{{ ledColor }}; animation:flash 1.7s infinite;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:#7cc4ff; animation:flash .6s infinite;"></div><div style="width:3px; height:3px; background:{{ ledColor }}; animation:flash 1.2s infinite;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:{{ ledColor }}; animation:flash 1.5s infinite;"></div></div>
+      </div>
+      <sc-for list="{{ plants }}" as="p" hint-placeholder-count="5">
+        <svg width="60" height="84" style="position:absolute; left:{{ p.l }}px; top:{{ p.t }}px; z-index:{{ p.z }}; overflow:visible; pointer-events:none;">
+          <ellipse cx="30" cy="80" rx="16" ry="5" style="fill:rgba(20,8,0,.25)"></ellipse>
+          <circle cx="30" cy="30" r="15" style="fill:#3d6b34"></circle><circle cx="19" cy="42" r="12" style="fill:#4c7f3e"></circle><circle cx="41" cy="42" r="12" style="fill:#355f2e"></circle><circle cx="30" cy="18" r="10" style="fill:#5a8f47"></circle>
+          <polygon points="18,52 42,52 39,78 21,78" style="fill:#a65f2c"></polygon><rect x="16" y="49" width="28" height="6" style="fill:#c07238"></rect>
+        </svg>
+      </sc-for>
+      <sc-for list="{{ agents }}" as="a" hint-placeholder-count="8">
+        <div style="position:absolute; left:{{ a.left }}px; top:{{ a.top }}px; width:200px; height:200px; z-index:{{ a.z }}; pointer-events:none;">
+          <svg width="200" height="200" viewBox="0 0 200 200" style="overflow:visible;">
+            <defs>
+              <radialGradient id="lg-{{ a.id }}"><stop offset="0" style="stop-color:#ffd77a; stop-opacity:.75"></stop><stop offset="1" style="stop-color:#ffd77a; stop-opacity:0"></stop></radialGradient>
+              <clipPath id="sc-{{ a.id }}"><rect x="0" y="0" width="15" height="19"></rect></clipPath>
+            </defs>
+            <polygon points="100,99 185,142 96,186 12,144" style="fill:rgba(255,207,107,.22); stroke:#ffcf6b; stroke-width:2; stroke-dasharray:6 4; display:{{ a.selDisp }};"></polygon>
+            <polygon points="114,118 178,150 135,171 72,139" style="fill:rgba(20,8,0,.28)"></polygon>
+            <polygon points="58,103 121,135 121,163 58,131" style="fill:#8c5426"></polygon>
+            <polygon points="121,135 164,114 164,142 121,163" style="fill:#6b3e19"></polygon>
+            <polygon points="100,82 164,114 121,135 58,103" style="fill:#b9773a; stroke:#cf8c4a; stroke-width:1"></polygon>
+            <ellipse cx="128" cy="112" rx="42" ry="18" style="fill:url(#lg-{{ a.id }}); opacity:{{ a.lampGlow }};"></ellipse>
+            <ellipse cx="104" cy="118" rx="20" ry="8" style="fill:{{ a.scrColor }}; opacity:{{ a.scrGlow }};"></ellipse>
+            <polygon points="91.5,107.5 109.2,116.3 100.7,120.5 83.3,111.7" style="fill:#d4c9ad; stroke:#a89c80; stroke-width:.8"></polygon>
+            <ellipse cx="114" cy="122" rx="3" ry="1.8" style="fill:#d4c9ad"></ellipse>
+            <polygon points="95.8,75.3 117,85.9 135.4,76.7 114.1,66.1" style="fill:#e8dfc6"></polygon>
+            <polygon points="117,115.9 135.4,106.7 135.4,76.7 117,85.9" style="fill:#b3a78a"></polygon>
+            <polygon points="95.8,105.3 117,115.9 117,85.9 95.8,75.3" style="fill:#d6cbb0"></polygon>
+            <g transform="matrix(1 0.5 0 1 99 81.5)">
+              <g style="clip-path:url(#sc-{{ a.id }});">
+                <rect x="0" y="0" width="15" height="19" style="fill:{{ a.scrBg }};"></rect>
+                <g style="display:{{ a.scrLines }}; animation:scroll 1.1s linear infinite;">
+                  <rect x="1.5" y="1" width="10" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="4" width="6" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="7" width="12" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="10" width="8" height="1.4" style="fill:{{ a.scrColor }}"></rect>
+                  <rect x="1.5" y="13" width="10" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="16" width="6" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="19" width="12" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="22" width="8" height="1.4" style="fill:{{ a.scrColor }}"></rect>
+                  <rect x="1.5" y="25" width="10" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="28" width="6" height="1.4" style="fill:{{ a.scrColor }}"></rect>
+                </g>
+                <g style="display:{{ a.scrIdle }};">
+                  <circle cx="3" cy="4" r=".6" style="fill:#c9d4ff"></circle><circle cx="11" cy="7" r=".6" style="fill:#c9d4ff"></circle><circle cx="6" cy="14" r=".6" style="fill:#c9d4ff"></circle>
+                  <circle cx="5" cy="9" r="2.4" style="fill:#8fa3ff; animation:drift 4s ease-in-out infinite;"></circle>
+                </g>
+                <g style="display:{{ a.scrBlock }}; animation:flash .9s ease-in-out infinite;">
+                  <rect x="0" y="0" width="15" height="19" style="fill:#ffb547"></rect>
+                  <rect x="6.5" y="4" width="2.2" height="8" style="fill:#3a2405"></rect><rect x="6.5" y="13.5" width="2.2" height="2.2" style="fill:#3a2405"></rect>
+                </g>
+              </g>
+            </g>
+            <ellipse cx="144.5" cy="112.8" rx="4.5" ry="2.2" style="fill:#3b2a1a"></ellipse>
+            <line x1="144.5" y1="112" x2="144.5" y2="92" style="stroke:#3b2a1a; stroke-width:1.6"></line>
+            <polygon points="137,93 152,93 165,118 124,118" style="fill:#ffe2a0; opacity:{{ a.coneOp }};"></polygon>
+            <polygon points="136,93 153,93 149,80 140,80" style="fill:{{ a.shade }}; stroke:#7a5a2a; stroke-width:.8"></polygon>
+            <g style="display:{{ a.smokeDisp }};"><circle cx="112" cy="64" r="7" style="fill:#5a5560; animation:smoke 1.6s ease-out infinite;"></circle><circle cx="120" cy="60" r="6" style="fill:#6c6670; animation:smoke 1.6s ease-out .5s infinite;"></circle><circle cx="106" cy="58" r="5" style="fill:#7a7480; animation:smoke 1.6s ease-out 1s infinite;"></circle><path d="M108 76 q4 -9 8 0 q-1 -5 3 -8 q2 6 -1 10 z" style="fill:#ff7a2a;"></path></g>
+
+            </svg>
+          <div onClick="{{ a.onTray }}" title="Inbox tray: {{ a.trayN }} waiting" style="display:{{ a.trayDisp }}; position:absolute; left:58px; top:96px; width:36px; height:24px; pointer-events:auto; cursor:pointer; animation:{{ a.trayAnim }};">
+            <svg width="36" height="24" viewBox="0 0 36 24"><polygon points="2,10 20,2 34,9 16,18" style="fill:#7a5a3a; stroke:#3b2a1a; stroke-width:1"></polygon><polygon points="2,10 16,18 16,22 2,14" style="fill:#5e4228"></polygon><polygon points="16,18 34,9 34,13 16,22" style="fill:#4a3420"></polygon><polygon points="7,9 20,4 29,8 16,14" style="fill:#fff7e0; display:{{ a.trayPaper }};"></polygon></svg>
+          </div>
+          <svg width="200" height="200" viewBox="0 0 200 200" style="position:absolute; left:0; top:0; overflow:visible;">
+            <circle cx="68" cy="112" r="14" style="fill:none; stroke:#7cc4ff; stroke-width:2; transform-box:fill-box; transform-origin:center; animation:ping .9s ease-out infinite; display:{{ a.pingDisp }};"></circle>
+            <polygon points="58,97 100,68 185,126 112,194 18,160 40,104" onClick="{{ a.onClick }}" onMouseEnter="{{ a.onEnter }}" onMouseLeave="{{ a.onLeave }}" style="fill:transparent; pointer-events:all; cursor:pointer;"></polygon>
+          </svg>
+        </div>
+      </sc-for>
+
+      <sc-for list="{{ people }}" as="p" hint-placeholder-count="8">
+        <div style="position:absolute; left:{{ p.x }}px; top:{{ p.y }}px; width:48px; height:66px; z-index:{{ p.z }}; transition:left 2.6s linear, top 2.6s linear; pointer-events:none;">
+          <div style="width:48px; height:66px; transform-origin:center bottom; animation:{{ p.anim }};">
+            <div style="width:48px; height:66px; overflow:hidden; filter:drop-shadow(0 2px 0 rgba(0,0,0,.25));"><img ref="{{ p.imgRef }}" alt="" style="display:block; height:66px; width:{{ p.sheetW }}px; max-width:none; image-rendering:pixelated; animation:{{ p.sprAnim }};"></img></div>
+          </div>
+        </div>
+      </sc-for>
+      <sc-for list="{{ decor }}" as="d" hint-placeholder-count="6">
+        <div ref="{{ d.ref }}" onClick="{{ d.onClick }}" title="{{ d.title }}" role="button" aria-label="{{ d.title }}" style="position:absolute; left:{{ d.l }}px; top:{{ d.t }}px; width:{{ d.w }}px; height:{{ d.h }}px; z-index:{{ d.z }}; transform:{{ d.tf }}; transform-origin:0 0; cursor:pointer;" style-hover="filter:drop-shadow(0 0 6px rgba(255,207,107,.95));"></div>
+      </sc-for>
+      <sc-for list="{{ hot }}" as="h" hint-placeholder-count="6">
+        <div onClick="{{ h.onClick }}" title="{{ h.title }}" role="button" aria-label="{{ h.title }}" style="position:absolute; left:{{ h.l }}px; top:{{ h.t }}px; width:{{ h.w }}px; height:{{ h.h }}px; z-index:1490; cursor:pointer; border-radius:6px;" style-hover="outline:2px dashed rgba(255,207,107,.85); background:rgba(255,207,107,.08);"></div>
+      </sc-for>
+      <svg width="1240" height="800" viewBox="0 0 1240 800" style="position:absolute; left:0; top:0; z-index:1500; pointer-events:none; mix-blend-mode:screen;">
+        <defs>
+          <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:#ffd88a; stop-opacity:.42"></stop><stop offset="1" style="stop-color:#ffd88a; stop-opacity:0"></stop></linearGradient>
+        </defs>
+        <polygon points="149,275 232,234 590,520 470,610" style="fill:url(#beam)"></polygon>
+        <polygon points="343,178 426,137 800,420 690,505" style="fill:url(#beam)"></polygon>
+        <circle cx="260" cy="350" r="1.6" style="fill:#fff3c8; animation:mote 3s ease-in-out infinite;"></circle>
+        <circle cx="330" cy="420" r="1.3" style="fill:#fff3c8; animation:mote 4s ease-in-out 1s infinite;"></circle>
+        <circle cx="400" cy="470" r="1.6" style="fill:#fff3c8; animation:mote 3.5s ease-in-out .5s infinite;"></circle>
+        <circle cx="480" cy="270" r="1.3" style="fill:#fff3c8; animation:mote 4.5s ease-in-out 2s infinite;"></circle>
+        <circle cx="560" cy="330" r="1.6" style="fill:#fff3c8; animation:mote 3.2s ease-in-out 1.4s infinite;"></circle>
+        <circle cx="640" cy="390" r="1.2" style="fill:#fff3c8; animation:mote 3.8s ease-in-out .2s infinite;"></circle>
+      </svg>
+
+      <sc-for list="{{ agents }}" as="a" hint-placeholder-count="8">
+        <div style="position:absolute; left:{{ a.bx }}px; top:{{ a.by }}px; z-index:2000; transform:translate(-50%,-100%); pointer-events:none;">
+          <sc-if value="{{ a.hasBubble }}" hint-placeholder-val="{{ false }}">
+            <div style="animation:pop .25s ease-out;">
+              <div style="position:relative; padding:5px 10px; border-radius:2px; background:{{ a.bBg }}; color:{{ a.bFg }}; border:2px solid #1b1220; font-family:'Pixelify Sans',sans-serif; font-size:15px; white-space:nowrap; box-shadow:0 3px 0 rgba(0,0,0,.35); animation:{{ a.bAnim }};">{{ a.bText }}<div style="position:absolute; left:50%; bottom:-7px; width:10px; height:10px; transform:translateX(-50%) rotate(45deg); background:{{ a.bBg }}; border-right:2px solid #1b1220; border-bottom:2px solid #1b1220;"></div></div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="position:absolute; left:{{ a.nx }}px; top:{{ a.ny }}px; z-index:2000; transform:translateX(-50%); pointer-events:none; display:flex; align-items:center; gap:5px; padding:2px 7px; border-radius:5px; background:rgba(20,12,8,.72); font-family:'Pixelify Sans',sans-serif; font-size:12px; color:#f6e7cf; white-space:nowrap;">
+          <div style="width:7px; height:7px; border-radius:50%; background:{{ a.dot }};"></div>{{ a.name }}
+        </div>
+        <button onClick="{{ a.onNudge }}" onMouseEnter="{{ a.onEnter }}" onMouseLeave="{{ a.onLeave }}" style="position:absolute; left:{{ a.hx }}px; top:{{ a.hy }}px; z-index:2001; display:{{ a.hoverDisp }}; align-items:center; gap:4px; padding:5px 10px; border-radius:6px; border:2px solid #2a1a0c; background:#ffcf6b; color:#2a1a0c; font-family:'Pixelify Sans',sans-serif; font-size:13px; cursor:pointer; box-shadow:0 3px 0 #8a5a1c;" style-hover="background:#ffe08f;">⚡ Nudge</button>
+      </sc-for>
+    </div>
+
+    <div style="position:absolute; top:16px; left:16px; right:16px; z-index:3000; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; pointer-events:none;">
+      <div style="display:flex; flex-direction:column; gap:2px; padding:10px 14px; border-radius:10px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; pointer-events:auto;">
+        <div style="font-family:'Pixelify Sans',sans-serif; font-size:20px; color:#ffdca0;">Agent Office</div>
+        <div style="font-size:12px; color:#a8998a;"><span style="color:{{ onlineColor }};">●</span> {{ onlineLabel }} · {{ totalN }} agents{{ overflowLabel }} · {{ tasksDone }} turns done</div>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; pointer-events:auto;">
+        <div style="display:{{ pillDisp }}; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; font-size:13px;"><div style="width:9px; height:9px; border-radius:50%; background:#5fd38d;"></div>{{ workingN }} Working</div>
+        <div style="display:{{ pillDisp }}; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; font-size:13px;"><div style="width:9px; height:9px; border-radius:50%; background:#e9e2d6;"></div>{{ idleN }} Free</div>
+        <button onClick="{{ jumpBlocked }}" style="display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:{{ blockedPillBg }}; border:1px solid {{ blockedPillBorder }}; color:#ffd28a; font:inherit; font-size:13px; cursor:pointer;"><div style="width:9px; height:9px; border-radius:50%; background:#ffb547; animation:{{ blockedDotAnim }};"></div>{{ blockedN }} {{ blockedWord }}</button>
+        <button onClick="{{ toggleManager }}" title="{{ mgrTitle }}" style="display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid {{ mgrBorder }}; color:#f0e4d4; font:inherit; font-size:13px; cursor:pointer;"><div style="width:9px; height:9px; border-radius:2px; background:{{ mgrDot }};"></div>Kiro approves {{ mgrLabel }}</button>
+        <button onClick="{{ openUsage }}" title="Usage and plan limits" style="display:{{ pillDisp }}; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid {{ weekBorder }}; color:#f0e4d4; font:inherit; font-size:13px; cursor:pointer;">{{ creditsToday }} credits today · week {{ weekPct }}</button>
+        <button onClick="{{ openReports }}" style="display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; color:#f0e4d4; font:inherit; font-size:13px; cursor:pointer;">▤ {{ reportsLabel }}</button>
+        <div style="position:relative;">
+          <button onClick="{{ toggleDispatch }}" style="padding:8px 14px; border-radius:999px; background:#ffcf6b; border:1px solid #ffcf6b; color:#2a1a0c; font:inherit; font-size:13px; font-weight:600; cursor:pointer;" style-hover="background:#ffe08f;">{{ taskBtn }}</button>
+          <sc-if value="{{ dispatchOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute; right:0; top:calc(100% + 8px); width:320px; padding:12px; border-radius:10px; background:#1d1714; border:1px solid #4a3a2c; box-shadow:0 12px 30px rgba(0,0,0,.5); display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:12px; color:#a8998a;">Kiro adds it to today's board and hires specialists for it</div>
+              <input value="{{ dispatchText }}" onChange="{{ onDispatchInput }}" onKeyDown="{{ onDispatchKey }}" autofocus="true" placeholder="e.g. Check the n8n failure emails from today" style="padding:9px 10px; border-radius:7px; border:1px solid #4a3a2c; background:#120e0c; color:#f0e4d4; font:inherit; font-size:13px; outline:none;"></input>
+              <button onClick="{{ doDispatch }}" style="align-self:flex-end; padding:7px 12px; border-radius:7px; border:none; background:#ffcf6b; color:#2a1a0c; font:inherit; font-size:13px; font-weight:600; cursor:pointer;">Dispatch</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:absolute; {{ todayPos }} left:16px; z-index:2900; width:{{ todayW }}; max-height:{{ todayMax }}; display:flex; flex-direction:column; border-radius:10px; background:rgba(26,20,17,.92); border:1px solid #3a2e25; box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden;">
+      <button onClick="{{ toggleToday }}" style="display:flex; align-items:center; gap:8px; padding:10px 12px; border:none; background:transparent; color:#ffdca0; font-family:'Pixelify Sans',sans-serif; font-size:15px; cursor:pointer; text-align:left;">
+        <span style="flex:1; white-space:nowrap;">Today · {{ goalDone }}/{{ goalTotal }} done</span>
+        <span style="font-family:'Instrument Sans',sans-serif; font-size:12px; color:#a8998a; white-space:nowrap;">{{ bossLabel }}</span>
+        <span style="color:#a8998a;">{{ todayChevron }}</span>
+      </button>
+      <sc-if value="{{ todayOpen }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; flex-direction:column; gap:6px; padding:0 12px 12px; overflow-y:auto; min-height:0;">
+          <sc-for list="{{ goalsV }}" as="g" hint-placeholder-count="3">
+            <div style="display:flex; flex-direction:column; gap:4px; padding:8px 9px; border-radius:7px; background:#120e0c; border:1px solid {{ g.border }};">
+              <div style="display:flex; align-items:flex-start; gap:8px;">
+                <span style="flex-shrink:0; margin-top:1px; padding:1px 6px; border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.04em; background:{{ g.chipBg }}; color:{{ g.chipFg }};">{{ g.label }}</span>
+                <span style="flex:1; min-width:0; font-size:13px; line-height:1.35; color:{{ g.fg }}; text-decoration:{{ g.strike }}; word-break:break-word;">{{ g.text }}</span>
+              </div>
+              <sc-if value="{{ g.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px; line-height:1.35; color:#a8998a; word-break:break-word;">{{ g.note }}</div></sc-if>
+              <sc-if value="{{ g.hasReport }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ g.onReport }}" style="align-self:flex-start; padding:4px 10px; border-radius:5px; border:1px solid #3f7a55; background:transparent; color:#7fd49b; font:inherit; font-size:12px; cursor:pointer;">▤ Read report</button>
+              </sc-if>
+              <sc-if value="{{ g.proposed }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; gap:6px;">
+                  <button onClick="{{ g.onAccept }}" style="padding:4px 10px; border-radius:5px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-size:12px; font-weight:600; cursor:pointer;">Add to today</button>
+                  <button onClick="{{ g.onDismiss }}" style="padding:4px 10px; border-radius:5px; border:1px solid #4a3a2c; background:transparent; color:#a8998a; font:inherit; font-size:12px; cursor:pointer;">Dismiss</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ g.blocked }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; gap:6px;">
+                  <button onClick="{{ g.onAsk }}" style="padding:4px 10px; border-radius:5px; border:1px solid #6b5a48; background:transparent; color:#ffd28a; font:inherit; font-size:12px; cursor:pointer;">Reply to Kiro</button>
+                  <button onClick="{{ g.onReopen }}" style="padding:4px 10px; border-radius:5px; border:1px solid #4a3a2c; background:transparent; color:#a8998a; font:inherit; font-size:12px; cursor:pointer;">Retry</button>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noGoals }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px; color:#7d7064; padding:4px 2px;">No goals yet. Add one below, or ask Kiro to suggest some.</div></sc-if>
+          <div style="display:flex; gap:6px; margin-top:2px;">
+            <input value="{{ goalText }}" onChange="{{ onGoalInput }}" onKeyDown="{{ onGoalKey }}" placeholder="Add a goal for today…" style="flex:1; min-width:0; padding:8px 9px; border-radius:7px; border:1px solid #3a2e25; background:#120e0c; color:#f0e4d4; font:inherit; font-size:13px; outline:none;"></input>
+            <button onClick="{{ addGoal }}" style="padding:7px 10px; border-radius:7px; border:none; background:#ffcf6b; color:#2a1a0c; font:inherit; font-size:13px; font-weight:600; cursor:pointer;">Add</button>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onClick="{{ tidyOffice }}" title="Hide idle desks and take finished goals off the board (reports stay)" style="flex:1; padding:6px 8px; border-radius:7px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font:inherit; font-size:12px; cursor:pointer;" style-hover="background:#2a211b; color:#f0e4d4;">Tidy office</button>
+            <button onClick="{{ resetBoss }}" title="Start Kiro with a clean memory; goals and reports stay" style="flex:1; padding:6px 8px; border-radius:7px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font:inherit; font-size:12px; cursor:pointer;" style-hover="background:#2a211b; color:#f0e4d4;">Fresh Kiro</button>
+          </div>
+          <button onClick="{{ startBoss }}" style="padding:7px 10px; border-radius:7px; border:1px solid #4a3a2c; background:transparent; color:#d7c3a8; font:inherit; font-size:12.5px; cursor:pointer;" style-hover="background:#2a211b;">{{ bossButton }}</button>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ usageOpen }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ closeUsage }}" style="position:fixed; inset:0; z-index:4500; background:rgba(8,5,4,.6);"></div>
+      <div style="position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:4501; width:min(720px,96vw); max-height:88vh; display:flex; flex-direction:column; background:#1a1512; border:1px solid #4a3a2c; border-radius:12px; box-shadow:0 30px 80px rgba(0,0,0,.6); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #33281f;">
+          <span style="flex:1; font-family:'Pixelify Sans',sans-serif; font-size:19px; color:#ffdca0;">Usage</span>
+          <button onClick="{{ refreshLimits }}" style="padding:6px 10px; border-radius:7px; border:1px solid #3a2e25; background:transparent; color:#d7c3a8; font:inherit; font-size:12.5px; cursor:pointer;">↻ Refresh limits</button>
+          <button onClick="{{ closeUsage }}" style="width:32px; height:32px; border-radius:8px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font-size:18px; cursor:pointer;">×</button>
+        </div>
+        <div style="overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:18px;">
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:12px; letter-spacing:.06em; color:#a8998a;">PLAN LIMITS · {{ planName }}</div>
+            <sc-for list="{{ limitRows }}" as="l" hint-placeholder-count="2">
+              <div style="display:flex; flex-direction:column; gap:5px;">
+                <div style="display:flex; justify-content:space-between; gap:10px; font-size:13.5px;"><span>{{ l.name }}</span><span style="color:{{ l.color }}; font-weight:600;">{{ l.pct }}</span></div>
+                <div style="height:9px; border-radius:5px; background:#120e0c; border:1px solid #2a211b; overflow:hidden;"><div style="height:100%; width:{{ l.w }}; background:{{ l.color }};"></div></div>
+                <div style="font-size:11.5px; color:#7d7064;">{{ l.resets }}</div>
+              </div>
+            </sc-for>
+            <div style="font-size:12.5px; color:#a8998a;">{{ limitNote }}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:12px; letter-spacing:.06em; color:#a8998a;">EXTRA USAGE CREDITS SPENT · REAL MONEY</div>
+            <div style="display:flex; gap:6px;">
+              <sc-for list="{{ creditDays }}" as="d" hint-placeholder-count="7">
+                <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:7px 2px; border-radius:7px; background:#120e0c; border:1px solid {{ d.border }};">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:{{ d.fg }};">{{ d.amount }}</span>
+                  <span style="font-size:10.5px; color:#7d7064;">{{ d.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px; line-height:1.45; color:#7d7064;">{{ creditNote }}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:12px; letter-spacing:.06em; color:#a8998a;">LAST 7 DAYS · TOKENS</div>
+            <div style="display:flex; align-items:flex-end; gap:6px; height:110px; padding:0 2px; border-bottom:1px solid #3a2e25;">
+              <sc-for list="{{ dayBars }}" as="d" hint-placeholder-count="7">
+                <div title="{{ d.tip }}" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:3px; height:100%;">
+                  <span style="font-size:10.5px; color:#a8998a; white-space:nowrap;">{{ d.cost }}</span>
+                  <div style="width:100%; max-width:46px; height:{{ d.h }}%; min-height:2px; border-radius:3px 3px 0 0; background:{{ d.c }};"></div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; gap:6px; padding:0 2px;">
+              <sc-for list="{{ dayBars }}" as="d" hint-placeholder-count="7"><span style="flex:1; text-align:center; font-size:10.5px; color:#7d7064;">{{ d.label }}</span></sc-for>
+            </div>
+            <div style="display:grid; grid-template-columns:auto 1fr auto auto; gap:6px 14px; font-size:12.5px; margin-top:6px;">
+              <span style="color:#7d7064;">Day</span><span style="color:#7d7064;">Models</span><span style="color:#7d7064; text-align:right;">Tokens</span><span style="color:#7d7064; text-align:right;">API value*</span>
+              <sc-for list="{{ dayRows }}" as="d" hint-placeholder-count="7">
+                <span>{{ d.day }}</span><span style="color:#a8998a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ d.models }}</span><span style="text-align:right; font-family:'IBM Plex Mono',monospace;">{{ d.tokens }}</span><span style="text-align:right; font-family:'IBM Plex Mono',monospace; color:#8c8278;">{{ d.cost }}</span>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px; line-height:1.45; color:#7d7064;">Tokens count every Claude Code session and helper on this PC (not other devices or claude.ai chats). *API value is what the same tokens would cost on the pay-per-token API. Your subscription is not billed this way; it is only there to compare days and models. What you actually pay beyond the plan is the credits above.</div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; left:50%; bottom:24px; transform:translateX(-50%); z-index:3000; padding:9px 16px; border-radius:8px; background:#1d1714; border:1px solid #4a3a2c; font-size:13px; animation:pop .2s ease-out;">{{ toast }}</div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ isModal }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; z-index:3990; background:rgba(8,5,4,.6); animation:pop .2s ease-out;"></div>
+  </sc-if>
+  <div style="{{ drawerCss }}">
+    <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ drawerInnerCss }}">
+        <div style="padding:18px 18px 14px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid #33281f;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:50px; height:50px; flex-shrink:0; border-radius:8px; background:#2a211b; border:2px solid #1b1220; overflow:hidden; display:flex; justify-content:center;">
+              <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}"><img ref="{{ sel.imgRef }}" alt="" style="display:block; width:48px; height:66px; margin-top:4px; image-rendering:pixelated;"></img></sc-if>
+            </div>
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="font-family:'Pixelify Sans',sans-serif; font-size:20px; color:#fff1dc;">{{ sel.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 7px; border-radius:5px; background:#2a211b; border:1px solid #3e3128; color:#d7c3a8;">{{ sel.model }}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#a8998a;">
+                <span>{{ sel.role }}</span>
+                <span style="display:flex; align-items:center; gap:6px; color:{{ sel.statusColor }};"><div style="width:8px; height:8px; border-radius:50%; background:{{ sel.statusColor }};"></div>{{ sel.statusLabel }}</span>
+              </div>
+            </div>
+            <button onClick="{{ togglePop }}" title="{{ popTitle }}" style="width:32px; height:32px; border-radius:8px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font-size:15px; cursor:pointer;" style-hover="background:#2a211b; color:#fff;">{{ popIcon }}</button>
+            <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; border-radius:8px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font-size:18px; cursor:pointer;" style-hover="background:#2a211b; color:#fff;">×</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="flex:1; min-width:0; font-size:13px; color:#cdbda9; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><span style="color:#7d7064;">Task </span>{{ sel.taskText }}</div>
+            <button onClick="{{ nudgeSel }}" style="padding:8px 13px; border-radius:8px; border:none; background:#ffcf6b; color:#2a1a0c; font:inherit; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 2px 0 #8a5a1c;" style-hover="background:#ffe08f;">⚡ Nudge Agent</button>
+          </div>
+        </div>
+
+        <div ref="{{ termRef }}" style="flex:1; min-height:0; overflow-y:auto; background:#0e0c0b; padding:12px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+          <sc-for list="{{ selLogs }}" as="l" hint-placeholder-count="8">
+            <div style="display:grid; grid-template-columns:58px 44px minmax(0,1fr); gap:8px; padding:2px 0; line-height:1.55;">
+              <span style="color:#5d544c;">{{ l.t }}</span>
+              <span style="color:{{ l.tagColor }}; font-weight:600;">{{ l.tag }}</span>
+              <span style="color:{{ l.color }}; font-style:{{ l.fs }}; white-space:pre-wrap; word-break:break-word;">{{ l.text }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ sel.blocked }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:12px; padding:12px; border-radius:8px; background:#2a1d0c; border:1px solid #ffb547; display:flex; flex-direction:column; gap:10px; animation:pop .25s ease-out;">
+              <div style="display:flex; align-items:center; gap:8px; color:#ffb547; font-weight:600; letter-spacing:.06em; font-size:11px;"><div style="width:8px; height:8px; border-radius:50%; background:#ffb547; animation:flash 1s infinite;"></div>PERMISSION REQUIRED</div>
+              <div style="color:#f2e2c8;">Allow execution of</div>
+              <div style="padding:8px 10px; border-radius:6px; background:#120c05; color:#ffd28a; word-break:break-all;">$ {{ sel.permCmd }}</div>
+              <div style="color:#b39c7e; font-size:11.5px;">{{ sel.permWhy }}</div>
+              <sc-if value="{{ modifyOpen }}" hint-placeholder-val="{{ false }}">
+                <input value="{{ modifyText }}" onChange="{{ onModifyInput }}" onKeyDown="{{ onModifyKey }}" style="padding:8px 10px; border-radius:6px; border:1px solid #6b4f2a; background:#120c05; color:#ffe8c2; font:inherit; outline:none;"></input>
+              </sc-if>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button onClick="{{ approveSel }}" style="padding:7px 12px; border-radius:6px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#7ee4a5;">{{ approveLabel }}</button>
+                <button onClick="{{ denySel }}" style="padding:7px 12px; border-radius:6px; border:1px solid #ff7a6b; background:transparent; color:#ff9a8d; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#3a1612;">Deny (N)</button>
+                <sc-if value="{{ sel.canModify }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ toggleModify }}" style="padding:7px 12px; border-radius:6px; border:1px solid #6b5a48; background:transparent; color:#d7c3a8; font:inherit; cursor:pointer;" style-hover="background:#2a211b;">{{ modifyLabel }}</button>
+                </sc-if>
+                <button onClick="{{ terminalSel }}" style="padding:7px 12px; border-radius:6px; border:1px solid #6b5a48; background:transparent; color:#d7c3a8; font:inherit; cursor:pointer;" style-hover="background:#2a211b;">Answer in terminal</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="padding:12px 14px 14px; border-top:1px solid #33281f; display:flex; flex-direction:column; gap:9px;">
+          <div style="display:flex; align-items:center; gap:8px; padding:4px 4px 4px 12px; border-radius:9px; background:#120e0c; border:1px solid #3a2e25;">
+            <span style="font-family:'IBM Plex Mono',monospace; color:#ffcf6b;">›</span>
+            <input value="{{ input }}" onChange="{{ onInput }}" onKeyDown="{{ onInputKey }}" placeholder="{{ inputPh }}" style="flex:1; min-width:0; padding:8px 0; border:none; background:transparent; color:#f0e4d4; font-family:'IBM Plex Mono',monospace; font-size:12.5px; outline:none;"></input>
+            <button onClick="{{ submitInput }}" style="padding:7px 12px; border-radius:7px; border:none; background:#3a2e25; color:#f0e4d4; font:inherit; font-size:12px; cursor:pointer;" style-hover="background:#4a3a2c;">Send</button>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+              <button onClick="{{ c.onClick }}" style="padding:3px 8px; border-radius:5px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer;" style-hover="color:#ffcf6b; border-color:#6b5a48;">{{ c.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const KEY=new URLSearchParams(location.search).get('key')||'';
+const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-key':KEY},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
+const pad=n=>String(n).padStart(2,'0');
+const stamp=d=>pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+const KIND={sys:['SYS','#8fb4ff','#b9cdf5'],tool:['TOOL','#e7b75f','#e9d3a6'],think:['THINK','#8c8278','#a59a8e'],out:['OUT','#7fd49b','#d9d1c5'],err:['ERR','#ff7a6b','#ffb1a6'],user:['YOU','#7ee2c8','#c9f3e6'],agent:['AGENT','#f0c27a','#f2e6d6'],hitl:['HITL','#ffb547','#ffd28a']};
+const STATUS={working:['Working','#5fd38d'],idle:['Available','#5fd38d'],blocked:['Awaiting permission','#ffb547'],limited:['Plan limit reached','#ffb547'],error:['Error','#ff7a6b'],nudged:['Nudged','#7cc4ff']};
+const BOSS_SLOT=[350,270],BOSS_LOOK={shirt:'#2d3f73',hair:'#3b2418',skin:'#e6b48c'};
+const GOAL={proposed:['IDEA','#3a2f55','#c9b8ff'],todo:['TO DO','#2a211b','#d7c3a8'],doing:['DOING','#0d2a1c','#5ef0a0'],blocked:['NEEDS YOU','#3a2405','#ffb547'],done:['DONE','#1b2a20','#7fd49b'],dismissed:['DROPPED','#1d1714','#6f645a']};
+// Where idle agents hang out (top-left of the 48x66 sprite, office coordinates) and how deep they sit.
+const SPOTS=[[425,498,1100],[470,512,1110],[515,526,1120],[548,520,1150],[492,438,1000]];
+const COOLER=[[792,282,620],[770,296,640]];
+const CHATTER=['Coffee break ☕','Anyone need a hand?','Waiting for the next task…','Lo-fi hits different 🎧','New high score! 🎮','Watering the plants 🌱','Back in 5','Reading the SOPs 📁'];
+const DECOR_ART={
+  cork:n=>'<svg width="70" height="58" viewBox="0 0 70 58"><rect x="1" y="1" width="68" height="56" rx="3" fill="#a4744a" stroke="#5a3a1c" stroke-width="3"/><rect x="8" y="8" width="18" height="14" fill="#fdf3dc"/><rect x="34" y="12" width="20" height="13" fill="#fff7d6"/><rect x="14" y="32" width="19" height="14" fill="#fdf3dc"/><rect x="42" y="34" width="18" height="13" fill="#f2e6c8"/><path d="M17 9 L44 13 M23 33 L44 13 M23 33 L50 35" stroke="#b3261e" stroke-width="1.2"/><circle cx="17" cy="9" r="2.4" fill="#e04a3a"/><circle cx="44" cy="13" r="2.4" fill="#3a8ae0"/><circle cx="23" cy="33" r="2.4" fill="#3ae07a"/><circle cx="50" cy="35" r="2.4" fill="#e0c43a"/><text x="35" y="55" text-anchor="middle" font-size="6" font-family="monospace" fill="#3a2a1a">'+n+' notes</text></svg>',
+  breaker:on=>'<svg width="34" height="46" viewBox="0 0 34 46"><rect x="1" y="1" width="32" height="44" rx="2" fill="#8a9099" stroke="#3b3f45" stroke-width="2"/><rect x="5" y="5" width="24" height="36" fill="#5e646c"/>'+on.map((v,i)=>'<rect x="'+(8+(i%3)*7)+'" y="'+(9+Math.floor(i/3)*16)+'" width="4" height="11" fill="#2b2b33"/><rect x="'+(7+(i%3)*7)+'" y="'+(9+Math.floor(i/3)*16+(v?0:6))+'" width="6" height="5" fill="'+(v?'#5fd38d':'#e0573f')+'"/>').join('')+'</svg>',
+  arcade:()=>'<svg width="50" height="92" viewBox="0 0 50 92"><polygon points="6,10 40,4 46,8 46,90 12,92 6,88" fill="#2a1f4a"/><polygon points="40,4 46,8 46,90 40,86" fill="#1c1533"/><rect x="11" y="16" width="27" height="22" fill="#0d1a10" stroke="#3dff8f" stroke-width="1.5"/><text x="24.5" y="30" text-anchor="middle" font-size="7" font-family="monospace" fill="#ff6a6a">{ }</text><rect x="10" y="44" width="30" height="10" fill="#3a2a6a"/><circle cx="18" cy="49" r="2.5" fill="#ff4d6d"/><circle cx="27" cy="49" r="2.5" fill="#ffd23f"/><circle cx="34" cy="49" r="2.5" fill="#3dd6ff"/><text x="25" y="12" text-anchor="middle" font-size="5" font-family="monospace" fill="#ffcf6b">BUGS</text></svg>',
+  jukebox:play=>'<svg width="48" height="74" viewBox="0 0 48 74" style="overflow:visible"><path d="M4 70 V28 a20 20 0 0 1 40 0 V70 z" fill="#7a3a1c" stroke="#3b1a0a" stroke-width="2"/><path d="M9 66 V30 a15 15 0 0 1 30 0 V66 z" fill="'+(play?'#ffb547':'#a8742a')+'" opacity=".9"/><rect x="13" y="40" width="22" height="18" rx="2" fill="#3b1a0a"/>'+[0,1,2,3].map(i=>'<rect x="'+(15+i*5)+'" y="'+(46+(i%2)*3)+'" width="3" height="'+(play?9-(i%2)*3:3)+'" fill="#ffd36b"/>').join('')+(play?'<text x="40" y="10" font-size="12" fill="#ffd36b" style="animation:note 2s linear infinite">♪</text><text x="6" y="4" font-size="10" fill="#ffd36b" style="animation:note 2.4s linear .8s infinite">♫</text>':'')+'</svg>',
+  coffee:on=>'<svg width="32" height="44" viewBox="0 0 32 44" style="overflow:visible"><rect x="2" y="8" width="26" height="34" rx="3" fill="#3b3f45" stroke="#1f2125" stroke-width="2"/><rect x="6" y="12" width="18" height="8" fill="#1f2125"/><circle cx="10" cy="16" r="1.6" fill="'+(on?'#5fd38d':'#555')+'"/><rect x="11" y="26" width="9" height="8" rx="1" fill="#f3ede2"/>'+(on?'<path d="M13 22 q2 -4 0 -8 M17 22 q2 -4 0 -8" stroke="#fff" stroke-width="1.4" fill="none" style="animation:note 1.6s linear infinite" opacity=".8"/>':'')+'</svg>',
+  plant:lv=>{const r=10+lv*3.2,h=40+lv*7;return '<svg width="64" height="'+(h+40)+'" viewBox="0 0 64 '+(h+40)+'" style="overflow:visible"><ellipse cx="32" cy="'+(h+36)+'" rx="18" ry="5" fill="rgba(20,8,0,.25)"/><circle cx="32" cy="'+(h-6-lv*4)+'" r="'+r+'" fill="#3d6b34"/><circle cx="'+(32-r*.7)+'" cy="'+(h+4-lv*2)+'" r="'+r*.8+'" fill="#4c7f3e"/><circle cx="'+(32+r*.7)+'" cy="'+(h+4-lv*2)+'" r="'+r*.8+'" fill="#355f2e"/>'+(lv>=4?'<circle cx="24" cy="'+(h-10-lv*4)+'" r="3" fill="#ffd1e8"/><circle cx="40" cy="'+(h-2-lv*4)+'" r="3" fill="#fff"/>':'')+(lv>=6?'<circle cx="32" cy="'+(h-lv*4)+'" r="3.5" fill="#e0573f"/>':'')+'<polygon points="20,'+(h+12)+' 44,'+(h+12)+' 41,'+(h+36)+' 23,'+(h+36)+'" fill="#a65f2c"/><rect x="18" y="'+(h+9)+'" width="28" height="6" fill="#c07238"/><text x="32" y="'+(h+28)+'" text-anchor="middle" font-size="6" font-family="monospace" fill="#ffe0b0">LV'+lv+'</text></svg>';},
+};
+const SLOTS=[[120,150],[215,150],[470,120],[565,120],[110,470],[205,470],[460,450],[555,450]];
+const SHIRTS=['#5aa65a','#8a5cc2','#c0503f','#e0893a','#3f7fa8','#3a9c8f','#c9a43a','#c25a8a'],HAIRS=['#d39a52','#3b2418','#1f1a1a','#141010','#c9c3b8','#6b3a1f','#a8432a','#2a2a3a'],SKINS=['#f0c69c','#c98d62','#e6b48c','#8d5a3b','#f2cfae','#d9a57a','#f3d0b0','#b5774f'];
+const hash=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))|0;return Math.abs(h);};
+const looks=id=>{const h=hash(id);return {shirt:SHIRTS[h%8],hair:HAIRS[(h>>3)%8],skin:SKINS[(h>>6)%8]};};
+const HEAD=[".....OOOOOO.....","....OHHHHHHO....","...OHHHHHHHHO...","..OHHHHHHHHHHO..","..OHHhHHHHhHHO..","..OHSSSSSSSSHO..","..OSSSSSSSSSSO..","..OSSESSSSESSO..","..OSSESSSSESSO..","..OsSSSSSSSSsO..","...OsSSmmSSsO...","....OOSSSSOO...."];
+const LEGS=["..KOPPPPPPPPOK..","..KOPPOOOOPPOK..","...OOO....OOO...","......OKKO......"];
+const B_MUG=["..KOCCCCCCCCOK..","..OCCCCCCCCCCO..",".OCCcCCCCCCcCCO.",".OSCcCCCCCCOWWO.",".OSOCCCCCCOSWWWO","..OOccccccccOOO."];
+const B_SIP=["..KOCCCCCCCOWWO.","..OCCCCCCCCSWWO.",".OCCcCCCCCCSOO..",".OSCcCCCCCCCCO..",".OSOCCCCCCCCO...","..OOccccccccOO.."];
+const B_UP=["..KOCCCCCCCCOK..","..OCCCCCCCCCCO..",".OCCcCCCCCCcCCO.",".OSCcCCCCCCcCSO.",".OSOCCCCCCCCOSO.","..OOccccccccOO.."];
+const BACK=[".....OOOOOO.....","....OHHHHHHO....","...OHHHHHHHHO...","..OHHHHHHHHHHO..","..OHHHHHHHHHHO..","..OHHHHHHHHHHO..","..OHHhHHHHhHHO..","..OhHHHHHHHHhO..","..OShhhhhhhhSO..","...OhhhhhhhhO...","....OOsSSsOO....","...OCCCCCCCCO...","..OCCCCCCCCCCO..","..OCCCcCCcCCCO..",".SOCCCCCCCCCCOS.",".OKKKKKKKKKKKKO.",".OKkkkkkkkkkkKO.",".OKKKKKKKKKKKKO.","..OOOOOOOOOOOO..","......OKKO......","....OOOkkOOO....","................"];
+const BACK_B=["................"].concat(BACK.slice(0,10),BACK.slice(11,14),["..SCCCCCCCCCCS.."],BACK.slice(15));
+const FRONT=b=>HEAD.concat(b,LEGS);
+function dk(hex,f){const n=parseInt(hex.slice(1),16);const c=[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v*f));return 'rgb('+c.join(',')+')';}
+const SHEETS={};
+function sheet(a,kind){
+  const key=a.id+kind;if(SHEETS[key])return SHEETS[key];
+  const frames=kind==='back'?[BACK,BACK_B]:kind==='mug'?[FRONT(B_MUG),FRONT(B_SIP)]:[FRONT(B_UP)];
+  const pal={O:'#1b1220',E:'#1b1220',H:a.hair,h:dk(a.hair,.72),S:a.skin,s:dk(a.skin,.85),C:a.shirt,c:dk(a.shirt,.72),P:'#3a3550',K:'#3d3a48',k:'#2a2733',W:'#f3ede2',m:'#8a3a30'};
+  let url='';
+  try{const cv=document.createElement('canvas');cv.width=16*frames.length;cv.height=22;const g=cv.getContext('2d');
+    frames.forEach((rows,fi)=>rows.forEach((row,y)=>{for(let x=0;x<16;x++){const ch=row[x];if(ch&&ch!=='.'&&pal[ch]){g.fillStyle=pal[ch];g.fillRect(fi*16+x,y,1,1);}}}));
+    url=cv.toDataURL();}catch(e){}
+  return SHEETS[key]={url,w:48*frames.length};
+}
+const WOOD=['#b9773a','#8c5426','#6b3e19'],DWOOD=['#7a4a26','#5c361b','#472a14'],GLASS=['rgba(190,225,240,.22)','rgba(170,210,235,.18)','rgba(150,195,225,.14)'],DARK=['#3d3a48','#2f2c38','#24222b'];
+const FURN=[
+ {x:0,y:400,w:38,d:140,h:38,c:['#d8c7a6','#a8956f','#86755a']},
+ {x:5,y:412,w:24,d:22,h:26,z:38,c:['#3a3a42','#2a2a30','#1f1f24']},
+ {x:4,y:470,w:28,d:40,h:20,z:38,c:['#e6e1d6','#c9c3b6','#a9a395']},
+ {x:30,y:0,w:36,d:30,h:64,c:['#9aa1ac','#7a818d','#5f6570']},
+ {x:70,y:0,w:36,d:30,h:64,c:['#9aa1ac','#7a818d','#5f6570']},
+ {x:410,y:2,w:46,d:40,h:118,c:['#33363e','#262930','#1b1d22']},
+ {x:330,y:12,w:24,d:24,h:42,c:['#e8e4dc','#cfc9bd','#b2ac9f']},
+ {x:334,y:16,w:16,d:16,h:22,z:42,c:['rgba(150,205,255,.75)','rgba(120,180,240,.7)','rgba(100,160,220,.7)']},
+ {x:690,y:130,w:50,d:40,h:34,c:WOOD},
+ {x:694,y:134,w:42,d:32,h:16,z:34,c:['#e6e1d6','#c9c3b6','#a9a395']},
+ {x:90,y:356,w:230,d:10,h:30,c:WOOD},
+ {x:90,y:356,w:230,d:10,h:30,z:30,c:GLASS,st:'rgba(230,240,250,.5)'},
+ {x:450,y:334,w:210,d:10,h:30,c:WOOD},
+ {x:450,y:334,w:210,d:10,h:30,z:30,c:GLASS,st:'rgba(230,240,250,.5)'},
+ {x:686,y:250,w:98,d:6,h:96,c:GLASS,st:'rgba(230,240,250,.55)',zz:900},
+ {x:680,y:250,w:6,d:290,h:96,c:GLASS,st:'rgba(230,240,250,.55)',zz:1010},
+ {x:680,y:250,w:104,d:6,h:6,z:96,c:['#9aa1ac','#7a818d','#5f6570'],zz:901},
+ {x:680,y:250,w:6,d:290,h:6,z:96,c:['#9aa1ac','#7a818d','#5f6570'],zz:1011},
+ {x:715,y:320,w:50,d:170,h:28,c:WOOD},
+ {x:695,y:340,w:14,d:14,h:16,c:DARK},{x:695,y:390,w:14,d:14,h:16,c:DARK},{x:695,y:440,w:14,d:14,h:16,c:DARK},
+ {x:769,y:340,w:14,d:14,h:16,c:DARK},{x:769,y:390,w:14,d:14,h:16,c:DARK},{x:769,y:440,w:14,d:14,h:16,c:DARK},
+ {x:330,y:600,w:180,d:150,h:1,c:['#7a3b3b','#5e2c2c','#5e2c2c'],st:'#a35a4a'},
+ {x:350,y:614,w:140,d:10,h:34,c:['#4f6b8a','#3d556f','#2f4359']},
+ {x:350,y:624,w:140,d:30,h:16,c:['#5a7a9c','#46607d','#374c63']},
+ {x:340,y:614,w:10,d:40,h:24,c:['#4f6b8a','#3d556f','#2f4359']},
+ {x:490,y:614,w:10,d:40,h:24,c:['#4f6b8a','#3d556f','#2f4359']},
+ {x:375,y:684,w:90,d:40,h:14,c:DWOOD},
+ {x:400,y:694,w:14,d:10,h:3,z:14,c:['#f3ede2','#d9d1c2','#c2b9a8']}
+];
+const IP=(x,y,z)=>[620+0.7071*(x-y),200+0.3536*(x+y)-(z||0)];
+const FURN_V=FURN.map((f,i)=>{
+  const z0=f.z||0,{x,y,w,d,h}=f;
+  const pts={t:[IP(x,y,z0+h),IP(x+w,y,z0+h),IP(x+w,y+d,z0+h),IP(x,y+d,z0+h)],l:[IP(x,y+d,z0+h),IP(x+w,y+d,z0+h),IP(x+w,y+d,z0),IP(x,y+d,z0)],r:[IP(x+w,y,z0+h),IP(x+w,y+d,z0+h),IP(x+w,y+d,z0),IP(x+w,y,z0)],s:[IP(x+6,y+4,0),IP(x+w+10,y+4,0),IP(x+w+10,y+d+8,0),IP(x+6,y+d+8,0)]};
+  const all=[].concat(pts.t,pts.l,pts.r,pts.s);const L=Math.floor(Math.min(...all.map(p=>p[0])))-2,T=Math.floor(Math.min(...all.map(p=>p[1])))-2;
+  const W=Math.ceil(Math.max(...all.map(p=>p[0])))-L+2,H=Math.ceil(Math.max(...all.map(p=>p[1])))-T+2;
+  const s=k=>pts[k].map(p=>(p[0]-L).toFixed(1)+','+(p[1]-T).toFixed(1)).join(' ');
+  return {k:i,l:L,t:T,w:W,h:H,z:f.zz||Math.round(x+w/2+y+d/2),pt:s('t'),pl:s('l'),pr:s('r'),ps:s('s'),ct:f.c[0],cl:f.c[1],cr:f.c[2],st:f.st||'rgba(0,0,0,.18)',so:(z0===0&&h>4&&!f.st)?0.2:0};
+});
+const PLANTS=[[318,640],[770,556],[668,40],[10,560]].map(([x,y])=>{const p=IP(x,y,0);return {l:Math.round(p[0]-30),t:Math.round(p[1]-80),z:Math.round(x+y+10)};});
+
+class Component extends DCLogic {
+  state={agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',chatter:null,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:false};
+  wrapRef=React.createRef(); termRef=React.createRef();
+  componentDidMount(){
+    const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect();this.setState({scale:Math.min(r.width/1240,(r.height-40)/800)});};
+    this.onResize=()=>this.setState({vw:window.innerWidth});window.addEventListener('resize',this.onResize);
+    this.ro=new ResizeObserver(fit); if(this.wrapRef.current)this.ro.observe(this.wrapRef.current); fit();
+    this.es=new EventSource('/api/stream?key='+encodeURIComponent(KEY));
+    this.es.onopen=()=>this.setState({online:true});
+    this.es.onerror=()=>this.setState({online:false});
+    window.officeToast=t=>this.showToast(t);
+    window.OfficeObjects&&OfficeObjects.onState(x=>this.setState({music:x.playing}));
+    // Idle agents chat now and then: canned lines, no model involved.
+    this.chat=setInterval(()=>{const idle=this.state.agents.filter(a=>a.status==='idle'&&!a.isManager);if(!idle.length)return;const a=idle[Math.random()*idle.length|0];this.setState({chatter:{id:a.id,text:CHATTER[Math.random()*CHATTER.length|0]}});setTimeout(()=>this.setState({chatter:null}),4500);},14000);
+    this.es.onmessage=ev=>{const d=JSON.parse(ev.data);window.OfficeObjects&&OfficeObjects.update(d);this.setState(s=>({manager:d.manager,goals:d.goals||[],boss:d.boss,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,agents:d.agents,overflow:d.overflow,tasksDone:d.tasksDone,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null}));};
+    this.onKey=e=>{
+      const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;
+      const a=this.sel();
+      if(e.key==='Escape'&&!document.querySelector('.oo-win'))this.setState(this.state.usageOpen?{usageOpen:false}:{selectedId:null,popout:false});
+      if(a&&a.perm){if(e.key==='y'||e.key==='Y')this.decide(a,'allow');if(e.key==='n'||e.key==='N')this.decide(a,'deny');}
+    };
+    window.addEventListener('keydown',this.onKey);
+  }
+  componentWillUnmount(){clearInterval(this.chat);this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
+  componentDidUpdate(){const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
+  sel(){return this.state.agents.find(a=>a.id===this.state.selectedId);}
+  showToast(t){this.setState({toast:t});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({toast:''}),3200);}
+  note(id,k,text){this.setState(s=>({local:{...s.local,[id]:[...(s.local[id]||[]),{t:stamp(new Date()),k,text}].slice(-20)}}));}
+  send(a,text){return api('/api/send',{id:a.id,text}).catch(e=>{this.note(a.id,'err',e.message);this.showToast(e.message);});}
+  nudge(id){
+    const a=this.state.agents.find(x=>x.id===id);if(!a)return;
+    if(a.perm){this.setState({selectedId:id});return;}
+    this.setState(s=>({nudged:{...s.nudged,[id]:Date.now()}}));setTimeout(()=>this.setState(s=>{const n={...s.nudged};delete n[id];return {nudged:n};}),1800);
+    if(a.canSend)this.send(a,'continue');else this.showToast(a.name+' is watch-only. Restart that terminal so the bridge loads.');
+  }
+  decide(a,decision,command){
+    if(!a.perm)return;
+    api('/api/decide',{askId:a.perm.askId,decision,command:command&&command!==a.perm.cmd?command:undefined}).catch(e=>this.showToast(e.message));
+    this.setState({modifyOpen:false});
+  }
+  runCommand(text){
+    const a=this.sel();if(!a||!text.trim())return;const t=text.trim();
+    this.setState({input:''});
+    if(t==='/nudge')return this.nudge(a.id);
+    if(t==='/clear')return this.setState(s=>({cleared:{...s.cleared,[a.id]:a.logs.length},local:{...s.local,[a.id]:[]}}));
+    if(t==='/pause')return api('/api/interrupt',{id:a.id}).then(()=>this.note(a.id,'sys','Interrupt sent')).catch(e=>this.showToast(e.message));
+    if(t==='/help')return this.note(a.id,'sys','Commands: /nudge  /clear  /pause  /task <description>. Anything else is sent to the session.');
+    const msg=t.startsWith('/task')?t.slice(5).trim():t;
+    if(!msg)return this.note(a.id,'err','Usage: /task <description>');
+    this.send(a,msg);
+  }
+  dispatch(){
+    const text=this.state.dispatchText.trim();if(!text)return;
+    api('/api/task',{text}).then(()=>this.showToast('Sent to Kiro')).catch(e=>this.showToast(e.message));
+    this.setState({dispatchText:'',dispatchOpen:false});
+  }
+  usageVals(){
+    const s=this.state, u=s.usage||{}, days=u.days||[], L=u.limits||{}, today=days[days.length-1]||{cost:0,tokens:0};
+    const $=v=>'$'+(v>=100?v.toFixed(0):v.toFixed(2)), tok=v=>v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?Math.round(v/1e3)+'K':String(v);
+    const sev=p=>p==null?'#8c8278':p>=90?'#e0573f':p>=75?'#d9893a':'#3f8f5a';
+    const pct=w=>w&&w.pct!=null?Math.round(w.pct)+'%':'–';
+    const when=t=>{if(!t)return '';const d=new Date(t),h=(d-Date.now())/36e5;return 'Resets '+(h<24?'in '+(h<1?Math.max(1,Math.round(h*60))+' min':Math.round(h)+' h'):d.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}));};
+    const max=Math.max(...days.map(d=>d.tokens),1), cr=u.credits||{}, crToday=cr[today.day]||0, since=u.creditsSince;
+    const rows=[['Current session (5 hours)',L.session],['Weekly, all models',L.weekly],...(L.models||[]).map(m=>['Weekly, '+m.name,m])].filter(r=>r[1]);
+    return {
+      openUsage:()=>this.setState({usageOpen:true}),closeUsage:()=>this.setState({usageOpen:false}),usageOpen:s.usageOpen,
+      refreshLimits:()=>api('/api/limits').then(()=>this.showToast('Plan limits updated')).catch(e=>this.showToast(e.message)),
+      costToday:$(today.cost),tokToday:tok(today.tokens),creditsToday:$(crToday),
+      creditDays:days.map((d,i)=>{const v=cr[d.day]||0,before=since&&d.day<since;return {amount:before?'–':$(v),label:i===days.length-1?'Today':new Date(d.day+'T12:00').toLocaleDateString([], {weekday:'short'}),fg:v>0?'#ffb547':'#8c8278',border:v>0?'#6b4f2a':'#2a211b'};}),
+      creditNote:(L.extra?'Month to date: '+$(L.extra.used)+(L.extra.limit?' of your '+$(L.extra.limit)+' limit':'')+'. ':'Extra usage is off or unknown. ')+(since?'Agent Office has been counting daily spend since '+since+'; earlier days show “–”. ':'')+'Credits are used only after a plan limit is reached.',
+      weekPct:pct(L.weekly),sessPct:pct(L.session),weekColor:sev(L.weekly&&L.weekly.pct),sessColor:sev(L.session&&L.session.pct),
+      weekBorder:L.weekly&&L.weekly.pct>=75?sev(L.weekly.pct):'#3a2e25',
+      planName:(L.plan||'unknown plan').toUpperCase(),
+      limitRows:rows.map(([name,w])=>({name,pct:pct(w),w:Math.min(100,w.pct||0)+'%',color:sev(w.pct),resets:when(w.resets)})),
+      limitNote:L.error?'Could not read plan limits: '+L.error:L.available===false?'Plan limits don’t apply to this login (API key or cloud provider).':(L.extra?'Extra usage credits used this month: '+$(L.extra.used)+(L.extra.limit?' of '+$(L.extra.limit):'')+'.':'')+(L.at?' Checked '+new Date(L.at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+'.':' Checking…'),
+      bars:days.map((d,i)=>({h:Math.max(3,Math.round(d.tokens/max*100)),c:i===days.length-1?'#d9773a':'#7a8fb8'})),
+      dayBars:days.map((d,i)=>({cost:tok(d.tokens),h:Math.round(d.tokens/max*100),c:i===days.length-1?'#d9773a':'#7a8fb8',label:i===days.length-1?'Today':new Date(d.day+'T12:00').toLocaleDateString([], {weekday:'short'}),tip:d.day+': '+$(d.cost)+', '+tok(d.tokens)+' tokens'})),
+      dayRows:days.slice().reverse().map(d=>({day:d.day,cost:$(d.cost),tokens:tok(d.tokens),models:Object.entries(d.models).filter(([,v])=>v>=0.005).sort((a,b)=>b[1]-a[1]).map(([m,v])=>m.replace('claude-','')+' '+$(v)).join(' · ')||'–'})),
+    };
+  }
+  openReports(file){ window.OfficeObjects&&OfficeObjects.open('reports',file); }
+  officeVals(agents){
+    const s=this.state, O=k=>()=>window.OfficeObjects&&OfficeObjects.open(k), sw=s.switches||{}, rk=s.rack||{};
+    const art=(k,v)=>{const html=DECOR_ART[k](v);return el=>{if(el&&el.dataset.html!==html){el.dataset.html=html;el.innerHTML=html;}};};
+    return {
+      people:agents.map(a=>({x:a.px,y:a.py,z:a.pz,anim:a.walkAnim,imgRef:a.imgRef,sheetW:a.sheetW,sprAnim:a.sprAnim})),
+      ledColor:rk.led==='red'?'#ff5a4a':rk.led==='amber'?'#ffb547':'#5ef0a0',
+      reportsLabel:'Reports'+(s.reportsN?' ('+s.reportsN+')':''),
+      decor:[
+        {k:'cork',l:432,t:128,w:52,h:44,z:1,tf:'skewY(-26.57deg) scale(.74)',title:'Corkboard: memory notes ('+(s.memoryN||0)+')',ref:art('cork',s.memoryN||0),onClick:O('memory')},
+        {k:'breaker',l:990,t:232,w:34,h:46,z:1,tf:'skewY(26.57deg)',title:'Breaker box: switches',ref:art('breaker',['kiro','autopilot','hiring','bridge','guard','espresso'].map(k=>k==='espresso'?!!sw.espresso:sw[k]!==false)),onClick:O('breaker')},
+        {k:'arcade',l:612,t:528,w:50,h:92,z:1180,tf:'none',title:'Arcade: Bug Squasher',ref:art('arcade'),onClick:O('arcade')},
+        {k:'jukebox',l:446,t:418,w:48,h:74,z:960,tf:'none',title:s.music?'Jukebox (playing)':'Jukebox',ref:art('jukebox',!!s.music),onClick:O('jukebox')},
+        {k:'coffee',l:776,t:262,w:32,h:44,z:610,tf:'none',title:sw.espresso?'Coffee machine: espresso ready':'Coffee machine',ref:art('coffee',!!sw.espresso),onClick:O('coffee')},
+        {k:'plant',l:522,t:500,w:64,h:100,z:1130,tf:'none',title:'Server plant',ref:art('plant',window.OfficeObjects?OfficeObjects.plantLevel():0),onClick:O('plant')},
+      ],
+      hot:[
+        {l:485,t:84,w:106,h:150,title:'Bookshelf: reports',onClick:O('reports')},
+        {l:1040,t:256,w:96,h:176,title:'Bookshelf: reports',onClick:O('reports')},
+        {l:620,t:142,w:82,h:94,title:'Filing cabinet: SOPs',onClick:O('sops')},
+        {l:880,t:222,w:62,h:150,title:'Server rack: '+(rk.cpu??'–')+'% CPU, '+(rk.mem??'–')+'% memory',onClick:O('rack')},
+      ],
+    };
+  }
+  // Side panel when there is room, bottom sheet on narrow screens, or a centred window when popped out.
+  panel(open){
+    const s=this.state, base='background:#1a1512; overflow:hidden; display:flex; flex-direction:column;';
+    if(s.popout&&open)return {isModal:true,drawerCss:base+'position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(860px,94vw); height:min(86vh,820px); z-index:4000; border:1px solid #4a3a2c; border-radius:12px; box-shadow:0 30px 80px rgba(0,0,0,.6);',drawerInnerCss:'width:100%; height:100%; display:flex; flex-direction:column;'};
+    if(s.vw<1100)return {isModal:false,drawerCss:base+'position:fixed; left:0; right:0; bottom:0; height:'+(open?'62vh':'0')+'; z-index:4000; border-top:1px solid #4a3a2c; border-radius:14px 14px 0 0; box-shadow:0 -20px 50px rgba(0,0,0,.5); transition:height .3s cubic-bezier(.3,.7,.2,1);',drawerInnerCss:'width:100%; height:62vh; display:flex; flex-direction:column;'};
+    return {isModal:false,drawerCss:base+'width:'+(open?440:0)+'px; flex-shrink:0; transition:width .35s cubic-bezier(.3,.7,.2,1); border-left:1px solid #33281f;',drawerInnerCss:'width:440px; height:100vh; display:flex; flex-direction:column;'};
+  }
+  today(){
+    const s=this.state, b=s.boss||{}, live=s.goals.filter(g=>g.status!=='dismissed');
+    const bossId=(s.agents.find(x=>x.isManager)||{}).id;
+    // The header wraps to two rows when the side panel leaves the office narrow; sit below it.
+    const officeW=s.vw-(this.sel()&&!s.popout&&s.vw>=1100?440:0), top=officeW>=1090?96:150;
+    const addGoal=()=>{const t=s.goalText.trim();if(!t)return;this.setState({goalText:''});api('/api/task',{text:t}).then(()=>this.showToast('Added. Kiro is on it.')).catch(e=>this.showToast(e.message));};
+    const act=(id,action)=>api('/api/goal',{id,action}).catch(e=>this.showToast(e.message));
+    return {
+      todayPos:s.vw<700?'bottom:16px;':'top:'+top+'px;',todayMax:s.vw<700?'55vh':'calc(100vh - '+(top+24)+'px)',todayW:s.vw<700?'calc(100vw - 32px)':'300px',
+      todayOpen:s.todayOpen,todayChevron:s.todayOpen?'▾':'▸',toggleToday:()=>this.setState({todayOpen:!s.todayOpen}),
+      goalDone:live.filter(g=>g.status==='done').length,goalTotal:live.filter(g=>g.status!=='proposed').length,noGoals:!live.length,
+      bossLabel:b.active?'Kiro in · '+b.running+'/'+b.max+' busy':'Kiro away',
+      bossButton:b.active?'Ask Kiro to check in':(s.goals.some(g=>g.status==='todo'||g.status==='doing')?'▶ Start the workday':'▶ Ask Kiro for ideas'),
+      tidyOffice:()=>api('/api/tidy').then(r=>this.showToast('Tidied: '+r.desks+' idle desk'+(r.desks===1?'':'s')+' hidden, '+r.goals+' finished goal'+(r.goals===1?'':'s')+' cleared. Reports are kept.')).catch(e=>this.showToast(e.message)),
+      resetBoss:()=>{if(!confirm('Start Kiro with a clean memory? Goals and reports stay.'))return;api('/api/boss-reset').then(()=>this.showToast('Kiro will start fresh next time')).catch(e=>this.showToast(e.message));},
+      startBoss:()=>api('/api/boss').then(()=>this.showToast('Kiro is checking the board')).catch(e=>this.showToast(e.message)),
+      goalText:s.goalText,onGoalInput:e=>this.setState({goalText:e.target.value}),onGoalKey:e=>{if(e.key==='Enter')addGoal();},addGoal,
+      goalsV:live.map(g=>{const c=GOAL[g.status]||GOAL.todo,done=g.status==='done',cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;return {text:done?cut(g.text,70):g.text,note:done?cut(g.note||'',110):(g.note||''),hasNote:!!g.note,label:c[0],chipBg:c[1],chipFg:c[2],
+        border:g.status==='blocked'?'#8a5a1c':g.status==='proposed'?'#4a3f6b':'#2a211b',fg:g.status==='done'?'#8c8278':'#f0e4d4',strike:g.status==='done'?'line-through':'none',
+        proposed:g.status==='proposed',blocked:g.status==='blocked',
+        hasReport:!!g.report,onReport:()=>this.openReports(g.report),
+        onAccept:()=>act(g.id,'accept'),onDismiss:()=>act(g.id,'dismiss'),onReopen:()=>act(g.id,'reopen'),
+        onAsk:()=>{if(bossId)this.setState({selectedId:bossId,input:'About '+g.id+': '});else this.showToast('Kiro is away. Start the workday first.');}};})
+    };
+  }
+  renderVals(){
+    const s=this.state;
+    let slot=0;
+    const agents=s.agents.map(a0=>{
+      const [fx,fy]=a0.isManager?BOSS_SLOT:SLOTS[slot++%SLOTS.length];const a={...a0,...looks(a0.id),...(a0.isManager?BOSS_LOOK:{}),fx,fy};
+      const sx=620+0.7071*(a.fx-a.fy), sy=200+0.3536*(a.fx+a.fy);
+      const left=Math.round(sx-100), top=Math.round(sy-110);
+      const st=s.nudged[a.id]?'nudged':a.status, w=st==='working', idle=st==='idle', bl=st==='blocked', nu=st==='nudged', lim=st==='limited', err=st==='error';
+      const scr=w?['#0d2a1c','#5ef0a0']:bl?['#3a2405','#ffb547']:nu?['#0d1f3a','#7cc4ff']:['#10163a','#8fa3ff'];
+      const tok=a.turnTok>=1000?(a.turnTok/1000).toFixed(1)+'k':String(a.turnTok||0);
+      const chat=s.chatter&&s.chatter.id===a.id?s.chatter.text:'';
+      const bub=lim?['#ffe2a0','#2a1600','#7a4a00','⏳ '+(a.errText||'Plan limit reached').slice(0,40),'none']:err?['#ff9a8d','#2a0b06','#7a2a1c','🔥 '+(a.errText||'Error').slice(0,40),'none']:chat?['#f4efe4','#2a2420','#5a4a3c',chat,'none']:w&&a.task?['#f4efe4','#2a2420','#5a4a3c',(a.task.length>30?a.task.slice(0,29)+'…':a.task)+' · '+tok+' tok','none']:bl?['#ffb547','#2a1600','#7a4a00','⚠ Permission needed: '+(a.perm?a.perm.short:''),'pulse 1.1s ease-in-out infinite']:nu?['#7cc4ff','#0b1c33','#244a7a','On it!','none']:null;
+      const kind=(w||bl||err)?'back':(idle||lim)?'mug':'up', sh=sheet(a,kind);
+      // Where the person is: at the desk while working, in the breakroom when idle, at the cooler when rate-limited.
+      const deskX=left+44, deskY=top+106, idleIx=s.agents.filter(x=>x.status==='idle'&&!x.isManager).findIndex(x=>x.id===a.id), limIx=s.agents.filter(x=>x.status==='limited').findIndex(x=>x.id===a.id);
+      const spot=(idle&&!a.isManager&&idleIx>=0&&idleIx<SPOTS.length)?SPOTS[idleIx]:(lim&&limIx>=0&&limIx<COOLER.length)?COOLER[limIx]:null;
+      const px=spot?spot[0]:deskX, py=spot?spot[1]:deskY;
+      return {id:a.id,name:a.name.length>22?a.name.slice(0,21)+'…':a.name,left,top,z:Math.round(a.fx+a.fy+75),
+        selDisp:s.selectedId===a.id?'inline':'none',
+        lampGlow:idle?0.12:1,coneOp:idle?0.04:0.22,shade:idle?'#9a7a48':'#ffd36b',
+        scrBg:scr[0],scrColor:scr[1],scrGlow:idle?0.12:0.35,
+        scrLines:(w||nu)?'inline':'none',scrIdle:idle?'inline':'none',scrBlock:bl?'inline':'none',
+        hasSprite:true,imgRef:(u=>el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);})(sh.url),sheetW:sh.w,
+        sprAnim:w?'frames2 .38s steps(2) infinite':idle?'frames2 3.2s steps(2) infinite':'none',
+        pingDisp:nu?'inline':'none',
+        anim:nu?'jump .9s ease-out 2':'none',
+        hasBubble:!!bub,bBg:bub?bub[0]:'',bFg:bub?bub[1]:'',bBorder:bub?bub[2]:'',bText:bub?bub[3]:'',bAnim:bub?bub[4]:'none',
+        bx:px+24,by:py-12,nx:px+24,ny:py+74,hx:left+112,hy:top+150,
+        px,py,pz:spot?spot[2]:Math.round(a.fx+a.fy+76),walkAnim:err?'pace 1.4s ease-in-out infinite':lim?'tap .5s ease-in-out infinite':nu?'jump .9s ease-out 2':'none',
+        smokeDisp:err?'inline':'none',
+        trayDisp:a.isManager?'block':'none',trayN:s.agents.filter(x=>x.perm).length,trayPaper:s.agents.some(x=>x.perm)?'inline':'none',trayAnim:s.agents.some(x=>x.perm)?'glow 1.2s ease-in-out infinite':'none',
+        onTray:e=>{e.stopPropagation();window.OfficeObjects&&OfficeObjects.open('inbox');},
+        dot:bl||lim?'#ffb547':err?'#ff7a6b':nu?'#7cc4ff':w?'#5fd38d':'#e9e2d6',
+        hoverDisp:s.hoveredId===a.id?'flex':'none',
+        onClick:()=>this.setState({selectedId:a.id,modifyOpen:false}),
+        onEnter:()=>{clearTimeout(this.ht);this.setState({hoveredId:a.id});},
+        onLeave:()=>{clearTimeout(this.ht);this.ht=setTimeout(()=>this.setState({hoveredId:null}),220);},
+        onNudge:e=>{e.stopPropagation();this.nudge(a.id);}
+      };
+    });
+    const workingN=s.agents.filter(a=>a.status==='working').length;
+    const idleN=s.agents.filter(a=>a.status==='idle').length;
+    const blockedN=s.agents.filter(a=>a.status==='blocked').length;
+    const a0=this.sel(), a=a0&&{...a0,...looks(a0.id),...(a0.isManager?BOSS_LOOK:{})};
+    const st=a&&(s.nudged[a.id]?'nudged':a.status);
+    const sel=a?{imgRef:(u=>el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);})(sheet(a,'up').url),name:a.name,role:a.role+(a.canSend?'':' · watch-only'),model:a.model,
+      statusLabel:STATUS[st][0],statusColor:STATUS[st][1],
+      taskText:a.task||'None, waiting for work',blocked:!!a.perm,permCmd:a.perm?a.perm.cmd:'',permWhy:a.perm?a.perm.why:'',canModify:!!(a.perm&&a.perm.canModify)}:{};
+    const logs=a?a.logs.slice(s.cleared[a.id]||0).concat(s.local[a.id]||[]):[];
+    const selLogs=logs.map(l=>{const k=KIND[l.k]||KIND.sys;return {t:l.t,tag:k[0],tagColor:k[1],color:k[2],fs:l.k==='think'?'italic':'normal',text:l.text};});
+    return {
+      furn:FURN_V,plants:PLANTS,wrapRef:this.wrapRef,termRef:this.termRef,scale:s.scale.toFixed(4),agents,
+      workingN,idleN,blockedN,totalN:s.agents.length,tasksDone:s.tasksDone,
+      overflowLabel:s.overflow?' · +'+s.overflow+' more':'',onlineLabel:s.claudeMissing?'Claude Code not found: install it and log in':s.online?'Live':'Offline: is the server running?',onlineColor:s.online?'#5fd38d':'#ff7a6b',
+      blockedPillBg:blockedN?'rgba(70,42,10,.92)':'rgba(26,20,17,.88)',blockedPillBorder:blockedN?'#8a5a1c':'#3a2e25',blockedDotAnim:blockedN?'flash 1s infinite':'none',
+      jumpBlocked:()=>{window.OfficeObjects&&OfficeObjects.open('inbox');},
+      toggleManager:()=>{const on=!(s.manager&&s.manager.on);api('/api/manager',{on}).then(()=>this.showToast(on?'Kiro is approving safe requests for you':'Kiro auto-approve off: every request comes to you')).catch(e=>this.showToast(e.message));},
+      mgrLabel:s.manager?(s.manager.on?(s.vw<700?'on · '+s.manager.approved+'✓ · '+s.manager.escalated+'↑':'on · '+s.manager.approved+' approved · '+s.manager.escalated+' to you'):'off'):'…',pillDisp:s.vw<700?'none':'flex',taskBtn:s.vw<700?'+ Task':'+ Give Kiro a task',blockedWord:s.vw<700?'waiting':'Awaiting Permission',
+      mgrDot:s.manager&&s.manager.on?'#5fd38d':'#6b5d50',mgrBorder:s.manager&&s.manager.on?'#3f7a55':'#3a2e25',
+      mgrTitle:s.manager?(s.manager.last||'No decisions yet')+'. Click to turn '+(s.manager.on?'off':'on')+'.':'',
+      toggleDispatch:()=>this.setState({dispatchOpen:!s.dispatchOpen}),dispatchOpen:s.dispatchOpen,dispatchText:s.dispatchText,
+      onDispatchInput:e=>this.setState({dispatchText:e.target.value}),onDispatchKey:e=>{if(e.key==='Enter')this.dispatch();if(e.key==='Escape')this.setState({dispatchOpen:false});},doDispatch:()=>this.dispatch(),
+      hasToast:!!s.toast,toast:s.toast,
+      ...this.panel(!!a),hasSel:!!a,sel,selLogs,
+      closeDrawer:()=>this.setState({selectedId:null,popout:false}),
+      togglePop:()=>this.setState({popout:!s.popout}),popIcon:s.popout?'▭':'⤢',popTitle:s.popout?'Dock the panel':'Pop out into a window',
+      ...this.today(),...this.usageVals(),...this.officeVals(agents),
+      nudgeSel:()=>a&&this.nudge(a.id),
+      approveSel:()=>a&&this.decide(a,'allow',s.modifyOpen?s.modifyText:null),denySel:()=>a&&this.decide(a,'deny'),terminalSel:()=>a&&this.decide(a,'terminal'),
+      approveLabel:s.modifyOpen?'Run modified (Y)':'Approve (Y)',modifyLabel:s.modifyOpen?'Cancel edit':'Modify',
+      toggleModify:()=>this.setState({modifyOpen:!s.modifyOpen,modifyText:a&&a.perm?a.perm.cmd:''}),modifyOpen:s.modifyOpen,modifyText:s.modifyText,
+      onModifyInput:e=>this.setState({modifyText:e.target.value}),onModifyKey:e=>{if(e.key==='Enter'&&a)this.decide(a,'allow',s.modifyText);},
+      input:s.input,onInput:e=>this.setState({input:e.target.value}),onInputKey:e=>{if(e.key==='Enter')this.runCommand(s.input);},submitInput:()=>this.runCommand(s.input),
+      inputPh:a?(a.canSend?'Message '+a.name+' or type /help':'Watch-only: exit that terminal and run  claude --resume '+a.id+'  to reply from here'):'',
+      chips:['/nudge','/clear','/pause','/task '].map(c=>({label:c.trim()==='/task'?'/task <new task>':c,onClick:()=>{if(c==='/task '){this.setState({input:'/task '});}else this.runCommand(c);}}))
+    };
+  }
+}
+</script>
+</body>
+</html>

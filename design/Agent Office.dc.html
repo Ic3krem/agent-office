@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#0f0c0d;overflow:hidden}
+a{color:#ffcf6b}a:hover{color:#ffe3a3}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.6px)}}
+@keyframes jump{0%{transform:translateY(0)}18%{transform:translateY(-14px)}36%{transform:translateY(0) rotate(-5deg)}52%{transform:translateY(-6px) rotate(4deg)}68%,100%{transform:translateY(0) rotate(0)}}
+@keyframes scroll{from{transform:translateY(0)}to{transform:translateY(-12px)}}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes steam{0%{opacity:0;transform:translateY(0)}50%{opacity:.8}100%{opacity:0;transform:translateY(-7px)}}
+@keyframes mote{0%,100%{opacity:.1}50%{opacity:.9}}
+@keyframes ping{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.4);opacity:0}}
+@keyframes drift{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}
+@keyframes frames2{from{transform:translateX(0)}to{transform:translateX(-96px)}}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+input::placeholder{color:#6f645a}
+</style>
+</helmet>
+<div style="display:flex; width:100vw; height:100vh; background:#0f0c0d; font-family:'Instrument Sans',sans-serif; color:#f0e4d4;">
+  <div ref="{{ wrapRef }}" style="position:relative; flex:1; min-width:0; overflow:hidden; background:radial-gradient(ellipse at 45% 45%, #2b201a 0%, #151012 60%, #0d0a0b 100%);">
+
+    <div style="position:absolute; left:50%; top:52%; width:1240px; height:800px; transform:translate(-50%,-50%) scale({{ scale }}); transform-origin:center;">
+      <svg width="1240" height="800" viewBox="0 0 1240 800" style="position:absolute; left:0; top:0; z-index:0;">
+        <polygon points="66,477 620,200 620,10 66,287" style="fill:#2e3058"></polygon>
+        <polygon points="620,200 1174,477 1174,287 620,10" style="fill:#25274a"></polygon>
+        <polyline points="66,287 620,10 1174,287" style="fill:none; stroke:#40437a; stroke-width:6"></polyline>
+        <polyline points="66,477 620,200 1174,477" style="fill:none; stroke:#5a3a1e; stroke-width:6"></polyline>
+        <polygon points="66,477 620,754 620,770 66,493" style="fill:#6b4a2e"></polygon>
+        <polygon points="620,754 1174,477 1174,493 620,770" style="fill:#4e341f"></polygon>
+      </svg>
+      <div style="position:absolute; left:620px; top:477px; width:784px; height:784px; transform:translate(-50%,-50%) scaleY(0.5) rotate(45deg); z-index:0; background-image:radial-gradient(circle at 22% 30%, rgba(255,205,130,.28), transparent 55%), radial-gradient(circle at 50% 50%, transparent 45%, rgba(20,10,6,.5) 100%), linear-gradient(rgba(60,30,10,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(60,30,10,.18) 1px, transparent 1px), conic-gradient(#c88f55 25%, #b37a45 0 50%, #c88f55 0 75%, #b37a45 0); background-size:auto, auto, 56px 56px, 56px 56px, 112px 112px;"></div>
+
+      <div style="position:absolute; left:149px; top:275px; width:83px; height:110px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:5px solid #6b4220; background:repeating-linear-gradient(to bottom, rgba(140,80,25,.4) 0 2px, transparent 2px 9px), linear-gradient(#ffe7ae, #f2b35c); box-shadow:0 0 40px rgba(255,200,110,.45);"></div>
+      <div style="position:absolute; left:343px; top:178px; width:83px; height:110px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:5px solid #6b4220; background:repeating-linear-gradient(to bottom, rgba(140,80,25,.4) 0 2px, transparent 2px 9px), linear-gradient(#ffe7ae, #f2b35c); box-shadow:0 0 40px rgba(255,200,110,.45);"></div>
+      <div style="position:absolute; left:481px; top:119px; width:111px; height:150px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:6px solid #7a4a22; background:repeating-linear-gradient(to bottom, transparent 0 31px, #7a4a22 31px 37px), repeating-linear-gradient(90deg, #8f3b2e 0 7px, #3f6b4a 7px 12px, #c99a3c 12px 18px, #2f4a72 18px 24px, #6b3a5a 24px 29px, #d8cdb5 29px 33px);"></div>
+      <div style="position:absolute; left:1036px; top:258px; width:100px; height:150px; transform:skewY(26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:6px solid #6a3f1c; background:repeating-linear-gradient(to bottom, transparent 0 31px, #6a3f1c 31px 37px), repeating-linear-gradient(90deg, #2f4a72 0 6px, #8f3b2e 6px 12px, #d8cdb5 12px 15px, #3f6b4a 15px 22px, #c99a3c 22px 27px, #6b3a5a 27px 33px); filter:brightness(.85);"></div>
+
+      <div style="position:absolute; left:731px; top:90px; width:166px; height:92px; transform:skewY(26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:4px solid #9a9fa8; background:#f3eee2; padding:6px 8px; font-family:'Pixelify Sans',sans-serif; color:#2b2b36; display:flex; flex-direction:column; gap:3px; filter:brightness(.88);">
+        <div style="font-size:9px; letter-spacing:.08em; color:#a2463a;">SYSTEM · LIVE</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1px 8px; font-size:9.5px; line-height:1.2;">
+          <span>Active {{ workingN }}/{{ totalN }}</span><span>Tok/s {{ tokNow }}</span>
+          <span>Done {{ tasksDone }}</span><span style="color:#b9671a">HITL {{ blockedN }}</span>
+        </div>
+        <div style="flex:1; display:flex; align-items:flex-end; gap:3px; border-bottom:1px solid #b9b3a6;">
+          <sc-for list="{{ bars }}" as="b" hint-placeholder-count="12">
+            <div style="flex:1; height:{{ b.h }}%; background:{{ b.c }};"></div>
+          </sc-for>
+        </div>
+      </div>
+
+      
+      <svg width="80" height="110" viewBox="0 0 80 110" style="position:absolute; left:1082px; top:385px; z-index:770; overflow:visible;">
+        <circle cx="40" cy="40" r="20" style="fill:#355f2e"></circle><circle cx="25" cy="55" r="16" style="fill:#3d6b34"></circle><circle cx="55" cy="55" r="16" style="fill:#2e5428"></circle><circle cx="40" cy="25" r="13" style="fill:#4c7f3e"></circle>
+        <polygon points="24,68 56,68 52,96 28,96" style="fill:#8f5226"></polygon><rect x="22" y="64" width="36" height="7" style="fill:#a65f2c"></rect>
+      </svg>
+
+      <div style="position:absolute; left:83px; top:334px; width:55px; height:135px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border:5px solid #4a2c14; border-bottom:none; background:linear-gradient(90deg,#7a4a26,#8c5a30); display:flex; align-items:center; justify-content:flex-end; padding-right:6px;"><div style="width:5px; height:5px; border-radius:50%; background:#e8c070;"></div></div>
+      <div style="position:absolute; left:92px; top:318px; width:36px; height:11px; transform:skewY(-26.57deg); transform-origin:0 0; z-index:1; background:#1d5a34; color:#bff2cf; font-family:'Pixelify Sans',sans-serif; font-size:8px; line-height:11px; text-align:center;">EXIT</div>
+      <div style="position:absolute; left:949px; top:196px; width:28px; height:28px; transform:skewY(26.57deg); transform-origin:0 0; z-index:1; box-sizing:border-box; border-radius:50%; border:3px solid #3b2a1a; background:#f3eee2;"><div style="position:absolute; left:11.5px; top:4px; width:2px; height:10px; background:#2b2b36;"></div><div style="position:absolute; left:12px; top:12px; width:8px; height:2px; background:#a2463a;"></div></div>
+      <sc-for list="{{ furn }}" as="f" hint-placeholder-count="20">
+        <svg width="{{ f.w }}" height="{{ f.h }}" style="position:absolute; left:{{ f.l }}px; top:{{ f.t }}px; z-index:{{ f.z }}; overflow:visible; pointer-events:none;">
+          <polygon points="{{ f.ps }}" style="fill:#140800; opacity:{{ f.so }};"></polygon>
+          <polygon points="{{ f.pl }}" style="fill:{{ f.cl }}; stroke:{{ f.st }}; stroke-width:.7;"></polygon>
+          <polygon points="{{ f.pr }}" style="fill:{{ f.cr }}; stroke:{{ f.st }}; stroke-width:.7;"></polygon>
+          <polygon points="{{ f.pt }}" style="fill:{{ f.ct }}; stroke:{{ f.st }}; stroke-width:.7;"></polygon>
+        </svg>
+      </sc-for>
+      <div style="position:absolute; left:880px; top:242px; width:32px; height:116px; transform:skewY(26.57deg); transform-origin:0 0; z-index:460; box-sizing:border-box; padding:8px 5px; display:flex; flex-direction:column; gap:7px; pointer-events:none;">
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:#5ef0a0; animation:flash .7s infinite;"></div><div style="width:3px; height:3px; background:#5ef0a0; animation:flash 1.3s infinite;"></div><div style="width:3px; height:3px; background:#ffb547;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:#5ef0a0; animation:flash 1.1s infinite;"></div><div style="width:3px; height:3px; background:#7cc4ff; animation:flash .5s infinite;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:#5ef0a0; animation:flash .9s infinite;"></div><div style="width:3px; height:3px; background:#5ef0a0; animation:flash 1.7s infinite;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:#7cc4ff; animation:flash .6s infinite;"></div><div style="width:3px; height:3px; background:#5ef0a0; animation:flash 1.2s infinite;"></div></div>
+        <div style="height:9px; background:#15171b; display:flex; align-items:center; gap:3px; padding:0 3px;"><div style="width:3px; height:3px; background:#5ef0a0; animation:flash 1.5s infinite;"></div></div>
+      </div>
+      <sc-for list="{{ plants }}" as="p" hint-placeholder-count="5">
+        <svg width="60" height="84" style="position:absolute; left:{{ p.l }}px; top:{{ p.t }}px; z-index:{{ p.z }}; overflow:visible; pointer-events:none;">
+          <ellipse cx="30" cy="80" rx="16" ry="5" style="fill:rgba(20,8,0,.25)"></ellipse>
+          <circle cx="30" cy="30" r="15" style="fill:#3d6b34"></circle><circle cx="19" cy="42" r="12" style="fill:#4c7f3e"></circle><circle cx="41" cy="42" r="12" style="fill:#355f2e"></circle><circle cx="30" cy="18" r="10" style="fill:#5a8f47"></circle>
+          <polygon points="18,52 42,52 39,78 21,78" style="fill:#a65f2c"></polygon><rect x="16" y="49" width="28" height="6" style="fill:#c07238"></rect>
+        </svg>
+      </sc-for>
+      <sc-for list="{{ agents }}" as="a" hint-placeholder-count="8">
+        <div style="position:absolute; left:{{ a.left }}px; top:{{ a.top }}px; width:200px; height:200px; z-index:{{ a.z }}; pointer-events:none;">
+          <svg width="200" height="200" viewBox="0 0 200 200" style="overflow:visible;">
+            <defs>
+              <radialGradient id="lg-{{ a.id }}"><stop offset="0" style="stop-color:#ffd77a; stop-opacity:.75"></stop><stop offset="1" style="stop-color:#ffd77a; stop-opacity:0"></stop></radialGradient>
+              <clipPath id="sc-{{ a.id }}"><rect x="0" y="0" width="15" height="19"></rect></clipPath>
+            </defs>
+            <polygon points="100,99 185,142 96,186 12,144" style="fill:rgba(255,207,107,.22); stroke:#ffcf6b; stroke-width:2; stroke-dasharray:6 4; display:{{ a.selDisp }};"></polygon>
+            <polygon points="114,118 178,150 135,171 72,139" style="fill:rgba(20,8,0,.28)"></polygon>
+            <polygon points="58,103 121,135 121,163 58,131" style="fill:#8c5426"></polygon>
+            <polygon points="121,135 164,114 164,142 121,163" style="fill:#6b3e19"></polygon>
+            <polygon points="100,82 164,114 121,135 58,103" style="fill:#b9773a; stroke:#cf8c4a; stroke-width:1"></polygon>
+            <ellipse cx="128" cy="112" rx="42" ry="18" style="fill:url(#lg-{{ a.id }}); opacity:{{ a.lampGlow }};"></ellipse>
+            <ellipse cx="104" cy="118" rx="20" ry="8" style="fill:{{ a.scrColor }}; opacity:{{ a.scrGlow }};"></ellipse>
+            <polygon points="91.5,107.5 109.2,116.3 100.7,120.5 83.3,111.7" style="fill:#d4c9ad; stroke:#a89c80; stroke-width:.8"></polygon>
+            <ellipse cx="114" cy="122" rx="3" ry="1.8" style="fill:#d4c9ad"></ellipse>
+            <polygon points="95.8,75.3 117,85.9 135.4,76.7 114.1,66.1" style="fill:#e8dfc6"></polygon>
+            <polygon points="117,115.9 135.4,106.7 135.4,76.7 117,85.9" style="fill:#b3a78a"></polygon>
+            <polygon points="95.8,105.3 117,115.9 117,85.9 95.8,75.3" style="fill:#d6cbb0"></polygon>
+            <g transform="matrix(1 0.5 0 1 99 81.5)">
+              <g style="clip-path:url(#sc-{{ a.id }});">
+                <rect x="0" y="0" width="15" height="19" style="fill:{{ a.scrBg }};"></rect>
+                <g style="display:{{ a.scrLines }}; animation:scroll 1.1s linear infinite;">
+                  <rect x="1.5" y="1" width="10" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="4" width="6" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="7" width="12" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="10" width="8" height="1.4" style="fill:{{ a.scrColor }}"></rect>
+                  <rect x="1.5" y="13" width="10" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="16" width="6" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="19" width="12" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="22" width="8" height="1.4" style="fill:{{ a.scrColor }}"></rect>
+                  <rect x="1.5" y="25" width="10" height="1.4" style="fill:{{ a.scrColor }}"></rect><rect x="1.5" y="28" width="6" height="1.4" style="fill:{{ a.scrColor }}"></rect>
+                </g>
+                <g style="display:{{ a.scrIdle }};">
+                  <circle cx="3" cy="4" r=".6" style="fill:#c9d4ff"></circle><circle cx="11" cy="7" r=".6" style="fill:#c9d4ff"></circle><circle cx="6" cy="14" r=".6" style="fill:#c9d4ff"></circle>
+                  <circle cx="5" cy="9" r="2.4" style="fill:#8fa3ff; animation:drift 4s ease-in-out infinite;"></circle>
+                </g>
+                <g style="display:{{ a.scrBlock }}; animation:flash .9s ease-in-out infinite;">
+                  <rect x="0" y="0" width="15" height="19" style="fill:#ffb547"></rect>
+                  <rect x="6.5" y="4" width="2.2" height="8" style="fill:#3a2405"></rect><rect x="6.5" y="13.5" width="2.2" height="2.2" style="fill:#3a2405"></rect>
+                </g>
+              </g>
+            </g>
+            <ellipse cx="144.5" cy="112.8" rx="4.5" ry="2.2" style="fill:#3b2a1a"></ellipse>
+            <line x1="144.5" y1="112" x2="144.5" y2="92" style="stroke:#3b2a1a; stroke-width:1.6"></line>
+            <polygon points="137,93 152,93 165,118 124,118" style="fill:#ffe2a0; opacity:{{ a.coneOp }};"></polygon>
+            <polygon points="136,93 153,93 149,80 140,80" style="fill:{{ a.shade }}; stroke:#7a5a2a; stroke-width:.8"></polygon>
+
+            </svg>
+          <div style="position:absolute; left:44px; top:106px; width:48px; height:66px; transform-origin:center bottom; animation:{{ a.anim }};">
+            <div style="width:48px; height:66px; overflow:hidden; filter:drop-shadow(0 2px 0 rgba(0,0,0,.25));"><sc-if value="{{ a.hasSprite }}" hint-placeholder-val="{{ false }}"><img ref="{{ a.imgRef }}" alt="" style="display:block; height:66px; width:{{ a.sheetW }}px; max-width:none; image-rendering:pixelated; animation:{{ a.sprAnim }};"></img></sc-if></div>
+          </div>
+          <svg width="200" height="200" viewBox="0 0 200 200" style="position:absolute; left:0; top:0; overflow:visible;">
+            <circle cx="68" cy="112" r="14" style="fill:none; stroke:#7cc4ff; stroke-width:2; transform-box:fill-box; transform-origin:center; animation:ping .9s ease-out infinite; display:{{ a.pingDisp }};"></circle>
+            <polygon points="58,97 100,68 185,126 112,194 18,160 40,104" onClick="{{ a.onClick }}" onMouseEnter="{{ a.onEnter }}" onMouseLeave="{{ a.onLeave }}" style="fill:transparent; pointer-events:all; cursor:pointer;"></polygon>
+          </svg>
+        </div>
+      </sc-for>
+
+      <svg width="1240" height="800" viewBox="0 0 1240 800" style="position:absolute; left:0; top:0; z-index:1500; pointer-events:none; mix-blend-mode:screen;">
+        <defs>
+          <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:#ffd88a; stop-opacity:.42"></stop><stop offset="1" style="stop-color:#ffd88a; stop-opacity:0"></stop></linearGradient>
+        </defs>
+        <polygon points="149,275 232,234 590,520 470,610" style="fill:url(#beam)"></polygon>
+        <polygon points="343,178 426,137 800,420 690,505" style="fill:url(#beam)"></polygon>
+        <circle cx="260" cy="350" r="1.6" style="fill:#fff3c8; animation:mote 3s ease-in-out infinite;"></circle>
+        <circle cx="330" cy="420" r="1.3" style="fill:#fff3c8; animation:mote 4s ease-in-out 1s infinite;"></circle>
+        <circle cx="400" cy="470" r="1.6" style="fill:#fff3c8; animation:mote 3.5s ease-in-out .5s infinite;"></circle>
+        <circle cx="480" cy="270" r="1.3" style="fill:#fff3c8; animation:mote 4.5s ease-in-out 2s infinite;"></circle>
+        <circle cx="560" cy="330" r="1.6" style="fill:#fff3c8; animation:mote 3.2s ease-in-out 1.4s infinite;"></circle>
+        <circle cx="640" cy="390" r="1.2" style="fill:#fff3c8; animation:mote 3.8s ease-in-out .2s infinite;"></circle>
+      </svg>
+
+      <sc-for list="{{ agents }}" as="a" hint-placeholder-count="8">
+        <div style="position:absolute; left:{{ a.bx }}px; top:{{ a.by }}px; z-index:2000; transform:translate(-50%,-100%); pointer-events:none;">
+          <sc-if value="{{ a.hasBubble }}" hint-placeholder-val="{{ false }}">
+            <div style="animation:pop .25s ease-out;">
+              <div style="position:relative; padding:5px 10px; border-radius:2px; background:{{ a.bBg }}; color:{{ a.bFg }}; border:2px solid #1b1220; font-family:'Pixelify Sans',sans-serif; font-size:15px; white-space:nowrap; box-shadow:0 3px 0 rgba(0,0,0,.35); animation:{{ a.bAnim }};">{{ a.bText }}<div style="position:absolute; left:50%; bottom:-7px; width:10px; height:10px; transform:translateX(-50%) rotate(45deg); background:{{ a.bBg }}; border-right:2px solid #1b1220; border-bottom:2px solid #1b1220;"></div></div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="position:absolute; left:{{ a.nx }}px; top:{{ a.ny }}px; z-index:2000; transform:translateX(-50%); pointer-events:none; display:flex; align-items:center; gap:5px; padding:2px 7px; border-radius:5px; background:rgba(20,12,8,.72); font-family:'Pixelify Sans',sans-serif; font-size:12px; color:#f6e7cf; white-space:nowrap;">
+          <div style="width:7px; height:7px; border-radius:50%; background:{{ a.dot }};"></div>{{ a.name }}
+        </div>
+        <button onClick="{{ a.onNudge }}" onMouseEnter="{{ a.onEnter }}" onMouseLeave="{{ a.onLeave }}" style="position:absolute; left:{{ a.hx }}px; top:{{ a.hy }}px; z-index:2001; display:{{ a.hoverDisp }}; align-items:center; gap:4px; padding:5px 10px; border-radius:6px; border:2px solid #2a1a0c; background:#ffcf6b; color:#2a1a0c; font-family:'Pixelify Sans',sans-serif; font-size:13px; cursor:pointer; box-shadow:0 3px 0 #8a5a1c;" style-hover="background:#ffe08f;">⚡ Nudge</button>
+      </sc-for>
+    </div>
+
+    <div style="position:absolute; top:16px; left:16px; right:16px; z-index:3000; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; pointer-events:none;">
+      <div style="display:flex; flex-direction:column; gap:2px; padding:10px 14px; border-radius:10px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; pointer-events:auto;">
+        <div style="font-family:'Pixelify Sans',sans-serif; font-size:20px; color:#ffdca0;">Agent Office</div>
+        <div style="font-size:12px; color:#a8998a;">Local workspace · {{ totalN }} agents · {{ tasksDone }} tasks done</div>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; pointer-events:auto;">
+        <div style="display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; font-size:13px;"><div style="width:9px; height:9px; border-radius:50%; background:#5fd38d;"></div>{{ workingN }} Working</div>
+        <div style="display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; font-size:13px;"><div style="width:9px; height:9px; border-radius:50%; background:#e9e2d6;"></div>{{ idleN }} Free</div>
+        <button onClick="{{ jumpBlocked }}" style="display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:{{ blockedPillBg }}; border:1px solid {{ blockedPillBorder }}; color:#ffd28a; font:inherit; font-size:13px; cursor:pointer;"><div style="width:9px; height:9px; border-radius:50%; background:#ffb547; animation:{{ blockedDotAnim }};"></div>{{ blockedN }} Awaiting Permission</button>
+        <button onClick="{{ toggleSim }}" style="display:flex; align-items:center; gap:9px; padding:7px 12px 7px 8px; border-radius:999px; background:rgba(26,20,17,.88); border:1px solid #3a2e25; color:#f0e4d4; font:inherit; font-size:13px; cursor:pointer;">
+          <div style="width:30px; height:17px; border-radius:999px; background:{{ simTrack }}; position:relative; transition:background .2s;"><div style="position:absolute; top:2px; left:{{ simKnob }}px; width:13px; height:13px; border-radius:50%; background:#fff8ec; transition:left .2s;"></div></div>
+          Simulate activity
+        </button>
+        <div style="position:relative;">
+          <button onClick="{{ toggleDispatch }}" style="padding:8px 14px; border-radius:999px; background:#ffcf6b; border:1px solid #ffcf6b; color:#2a1a0c; font:inherit; font-size:13px; font-weight:600; cursor:pointer;" style-hover="background:#ffe08f;">+ Dispatch Global Task</button>
+          <sc-if value="{{ dispatchOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute; right:0; top:calc(100% + 8px); width:320px; padding:12px; border-radius:10px; background:#1d1714; border:1px solid #4a3a2c; box-shadow:0 12px 30px rgba(0,0,0,.5); display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:12px; color:#a8998a;">Assigned to the next free agent{{ nextFreeLabel }}</div>
+              <input value="{{ dispatchText }}" onChange="{{ onDispatchInput }}" onKeyDown="{{ onDispatchKey }}" autofocus="true" placeholder="e.g. Summarize yesterday's error logs" style="padding:9px 10px; border-radius:7px; border:1px solid #4a3a2c; background:#120e0c; color:#f0e4d4; font:inherit; font-size:13px; outline:none;"></input>
+              <button onClick="{{ doDispatch }}" style="align-self:flex-end; padding:7px 12px; border-radius:7px; border:none; background:#ffcf6b; color:#2a1a0c; font:inherit; font-size:13px; font-weight:600; cursor:pointer;">Dispatch</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; left:50%; bottom:24px; transform:translateX(-50%); z-index:3000; padding:9px 16px; border-radius:8px; background:#1d1714; border:1px solid #4a3a2c; font-size:13px; animation:pop .2s ease-out;">{{ toast }}</div>
+    </sc-if>
+  </div>
+
+  <div style="width:{{ drawerW }}px; flex-shrink:0; overflow:hidden; transition:width .35s cubic-bezier(.3,.7,.2,1); background:#1a1512; border-left:1px solid #33281f;">
+    <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+      <div style="width:440px; height:100vh; display:flex; flex-direction:column;">
+        <div style="padding:18px 18px 14px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid #33281f;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:50px; height:50px; flex-shrink:0; border-radius:8px; background:#2a211b; border:2px solid #1b1220; overflow:hidden; display:flex; justify-content:center;">
+              <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}"><img ref="{{ sel.imgRef }}" alt="" style="display:block; width:48px; height:66px; margin-top:4px; image-rendering:pixelated;"></img></sc-if>
+            </div>
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="font-family:'Pixelify Sans',sans-serif; font-size:20px; color:#fff1dc;">{{ sel.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 7px; border-radius:5px; background:#2a211b; border:1px solid #3e3128; color:#d7c3a8;">{{ sel.model }}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#a8998a;">
+                <span>{{ sel.role }}</span>
+                <span style="display:flex; align-items:center; gap:6px; color:{{ sel.statusColor }};"><div style="width:8px; height:8px; border-radius:50%; background:{{ sel.statusColor }};"></div>{{ sel.statusLabel }}</span>
+              </div>
+            </div>
+            <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; border-radius:8px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font-size:18px; cursor:pointer;" style-hover="background:#2a211b; color:#fff;">×</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="flex:1; min-width:0; font-size:13px; color:#cdbda9; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><span style="color:#7d7064;">Task </span>{{ sel.taskText }}</div>
+            <button onClick="{{ nudgeSel }}" style="padding:8px 13px; border-radius:8px; border:none; background:#ffcf6b; color:#2a1a0c; font:inherit; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 2px 0 #8a5a1c;" style-hover="background:#ffe08f;">⚡ Nudge Agent</button>
+          </div>
+        </div>
+
+        <div ref="{{ termRef }}" style="flex:1; min-height:0; overflow-y:auto; background:#0e0c0b; padding:12px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+          <sc-for list="{{ selLogs }}" as="l" hint-placeholder-count="8">
+            <div style="display:grid; grid-template-columns:58px 44px minmax(0,1fr); gap:8px; padding:2px 0; line-height:1.55;">
+              <span style="color:#5d544c;">{{ l.t }}</span>
+              <span style="color:{{ l.tagColor }}; font-weight:600;">{{ l.tag }}</span>
+              <span style="color:{{ l.color }}; font-style:{{ l.fs }}; white-space:pre-wrap; word-break:break-word;">{{ l.text }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ sel.blocked }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:12px; padding:12px; border-radius:8px; background:#2a1d0c; border:1px solid #ffb547; display:flex; flex-direction:column; gap:10px; animation:pop .25s ease-out;">
+              <div style="display:flex; align-items:center; gap:8px; color:#ffb547; font-weight:600; letter-spacing:.06em; font-size:11px;"><div style="width:8px; height:8px; border-radius:50%; background:#ffb547; animation:flash 1s infinite;"></div>PERMISSION REQUIRED</div>
+              <div style="color:#f2e2c8;">Allow execution of</div>
+              <div style="padding:8px 10px; border-radius:6px; background:#120c05; color:#ffd28a; word-break:break-all;">$ {{ sel.permCmd }}</div>
+              <div style="color:#b39c7e; font-size:11.5px;">{{ sel.permWhy }}</div>
+              <sc-if value="{{ modifyOpen }}" hint-placeholder-val="{{ false }}">
+                <input value="{{ modifyText }}" onChange="{{ onModifyInput }}" onKeyDown="{{ onModifyKey }}" style="padding:8px 10px; border-radius:6px; border:1px solid #6b4f2a; background:#120c05; color:#ffe8c2; font:inherit; outline:none;"></input>
+              </sc-if>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button onClick="{{ approveSel }}" style="padding:7px 12px; border-radius:6px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#7ee4a5;">{{ approveLabel }}</button>
+                <button onClick="{{ denySel }}" style="padding:7px 12px; border-radius:6px; border:1px solid #ff7a6b; background:transparent; color:#ff9a8d; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#3a1612;">Deny (N)</button>
+                <button onClick="{{ toggleModify }}" style="padding:7px 12px; border-radius:6px; border:1px solid #6b5a48; background:transparent; color:#d7c3a8; font:inherit; cursor:pointer;" style-hover="background:#2a211b;">{{ modifyLabel }}</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="padding:12px 14px 14px; border-top:1px solid #33281f; display:flex; flex-direction:column; gap:9px;">
+          <div style="display:flex; align-items:center; gap:8px; padding:4px 4px 4px 12px; border-radius:9px; background:#120e0c; border:1px solid #3a2e25;">
+            <span style="font-family:'IBM Plex Mono',monospace; color:#ffcf6b;">›</span>
+            <input value="{{ input }}" onChange="{{ onInput }}" onKeyDown="{{ onInputKey }}" placeholder="{{ inputPh }}" style="flex:1; min-width:0; padding:8px 0; border:none; background:transparent; color:#f0e4d4; font-family:'IBM Plex Mono',monospace; font-size:12.5px; outline:none;"></input>
+            <button onClick="{{ submitInput }}" style="padding:7px 12px; border-radius:7px; border:none; background:#3a2e25; color:#f0e4d4; font:inherit; font-size:12px; cursor:pointer;" style-hover="background:#4a3a2c;">Send</button>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+              <button onClick="{{ c.onClick }}" style="padding:3px 8px; border-radius:5px; border:1px solid #3a2e25; background:transparent; color:#a8998a; font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer;" style-hover="color:#ffcf6b; border-color:#6b5a48;">{{ c.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const pad=n=>String(n).padStart(2,'0');
+const stamp=d=>pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+const PERMS=[
+ {cmd:'bash ./scripts/run_lint.sh --fix',short:'Run bash script',why:'Autofix will rewrite 14 files in src/auth.'},
+ {cmd:'rm -rf ./temp_cache',short:'Delete temp_cache',why:'Frees 2.1 GB of stale scan artifacts.'},
+ {cmd:'GRANT WRITE ON prod_db.orders TO agent_api',short:'API write access',why:'Needed to backfill the new status column.'},
+ {cmd:'curl -X POST https://hooks.internal/deploy/staging',short:'Call deploy hook',why:'Triggers a staging deploy of build 4821.'},
+ {cmd:'pip install --upgrade pandas==2.2.2',short:'Install package',why:'Current version lacks the pyarrow string dtype.'},
+ {cmd:'git push origin feature/schema-v2',short:'Push to remote',why:'Publishes 3 commits for review.'}
+];
+const KIND={sys:['SYS','#8fb4ff','#b9cdf5'],tool:['TOOL','#e7b75f','#e9d3a6'],think:['THINK','#8c8278','#a59a8e'],out:['OUT','#7fd49b','#d9d1c5'],err:['ERR','#ff7a6b','#ffb1a6'],user:['YOU','#7ee2c8','#c9f3e6'],agent:['AGENT','#f0c27a','#f2e6d6'],hitl:['HITL','#ffb547','#ffd28a']};
+const STATUS={working:['Working','#5fd38d'],idle:['Available','#5fd38d'],blocked:['Awaiting permission','#ffb547'],nudged:['Nudged','#7cc4ff']};
+const DEFS=[
+ {id:'scout',name:'Scout',role:'Web Scraper',model:'claude-3-7-sonnet',shirt:'#5aa65a',hair:'#d39a52',skin:'#f0c69c',fx:120,fy:150,status:'working',task:'Fetching web content...',
+  tasks:['Fetching web content...','Crawling /docs pages','Parsing sitemap.xml','Extracting pricing tables'],
+  lines:[['tool','http.get("https://docs.example.dev/api") → 200 (184kb)'],['think','Pagination detected, following rel="next"'],['out','Extracted 42 links, 9 new'],['tool','html.select("table.pricing") → 3 nodes'],['err','429 Too Many Requests, backing off 2s'],['out','Saved page_0137.md']]},
+ {id:'ledger',name:'Ledger',role:'Data Processor',model:'local-llama-3',shirt:'#8a5cc2',hair:'#3b2418',skin:'#c98d62',fx:215,fy:150,status:'working',task:'Processing Data',
+  tasks:['Processing Data','Normalizing 48k rows','Deduping customer records','Building weekly aggregates'],
+  lines:[['tool','pandas.read_parquet("raw/events.parquet") → 48,211 rows'],['think','Column "ts" mixes UTC and local time, coercing to UTC'],['out','Dropped 312 duplicate rows'],['tool','df.groupby("region").agg("sum")'],['out','Wrote clean/events_v3.parquet (12.4 MB)']]},
+ {id:'vera',name:'Vera',role:'Code Reviewer',model:'claude-3-7-sonnet',shirt:'#c0503f',hair:'#1f1a1a',skin:'#e6b48c',fx:470,fy:120,status:'blocked',task:'Reviewing PR #482',perm:PERMS[0],
+  tasks:['Reviewing PR #482','Checking lint warnings','Diffing auth module'],
+  lines:[['tool','git diff main...feature/auth --stat'],['think','Token refresh path lacks a retry guard'],['out','3 suggestions, 1 blocking'],['tool','read_file("src/auth/session.ts")'],['err','eslint: 14 problems (2 errors)']]},
+ {id:'quill',name:'Quill',role:'Result Analyzer',model:'gpt-4o-mini',shirt:'#e0893a',hair:'#141010',skin:'#8d5a3b',fx:565,fy:120,status:'working',task:'Analyzing Results',
+  tasks:['Analyzing Results','Plotting cohort trends','Writing findings summary'],
+  lines:[['tool','stats.ttest(control, variant) → p=0.031'],['think','Lift concentrated in week-2 cohort'],['out','Chart saved: retention_by_cohort.png'],['tool','load_json("results/run_17.json")'],['out','Variance explained: 0.64']]},
+ {id:'bastion',name:'Bastion',role:'Security Auditor',model:'claude-3-7-sonnet',shirt:'#3f7fa8',hair:'#c9c3b8',skin:'#f2cfae',fx:110,fy:470,status:'blocked',task:'Cleaning scan artifacts',perm:PERMS[1],
+  tasks:['Scanning dependencies','Auditing IAM policies','Checking repo for secrets'],
+  lines:[['tool','osv.scan("package-lock.json") → 2 advisories'],['think','lodash@4.17.15 is reachable from /api/export'],['out','No hardcoded secrets in last 40 commits'],['err','CVE-2021-23337 (high) in lodash'],['tool','iam.list_policies(role="agent_api")']]},
+ {id:'atlas',name:'Atlas',role:'DB Architect',model:'qwen-2.5-coder',shirt:'#3a9c8f',hair:'#6b3a1f',skin:'#d9a57a',fx:205,fy:470,status:'idle',task:'',
+  tasks:['Designing schema v2','Indexing orders table','Writing migration 0042'],
+  lines:[['tool','EXPLAIN ANALYZE SELECT * FROM orders WHERE status=$1'],['think','Seq scan on 2.3M rows, composite index would help'],['out','Migration 0042_add_status_idx.sql drafted'],['tool','pg.describe("orders")']]},
+ {id:'echo',name:'Echo',role:'Docs Writer',model:'local-llama-3',shirt:'#c9a43a',hair:'#a8432a',skin:'#f3d0b0',fx:460,fy:450,status:'idle',task:'',
+  tasks:['Drafting API docs','Updating README','Summarizing changelog'],
+  lines:[['tool','read_file("openapi.yaml")'],['think','Three endpoints have no examples'],['out','Wrote docs/endpoints/orders.md'],['tool','git log --oneline -20']]},
+ {id:'relay',name:'Relay',role:'Test Runner',model:'mistral-small',shirt:'#c25a8a',hair:'#2a2a3a',skin:'#b5774f',fx:555,fy:450,status:'working',task:'Running test suite',
+  tasks:['Running test suite','Re-running flaky tests','Collecting coverage'],
+  lines:[['tool','pytest -q tests/ -n 4'],['out','212 passed, 3 skipped in 41.2s'],['err','FAILED tests/test_export.py::test_csv_unicode'],['think','Failure looks locale-dependent, retrying with LANG=C.UTF-8'],['out','Coverage 87.4% (+0.6)']]}
+];
+function L(k,text,d){return {t:stamp(d||new Date()),k,text};}
+function initAgents(){
+  const now=Date.now();
+  return DEFS.map(d=>{
+    const logs=[];let t=now-60000;
+    logs.push(L('sys','Agent online · '+d.model,new Date(t)));
+    d.lines.slice(0,4).forEach(l=>{t+=7000+Math.random()*5000;logs.push(L(l[0],l[1],new Date(t)));});
+    if(d.status==='idle'){logs.push(L('out','✓ Task complete. Waiting for work.',new Date(t+4000)));}
+    if(d.perm){logs.push(L('think','Next step requires a privileged command',new Date(t+3000)));logs.push(L('hitl','Requesting permission: '+d.perm.cmd,new Date(t+4000)));}
+    return {...d,logs,prev:null};
+  });
+}
+const HEAD=[".....OOOOOO.....","....OHHHHHHO....","...OHHHHHHHHO...","..OHHHHHHHHHHO..","..OHHhHHHHhHHO..","..OHSSSSSSSSHO..","..OSSSSSSSSSSO..","..OSSESSSSESSO..","..OSSESSSSESSO..","..OsSSSSSSSSsO..","...OsSSmmSSsO...","....OOSSSSOO...."];
+const LEGS=["..KOPPPPPPPPOK..","..KOPPOOOOPPOK..","...OOO....OOO...","......OKKO......"];
+const B_MUG=["..KOCCCCCCCCOK..","..OCCCCCCCCCCO..",".OCCcCCCCCCcCCO.",".OSCcCCCCCCOWWO.",".OSOCCCCCCOSWWWO","..OOccccccccOOO."];
+const B_SIP=["..KOCCCCCCCOWWO.","..OCCCCCCCCSWWO.",".OCCcCCCCCCSOO..",".OSCcCCCCCCCCO..",".OSOCCCCCCCCO...","..OOccccccccOO.."];
+const B_UP=["..KOCCCCCCCCOK..","..OCCCCCCCCCCO..",".OCCcCCCCCCcCCO.",".OSCcCCCCCCcCSO.",".OSOCCCCCCCCOSO.","..OOccccccccOO.."];
+const BACK=[".....OOOOOO.....","....OHHHHHHO....","...OHHHHHHHHO...","..OHHHHHHHHHHO..","..OHHHHHHHHHHO..","..OHHHHHHHHHHO..","..OHHhHHHHhHHO..","..OhHHHHHHHHhO..","..OShhhhhhhhSO..","...OhhhhhhhhO...","....OOsSSsOO....","...OCCCCCCCCO...","..OCCCCCCCCCCO..","..OCCCcCCcCCCO..",".SOCCCCCCCCCCOS.",".OKKKKKKKKKKKKO.",".OKkkkkkkkkkkKO.",".OKKKKKKKKKKKKO.","..OOOOOOOOOOOO..","......OKKO......","....OOOkkOOO....","................"];
+const BACK_B=["................"].concat(BACK.slice(0,10),BACK.slice(11,14),["..SCCCCCCCCCCS.."],BACK.slice(15));
+const FRONT=b=>HEAD.concat(b,LEGS);
+function dk(hex,f){const n=parseInt(hex.slice(1),16);const c=[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v*f));return 'rgb('+c.join(',')+')';}
+const SHEETS={};
+function sheet(a,kind){
+  const key=a.id+kind;if(SHEETS[key])return SHEETS[key];
+  const frames=kind==='back'?[BACK,BACK_B]:kind==='mug'?[FRONT(B_MUG),FRONT(B_SIP)]:[FRONT(B_UP)];
+  const pal={O:'#1b1220',E:'#1b1220',H:a.hair,h:dk(a.hair,.72),S:a.skin,s:dk(a.skin,.85),C:a.shirt,c:dk(a.shirt,.72),P:'#3a3550',K:'#3d3a48',k:'#2a2733',W:'#f3ede2',m:'#8a3a30'};
+  let url='';
+  try{const cv=document.createElement('canvas');cv.width=16*frames.length;cv.height=22;const g=cv.getContext('2d');
+    frames.forEach((rows,fi)=>rows.forEach((row,y)=>{for(let x=0;x<16;x++){const ch=row[x];if(ch&&ch!=='.'&&pal[ch]){g.fillStyle=pal[ch];g.fillRect(fi*16+x,y,1,1);}}}));
+    url=cv.toDataURL();}catch(e){}
+  return SHEETS[key]={url,w:48*frames.length};
+}
+const WOOD=['#b9773a','#8c5426','#6b3e19'],DWOOD=['#7a4a26','#5c361b','#472a14'],GLASS=['rgba(190,225,240,.22)','rgba(170,210,235,.18)','rgba(150,195,225,.14)'],DARK=['#3d3a48','#2f2c38','#24222b'];
+const FURN=[
+ {x:0,y:400,w:38,d:140,h:38,c:['#d8c7a6','#a8956f','#86755a']},
+ {x:5,y:412,w:24,d:22,h:26,z:38,c:['#3a3a42','#2a2a30','#1f1f24']},
+ {x:4,y:470,w:28,d:40,h:20,z:38,c:['#e6e1d6','#c9c3b6','#a9a395']},
+ {x:30,y:0,w:36,d:30,h:64,c:['#9aa1ac','#7a818d','#5f6570']},
+ {x:70,y:0,w:36,d:30,h:64,c:['#9aa1ac','#7a818d','#5f6570']},
+ {x:410,y:2,w:46,d:40,h:118,c:['#33363e','#262930','#1b1d22']},
+ {x:330,y:12,w:24,d:24,h:42,c:['#e8e4dc','#cfc9bd','#b2ac9f']},
+ {x:334,y:16,w:16,d:16,h:22,z:42,c:['rgba(150,205,255,.75)','rgba(120,180,240,.7)','rgba(100,160,220,.7)']},
+ {x:690,y:130,w:50,d:40,h:34,c:WOOD},
+ {x:694,y:134,w:42,d:32,h:16,z:34,c:['#e6e1d6','#c9c3b6','#a9a395']},
+ {x:90,y:356,w:230,d:10,h:30,c:WOOD},
+ {x:90,y:356,w:230,d:10,h:30,z:30,c:GLASS,st:'rgba(230,240,250,.5)'},
+ {x:450,y:334,w:210,d:10,h:30,c:WOOD},
+ {x:450,y:334,w:210,d:10,h:30,z:30,c:GLASS,st:'rgba(230,240,250,.5)'},
+ {x:686,y:250,w:98,d:6,h:96,c:GLASS,st:'rgba(230,240,250,.55)',zz:900},
+ {x:680,y:250,w:6,d:290,h:96,c:GLASS,st:'rgba(230,240,250,.55)',zz:1010},
+ {x:680,y:250,w:104,d:6,h:6,z:96,c:['#9aa1ac','#7a818d','#5f6570'],zz:901},
+ {x:680,y:250,w:6,d:290,h:6,z:96,c:['#9aa1ac','#7a818d','#5f6570'],zz:1011},
+ {x:715,y:320,w:50,d:170,h:28,c:WOOD},
+ {x:695,y:340,w:14,d:14,h:16,c:DARK},{x:695,y:390,w:14,d:14,h:16,c:DARK},{x:695,y:440,w:14,d:14,h:16,c:DARK},
+ {x:769,y:340,w:14,d:14,h:16,c:DARK},{x:769,y:390,w:14,d:14,h:16,c:DARK},{x:769,y:440,w:14,d:14,h:16,c:DARK},
+ {x:330,y:600,w:180,d:150,h:1,c:['#7a3b3b','#5e2c2c','#5e2c2c'],st:'#a35a4a'},
+ {x:350,y:614,w:140,d:10,h:34,c:['#4f6b8a','#3d556f','#2f4359']},
+ {x:350,y:624,w:140,d:30,h:16,c:['#5a7a9c','#46607d','#374c63']},
+ {x:340,y:614,w:10,d:40,h:24,c:['#4f6b8a','#3d556f','#2f4359']},
+ {x:490,y:614,w:10,d:40,h:24,c:['#4f6b8a','#3d556f','#2f4359']},
+ {x:375,y:684,w:90,d:40,h:14,c:DWOOD},
+ {x:400,y:694,w:14,d:10,h:3,z:14,c:['#f3ede2','#d9d1c2','#c2b9a8']}
+];
+const IP=(x,y,z)=>[620+0.7071*(x-y),200+0.3536*(x+y)-(z||0)];
+const FURN_V=FURN.map((f,i)=>{
+  const z0=f.z||0,{x,y,w,d,h}=f;
+  const pts={t:[IP(x,y,z0+h),IP(x+w,y,z0+h),IP(x+w,y+d,z0+h),IP(x,y+d,z0+h)],l:[IP(x,y+d,z0+h),IP(x+w,y+d,z0+h),IP(x+w,y+d,z0),IP(x,y+d,z0)],r:[IP(x+w,y,z0+h),IP(x+w,y+d,z0+h),IP(x+w,y+d,z0),IP(x+w,y,z0)],s:[IP(x+6,y+4,0),IP(x+w+10,y+4,0),IP(x+w+10,y+d+8,0),IP(x+6,y+d+8,0)]};
+  const all=[].concat(pts.t,pts.l,pts.r,pts.s);const L=Math.floor(Math.min(...all.map(p=>p[0])))-2,T=Math.floor(Math.min(...all.map(p=>p[1])))-2;
+  const W=Math.ceil(Math.max(...all.map(p=>p[0])))-L+2,H=Math.ceil(Math.max(...all.map(p=>p[1])))-T+2;
+  const s=k=>pts[k].map(p=>(p[0]-L).toFixed(1)+','+(p[1]-T).toFixed(1)).join(' ');
+  return {k:i,l:L,t:T,w:W,h:H,z:f.zz||Math.round(x+w/2+y+d/2),pt:s('t'),pl:s('l'),pr:s('r'),ps:s('s'),ct:f.c[0],cl:f.c[1],cr:f.c[2],st:f.st||'rgba(0,0,0,.18)',so:(z0===0&&h>4&&!f.st)?0.2:0};
+});
+const PLANTS=[[318,640],[512,596],[770,556],[668,40],[10,560]].map(([x,y])=>{const p=IP(x,y,0);return {l:Math.round(p[0]-30),t:Math.round(p[1]-80),z:Math.round(x+y+10)};});
+function addLog(a,k,text){return {...a,logs:[...a.logs.slice(-199),L(k,text)]};}
+
+class Component extends DCLogic {
+  state={agents:initAgents(),selectedId:null,hoveredId:null,simulate:true,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',tasksDone:37,tokHist:[42,58,51,66,72,60,81,77,69,88,74,83]};
+  wrapRef=React.createRef(); termRef=React.createRef();
+  componentDidMount(){
+    const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect();this.setState({scale:Math.min(r.width/1240,(r.height-40)/800)});};
+    this.ro=new ResizeObserver(fit); if(this.wrapRef.current)this.ro.observe(this.wrapRef.current); fit();
+    this.iv=setInterval(()=>{if(this.state.simulate)this.tick();},1500);
+    this.onKey=e=>{
+      const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;
+      const a=this.sel();
+      if(e.key==='Escape')this.setState({selectedId:null});
+      if(a&&a.status==='blocked'){if(e.key==='y'||e.key==='Y')this.approve(a.id);if(e.key==='n'||e.key==='N')this.deny(a.id);}
+    };
+    window.addEventListener('keydown',this.onKey);
+  }
+  componentWillUnmount(){clearInterval(this.iv);this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);}
+  componentDidUpdate(){const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
+  sel(){return this.state.agents.find(a=>a.id===this.state.selectedId);}
+  upd(id,fn){this.setState(s=>({agents:s.agents.map(a=>a.id===id?fn(a):a)}));}
+  showToast(t){this.setState({toast:t});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({toast:''}),2600);}
+  tick(){
+    this.setState(s=>{
+      let done=s.tasksDone;
+      const blockedN=s.agents.filter(a=>a.status==='blocked').length;
+      const p=Math.floor(Math.random()*s.agents.length);
+      const agents=s.agents.map((a,i)=>{
+        let b=a;
+        if(a.status==='working'&&Math.random()<.45){const l=pick(a.lines);b=addLog(b,l[0],l[1]);}
+        if(i===p){
+          const r=Math.random();
+          if(a.status==='working'){
+            if(r<.13&&blockedN<3){const pm=pick(PERMS);b=addLog({...b,status:'blocked',perm:pm},'hitl','Requesting permission: '+pm.cmd);}
+            else if(r<.26){done++;b=addLog({...b,status:'idle',task:''},'out','✓ Task complete: '+a.task);}
+            else if(r<.42){const t=pick(a.tasks);b=addLog({...b,task:t},'think','Next step → '+t);}
+          }else if(a.status==='idle'&&r<.4){const t=pick(a.tasks);b=addLog({...b,status:'working',task:t},'sys','Picked up task from queue: '+t);}
+        }
+        return b;
+      });
+      const w=agents.filter(a=>a.status==='working').length;
+      const tok=Math.round(w*(14+Math.random()*9)+8);
+      return {agents,tasksDone:done,tokHist:[...s.tokHist.slice(1),tok]};
+    });
+  }
+  nudge(id){
+    const a=this.state.agents.find(x=>x.id===id);if(!a||a.status==='nudged')return;
+    this.upd(id,a=>addLog({...a,prev:a.status,status:'nudged'},'sys','[SYSTEM]: User nudged '+a.name));
+    setTimeout(()=>this.upd(id,a=>{
+      if(a.status!=='nudged')return a;
+      if(a.prev==='blocked')return addLog({...a,status:'blocked'},'hitl','Still awaiting approval: '+a.perm.cmd);
+      if(a.prev==='idle')return addLog({...a,status:'working',task:'Checking logs...'},'agent','On it! Checking logs...');
+      return addLog({...a,status:'working'},'sys','Priority raised. "'+a.task+'" moved to front of queue');
+    }),1800);
+  }
+  approve(id,cmd){
+    this.upd(id,a=>{if(!a.perm)return a;const c=cmd||a.perm.cmd;let b=addLog(a,'hitl','Approved by user'+(cmd&&cmd!==a.perm.cmd?' (modified)':''));b=addLog(b,'tool','$ '+c);b=addLog(b,'out','exit 0 ('+(Math.random()*2+.2).toFixed(2)+'s)');return {...b,status:'working',perm:null,task:a.task||pick(a.tasks)};});
+    this.setState({modifyOpen:false});
+  }
+  deny(id){
+    this.upd(id,a=>{if(!a.perm)return a;let b=addLog(a,'hitl','Denied by user: '+a.perm.cmd);b=addLog(b,'think','Permission denied. Looking for a safer approach.');return {...b,status:'working',perm:null,task:'Finding an alternative...'};});
+    this.setState({modifyOpen:false});
+  }
+  runCommand(text){
+    const a=this.sel();if(!a||!text.trim())return;const id=a.id;const t=text.trim();
+    this.setState({input:''});
+    if(t==='/nudge')return this.nudge(id);
+    if(t==='/clear')return this.upd(id,a=>({...a,logs:[L('sys','Terminal cleared')]}));
+    if(t==='/pause')return this.upd(id,a=>addLog({...a,status:'idle',task:'',perm:null},'sys','Paused by user'));
+    if(t==='/help')return this.upd(id,a=>addLog(a,'sys','Commands: /nudge  /clear  /pause  /task <description>'));
+    if(t.startsWith('/task')){const task=t.slice(5).trim();if(!task)return this.upd(id,a=>addLog(a,'err','Usage: /task <description>'));
+      return this.upd(id,a=>addLog(addLog({...a,status:'working',task,perm:null},'user','/task '+task),'agent','Reassigned. Starting: '+task));}
+    if(t.startsWith('/'))return this.upd(id,a=>addLog(a,'err','Unknown command '+t.split(' ')[0]+'. Try /help'));
+    this.upd(id,a=>addLog(a,'user',t));
+    setTimeout(()=>this.upd(id,a=>{
+      const r=a.status==='blocked'?'I\'m paused until you approve or deny `'+a.perm.cmd+'`.':a.status==='idle'?'I\'m free right now. Send /task <description> and I\'ll start.':'Working on "'+a.task+'". I\'ll factor that in on the next step.';
+      return addLog(a,'agent',r);
+    }),900);
+  }
+  dispatch(){
+    const text=this.state.dispatchText.trim();if(!text)return;
+    const free=this.state.agents.find(a=>a.status==='idle');
+    if(!free){this.showToast('No free agents right now. Try again shortly.');return;}
+    this.upd(free.id,a=>addLog(addLog({...a,status:'working',task:text},'user','Global task: '+text),'agent','Picked up. Starting now.'));
+    this.setState({dispatchText:'',dispatchOpen:false});
+    this.showToast('Dispatched to '+free.name+' ('+free.role+')');
+  }
+  renderVals(){
+    const s=this.state;
+    const agents=s.agents.map(a=>{
+      const sx=620+0.7071*(a.fx-a.fy), sy=200+0.3536*(a.fx+a.fy);
+      const left=Math.round(sx-100), top=Math.round(sy-110);
+      const st=a.status, w=st==='working', idle=st==='idle', bl=st==='blocked', nu=st==='nudged';
+      const scr=w?['#0d2a1c','#5ef0a0']:bl?['#3a2405','#ffb547']:nu?['#0d1f3a','#7cc4ff']:['#10163a','#8fa3ff'];
+      const bub=w?['#f4efe4','#2a2420','#5a4a3c',a.task,'none']:bl?['#ffb547','#2a1600','#7a4a00','⚠ Permission needed: '+(a.perm?a.perm.short:''),'pulse 1.1s ease-in-out infinite']:nu?['#7cc4ff','#0b1c33','#244a7a','On it! Checking logs...','none']:null;
+      return {id:a.id,name:a.name,left,top,z:Math.round(a.fx+a.fy+75),shirt:a.shirt,hair:a.hair,skin:a.skin,
+        selDisp:s.selectedId===a.id?'inline':'none',
+        lampGlow:idle?0.12:1,coneOp:idle?0.04:0.22,shade:idle?'#9a7a48':'#ffd36b',
+        scrBg:scr[0],scrColor:scr[1],scrGlow:idle?0.12:0.35,
+        scrLines:(w||nu)?'inline':'none',scrIdle:idle?'inline':'none',scrBlock:bl?'inline':'none',
+        hasSprite:true,imgRef:(u=>el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);})(sheet(a,(w||bl)?'back':idle?'mug':'up').url),sprite:sheet(a,(w||bl)?'back':idle?'mug':'up').url,sheetW:sheet(a,(w||bl)?'back':idle?'mug':'up').w,
+        sprAnim:w?'frames2 .38s steps(2) infinite':idle?'frames2 3.2s steps(2) infinite':'none',
+        pingDisp:nu?'inline':'none',
+        anim:nu?'jump .9s ease-out 2':'none',
+        hasBubble:!!bub,bBg:bub?bub[0]:'',bFg:bub?bub[1]:'',bBorder:bub?bub[2]:'',bText:bub?bub[3]:'',bAnim:bub?bub[4]:'none',
+        bx:left+68,by:top+94,nx:left+68,ny:top+180,hx:left+112,hy:top+150,
+        dot:bl?'#ffb547':nu?'#7cc4ff':w?'#5fd38d':'#e9e2d6',
+        hoverDisp:s.hoveredId===a.id?'flex':'none',
+        onClick:()=>this.setState({selectedId:a.id,modifyOpen:false}),
+        onEnter:()=>{clearTimeout(this.ht);this.setState({hoveredId:a.id});},
+        onLeave:()=>{clearTimeout(this.ht);this.ht=setTimeout(()=>this.setState({hoveredId:null}),220);},
+        onNudge:e=>{e.stopPropagation();this.nudge(a.id);}
+      };
+    });
+    const workingN=s.agents.filter(a=>a.status==='working'||a.status==='nudged').length;
+    const idleN=s.agents.filter(a=>a.status==='idle').length;
+    const blockedN=s.agents.filter(a=>a.status==='blocked').length;
+    const max=Math.max(...s.tokHist,1);
+    const a=this.sel();
+    const sel=a?{imgRef:(u=>el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);})(sheet(a,'up').url),name:a.name,role:a.role,model:a.model,shirt:a.shirt,hair:a.hair,skin:a.skin,statusLabel:STATUS[a.status][0],statusColor:STATUS[a.status][1],
+      taskText:a.task||'None, waiting for work',blocked:a.status==='blocked'&&!!a.perm,permCmd:a.perm?a.perm.cmd:'',permWhy:a.perm?a.perm.why:''}:{};
+    const selLogs=a?a.logs.map(l=>{const k=KIND[l.k];return {t:l.t,tag:k[0],tagColor:k[1],color:k[2],fs:l.k==='think'?'italic':'normal',text:l.text};}):[];
+    const nextFree=s.agents.find(x=>x.status==='idle');
+    return {
+      furn:FURN_V,plants:PLANTS,wrapRef:this.wrapRef,termRef:this.termRef,scale:s.scale.toFixed(4),agents,
+      workingN,idleN,blockedN,totalN:s.agents.length,tasksDone:s.tasksDone,tokNow:s.tokHist[s.tokHist.length-1],
+      bars:s.tokHist.map((v,i)=>({h:Math.round(v/max*100),c:i===s.tokHist.length-1?'#d9773a':'#7a8fb8'})),
+      blockedPillBg:blockedN?'rgba(70,42,10,.92)':'rgba(26,20,17,.88)',blockedPillBorder:blockedN?'#8a5a1c':'#3a2e25',blockedDotAnim:blockedN?'flash 1s infinite':'none',
+      jumpBlocked:()=>{const b=s.agents.find(x=>x.status==='blocked');if(b)this.setState({selectedId:b.id,modifyOpen:false});},
+      toggleSim:()=>this.setState({simulate:!s.simulate}),simTrack:s.simulate?'#5fd38d':'#4a3e34',simKnob:s.simulate?15:2,
+      toggleDispatch:()=>this.setState({dispatchOpen:!s.dispatchOpen}),dispatchOpen:s.dispatchOpen,dispatchText:s.dispatchText,
+      nextFreeLabel:nextFree?' → '+nextFree.name:' (none free)',
+      onDispatchInput:e=>this.setState({dispatchText:e.target.value}),onDispatchKey:e=>{if(e.key==='Enter')this.dispatch();if(e.key==='Escape')this.setState({dispatchOpen:false});},doDispatch:()=>this.dispatch(),
+      hasToast:!!s.toast,toast:s.toast,
+      drawerW:a?440:0,hasSel:!!a,sel,selLogs,
+      closeDrawer:()=>this.setState({selectedId:null}),
+      nudgeSel:()=>a&&this.nudge(a.id),
+      approveSel:()=>a&&this.approve(a.id,s.modifyOpen?s.modifyText:null),denySel:()=>a&&this.deny(a.id),
+      approveLabel:s.modifyOpen?'Run modified (Y)':'Approve (Y)',modifyLabel:s.modifyOpen?'Cancel edit':'Modify',
+      toggleModify:()=>this.setState({modifyOpen:!s.modifyOpen,modifyText:a&&a.perm?a.perm.cmd:''}),modifyOpen:s.modifyOpen,modifyText:s.modifyText,
+      onModifyInput:e=>this.setState({modifyText:e.target.value}),onModifyKey:e=>{if(e.key==='Enter'&&a)this.approve(a.id,s.modifyText);},
+      input:s.input,onInput:e=>this.setState({input:e.target.value}),onInputKey:e=>{if(e.key==='Enter')this.runCommand(s.input);},submitInput:()=>this.runCommand(s.input),
+      inputPh:a?'Message '+a.name+' or type /help':'',
+      chips:['/nudge','/clear','/pause','/task '].map(c=>({label:c.trim()==='/task'?'/task <new task>':c,onClick:()=>{if(c==='/task '){this.setState({input:'/task '});}else this.runCommand(c);}}))
+    };
+  }
+}
+</script>
+</body>
+</html>
