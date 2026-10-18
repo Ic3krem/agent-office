@@ -10,6 +10,7 @@ test('routine work is approved', () => {
     ['Write', { file_path: 'C:/x/notes.md', content: 'hi' }],
     ['WebFetch', { url: 'https://example.com' }],
     ['mcp__claude_ai_Microsoft_365__outlook_email_search', { query: 'x' }],
+    ['Write', { file_path: 'C:/tmp/onboarding.md', content: 'Day 1: set up SSH keys and a password manager' }],
   ]) assert.equal(review(tool, input).ok, true, tool + ' ' + JSON.stringify(input));
 });
 
