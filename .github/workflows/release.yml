@@ -15,9 +15,7 @@ jobs:
           - os: windows-latest
             args: --win --x64
           - os: macos-latest
-            args: --mac --arm64
-          - os: macos-13
-            args: --mac --x64
+            args: --mac --arm64 --x64 # one Apple Silicon runner builds both Mac architectures
           - os: ubuntu-latest
             args: --linux --x64
     runs-on: ${{ matrix.os }}
