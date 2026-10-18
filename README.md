@@ -44,7 +44,7 @@ Both download the latest release, install it and put a shortcut on your desktop.
 | **Today board** | Today's goals. Kiro works through them, marks them done or blocked, and suggests follow-ups that wait for your OK. |
 | **Bookshelf** | Reports, color-coded by outcome (green done, amber partial, red needs you), plus an automatic daily report. Search them, or export to **PDF** or **Excel**. |
 | **Corkboard** | Agent memory: notes in your Obsidian vault (`Agent Office/Memory`), drawn as pins and strings. Read, delete or link notes. |
-| **Filing cabinet** | SOPs: Kiro's brief and each specialist's instructions, editable as vault notes. |
+| **Filing cabinet** | SOPs: Kiro's brief and each specialist's instructions, editable as vault notes (in the app or in Obsidian). Edits apply from Kiro's next turn. Add `specialist-<name>.md` to create a new specialist; optional frontmatter sets `description`, `tools` and `model`. |
 | **Inbox tray** (Kiro's desk) | Requests waiting for your approval. |
 | **Breaker box** | Hard switches: Kiro on/off, autopilot, hiring, auto-approve, terminal approvals, and the **subscription guard**, which stops at your plan's 5-hour or weekly limit instead of spending extra-usage credits. |
 | **Server rack** | CPU, memory, Docker containers and the office server log. Its LEDs go amber or red when something is wrong. |

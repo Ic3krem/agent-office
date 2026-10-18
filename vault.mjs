@@ -77,6 +77,7 @@ export function agentVault(root) {
       if (!fs.existsSync(f)) fs.writeFileSync(f, fallback.trim() + '\n');
       return fs.readFileSync(f, 'utf8');
     },
+    sopStamp: () => Math.max(0, ...fs.readdirSync(dirs.sops).filter(n => n.endsWith('.md')).map(n => fs.statSync(path.join(dirs.sops, n)).mtimeMs)),
     sops: () => fs.readdirSync(dirs.sops).filter(n => n.endsWith('.md')).map(n => ({ name: n.slice(0, -3), text: fs.readFileSync(path.join(dirs.sops, n), 'utf8') })),
     saveSop(name, text) {
       if (!/^[a-z0-9-]{2,40}$/.test(name)) throw new Error('bad SOP name');

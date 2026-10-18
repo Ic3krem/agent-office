@@ -19,3 +19,17 @@ test('goals carry over to a new day unless finished', () => {
   assert.deepEqual(goalStore(file, () => day).list().map(x => x.id), [a.id, c.id]);
 });
 
+
+import { teamFromSops, SPECIALISTS } from './company.mjs';
+test('SOP notes edit built-in specialists and add new ones', () => {
+  const team = teamFromSops([
+    { name: 'kiro-brief', text: 'ignored here' },
+    { name: 'specialist-researcher', text: '# Role: Researcher\nRead only.' },
+    { name: 'specialist-designer', text: '---\ndescription: Designs UI mockups\ntools: Read, Write\nmodel: haiku\n---\nYou design screens.' },
+    { name: 'specialist-writer', text: '' },
+  ]);
+  assert.equal(team.researcher.prompt, '# Role: Researcher\nRead only.');
+  assert.deepEqual(team.researcher.tools, SPECIALISTS.researcher.tools, 'built-in keeps its tools');
+  assert.deepEqual([team.designer.description, team.designer.tools, team.designer.model], ['Designs UI mockups', ['Read', 'Write'], 'haiku']);
+  assert.equal(team.writer, SPECIALISTS.writer, 'an empty note falls back');
+});

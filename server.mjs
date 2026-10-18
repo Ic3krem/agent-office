@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { apply, newAgent, statusOf, toolSummary } from './transcript.mjs';
 import { review } from './manager.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
-import { goalStore, MANAGER_PROMPT, SPECIALISTS, MAX_SPECIALISTS } from './company.mjs';
+import { goalStore, MANAGER_PROMPT, SPECIALISTS, MAX_SPECIALISTS, teamFromSops } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { switchBox, rack, findClaude } from './office.mjs';
@@ -299,7 +299,8 @@ const bossOptions = () => {
     effort: 'medium',
     resume: saved.date === today() ? saved.id : undefined, // the same manager all day, a fresh one each morning
     systemPrompt: { type: 'preset', preset: 'claude_code', append: V.sop('kiro-brief', MANAGER_PROMPT) + `\n\nThe vault's agent folder is ${V.base} (Memory/, Reports/, Daily/).` },
-    agents: Object.fromEntries(Object.entries(SPECIALISTS).map(([k, d]) => [k, { ...d, prompt: V.sop('specialist-' + k, d.prompt) + `\nShared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).` }])),
+    agents: Object.fromEntries(Object.entries(teamFromSops(V.sops())).map(([k, d]) => [k, { ...d, prompt: d.prompt + `
+Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).` }])),
     mcpServers: { office: officeTools },
     allowedTools: ['list_goals', 'update_goal', 'propose_goal', 'file_report', 'memory_search', 'memory_read', 'memory_write'].map(t => 'mcp__office__' + t),
     hooks: {
@@ -323,8 +324,10 @@ function tellBoss(text) {
   startSession(text, HOME, {
     options: bossOptions(),
     agent: { role: 'Manager', isManager: true, title: 'Kiro' },
-    onInit: (id, push) => { boss.id = id; boss.push = push; fs.writeFileSync(BOSS_FILE, JSON.stringify({ id, date: today() })); },
+    onInit: (id, push) => { boss.sopAt = V.sopStamp(); boss.id = id; boss.push = push; fs.writeFileSync(BOSS_FILE, JSON.stringify({ id, date: today() })); },
     onResult: () => {
+      // SOP notes changed since this session started: end it between turns so the next turn resumes with them.
+      if (V.sopStamp() > boss.sopAt && !boss.running) { host.note('SOPs changed; Kiro reloads them on its next turn'); boss.reload = true; stopBoss(); }
       // Keep working while the last turn moved something and goals are open; a turn with no progress waits for the user.
       // Busy specialists wake Kiro when they report, so only nudge when nobody is out working.
       if (sw().autopilot && boss.progress && !boss.running && goals.open().length && boss.autoRuns < 30) {
@@ -333,7 +336,11 @@ function tellBoss(text) {
       }
       boss.progress = false;
     },
-    onEnd: () => { if (!boss.id) fs.rmSync(BOSS_FILE, { force: true }); Object.assign(boss, { id: null, push: null, running: 0 }); bump(); },
+    onEnd: () => {
+      if (!boss.id) fs.rmSync(BOSS_FILE, { force: true });
+      const reload = boss.reload; Object.assign(boss, { id: null, push: null, running: 0, reload: false }); bump();
+      if (reload && sw().autopilot && goals.open().length) tellBoss("Your SOPs were updated. Continue with today's goals using them.");
+    },
   });
 }
 
