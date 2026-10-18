@@ -1,0 +1,7 @@
+{
+  "name": "agent-office",
+  "owner": { "name": "Cicero Hospitality Group IT" },
+  "plugins": [
+    { "name": "agent-office-bridge", "source": "./bridge", "description": "Lets the Agent Office dashboard reply to this session and answer its permission prompts" }
+  ]
+}

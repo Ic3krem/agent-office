@@ -1,0 +1,95 @@
+{
+  "name": "agent-office",
+  "version": "1.1.0",
+  "description": "A pixel office for your Claude Code agents: Kiro the manager, specialists, approvals, reports and memory.",
+  "main": "desktop/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test company.test.mjs manager.test.mjs transcript.test.mjs usage.test.mjs reports.test.mjs",
+    "dist": "electron-builder"
+  },
+  "author": {
+    "name": "Ic3krem",
+    "email": "Ic3krem@users.noreply.github.com"
+  },
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.301",
+    "exceljs": "^4.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "electron": "^43.7.7",
+    "electron-builder": "^26.15.3"
+  },
+  "productName": "Agent Office",
+  "build": {
+    "appId": "io.github.ic3krem.agentoffice",
+    "productName": "Agent Office",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": false,
+    "files": [
+      "server.mjs",
+      "transcript.mjs",
+      "manager.mjs",
+      "company.mjs",
+      "usage.mjs",
+      "reports.mjs",
+      "vault.mjs",
+      "office.mjs",
+      "public/**",
+      "desktop/**",
+      "package.json",
+      "node_modules/**",
+      "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Ic3krem",
+        "repo": "agent-office",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "desktop/icon.png",
+      "artifactName": "Agent-Office-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Agent Office",
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "desktop/icon.png",
+      "category": "public.app-category.developer-tools",
+      "artifactName": "Agent-Office-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "desktop/icon.png",
+      "category": "Development",
+      "artifactName": "Agent-Office-${version}-${arch}.${ext}",
+      "maintainer": "Ic3krem <Ic3krem@users.noreply.github.com>"
+    }
+  },
+  "homepage": "https://github.com/Ic3krem/agent-office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ic3krem/agent-office.git"
+  }
+}

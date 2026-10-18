@@ -1,0 +1,222 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Kiro</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500&family=Instrument+Sans:wght@400;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #1a1512; --line: #3a2e25; --ink: #f0e4d4; --dim: #a8998a; --accent: #ffcf6b; --orange: #ff6a13; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: var(--ink); user-select: none; }
+  #kiro { position: absolute; right: 8px; bottom: 12px; width: 140px; height: 140px; cursor: grab; touch-action: none; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+  #kiro:active { cursor: grabbing; }
+  #kiro:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 12px; }
+  .badge { position: absolute; right: 12px; bottom: 120px; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: #ffb547; color: #2a1600; font: 700 12px/22px 'Instrument Sans'; text-align: center; box-shadow: 0 0 0 2px #2a1600; display: none; }
+  /* moods */
+  .kiro .body, .kiro .claw, .kiro .claw-up { transform-origin: 64px 100px; }
+  .mood-idle .body, .mood-cool .body { animation: bob 2.6s ease-in-out infinite; }
+  .mood-idle .eyes, .mood-think .eyes, .mood-work .eyes { animation: blink 4.5s infinite; transform-origin: 64px 65px; }
+  .mood-work .leg, .mood-build .leg { animation: scuttle .35s ease-in-out infinite alternate; transform-origin: 64px 98px; }
+  .mood-work .claw { animation: type .18s ease-in-out infinite alternate; }
+  .mood-work .bits text { animation: rise 1.6s linear infinite; }
+  .mood-work .keys { filter: drop-shadow(0 0 6px #3dff8f); }
+  .mood-think .orb { animation: pulse 1.8s ease-in-out infinite; transform-origin: 64px 104px; }
+  .mood-alert .body { animation: hop .7s ease-in-out infinite; }
+  .mood-alert .cloth { animation: wave .5s ease-in-out infinite alternate; transform-origin: 115px 15px; }
+  .mood-party .body, .mood-party .claw-up { animation: hop .45s ease-in-out infinite; }
+  .mood-party .confetti rect { animation: fall 1.4s ease-in infinite; }
+  .mood-sleep .body { animation: breathe 3.6s ease-in-out infinite; transform-origin: 64px 100px; }
+  .mood-sleep .zzz text { animation: rise 2.4s ease-in-out infinite; }
+  .mood-build .tool { animation: swing .5s ease-in-out infinite alternate; transform-origin: 116px 74px; }
+  @keyframes bob { 50% { transform: translateY(-3px); } }
+  @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+  @keyframes scuttle { to { transform: rotate(4deg); } }
+  @keyframes type { to { transform: translateY(3px); } }
+  @keyframes rise { from { transform: translateY(6px); opacity: 0; } 30% { opacity: 1; } to { transform: translateY(-14px); opacity: 0; } }
+  @keyframes pulse { 50% { transform: scale(1.08); } }
+  @keyframes hop { 50% { transform: translateY(-7px); } }
+  @keyframes wave { to { transform: skewY(-8deg) scaleX(.9); } }
+  @keyframes fall { from { transform: translateY(-6px) rotate(0); opacity: 1; } to { transform: translateY(70px) rotate(220deg); opacity: 0; } }
+  @keyframes breathe { 50% { transform: scale(1.02, .98); } }
+  @keyframes swing { to { transform: rotate(-18deg); } }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .kiro *, .kiro { animation: none !important; } }
+
+  #bubble { position: absolute; right: 30px; bottom: 150px; max-width: 260px; padding: 9px 12px; border-radius: 12px 12px 4px 12px; background: #fff7ec; color: #2a1d14; font-size: 13.5px; line-height: 1.35; box-shadow: 0 8px 24px rgba(0,0,0,.3); display: none; animation: pop .2s ease-out; cursor: pointer; }
+  #bubble b { color: #b9470a; }
+
+  #panel { position: absolute; right: 8px; bottom: 150px; width: 352px; max-height: 430px; display: none; flex-direction: column; background: var(--bg); border: 1px solid #4a3a2c; border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.55); overflow: hidden; animation: pop .18s ease-out; }
+  #panel.open { display: flex; }
+  .head { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid #33281f; }
+  .head .name { font-family: 'Pixelify Sans', sans-serif; font-size: 19px; color: #ffdca0; }
+  .head .status { flex: 1; font-size: 12px; color: var(--dim); }
+  .icon-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--dim); font-size: 15px; cursor: pointer; }
+  .icon-btn:hover { background: #2a211b; color: #fff; }
+  .scroll { overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .label { font-size: 11px; letter-spacing: .06em; color: #7d7064; }
+  .ask { padding: 9px; border-radius: 9px; background: #2a1d0c; border: 1px solid #8a5a1c; display: flex; flex-direction: column; gap: 7px; }
+  .ask .who { font-size: 12px; color: #ffb547; }
+  .ask code { display: block; padding: 6px 8px; border-radius: 6px; background: #120c05; color: #ffd28a; font: 12px/1.4 'IBM Plex Mono', monospace; word-break: break-all; max-height: 72px; overflow: hidden; }
+  .row { display: flex; gap: 6px; }
+  .btn { padding: 6px 11px; border-radius: 7px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; }
+  .btn.yes { background: #5fd38d; border-color: #5fd38d; color: #0c2416; font-weight: 600; }
+  .btn.no { border-color: #ff7a6b; color: #ff9a8d; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #2a1a0c; font-weight: 600; }
+  .msg { font-size: 13px; line-height: 1.45; color: #e9dccb; white-space: pre-wrap; word-break: break-word; padding: 8px 10px; border-radius: 9px; background: #120e0c; border: 1px solid #2a211b; max-height: 120px; overflow-y: auto; }
+  .msg.you { background: #13221c; border-color: #24443a; color: #c9f3e6; }
+  .empty { font-size: 12.5px; color: #7d7064; }
+  .foot { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid #33281f; }
+  .foot input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #120e0c; color: var(--ink); font: inherit; font-size: 13px; outline: none; }
+  .foot input:focus { border-color: #6b5a48; }
+</style>
+</head>
+<body>
+  <div id="bubble" data-hit role="status" aria-live="polite"></div>
+  <section id="panel" data-hit aria-label="Kiro">
+    <div class="head">
+      <span class="name">Kiro</span><span class="status" id="status">…</span>
+      <button class="icon-btn" id="office" title="Open the office" aria-label="Open the office">⤢</button>
+      <button class="icon-btn" id="close" title="Close" aria-label="Close">×</button>
+    </div>
+    <div class="scroll" id="body"></div>
+    <form class="foot" id="form">
+      <input id="input" placeholder="Tell Kiro what to do…" aria-label="Message Kiro" autocomplete="off">
+      <button class="btn primary" type="submit">Send</button>
+    </form>
+  </section>
+  <div id="kiro" data-hit tabindex="0" role="button" aria-label="Kiro. Click to chat, double-click to open the office."></div>
+  <div class="badge" id="badge" data-hit></div>
+
+<script src="./kiro-art.js"></script>
+<script>
+const KEY = new URLSearchParams(location.search).get('key') || '';
+const desk = window.kiroDesk || { interactive() {}, move() {}, office() { open('/?key=' + encodeURIComponent(KEY)); }, moved() {} };
+const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-key': KEY }, body: JSON.stringify(body || {}) })
+  .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+let snap = null, online = false, mood = '', party = 0, sent = [], prev = null;
+
+// ---- mood from the office state
+function pickMood() {
+  if (!online || snap.boss?.paused) return 'sleep';
+  if (Date.now() < party) return 'party';
+  const a = snap.agents || [];
+  if (a.some(x => x.perm)) return 'alert';
+  const boss = a.find(x => x.isManager);
+  const team = a.filter(x => /^Helper/.test(x.role || '') && x.status === 'working');
+  if (team.some(x => /builder|ops/.test(x.role))) return 'build';
+  if (team.length || (boss && boss.status === 'working' && (snap.boss || {}).running)) return 'work';
+  if (boss && boss.status === 'working') return 'think';
+  const g = (snap.goals || []).filter(x => x.status !== 'dismissed' && x.status !== 'proposed');
+  if (g.length && g.every(x => x.status === 'done')) return 'cool';
+  return 'idle';
+}
+function render() {
+  const m = pickMood();
+  if (m !== mood) { mood = m; $('kiro').innerHTML = kiroSVG(m, 140); }
+  const n = snap ? (snap.agents || []).filter(x => x.perm).length : 0;
+  $('badge').style.display = n ? 'block' : 'none'; $('badge').textContent = n;
+  if ($('panel').classList.contains('open')) renderPanel();
+}
+
+// ---- speech bubble for things worth a glance
+let bubbleTimer;
+function say(html, ms = 7000) {
+  const b = $('bubble'); b.innerHTML = html; b.style.display = 'block';
+  clearTimeout(bubbleTimer); bubbleTimer = setTimeout(() => { b.style.display = 'none'; }, ms);
+}
+$('bubble').onclick = () => { $('bubble').style.display = 'none'; openPanel(); };
+function notice(next) {
+  if (!prev) return;
+  const before = Object.fromEntries((prev.goals || []).map(g => [g.id, g.status]));
+  for (const g of next.goals || []) {
+    if (g.status === 'done' && before[g.id] && before[g.id] !== 'done') { party = Date.now() + 5000; say('<b>Done!</b> ' + esc(g.text.slice(0, 90))); setTimeout(render, 5100); }
+    if (g.status === 'blocked' && before[g.id] && before[g.id] !== 'blocked') say('<b>I need you:</b> ' + esc((g.note || g.text).slice(0, 110)));
+    if (g.status === 'proposed' && !before[g.id]) say('I have an idea: ' + esc(g.text.slice(0, 90)));
+  }
+  const asks = a => (a.agents || []).filter(x => x.perm).length;
+  if (asks(next) > asks(prev)) { const x = next.agents.find(a => a.perm); say('<b>Approval needed</b> for ' + esc(x.name) + ': ' + esc(x.perm.short)); }
+  if ((next.reportsN || 0) > (prev.reportsN || 0)) say('New report on the shelf. Open the office to read it.');
+  if (next.boss?.paused && next.boss.paused !== prev.boss?.paused) say('<b>Paused:</b> ' + esc(next.boss.paused) + '. No credits will be used.', 12000);
+  const wk = s => ((s.usage || {}).limits || {}).weekly || {};
+  if (wk(next).pct >= 90 && !(wk(prev).pct >= 90)) say('<b>Heads up:</b> weekly limit at ' + Math.round(wk(next).pct) + '%. Extra work will use credits.', 10000);
+}
+
+// ---- mini chat
+function renderPanel() {
+  const a = snap?.agents || [], boss = a.find(x => x.isManager), b = snap?.boss || {};
+  $('status').textContent = !online ? 'Offline' : b.paused ? 'Paused: ' + b.paused : b.active ? (boss?.status === 'working' ? 'Working' : 'Here') + ' · ' + b.running + '/' + b.max + ' specialists' : 'Away. Send a task to call me in';
+  const asks = a.filter(x => x.perm).map(x => `<div class="ask"><span class="who">${esc(x.name)} wants to run ${esc(x.perm.short)}</span><code>${esc(x.perm.cmd)}</code>
+      ${x.perm.why ? `<span class="empty">${esc(x.perm.why.slice(0, 160))}</span>` : ''}
+      <div class="row"><button class="btn yes" data-ask="${esc(x.perm.askId)}" data-d="allow">Approve</button><button class="btn no" data-ask="${esc(x.perm.askId)}" data-d="deny">Deny</button></div></div>`).join('');
+  const said = (boss?.logs || []).filter(l => l.k === 'agent' || l.k === 'user').slice(-4)
+    .map(l => `<div class="msg ${l.k === 'user' ? 'you' : ''}">${esc(l.text.length > 600 ? l.text.slice(0, 600) + '…' : l.text)}</div>`).join('');
+  const open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
+  const scroll = $('body'), atEnd = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 40;
+  scroll.innerHTML = (asks ? `<span class="label">WAITING FOR YOU</span>${asks}` : '')
+    + `<span class="label">TODAY · ${open.length} open</span>`
+    + (open.length ? open.slice(0, 4).map(g => `<div class="empty">• ${esc(g.status === 'blocked' ? '⚠ ' : '')}${esc(g.text.slice(0, 80))}</div>`).join('') : '<span class="empty">Nothing open. Give me something to do.</span>')
+    + (said ? `<span class="label">LATEST</span>${said}` : '');
+  if (atEnd) scroll.scrollTop = scroll.scrollHeight;
+}
+$('body').addEventListener('click', e => {
+  const t = e.target.closest('[data-ask]'); if (!t) return;
+  t.disabled = true;
+  api('/api/decide', { askId: t.dataset.ask, decision: t.dataset.d }).then(() => say(t.dataset.d === 'allow' ? 'Approved. Back to work.' : 'Denied. I\'ll tell the team.', 3500)).catch(err => say(esc(err.message)));
+});
+function openPanel() { $('panel').classList.add('open'); $('bubble').style.display = 'none'; renderPanel(); setTimeout(() => $('input').focus(), 30); }
+function closePanel() { $('panel').classList.remove('open'); }
+$('close').onclick = closePanel;
+$('office').onclick = () => desk.office();
+$('form').onsubmit = e => {
+  e.preventDefault();
+  const text = $('input').value.trim(); if (!text) return;
+  $('input').value = '';
+  const boss = (snap?.agents || []).find(x => x.isManager);
+  (boss && snap.boss?.active ? api('/api/send', { id: boss.id, text }) : api('/api/task', { text }))
+    .then(() => say(boss && snap.boss?.active ? 'Got it.' : 'On it. Added to today\'s board.', 3000)).catch(err => say(esc(err.message)));
+};
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+// ---- drag Kiro around; a short press is a click, two quick ones open the office
+let press = null, lastClick = 0;
+$('kiro').addEventListener('pointerdown', e => { press = { x: e.screenX, y: e.screenY, moved: 0 }; $('kiro').setPointerCapture(e.pointerId); });
+$('kiro').addEventListener('pointermove', e => {
+  if (!press) return;
+  const dx = e.screenX - press.x, dy = e.screenY - press.y;
+  if (!dx && !dy) return;
+  press.moved += Math.abs(dx) + Math.abs(dy); press.x = e.screenX; press.y = e.screenY;
+  if (press.moved > 4) desk.move(dx, dy);
+});
+$('kiro').addEventListener('pointerup', () => {
+  const p = press; press = null; if (!p) return;
+  if (p.moved > 4) return desk.moved();
+  const now = Date.now();
+  if (now - lastClick < 320) { lastClick = 0; closePanel(); return desk.office(); }
+  lastClick = now;
+  setTimeout(() => { if (lastClick === now) $('panel').classList.contains('open') ? closePanel() : openPanel(); }, 330);
+});
+$('kiro').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPanel(); } });
+$('badge').onclick = openPanel;
+
+// ---- clicks pass through everything except Kiro, the bubble and the panel
+let hit = false;
+document.addEventListener('mousemove', e => {
+  const on = !!e.target.closest('[data-hit]') && getComputedStyle(e.target.closest('[data-hit]')).display !== 'none';
+  if (on !== hit) { hit = on; desk.interactive(on); }
+});
+
+// ---- live office state
+function connect() {
+  const es = new EventSource('/api/stream?key=' + encodeURIComponent(KEY));
+  es.onopen = () => { online = true; if (snap) render(); };
+  es.onmessage = ev => { const next = JSON.parse(ev.data); notice(next); prev = snap = next; online = true; render(); };
+  es.onerror = () => { online = false; mood = ''; render(); };
+}
+$('kiro').innerHTML = kiroSVG('idle', 140);
+snap = { agents: [], goals: [] };
+connect();
+setTimeout(() => say('Hi, I\'m <b>Kiro</b>. Click me to chat, drag me anywhere, double-click for the office.', 8000), 1200);
+</script>
+</body>
+</html>
