@@ -1,8 +1,10 @@
 # Agent Office
 
+[![Latest release](https://img.shields.io/github/v/release/Ic3krem/agent-office)](https://github.com/Ic3krem/agent-office/releases/latest) [![Downloads](https://img.shields.io/github/downloads/Ic3krem/agent-office/total)](https://github.com/Ic3krem/agent-office/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) ![Windows · macOS · Linux](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-orange)
+
 A pixel office for your Claude Code agents. **Kiro**, a little orange cube-crab, manages the office. Give Kiro a task and it plans the work, hires specialist agents, routes risky actions to you for approval, files reports and remembers what it learned in an Obsidian vault. The office itself spends **no tokens**. Every piece of furniture reads files, switches and system data directly, and models only run when an agent works.
 
-![Kiro](desktop/icon.png)
+![Kiro's moods: idle, all goals done, agents working, building, planning, needs your approval, goal done, paused at plan limit](docs/kiro-moods.png)
 
 ## Install
 
@@ -69,3 +71,7 @@ npm run dist       # build an installer for this OS
 ```
 
 Pushing a tag like `v1.1.0` runs `.github/workflows/release.yml`, which builds Windows, macOS (arm64 and x64) and Linux installers and publishes them as a GitHub release.
+
+## License
+
+[MIT](LICENSE). Not affiliated with Anthropic. Claude and Claude Code are Anthropic products; Agent Office runs on your own Claude Code install.

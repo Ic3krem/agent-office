@@ -91,5 +91,16 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Ic3krem/agent-office.git"
-  }
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai-agents",
+    "agent-sdk",
+    "electron",
+    "pixel-art",
+    "obsidian",
+    "desktop-app"
+  ]
 }
