@@ -61,7 +61,8 @@
   .btn.yes { background: #5fd38d; border-color: #5fd38d; color: #0c2416; font-weight: 600; }
   .btn.no { border-color: #ff7a6b; color: #ff9a8d; }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: #2a1a0c; font-weight: 600; }
-  .msg { font-size: 13px; line-height: 1.45; color: #e9dccb; white-space: pre-wrap; word-break: break-word; padding: 8px 10px; border-radius: 9px; background: #120e0c; border: 1px solid #2a211b; max-height: 120px; overflow-y: auto; }
+  .msg { font-size: 13px; line-height: 1.45; color: #e9dccb; white-space: pre-wrap; word-break: break-word; padding: 8px 10px; border-radius: 9px; background: #120e0c; border: 1px solid #2a211b; max-height: 220px; overflow-y: auto; }
+  .msg b { color: #fff1dc; }
   .msg.you { background: #13221c; border-color: #24443a; color: #c9f3e6; }
   .empty { font-size: 12.5px; color: #7d7064; }
   .foot { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid #33281f; }
@@ -149,8 +150,10 @@ function renderPanel() {
   const asks = a.filter(x => x.perm).map(x => `<div class="ask"><span class="who">${esc(x.name)} wants to run ${esc(x.perm.short)}</span><code>${esc(x.perm.cmd)}</code>
       ${x.perm.why ? `<span class="empty">${esc(x.perm.why.slice(0, 160))}</span>` : ''}
       <div class="row"><button class="btn yes" data-ask="${esc(x.perm.askId)}" data-d="allow">Approve</button><button class="btn no" data-ask="${esc(x.perm.askId)}" data-d="deny">Deny</button></div></div>`).join('');
-  const said = (boss?.logs || []).filter(l => l.k === 'agent' || l.k === 'user').slice(-4)
-    .map(l => `<div class="msg ${l.k === 'user' ? 'you' : ''}">${esc(l.text.length > 600 ? l.text.slice(0, 600) + '…' : l.text)}</div>`).join('');
+  // The last exchange only, with Markdown bold/code shown plainly.
+  const plain = t => esc(t.length > 900 ? t.slice(0, 900) + '…' : t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '$1');
+  const said = (boss?.logs || []).filter(l => l.k === 'agent' || l.k === 'user').slice(-2)
+    .map(l => `<div class="msg ${l.k === 'user' ? 'you' : ''}">${plain(l.text)}</div>`).join('');
   const open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
   const scroll = $('body'), atEnd = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 40;
   scroll.innerHTML = (asks ? `<span class="label">WAITING FOR YOU</span>${asks}` : '')

@@ -15,7 +15,10 @@ const OUTBOUND_TOOL = /^mcp__.*(send|delete|trash|remove|publish|transfer|paymen
 
 export function review(tool, input) {
   if (OUTBOUND_TOOL.test(tool)) return { ok: false, rule: 'acts outside this PC (' + tool.split('__').pop() + ')' };
-  const text = typeof input === 'string' ? input : JSON.stringify(input ?? {});
+  // Commands are checked as commands; file writes by where they go, not by what the file says
+  // (a checklist that mentions SSH or passwords is not an SSH command or a secret).
+  const text = typeof input === 'string' ? input
+    : input?.command ?? (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(tool) ? String(input?.file_path ?? input?.notebook_path ?? '') : JSON.stringify(input ?? {}));
   for (const [rule, re] of RULES) if (re.test(text)) return { ok: false, rule };
   return { ok: true };
 }

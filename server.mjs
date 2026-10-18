@@ -22,6 +22,8 @@ const PROJECTS = path.join(HOME, '.claude', 'projects');
 const CFG_DIR = path.join(HOME, '.claude', 'agent-office');
 const CFG_FILE = path.join(CFG_DIR, 'bridge.json');
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+// Presentation mode: show only Kiro and its specialists, not your other Claude sessions.
+const TEAM_ONLY = !!process.env.AGENT_OFFICE_TEAM_ONLY;
 const RECENT_MS = 45 * 60e3, TAIL_BYTES = 512 * 1024, DESKS = 8;
 // How long a request waits once it is on screen. Office sessions have no terminal to fall back to, so they wait longer;
 // bridged terminals fall back to their own dialog.
@@ -338,7 +340,7 @@ function tellBoss(text) {
 // ---------- snapshot ----------
 function snapshot() {
   const now = Date.now();
-  const list = [...agents.values()].filter(a => !a.isManager && !(a.hidden && a.hidden === a.mtime && !a.perms?.length) && (a.perms?.length || a.dashboard || (a.bridged && now - a.bridged < 10e3) || now - (a.mtime || 0) < RECENT_MS));
+  const list = [...agents.values()].filter(a => !a.isManager && (!TEAM_ONLY || (boss.id && a.parent === boss.id)) && !(a.hidden && a.hidden === a.mtime && !a.perms?.length) && (a.perms?.length || a.dashboard || (a.bridged && now - a.bridged < 10e3) || now - (a.mtime || 0) < RECENT_MS));
   const rank = a => ({ blocked: 0, error: 0, limited: 1, working: 1, idle: 2 })[statusOf(a, now)] ?? 2;
   list.sort((x, y) => rank(x) - rank(y) || (y.mtime || 0) - (x.mtime || 0));
   const bossAgent = boss.id && agents.get(boss.id);
