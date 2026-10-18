@@ -84,3 +84,30 @@ export const SPECIALISTS = {
   writer: role('Drafts documents, emails, reports and summaries. Never sends anything.', 'You are a writer. Produce clear drafts saved to files or returned in your report. Never send mail or post messages.', ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'WebFetch', 'WebSearch'], 'low'),
   reviewer: role('Reviews another specialist\'s work, runs tests and reports problems.', 'You are a reviewer. Check the work against the goal, run what can be run, and list concrete problems or say it passes.', READ_ONLY, 'medium'),
 };
+
+// The team comes from the filing cabinet: every SOP note named specialist-<name>.md is a hireable specialist.
+// Built-in roles keep their tools and effort; a new note can set them in frontmatter:
+//   ---
+//   description: Designs UI mockups      (what Kiro sees when choosing who to hire)
+//   tools: Read, Grep, Glob, Write       (default: read, search, web, Bash, Edit, Write)
+//   model: haiku | sonnet | opus         (default: sonnet)
+//   ---
+export function teamFromSops(sops, base = SPECIALISTS) {
+  const team = { ...base };
+  for (const { name, text } of sops) {
+    const m = name.match(/^specialist-([a-z0-9-]+)$/); if (!m) continue;
+    const fmm = text.match(/^---\n([\s\S]*?)\n---\n?/), head = fmm ? fmm[1] : '', body = (fmm ? text.slice(fmm[0].length) : text).trim();
+    const field = k => (head.match(new RegExp('^' + k + ':\s*(.+)$', 'm')) || [])[1]?.trim();
+    if (!body) continue; // an emptied note falls back to the built-in role
+    const was = base[m[1]] || {};
+    const firstLine = body.split('\n').find(l => l.trim())?.replace(/^#+\s*/, '').replace(/\*\*/g, '').slice(0, 200);
+    team[m[1]] = {
+      ...was,
+      description: field('description') || was.description || firstLine,
+      prompt: body,
+      tools: field('tools') ? field('tools').split(/[,\s]+/).filter(Boolean) : was.tools || HANDS_ON,
+      model: field('model') || was.model || 'sonnet',
+    };
+  }
+  return team;
+}

@@ -126,7 +126,7 @@
 
   // ---------- 3. filing cabinet: SOPs ----------
   async function sops(name) {
-    const body = shell('Filing cabinet · SOPs', 'Kiro\'s brief and each specialist\'s instructions. Changes apply when Kiro next starts fresh.');
+    const body = shell('Filing cabinet · SOPs', 'Kiro\'s brief and each specialist\'s instructions. Edits apply from Kiro\'s next turn. Add specialist-<name>.md for a new specialist.');
     const { sops } = await api('/api/sops'); st.sops = sops;
     const cur = sops.find(s => s.name === name) || sops[0];
     body.innerHTML = `<div class="oo-list"><div class="oo-items">${sops.map(s => `<div class="oo-item ${s.name === cur?.name ? 'on' : ''}" data-act="sop" data-name="${esc(s.name)}"><div class="oo-spine" style="background:${s.name === 'kiro-brief' ? '#ff6a13' : '#8fa3ff'}"></div><div>📁 ${esc(s.name.replace(/-/g, ' '))}</div></div>`).join('')}</div></div>
