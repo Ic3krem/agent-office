@@ -1,0 +1,65 @@
+// One shared secret redactor for everything Agent Office writes down: agent history, memory notes, reports, daily notes,
+// seeded memory. Pattern based, so it is a safety net and not a guarantee.
+const R = '[redacted]';
+const PATTERNS = [
+  // private key blocks (whole block, or to the end of the text when unterminated)
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
+  // key = value assignments
+  /\b(?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|token|auth[_-]?token|private[_-]?key)\s*[:=]\s*["']?[^\s"',;]{4,}/gi,
+  // connection strings: scheme://user:pass@host
+  /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:@\/]+:[^\s@\/]+@[^\s\/]+/gi,
+  // Azure storage / SAS / service bus style
+  /\b(?:AccountKey|SharedAccessKey|SharedAccessSignature|sig)=[A-Za-z0-9+\/%=_-]{16,}/g,
+  // bearer tokens and basic auth headers
+  /\b(?:bearer|basic)\s+[A-Za-z0-9._~+\/=-]{12,}/gi,
+  // JSON web tokens
+  /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{4,}/g,
+  // well-known vendor prefixes
+  /\bsk-[A-Za-z0-9_-]{16,}/g,
+  /\bgh[pousr]_[A-Za-z0-9]{20,}/g,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}/g,
+  /\bAKIA[0-9A-Z]{16}\b/g,
+  /\bASIA[0-9A-Z]{16}\b/g,
+  /\bxox[abprs]-[A-Za-z0-9-]{10,}/g,
+  /\bdop_v1_[A-Za-z0-9]{20,}/g,
+  /\bdo[or]_v1_[A-Za-z0-9]{20,}/g,
+  /\bops_[A-Za-z0-9_-]{20,}/g,         // 1Password service account tokens
+  /\bAIza[0-9A-Za-z_-]{30,}/g,
+  /\bnpm_[A-Za-z0-9]{30,}/g,
+];
+
+// Shannon entropy in bits per character.
+export function entropy(s) {
+  const m = new Map();
+  for (const c of s) m.set(c, (m.get(c) || 0) + 1);
+  let h = 0;
+  for (const n of m.values()) { const p = n / s.length; h -= p * Math.log2(p); }
+  return h;
+}
+
+// Long random-looking strings that are not plain hex (git hashes stay readable) and not file paths.
+const CANDIDATE = /[A-Za-z0-9_+\/=-]{32,}/g;
+function looksLikeToken(t) {
+  if (/^[0-9a-f]+$/i.test(t)) return false;              // git/sha hashes
+  if (t.includes('/') && /^[\w.-]*(\/[\w.-]+){2,}\/?$/.test(t) && /[a-z]{3,}/.test(t) && !/[+=]/.test(t)) return false; // a path
+  if (!(/[a-z]/.test(t) && /[A-Z]/.test(t) && /\d/.test(t))) return false;
+  return entropy(t) >= 4.0;
+}
+
+export function redact(text) {
+  let s = String(text ?? '');
+  for (const re of PATTERNS) s = s.replace(re, R);
+  s = s.replace(CANDIDATE, t => (looksLikeToken(t) ? R : t));
+  return s;
+}
+
+// True when redaction would change the text, i.e. it appears to contain a secret.
+export const hasSecret = text => redact(text) !== String(text ?? '');
+
+// Redact every string inside plain objects and arrays (reports, findings, etc.).
+export function redactDeep(v) {
+  if (typeof v === 'string') return redact(v);
+  if (Array.isArray(v)) return v.map(redactDeep);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, redactDeep(x)]));
+  return v;
+}
