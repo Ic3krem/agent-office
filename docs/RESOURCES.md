@@ -9,6 +9,7 @@ Quick links for Agent Office 1.2.5. The latest release is v1.2.5 (Windows instal
 | Overview and install | [README.md](../README.md) |
 | Full user guide | [GUIDE.md](GUIDE.md) |
 | What changed in each version | [CHANGELOG.md](../CHANGELOG.md) |
+| Permissions and Claude Code parity | [permissions.md](permissions.md) |
 | Team, hiring gate, per-agent memory and history | [agents-and-memory.md](agents-and-memory.md) |
 | Scheduler station, job and feed file | [scheduler.md](scheduler.md) |
 | Office world design and 1.2.x changes | [office-spec.md](office-spec.md) |
@@ -20,7 +21,7 @@ Quick links for Agent Office 1.2.5. The latest release is v1.2.5 (Windows instal
 
 - `desktop/main.mjs`: Electron shell. Starts the server, shows the Tiro window, the island and the tray, and runs the update check. `desktop/updater.mjs`, `island-logic.mjs`, `nowplaying.mjs`, `lyrics.mjs` hold the pure logic.
 - `server.mjs`: local HTTP server (`127.0.0.1`, key auth, CSP). Tracks Claude Code transcripts, runs Tiro through the Agent SDK, serves `public/`, and exposes the `/api/*` endpoints listed in the guide.
-- `company.mjs`: the roster, names, hire gate, goals and prompts. `agent-home.mjs`: per-agent memory and history. `vault.mjs`: the Markdown memory vault. `reports.mjs`: reports and exports. `scheduler.mjs` and `scheduler-job.mjs`: scheduler reader and job. `manager.mjs`: auto-approval rules. `usage.mjs`: tokens, plan limits, credits. `office.mjs`: breaker switches and system stats. `transcript.mjs`: transcript parsing.
+- `company.mjs`: the roster, names, hire gate, goals and prompts. `agent-home.mjs`: per-agent memory and history. `vault.mjs`: the Markdown memory vault. `reports.mjs`: reports and exports. `scheduler.mjs` and `scheduler-job.mjs`: scheduler reader and job. `permissions.mjs`: Claude Code session options and the permission-prompt bridge. `auth.mjs`: credentials. `redact.mjs`: the shared redactor. `usage.mjs`: tokens, plan limits, credits. `office.mjs`: breaker switches and system stats. `transcript.mjs`: transcript parsing.
 - `public/`: the dashboard (`Agent Office.html`), office world scripts, the island page, the Tiro window, and `vendor/` (React, ReactDOM, Babel).
 - `bridge/`: the optional Claude Code plugin that lets terminals receive messages and send approvals.
 

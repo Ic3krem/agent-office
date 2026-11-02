@@ -14,7 +14,7 @@ Agent Office is a pixel office for your own Claude Code agents. **Tiro** is the 
 
 - **Installed app:** open Agent Office from the desktop shortcut or Start menu. It starts its local server and shows Tiro on your desktop. Double-click Tiro (or use the tray menu, Open office) to open the dashboard.
 - **From source:** `npm install`, then `npm start` (see [RESOURCES.md](RESOURCES.md)).
-- The server listens on `127.0.0.1` only. The dashboard URL carries a random key, for example `http://localhost:4777/?key=...`. Pages opened without the key can load but cannot read or change anything.
+- The server listens on `127.0.0.1` only. The desktop app signs its windows in with a private cookie; a standalone `node server.mjs` prints a one-time sign-in link (valid once, for 5 minutes) instead. There is no key in the URL. Pages opened without signing in can load but cannot read or change anything.
 
 ## The dashboard
 
@@ -44,7 +44,7 @@ There are two kinds, and both show on the dashboard and in the island.
 
 ![Tiro asking to hire Warden, with the goal, the reason and Approve hire and Deny buttons](images/08-hire-approval-card.png)
 
-**Tool approvals.** When an agent wants to run a risky tool call (for example a command that deletes files), the request waits in the **Inbox tray** on Tiro's desk. You can Allow, Deny, edit the command and allow it, or hand it back to the terminal. With **Tiro auto-approve** on, routine actions are approved by Tiro's safety rules and risky ones (remote shells, downloads piped into a shell, and similar) still wait for you. A request with no answer in 10 minutes is declined.
+**Tool approvals.** Tiro and the agents run on your own Claude Code configuration: your allow, deny and ask rules, permission mode, hooks and settings decide what happens. Only a request Claude Code itself would ask you about shows up (in the dashboard detail pane and the island), with the full tool input and Claude Code's own choices: **Yes**, **Yes, and don't ask again** (offered only when Claude Code suggests a rule; it writes that same rule to the same settings file Claude Code would), and **No**, optionally with a note telling Claude what to do instead. Nothing is edited, auto-approved or timed out into an answer; a prompt waits until you answer. Questions Claude asks (the multiple-choice question tool) appear as a question card in the island. Terminal sessions still ask in their own dialog when no tab is open. See [permissions.md](permissions.md).
 
 ## The team
 
@@ -91,7 +91,7 @@ The world is isometric with five zones: Tiro's glass office (top left), the focu
 
 - **Working** agents sit at their own desk. Thinking agents walk to the garden or park. When the board is empty, idle agents go to the playroom. A rate-limited agent waits at the water cooler. A finished goal sends its agent to Tiro's office to report, then back.
 - **Objects:** Today board, Bookshelf (reports), Corkboard (memory), Filing cabinet (SOPs), Inbox tray, Breaker box, Server rack, Whiteboard (tokens and limits), Coffee machine (espresso: the next hire uses the fast model), Arcade, Jukebox, Server plant, and the Scheduler garage and mailbox.
-- **Breaker box switches:** Tiro (manager) on/off, Autopilot, Hiring, Tiro auto-approve, Terminal approvals, and the Subscription guard, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.
+- **Breaker box switches:** Tiro (manager) on/off, Autopilot, Hiring, Terminal approvals, and the Subscription guard, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.
 - **Click outlines.** Objects and people are picked by their drawn shape, not a rough box. Hover shows a gold outline that follows the silhouette; where pieces overlap, the smaller one wins. Characters are depth-sorted so none is hidden behind its own desk.
 
 ![Hovering a desk draws a yellow outline that follows its shape](images/15-click-outline-hover.png)
@@ -148,7 +148,7 @@ All state is under `~/.claude/agent-office/` (your home folder). Nothing here ne
 
 | File or folder | What it holds |
 |---|---|
-| `bridge.json` | Server port and the random access key. Do not share. |
+| `bridge.json` | Server port and the terminal bridge key (opens `/bridge/*` only). The UI key is never stored. |
 | `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings`, `updateFeed`, `updateAuto`, `hidden`, optional `schedulerMailbox`. |
 | `switches.json` | Breaker box switches. |
 | `manager.json` | Tiro auto-approval on or off. |
@@ -162,15 +162,14 @@ Reports, daily notes, memory and SOPs live in your vault (`Agent Office/` folder
 
 ## API reference
 
-The dashboard, island and tools talk to a local HTTP API. Every call to `/api/...` is a **POST** with a JSON body and the key in the `x-key` header (or `?key=` in the URL). A wrong key returns 401; a wrong `Host` header returns 403. `GET /api/stream` is a Server-Sent Events feed of the live snapshot. The bridge plugin also uses `/bridge/ask` and `/bridge/poll`.
+The dashboard, island and tools talk to a local HTTP API. Every call to `/api/...` is a **POST** with a JSON body, authenticated by the UI session cookie (there is no key in URLs or headers; the bridge key only opens `/bridge/*`). Decision endpoints (`/api/decide`, `/api/hire/decide`, `/api/switch`, `/api/send`, `/api/task`, `/api/sops/save`, `/api/boss-reset`) also need the per-session nonce in the `x-nonce` header. Not signed in returns 401, a missing nonce 403, a wrong `Host` header 403. `GET /api/stream` is a Server-Sent Events feed of the live snapshot. The bridge plugin also uses `/bridge/ask` and `/bridge/poll`.
 
 | Endpoint | Body | Purpose |
 |---|---|---|
 | `/api/stream` (GET) | none | Live snapshot (agents, goals, approvals, usage). |
 | `/api/send` | `{id, text}` | Message an agent session. |
 | `/api/interrupt` | `{id}` | Interrupt a running turn. |
-| `/api/decide` | `{askId, decision, command?, always?}` | Answer a tool approval (`allow`, `deny`, `terminal`). |
-| `/api/manager` | `{on}` | Turn Tiro auto-approval on or off. |
+| `/api/decide` | `{askId, decision, always?, message?, answers?}` | Answer a Claude Code permission prompt (`allow`, `deny`, `terminal`); `always` writes Claude Code's suggested rule, `message` tells Claude what to do instead, `answers` answers a question card. |
 | `/api/task` | `{text}` | Add a goal and tell Tiro. |
 | `/api/goal` | `{id, action}` | `accept`, `dismiss`, `done` or `reopen` a goal. |
 | `/api/boss` | none | Nudge Tiro to read the board. |
@@ -202,8 +201,9 @@ Also: `GET /print/report`, `/print/daily`, `/export/report.xlsx` and `/export/da
 |---|---|
 | Dashboard is blank | Reload. If it persists, check the app is up to date (older builds before 1.2.5 could not load their scripts under the security policy). |
 | "Connecting" banner stays | The server is not running. Restart Agent Office. If another copy holds the port, quit it first. |
-| 401 "bad key" from a script | Use the key in `~/.claude/agent-office/bridge.json`. It is regenerated only if that file is deleted. |
+| 401 "not signed in" from a script | The API needs the UI session cookie, which only the desktop app (or the one-time sign-in link of a standalone run) has. The bridge key in `bridge.json` opens `/bridge/*` only. |
 | Tiro does nothing | Check the Breaker box (Tiro on, plan guard not paused) and that Claude Code is installed and logged in. |
+| Far more (or fewer) prompts than before | Prompts now follow your Claude Code permission rules and mode; edit your allow, deny and ask rules or `permissions.defaultMode` ([permissions.md](permissions.md)). |
 | Hire card never appears | Hiring switch may be off, or Tiro asked for a goal that is not open. |
 | Scheduler says "no data yet" or "No mail feed file yet" | The job has not run, or nothing writes `inbox-feed.json`. See [scheduler.md](scheduler.md). |
 | SmartScreen warns on install | The build is not code-signed. Compare the SHA-256 with the one on the GitHub release. |
@@ -221,7 +221,7 @@ Also: `GET /print/report`, `/print/daily`, `/export/report.xlsx` and `/export/da
 
 **Can I rename agents and keep their history?** Yes; history follows the type, not the name.
 
-**Why a vendored React and Babel?** So the dashboard works under a strict security policy and offline, except for the Google Fonts stylesheet.
+**Why a vendored React and Babel?** So the dashboard works under a strict security policy and fully offline; the fonts are vendored too.
 
 ## Security notes
 

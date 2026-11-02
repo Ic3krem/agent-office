@@ -20,7 +20,7 @@ Run `node scheduler-job.mjs`. One run does one check:
 2. It reads the feed file. It ignores the feed if it is missing, unreadable, has no valid `generatedAt`, is older than 2 hours, or names a different mailbox from the configured one. The status file then says why.
 3. Unread messages only. Each subject is cleaned (secrets redacted, cut to 140 characters) and classified as `task`, `need` or `info`. Automated noise such as daily or weekly reports and newsletters is dropped. Outlook categories in the feed count as a hint.
 4. It writes `scheduler.json` (`itemsFound` counts tasks plus needs).
-5. It updates Tiro: a short note at `~/.claude/agent-office/agents/tiro/memory/scheduler-inbox.md`, newest first, capped at 30 entries and 8 KB, subject lines only, never message bodies. It also records `lastUpdateToTiro`. Mails it already announced are not repeated; it keeps a small dedupe file, `scheduler-seen.json`, next to the status file.
+5. It updates Tiro's status, not Tiro's memory: subjects stay in `scheduler.json`, marked `untrusted: true`, and are never written into Tiro's memory folder or `MEMORY.md`. Tiro reads them only through the `scheduler_inbox` tool, which wraps them in an `UNTRUSTED_EMAIL_SUBJECTS` fence and says they are data, not instructions. `lastUpdateToTiro` records when the status was last written. Mails already announced are not repeated; a small dedupe file, `scheduler-seen.json`, sits next to the status file.
 
 It sends nothing to anyone, and it never replies to, moves, flags or deletes mail. It opens no network connection, calls no Graph or IMAP service and holds no credentials. A test checks that the job source contains no network or mail-write code.
 

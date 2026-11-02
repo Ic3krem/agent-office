@@ -34,8 +34,8 @@ Tiro cannot start a specialist on its own. The flow, in `server.mjs` and `compan
 1. Tiro calls the `request_hire` tool with the specialist type, the goal id and a reason.
 2. The request is refused without reaching you if hiring is switched off in the Breaker box, the goal is not an open goal (`todo` or `doing`), the reason is shorter than 25 characters, 8 specialists are already working, that specialist is already on the team and idle (Tiro is told to reuse it), or an identical request is already waiting.
 3. Otherwise an approval card appears for you. Your answer goes through `POST /api/hire/decide` (`{id, approve, note}`).
-4. An approval is one-shot. It lets Tiro start exactly one agent of that type, and it expires after 10 minutes if unused.
-5. A hook on the Agent tool blocks any start that has no approval, whatever Tiro was told.
+4. An approval is one-shot. It lets Tiro start exactly one agent of that type, with exactly the first prompt shown on the card (`request_hire` carries the prompt and the grant is bound to its hash and the goal id), and it expires after 10 minutes if unused.
+5. A hook on the Agent tool blocks any start that has no approval or a different prompt. It only denies or adjusts input; it never approves anything, so your own permission rules for the Agent tool still apply. A second, deny-only hook on Tiro's Bash and PowerShell calls refuses a command that launches `claude` or the Agent SDK, because that would start an agent without `request_hire`.
 6. All pending cards and unused approvals are cleared when Tiro's session ends, when you reset it (`/api/boss-reset`), when the manager is stopped or switched off, and when the hiring switch is turned off. A stale card cannot create an approval for a later session.
 
 ## Per-agent memory and history
@@ -52,9 +52,9 @@ agents/tiro/<key>/history/   index.jsonl plus one <task>.md summary per task
 The code is `agent-home.mjs`. Folders are keyed by type, never by display name.
 
 - **Fresh context per task.** Each hire starts with an empty context. The only thing that carries over is that agent's own `memory/` folder. Its instructions point at the folder, ask it to read `MEMORY.md` first and, when it is allowed to write files, to add a short note for durable facts before it finishes.
-- **Read-only specialists** (warden, probe, atlas, cabalan) cannot write notes. Agent Office files their final report into their `history/` for them.
+- **Read-only specialists** (warden, probe, atlas, cabalan) have no Write or Edit tool in their roster definition, so they cannot write notes; Agent Office files their final report into their `history/` for them. Whether any agent may run a given command or write a given file is decided by your Claude Code permissions, not by Agent Office.
 - **History** is recorded by hooks. When a hire starts, a task entry is written with the goal id, description and brief. When the specialist stops, `<task>.md` holds its final report and its transcript path, and the index entry is closed. Tiro's history lists every hire. Transcripts stay where Claude Code wrote them, under `~/.claude/projects/`.
-- **No secrets.** Summaries and briefs pass through a redaction step (passwords, tokens, API keys, bearer tokens and private key blocks become `[redacted]`). Agents are also told never to store secrets. Redaction is pattern based, so it is a safety net, not a guarantee.
+- **No secrets in our files.** Summaries and briefs (Agent Office's own history, memory, report and daily files; not Claude's transcripts) pass through one shared redaction step (passwords, tokens, API keys, bearer tokens and private key blocks become `[redacted]`). Agents are also told never to store secrets. Redaction is pattern based, so it is a safety net, not a guarantee.
 - Nothing is migrated or deleted automatically. Old vault notes and reports are untouched.
 
 ### Agent history overlay and API
