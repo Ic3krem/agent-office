@@ -2,19 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { review } from './manager.mjs';
 
+// The manager is an allowlist: read-only tools, a few known-safe commands, edits inside trusted folders, documentation fetches.
+// The full matrix (paths, claude bypass, network, memory notes) is in security.test.mjs.
+const CTX = { home: 'C:\\Users\\me', trustedDirs: ['C:\\x'] };
+
 test('routine work is approved', () => {
   for (const [tool, input] of [
     ['Bash', { command: 'npm test' }],
     ['Bash', { command: 'git status && git diff' }],
     ['Edit', { file_path: 'C:/x/app.js', old_string: 'a', new_string: 'b' }],
     ['Write', { file_path: 'C:/x/notes.md', content: 'hi' }],
-    ['WebFetch', { url: 'https://example.com' }],
+    ['WebFetch', { url: 'https://developer.mozilla.org/en-US/' }],
     ['mcp__claude_ai_Microsoft_365__outlook_email_search', { query: 'x' }],
-    ['Write', { file_path: 'C:/tmp/onboarding.md', content: 'Day 1: set up SSH keys and a password manager' }],
-  ]) assert.equal(review(tool, input).ok, true, tool + ' ' + JSON.stringify(input));
+    ['Write', { file_path: 'C:/x/onboarding.md', content: 'Day 1: set up SSH keys and a password manager' }],
+  ]) assert.equal(review(tool, input, CTX).ok, true, tool + ' ' + JSON.stringify(input));
 });
 
-test('rule-breaking work is escalated', () => {
+test('rule-breaking and unlisted work is escalated', () => {
   for (const [tool, input] of [
     ['Bash', { command: 'ssh -i ~/.ssh/key root@1.2.3.4 ls' }],
     ['Bash', { command: 'scp a.txt root@host:/tmp' }],
@@ -26,7 +30,8 @@ test('rule-breaking work is escalated', () => {
     ['Bash', { command: 'psql -c "DROP TABLE users"' }],
     ['Read', { file_path: 'C:/Users/me/.ssh/id_ed25519' }],
     ['Write', { file_path: 'C:/proj/.env', content: 'X=1' }],
+    ['Write', { file_path: 'C:/elsewhere/a.md', content: 'x' }],
     ['PowerShell', { command: 'Set-ExecutionPolicy Unrestricted' }],
     ['mcp__claude_ai_Microsoft_365__outlook_send_mail', { to: 'a@b.c' }],
-  ]) assert.equal(review(tool, input).ok, false, tool + ' ' + JSON.stringify(input));
+  ]) assert.equal(review(tool, input, CTX).ok, false, tool + ' ' + JSON.stringify(input));
 });
