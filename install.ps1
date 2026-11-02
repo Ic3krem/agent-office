@@ -1,6 +1,7 @@
 # Agent Office installer for Windows:
 #   irm https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.ps1 | iex
-# Downloads the latest release, installs it for the current user and adds a desktop shortcut.
+# Downloads the latest release over https, VERIFIES its SHA-256 against the digest GitHub published for that asset (aborts on
+# a missing or mismatching digest), installs it for the current user and adds a desktop shortcut.
 $ErrorActionPreference = 'Stop'
 $repo = 'Ic3krem/agent-office'
 
@@ -16,7 +17,13 @@ if (-not $asset) { throw "No Windows installer in release $($rel.tag_name)." }
 
 $out = Join-Path $env:TEMP $asset.name
 Write-Host "Downloading $($asset.name) ($([math]::Round($asset.size / 1MB)) MB)..."
+if ($asset.browser_download_url -notmatch '^https://') { throw 'Refusing a non-https download URL.' }
+if ($asset.digest -notmatch '^sha256:([0-9a-fA-F]{64})$') { throw "GitHub published no SHA-256 digest for $($asset.name); not installing an unverified file." }
+$want = $Matches[1].ToLower()
 Invoke-WebRequest $asset.browser_download_url -OutFile $out -UseBasicParsing
+$got = (Get-FileHash $out -Algorithm SHA256).Hash.ToLower()
+if ($got -ne $want) { Remove-Item $out -ErrorAction SilentlyContinue; throw "SHA-256 mismatch for $($asset.name): expected $want, got $got. Download discarded." }
+Write-Host "SHA-256 verified ($want)."
 
 Write-Host 'Installing (current user, no admin needed)...'
 Start-Process $out -ArgumentList '/S' -Wait   # silent install; it creates the Start menu and desktop shortcuts

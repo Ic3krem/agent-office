@@ -1,3 +1,19 @@
 node_modules/
 dist/
 *.log
+# local state, backups, build output, secrets
+*.bak
+*.bak-*
+package.json.bak-*
+release-feed/
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+bridge.json
+kiro.json
+scheduler*.json
+inbox-feed.json
+.DS_Store
+Thumbs.db
