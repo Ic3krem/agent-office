@@ -10,7 +10,7 @@
     return `<g class="${raised ? 'claw-up' : 'claw'}">
       <path d="M${cx - s * 14} ${cy - 4} Q${cx - s * 6} ${ay + 8} ${cx} ${ay}" fill="none" stroke="${O}" stroke-width="8" stroke-linecap="round"/>
       <path d="M${cx - s * 14} ${cy - 4} Q${cx - s * 6} ${ay + 8} ${cx} ${ay}" fill="none" stroke="${CLAW}" stroke-width="5" stroke-linecap="round"/>
-      <path d="M${cx} ${ay} q${s * 4} -14 ${s * 14} -10 q-${s * 2} 6 -${s * 7} 7 q${s * 9} 2 ${s * 9} 9 q-${s * 10} 6 -${s * 16} -6 z" fill="${CLAW}" stroke="${O}" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M${cx} ${ay} q${s * 4} -14 ${s * 14} -10 q${-s * 2} 6 ${-s * 7} 7 q${s * 9} 2 ${s * 9} 9 q${-s * 10} 6 ${-s * 16} -6 z" fill="${CLAW}" stroke="${O}" stroke-width="2.5" stroke-linejoin="round"/>
     </g>`;
   };
   const eyes = mood => mood === 'sleep'

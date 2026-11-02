@@ -70,3 +70,9 @@ test('React, ReactDOM and Babel are vendored and match the SRI hashes in support
     assert.ok(read('./server.mjs').includes("'/vendor/" + file + "'"), file + ' is served');
   }
 });
+
+test('SVG path data never builds a double minus, and company metadata names the owner', () => {
+  assert.doesNotMatch(read('./public/kiro-art.js'), /[qQ ]-\$\{[^}]*\}\s*\d|\s-\$\{s \*/, 'negating a possibly negative number glues two minus signs');
+  assert.equal(JSON.parse(read('./.claude-plugin/marketplace.json')).owner.name, 'Ic3krem');
+  assert.doesNotMatch(read('./README.md') + read('./package.json') + read('./LICENSE'), /Example/i);
+});
