@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { apply, newAgent, statusOf, toolSummary } from './transcript.mjs';
-import { review } from './manager.mjs';
+import { claudeSessionOptions, makeCanUseTool, describeRequest, launchesClaude } from './permissions.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { goalStore, MANAGER_PROMPT, SPECIALISTS, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
@@ -34,7 +34,7 @@ const SHOW_ALL = process.env.AGENT_OFFICE_SHOW_ALL === '1';
 const RECENT_MS = 45 * 60e3, TAIL_BYTES = 512 * 1024, DESKS = 8;
 // How long a request waits once it is on screen. Office sessions have no terminal to fall back to, so they wait longer;
 // bridged terminals fall back to their own dialog.
-const ASK_WAIT_MS = 10 * 60e3, BRIDGE_WAIT_MS = 90e3;
+const BRIDGE_WAIT_MS = 90e3;
 
 // Two separate credentials (see auth.mjs). The bridge key in bridge.json opens /bridge/* only; the UI key is never written to disk.
 lockDown(CFG_DIR, [CFG_FILE, ...['kiro.json', 'goals.json', 'switches.json', 'manager.json', 'credits.json', 'manager-session.json', 'scheduler.json'].map(f => path.join(CFG_DIR, f))]);
@@ -53,9 +53,9 @@ const sdk = new Map();         // sessionId -> { q, push }
 const clients = new Set();     // SSE responses
 let tasksDone = 0, version = 0;
 const bump = () => version++;
-const MGR_FILE = path.join(CFG_DIR, 'manager.json');
-const manager = { on: true, approved: 0, escalated: 0, last: '' };
-try { manager.on = JSON.parse(fs.readFileSync(MGR_FILE, 'utf8')).on !== false; } catch {}
+// Tool permissions are decided by Claude Code from the user's own settings (see permissions.mjs). Agent Office keeps no approval rules of its own;
+// this object only feeds the header label.
+const manager = { on: false, approved: 0, escalated: 0, last: '' };
 const nameBox = nameStore(path.join(CFG_DIR, 'kiro.json'));   // display-name overrides live in kiro.json (agentNames)
 const hires = hireGate();   // the manager asks, the user approves; one approval buys one hire
 // Per-agent homes (folders keyed by roster type): own memory + task history, Tiro as the parent folder.
@@ -100,11 +100,6 @@ const briefText = () => {
   if (!warnedSops.has('kiro-brief' + sopHash(t))) { warnedSops.add('kiro-brief' + sopHash(t)); console.error('SOP kiro-brief changed outside Agent Office; using the built-in brief until you save it in the app.'); }
   return MANAGER_PROMPT;
 };
-// What the manager may approve for you: configuration lives in kiro.json (trustedDirs = folders where file edits are auto-approved).
-const reviewCtx = () => {
-  let k = {}; try { k = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')); } catch {}
-  return { home: HOME, protectedDirs: [ROOT, V.dirs.sops, CFG_DIR], trustedDirs: (Array.isArray(k.trustedDirs) ? k.trustedDirs : []).filter(x => typeof x === 'string').slice(0, 20) };
-};
 const switches = switchBox(path.join(CFG_DIR, 'switches.json'));
 const sw = () => switches.get();
 const host = rack();
@@ -123,7 +118,7 @@ const ledger = usageLedger(PROJECTS);
 let limits = null;
 const credits = creditLog(path.join(CFG_DIR, 'credits.json'));
 const overLimit = () => !!limits && !limits.error && [limits.session, limits.weekly].some(w => w && w.pct >= 100);
-const refreshLimits = () => planLimits(query, LEAN).then(l => { limits = l; credits.observe(l.extra?.used, overLimit()); guard(); bump(); }).catch(e => { limits = { error: e.message, at: Date.now() }; bump(); });
+const refreshLimits = () => planLimits(query, LIMITS_OPTS).then(l => { limits = l; credits.observe(l.extra?.used, overLimit()); guard(); bump(); }).catch(e => { limits = { error: e.message, at: Date.now() }; bump(); });
 setInterval(() => { ledger.refresh(); bump(); }, 30e3);
 // Check limits every 5 minutes, every 2 while Tiro is working (it is what spends them).
 let lastLimits = 0;
@@ -207,38 +202,30 @@ function scan() {
 }
 
 // ---------- approvals ----------
-function ask(agentId, tool, input, { reason = '', canModify = false, wait = ASK_WAIT_MS } = {}) {
+function ask(agentId, tool, input, details = {}) {
+  const { wait = 0, ...d } = details;
   const a = agents.get(agentId) ?? agents.set(agentId, newAgent(agentId)).get(agentId);
   const askId = crypto.randomUUID(), t = new Date().toTimeString().slice(0, 8);
-  if (manager.on && clients.size) { // with no tab open nobody is watching, so nothing is approved automatically
-    const v = review(tool, input, reviewCtx());
-    if (v.ok) {
-      manager.approved++; manager.last = t + ' approved ' + tool + ' ' + toolSummary(tool, input);
-      a.logs.push({ t, k: 'sys', text: 'Manager approved: ' + tool + ' ' + toolSummary(tool, input) });
-      bump();
-      return Promise.resolve({ decision: 'allow' });
-    }
-    manager.escalated++; manager.last = t + ' escalated ' + tool + ': ' + v.rule;
-    reason = 'Manager escalated to you: ' + v.rule + (reason ? ' · ' + reason : '');
-  }
   a.perms ||= [];
-  const preview = tool === 'Write' ? String(input?.content ?? '') : /^(Edit|MultiEdit)$/.test(tool) ? JSON.stringify(input?.edits ?? { old: input?.old_string, new: input?.new_string }, null, 1) : '';
-  a.perms.push({ askId, cmd: tool === 'Bash' ? input.command : tool + ': ' + toolSummary(tool, input), short: tool, why: reason, canModify, preview: preview.slice(0, 4000) });
+  a.perms.push({ askId, ...d });
   a.logs.push({ t, k: 'hitl', text: 'Requesting permission: ' + tool + ' ' + toolSummary(tool, input) });
   bump();
   const p = new Promise(resolve => {
-    const done = v => { clearTimeout(entry.timer); asks.delete(askId); a.perms = a.perms.filter(p => p.askId !== askId); armHead(a); bump(); resolve(v); };
+    const done = v => { clearTimeout(entry.timer); clearInterval(entry.remind); asks.delete(askId); a.perms = a.perms.filter(x => x.askId !== askId); armHead(a); bump(); resolve(v); };
     const entry = { agentId, wait, resolve: done };
+    // Like Claude Code, an agent-session prompt waits as long as it takes; a log line every 10 minutes is only a reminder.
+    if (!(wait > 0)) { entry.remind = setInterval(() => { a.logs.push({ t: new Date().toTimeString().slice(0, 8), k: 'sys', text: 'Still waiting for your answer: ' + tool }); bump(); }, 10 * 60e3); entry.remind.unref?.(); }
     asks.set(askId, entry);
     armHead(a);
   });
   p.askId = askId;
+  p.cancel = () => asks.get(askId)?.resolve({ decision: 'deny' });   // the tool call was aborted: only this call's request goes away
   return p;
 }
-// A desk shows one request at a time, so only that one's clock runs; the ones queued behind it wait unseen without timing out.
+// Like Claude Code, a prompt waits for you. Only bridged terminals have a clock (wait > 0): when it runs out the request goes back to the terminal's own dialog.
 function armHead(a) {
   const head = a.perms?.[0] && asks.get(a.perms[0].askId);
-  if (head && !head.timer) head.timer = setTimeout(() => head.resolve({ decision: 'terminal' }), head.wait);
+  if (head && head.wait > 0 && !head.timer) head.timer = setTimeout(() => head.resolve({ decision: 'terminal' }), head.wait);
 }
 
 // ---------- dashboard sessions (Agent SDK) ----------
@@ -254,15 +241,9 @@ function startSession(text, cwd = HOME, extra = {}) {
       cwd,
       systemPrompt: { type: 'preset', preset: 'claude_code' },
       ...extra.options,
-      canUseTool: async (tool, toolInput, { signal, decisionReason, suggestions, agentID }) => {
-        // A specialist's request shows on its own desk once its transcript is tracked.
-        const who = agentID && agents.has('agent-' + agentID) ? 'agent-' + agentID : holder.id;
-        const p = ask(who, tool, toolInput, { reason: decisionReason, canModify: tool === 'Bash' });
-        signal?.addEventListener('abort', () => asks.get(p.askId)?.resolve({ decision: 'deny' }), { once: true }); // only this call's request
-        const r = await p;
-        if (r.decision === 'allow') return { behavior: 'allow', updatedInput: r.command ? { ...toolInput, command: r.command } : toolInput, updatedPermissions: r.always ? suggestions : undefined };
-        return { behavior: 'deny', message: r.decision === 'terminal' ? 'No answer from Agent Office in time.' : 'Denied by the user in Agent Office.' };
-      },
+      // Only what Claude Code itself would prompt for arrives here; allow rules, deny rules, mode and hooks were applied before.
+      // A specialist's request shows on its own desk once its transcript is tracked.
+      canUseTool: makeCanUseTool({ ask, agentOf: agentID => (agentID && agents.has('agent-' + agentID) ? 'agent-' + agentID : holder.id) }),
     },
   });
   push(msg(text));
@@ -359,24 +340,22 @@ const officeTools = createSdkMcpServer({
     }),
   ],
 });
-// Agent sessions skip your global plugins, hooks and MCP servers (measured ~30K tokens re-read every turn),
-// but keep the env from your user settings (API endpoint) so they authenticate the same way.
-let USER_ENV = {};
-try { USER_ENV = JSON.parse(fs.readFileSync(path.join(HOME, '.claude', 'settings.json'), 'utf8')).env || {}; } catch {}
 const CLAUDE = findClaude();
 if (!CLAUDE) console.error('Claude Code was not found. Install it (https://claude.com/claude-code) and log in, or set CLAUDE_CODE_PATH.');
-const LEAN = { settingSources: [], strictMcpConfig: true, env: { ...process.env, ...USER_ENV }, ...(CLAUDE && { pathToClaudeCodeExecutable: CLAUDE }) };
+// The plan-limit probe is an internal utility, not an agent: it runs isolated so it never fires your hooks or loads your servers.
+const LIMITS_OPTS = { settingSources: [], strictMcpConfig: true, env: { ...process.env }, ...(CLAUDE && { pathToClaudeCodeExecutable: CLAUDE }) };
+// Same project resolution as `claude` run from a folder: the folder is HOME unless "workDir" in kiro.json names another existing one.
+const workDir = () => { try { const w = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')).workDir; if (typeof w === 'string' && path.isAbsolute(w) && fs.statSync(w).isDirectory()) return w; } catch {} return HOME; };
 // The user may rename the team; types and ids stay the same, so tell the manager what each one is called now.
 const nameNote = () => { const d = dnames(), o = Object.entries(d).filter(([k, n]) => n !== (k === 'tiro' ? 'Tiro' : ROSTER[k].name)); return o.length ? '\n\nDisplay names chosen by the user (still hire by the subagent_type): ' + o.map(([k, n]) => (k === 'tiro' ? 'you are called ' + n : k + ' is called ' + n)).join('; ') + '.' : ''; };
+// Hire gate, command side: a shell command that launches Claude itself would start an agent without request_hire. Deny-only, never approves.
+const denyClaudeLaunch = { matcher: 'Bash|PowerShell', hooks: [async input => (launchesClaude(input.tool_input?.command)
+  ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Starting Claude from a command skips the hiring approval. Use mcp__office__request_hire and then the Agent tool.' } } : {})] };
 const bossOptions = () => {
   let saved = {}; try { saved = JSON.parse(fs.readFileSync(BOSS_FILE, 'utf8')); } catch {}
   return {
-    ...LEAN,
-    model: 'sonnet', // cache reads cost the same as Opus, and Tiro mostly plans and delegates
-    // Built-in tools are ~26K tokens re-read every turn; Tiro gets what delegating needs, and specialists draw from this set.
-    // (No AskUserQuestion: nobody can answer it here, so Tiro would hang.)
-    tools: ['Agent', 'SendMessage', 'TaskStop', 'Bash', 'Read', 'Grep', 'Glob', 'Edit', 'Write', 'WebFetch', 'WebSearch'],
-    effort: 'medium',
+    ...claudeSessionOptions({ cwd: workDir(), home: HOME, claudeExe: CLAUDE }),
+    // No model, effort, tools or settings overrides: Tiro uses your Claude Code defaults, like a plain `claude` in this folder.
     resume: saved.date === today() ? saved.id : undefined, // the same manager all day, a fresh one each morning
     systemPrompt: { type: 'preset', preset: 'claude_code', append: briefText() + nameNote() + AH.note('tiro') + `\nEach hire starts a fresh context: put what the specialist must know in the Agent prompt. Specialist memory folders are under ${AH.dir('tiro')}.\n\nThe vault's agent folder is ${V.base} (Memory/, Reports/, Daily/).` },
     agents: Object.fromEntries(Object.entries(withAliases(teamFromSops(trustedSops()))).map(([k, d]) => [k, { ...d, prompt: d.prompt + `
@@ -384,7 +363,7 @@ Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).
     mcpServers: { office: officeTools },
     allowedTools: ['request_hire', 'list_goals', 'update_goal', 'propose_goal', 'file_report', 'memory_search', 'memory_read', 'memory_write', 'scheduler_inbox'].map(t => 'mcp__office__' + t),
     hooks: {
-      PreToolUse: [{ matcher: 'Agent|Task', hooks: [async input => {
+      PreToolUse: [denyClaudeLaunch, { matcher: 'Agent|Task', hooks: [async input => {
         const no = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
         if (!sw().hiring) return no('Hiring is switched off in the office breaker box. Do the work yourself if it is small, or mark the goal blocked.');
         if (boss.running >= MAX_SPECIALISTS) return no(MAX_SPECIALISTS + ' specialists are already working. Wait for a report, then hire again.');
@@ -395,7 +374,7 @@ Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).
           if (ROSTER[k]) { try { AH.start(k, { goalId: hireGoal[k], title: input.tool_input?.description, brief: input.tool_input?.prompt }); } catch {} delete hireGoal[k]; } }
         boss.running++; boss.progress = true; bump();
         // Espresso: this hire runs on the fast model; the cup is used up.
-        if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
+        if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
         return {};
       }] }],
       SubagentStop: [{ hooks: [async input => { try { const k = ALIASES[input.agent_type] || input.agent_type; if (ROSTER[k]) AH.end(k, { agentId: input.agent_id, transcript: input.agent_transcript_path, summary: input.last_assistant_message }); } catch {} boss.running = Math.max(0, boss.running - 1); bump(); return {}; }] }],
@@ -406,7 +385,7 @@ function tellBoss(text) {
   if (!sw().kiro || (sw().guard && overLimit())) return false; // switched off, or paused at a plan limit: the goal waits on the board
   if (boss.push) return boss.push(text);
   boss.push = () => {}; // claimed while starting so a second click can't start a second manager
-  startSession(text, HOME, {
+  startSession(text, workDir(), {
     options: bossOptions(),
     agent: { role: 'Manager', isManager: true, title: MANAGER.name },
     onInit: (id, push) => { boss.sopAt = V.sopStamp(); boss.id = id; boss.push = push; fs.writeFileSync(BOSS_FILE, JSON.stringify({ id, date: today() })); },
@@ -534,13 +513,10 @@ async function handle(req, res) {
       }
       case '/api/decide': {
         const x = asks.get(b.askId); if (!x) return json(res, 404, { error: 'That request was already answered.' });
-        x.resolve({ decision: b.decision === 'allow' ? 'allow' : b.decision === 'terminal' ? 'terminal' : 'deny', command: b.command, always: !!b.always });
+        x.resolve({ decision: b.decision === 'allow' ? 'allow' : b.decision === 'terminal' ? 'terminal' : 'deny', always: !!b.always, message: typeof b.message === 'string' ? b.message.slice(0, 500) : undefined, answers: b.answers && typeof b.answers === 'object' && !Array.isArray(b.answers) ? b.answers : undefined });
         return json(res, 200, { ok: true });
       }
-      case '/api/manager': {
-        manager.on = !!b.on; fs.writeFileSync(MGR_FILE, JSON.stringify({ on: manager.on })); bump();
-        return json(res, 200, { ok: true });
-      }
+      case '/api/manager': return json(res, 400, { error: 'Tool permissions come from your Claude Code settings; Agent Office has no auto-approve of its own.' });
       case '/api/task': {
         const text = String(b.text || '').trim(); if (!text) return json(res, 400, { error: 'empty' });
         const g = goals.add(text, 'you'); bump();
@@ -616,12 +592,12 @@ async function handle(req, res) {
         const sessionAgent = agents.get(b.session);
         // Auto mode's classifier stays in charge in the terminal; nobody watching means the terminal asks.
         // Dashboard sessions load the bridge too; their canUseTool already asks, so the bridge stands aside.
-        if (!sw().bridge || sdk.has(b.session) || sessionAgent?.mode === 'auto' || sessionAgent?.mode === 'bypassPermissions') return json(res, 200, { decision: 'terminal' });
+        if (!sw().bridge || sdk.has(b.session) || ['auto', 'bypassPermissions', 'dontAsk'].includes(sessionAgent?.mode)) return json(res, 200, { decision: 'terminal' });
         // With no tab open only the manager can answer, and only for calls it would approve.
         if (!clients.size) return json(res, 200, { decision: 'terminal' });
         const target = b.agentId && agents.has('agent-' + b.agentId) ? 'agent-' + b.agentId : b.session;
         let answered = false;
-        const p = ask(target, b.tool, b.input || {}, { reason: b.reason, wait: BRIDGE_WAIT_MS });
+        const p = ask(target, b.tool, b.input || {}, { ...describeRequest(b.tool, b.input, { decisionReason: b.reason }), wait: BRIDGE_WAIT_MS });
         res.on('close', () => { if (!answered) asks.get(p.askId)?.resolve({ decision: 'terminal' }); }); // the terminal stopped waiting: hand this one back
         const r = await p; answered = true;
         return json(res, 200, { decision: r.decision });

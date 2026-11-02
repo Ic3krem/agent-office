@@ -79,9 +79,9 @@ Keep your own messages short: what you assigned, to whom, and what is left.
 `;
 
 // Explicit tool lists keep each specialist's context small; read-only roles get no Edit/Write.
-// Read-only roles have no shell (Bash). Probe keeps one because it runs tests; every command still goes through the manager's allowlist.
-const READ_ONLY = ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch'];
-const HANDS_ON = [...READ_ONLY, 'Bash', 'Edit', 'Write'];
+// "Read-only" is the role's intent, stated in its prompt; what an agent may actually do is decided by Claude Code's permissions (your settings).
+const READ_ONLY = ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Bash']; // Bash runs powershell.exe when needed
+const HANDS_ON = [...READ_ONLY, 'Edit', 'Write'];
 const FOOTER = '\nYou are the only one of your kind: do not spawn sub-agents or copies of yourself. If you lack capacity or need help, say exactly what and which specialist type in your report so the manager can request an approved hire.\nFinish with a short report: what you did, where the result is, and anything left open.';
 
 // The eight specialists. key = subagent_type. brief = the 3-line job card; color/accent/desk drive the office UI.
@@ -92,7 +92,7 @@ export const ROSTER = {
     brief: ['Builds and fixes servers, APIs, data jobs, scripts and automations.', 'Prefers read-only checks first and the smallest complete change.', 'Reports exactly what it changed and how it verified it.'] },
   warden: { name: 'Warden', role: 'Security reviewer', kind: 'coder', model: 'opus', effort: 'medium', tools: READ_ONLY, color: '#5b7fd1', accent: '#a9c1f5', desk: 'desk-3',
     brief: ['Audits code, configs and scripts for secrets, injection and unsafe permissions.', 'Read-only: never edits, never prints a secret value.', 'Lists findings by severity with file and line.'] },
-  probe: { name: 'Probe', role: 'QA and test engineer', kind: 'coder', model: 'sonnet', effort: 'medium', tools: [...READ_ONLY, 'Bash'], color: '#4fb286', accent: '#a5e6c6', desk: 'desk-4',
+  probe: { name: 'Probe', role: 'QA and test engineer', kind: 'coder', model: 'sonnet', effort: 'medium', tools: READ_ONLY, color: '#4fb286', accent: '#a5e6c6', desk: 'desk-4',
     brief: ["Checks another specialist's work against the goal.", 'Runs tests, builds and reproductions; changes no files.', 'Says it passes, or lists concrete problems.'] },
   atlas: { name: 'Atlas', role: 'Deep researcher', kind: 'research', model: 'opus', effort: 'medium', tools: READ_ONLY, color: '#8a63c9', accent: '#c9b0f0', desk: 'desk-5',
     brief: ['Long, multi-source investigations and comparisons.', 'Cross-checks sources and marks what is fact and what is guess.', 'Read-only: delivers a structured report with citations.'] },
@@ -224,10 +224,11 @@ export const withAliases = team => ({ ...team, ...Object.fromEntries(Object.entr
 //   tools: Read, Grep, Glob, Write       (default: read, search, web, Bash, Edit, Write)
 //   model: haiku | sonnet | opus         (default: sonnet)
 //   ---
-// A SOP note may remove tools from a specialist, never add any: only names already in the built-in list are kept.
+// A SOP note may remove tools from a specialist, never add any: only names already in the roster's list are kept. What a kept tool may
+// actually do is still decided by Claude Code's permissions.
 export function narrowTools(field, builtin) {
   if (!field) return builtin;
-  const asked = field.split(/[,\s]+/).filter(Boolean), kept = asked.filter(t => builtin.includes(t));
+  const kept = field.split(/[,\s]+/).filter(Boolean).filter(t => builtin.includes(t));
   return kept.length ? kept : builtin;
 }
 

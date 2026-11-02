@@ -312,9 +312,11 @@ function settingsHTML() {
 }
 function bodyHTML() {
   const asks = asksOf(snap);
-  const askH = asks.map(a => `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>${a.perm.preview ? `<pre class="empty" style="max-height:120px;overflow:auto;white-space:pre-wrap;margin:4px 0">${esc(a.perm.preview.slice(0, 1500))}</pre>` : ''}
+  const qstate = (window.__qsel = window.__qsel || {});
+  const qHTML = a => { const st = (qstate[a.perm.askId] = qstate[a.perm.askId] || {}); return a.perm.questions.map((q, qi) => `<div class="q"><span class="who">${esc(q.header ? q.header + ': ' : '')}${esc(q.question)}</span><div class="row">${q.options.map(o => `<button class="btn${(st[qi] || []).includes(o.label) ? ' yes' : ''}" data-qopt="${esc(a.perm.askId)}|${qi}|${esc(o.label)}|${q.multiSelect ? 1 : 0}" title="${esc(o.description)}">${esc(o.label)}</button>`).join('')}</div></div>`).join('') + `<div class="row"><button class="btn yes" data-qsend="${esc(a.perm.askId)}">Send answers</button><button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">Skip</button></div>`; };
+  const askH = asks.map(a => a.perm.questions ? `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} asks you</span>${qHTML(a)}</div>` : `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>${a.perm.preview ? `<pre class="empty" style="max-height:120px;overflow:auto;white-space:pre-wrap;margin:4px 0">${esc(a.perm.preview.slice(0, 1500))}</pre>` : ''}
     ${a.perm.why ? `<span class="empty">${esc(a.perm.why.slice(0, 140))}</span>` : ''}
-    <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Approve<kbd>Y</kbd></button><button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">Deny<kbd>N</kbd></button><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
+    <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Yes${a.perm.defaultToNo ? '' : '<kbd>Y</kbd>'}</button>${a.perm.canAlways ? `<button class="btn" data-ask="${esc(a.perm.askId)}" data-d="allow" data-always="1" title="Writes the permission rule Claude Code suggests">Yes, and don\'t ask again</button>` : ''}<button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">No<kbd>N</kbd></button><input class="why" data-deny-msg="${esc(a.perm.askId)}" placeholder="No, and tell Claude what to do instead" style="flex:1;min-width:120px"><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
   const hireH = hiresOf(snap).map(h => `<div class="ask"><span class="who">${esc(mgrName())} wants to hire ${esc(h.name)} (${esc(h.role)})</span><code>${esc((h.goalText || '').slice(0, 100))}</code><span class="empty">${esc(h.why)}</span>${h.prompt ? `<pre class="empty" style="max-height:80px;overflow:auto;white-space:pre-wrap;margin:4px 0">Prompt: ${esc(h.prompt.slice(0, 600))}</pre>` : ''}
     <div class="row"><button class="btn yes" data-hire="${esc(h.id)}" data-ok="1">Approve hire</button><button class="btn no" data-hire="${esc(h.id)}" data-ok="0">Deny</button></div></div>`).join('');
   const ses = (snap?.agents || []).slice(0, 6).map(a => `<div class="ses"><span class="nm">${esc(a.name)}</span><span class="tk">${esc(a.task || a.role || '')}</span><span class="st ${esc(a.status)}">${esc(a.status)}</span></div>`).join('');
@@ -365,10 +367,15 @@ isle.addEventListener('mouseleave', () => { clearTimeout(leaveTimer); leaveTimer
 isle.addEventListener('click', e => {
   const hb = e.target.closest('[data-hire]');
   if (hb) { api('/api/hire/decide', { id: hb.dataset.hire, approve: hb.dataset.ok === '1' }).catch(err => showToast(esc(err.message), 4000)); return; }
+  const qo = e.target.closest('[data-qopt]');
+  if (qo) { const [id, qi, label, multi] = qo.dataset.qopt.split('|'); const st = (window.__qsel[id] = window.__qsel[id] || {}); st[qi] = multi === '1' ? ((st[qi] || []).includes(label) ? st[qi].filter(x => x !== label) : [...(st[qi] || []), label]) : [label]; render(); return; }
+  const qs = e.target.closest('[data-qsend]');
+  if (qs) { const id = qs.dataset.qsend, a = asksOf(snap).find(x => x.perm.askId === id), st = window.__qsel[id] || {}; if (!a) return; const answers = {}; a.perm.questions.forEach((q, qi) => { if ((st[qi] || []).length) answers[q.question] = st[qi].join(', '); }); if (!Object.keys(answers).length) { showToast('Pick an answer first.', 2500); return; } api('/api/decide', { askId: id, decision: 'allow', answers }).catch(err => showToast(esc(err.message), 4000)); return; }
   const ask = e.target.closest('[data-ask]');
   if (ask) {
     ask.disabled = true;
-    api('/api/decide', { askId: ask.dataset.ask, decision: ask.dataset.d }).catch(err => showToast(esc(err.message), 4000));
+    const msg = ask.dataset.d === 'deny' ? (document.querySelector('[data-deny-msg="' + ask.dataset.ask + '"]') || {}).value : undefined;
+    api('/api/decide', { askId: ask.dataset.ask, decision: ask.dataset.d, always: ask.dataset.always === '1', message: msg ? msg.trim() : undefined }).catch(err => showToast(esc(err.message), 4000));
     return;
   }
   const md = e.target.closest('[data-media]');
@@ -419,8 +426,9 @@ document.addEventListener('keydown', e => {
   const card = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.ask') : null;
   const btn = card && card.querySelector('[data-ask]'); if (!btn) return;
   const a = asksOf(snap).find(x => x.perm.askId === btn.dataset.ask && !dismissed.has(x.perm.askId)); if (!a) return;
+  if (a.perm.questions) return; // a question is answered with its option buttons, never with a key
   const k = e.key.toLowerCase();
-  if (k === 'y' || k === 'n') api('/api/decide', { askId: a.perm.askId, decision: k === 'y' ? 'allow' : 'deny' }).catch(err => showToast(esc(err.message), 4000));
+  if ((k === 'y' && !a.perm.defaultToNo) || k === 'n') api('/api/decide', { askId: a.perm.askId, decision: k === 'y' ? 'allow' : 'deny' }).catch(err => showToast(esc(err.message), 4000));
 });
 desk.update.on(u => { upd = u; render(); });
 desk.update.get().then(u => { if (u) { upd = u; render(); } });

