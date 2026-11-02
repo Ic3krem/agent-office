@@ -1,5 +1,7 @@
 # Agent Office user guide (1.2.5)
 
+The latest published GitHub release is v1.1.4 until `v1.2.5` is tagged and published; the install scripts and updater use the latest published release.
+
 This guide covers every part of the app. For install, update and uninstall see the [README](../README.md). For a link index see [RESOURCES.md](RESOURCES.md).
 
 Contents: [What it is](#what-it-is) - [Starting](#starting) - [The dashboard](#the-dashboard) - [Giving work](#giving-work) - [Approvals](#approvals) - [The team](#the-team) - [Goals, Today and Reports](#goals-today-and-reports) - [The office](#the-office) - [Scheduler](#scheduler-station) - [Agent history](#agent-history) - [Tiro on your desktop](#tiro-on-your-desktop) - [The island](#the-island) - [Tray](#tray) - [Settings files](#settings-files) - [API reference](#api-reference) - [Keyboard and accessibility](#keyboard-and-accessibility) - [Troubleshooting](#troubleshooting) - [FAQ](#faq) - [Security notes](#security-notes)

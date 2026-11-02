@@ -2,12 +2,15 @@
 
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
-## 1.2.5
+## 1.2.5 (2026-11-03)
+
+Built from `main`; the GitHub release and tag `v1.2.5` are not published yet (the latest published release is v1.1.4).
 
 - The dashboard works under the strict Content-Security-Policy. React, ReactDOM and Babel standalone (same versions as before: 18.3.1, 18.3.1 and 7.29.0) are now shipped in `public/vendor/` and loaded from there with their SRI hashes unchanged, instead of from unpkg. `public/vendor/*` is marked binary so line-ending conversion cannot break the hashes.
 - A test checks that every external host the pages reference is allowed by the CSP, that no script is remote, and that the vendored files match their hashes.
 - The Kiro claw SVG no longer produces a double minus (`q--2 6 --7 7`) in its path data when mirrored.
 - The plugin marketplace owner is now "Ic3krem".
+- Documentation: README rewritten as the front page, new `docs/GUIDE.md` user guide with 17 demo screenshots, `docs/RESOURCES.md`, `docs/agents-and-memory.md`, `docs/scheduler.md`, refreshed office and island specs, and this changelog.
 
 ## 1.2.4
 

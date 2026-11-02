@@ -4,7 +4,7 @@
 
 **A pixel office for your own Claude Code agents.** Tiro, a little orange cube-crab, is the office manager. Give Tiro a task and it plans the work, asks you before it hires any of eight specialist agents, routes risky actions to you for approval, files reports and remembers what it learned in a vault of plain Markdown notes. The office itself spends **no tokens**: every piece of furniture reads files, switches and system data directly, and models only run while an agent works, through your own Claude Code install and plan.
 
-![The Agent Office dashboard: eight specialists at their desks, the goal board on the left and the status bar on top](docs/images/01-dashboard-overview.png)
+![The Agent Office dashboard: eight specialists at their desks, a hire approval card on the goal board and the status bar on top](docs/images/hero.png)
 
 ## Contents
 
@@ -65,6 +65,8 @@ All screenshots use demo data. The [user guide](docs/GUIDE.md) has the rest.
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later, macOS, or Linux.
 
+> **Release status:** the latest published GitHub release is **v1.1.4**. Version 1.2.5 is built from this repository; its installers and the install scripts' SHA-256 check apply once the `v1.2.5` release is published (see [Cutting a release](#cutting-a-release)). Until then, build from source.
+
 **Windows installer.** Download `Agent-Office-Setup-<version>.exe` from [Releases](https://github.com/Ic3krem/agent-office/releases/latest) and run it. It is a normal setup wizard where you can pick the folder. It adds a Start menu entry and a desktop shortcut.
 
 **One-line install** (downloads the latest release, verifies it, installs it and adds a desktop shortcut):
@@ -79,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.s
 
 Both scripts download over https and **verify the asset's SHA-256** against the digest GitHub publishes for that release asset. They stop, and install nothing, if there is no published release, the asset has no digest, or the hash does not match. The Windows script installs silently for the current user. Other downloads are on the Releases page: `.dmg` (macOS Apple Silicon or Intel), `.zip` (macOS), `.AppImage` or `.deb` (Linux).
 
-Piping a script into your shell trusts whatever is on `main`. To review first or pin a release, download the script from a release tag (`.../Ic3krem/agent-office/<release tag>/install.ps1`), read it, then run it from disk.
+Piping a script into your shell trusts whatever is on `main`. To review first or pin a release, download the script from a release tag (`.../Ic3krem/agent-office/v1.2.5/install.ps1` once that tag exists), read it, then run it from disk.
 
 The builds are **not code-signed**. Windows SmartScreen may ask you to confirm with "More info", then "Run anyway". The macOS script clears Gatekeeper's quarantine flag for you.
 
@@ -149,7 +151,7 @@ npm run dist       # electron-builder: installer for this OS, written to dist/
 
 1. Branch is clean and `npm test` passes.
 2. Bump `version` in `package.json` and add the entry to [CHANGELOG.md](CHANGELOG.md).
-3. Tag and push the tag: `git tag v<version>` then `git push origin v<version>`.
+3. Tag and push the tag: `git tag v1.2.5` then `git push origin v1.2.5` (use the new version for later releases).
 4. `.github/workflows/release.yml` runs on the tag: it runs `npm ci` and `npm test`, then `npx electron-builder --publish always` on Windows, macOS and Linux runners. That builds the installers and attaches them, plus `latest.yml`, to a GitHub release.
 5. Open the published release and confirm each installer shows a **SHA-256 digest**. The install scripts and the updater need that digest, so an asset without one cannot be installed through them.
 6. Install the published build once and confirm the dashboard renders.

@@ -1,6 +1,6 @@
 # Resources and index
 
-Quick links for Agent Office 1.2.5.
+Quick links for Agent Office 1.2.5. The latest published GitHub release is v1.1.4 until `v1.2.5` is tagged and published; the install scripts and the updater read the latest published release.
 
 ## Read
 
@@ -66,11 +66,11 @@ npm run dist                   # build an installer for this OS
 ## Release checklist
 
 1. Branch is clean and `npm test` passes; run `node --check` on changed `.mjs` files.
-2. Bump `version` in `package.json` and add the entry to [CHANGELOG.md](../CHANGELOG.md).
+2. Bump `version` in `package.json` (and the lockfile) and add the entry, with its date, to [CHANGELOG.md](../CHANGELOG.md). The bridge plugin has its own version in `bridge/.claude-plugin/plugin.json`; it changes only when the plugin does.
 3. Check `THIRD_PARTY_NOTICES.md` if dependencies changed.
 4. Check that `package.json` `build.files` lists any new root-level `.mjs` file, or the packaged app will fail to start.
 5. Confirm nothing personal or secret is committed (`repo.test.mjs` covers the common cases) and `public/vendor/` is untouched.
-6. Tag `v<version>` and push the tag. CI builds the installers and attaches them to a GitHub release.
+6. Tag `v<version>` (for 1.2.5: `v1.2.5`) and push the tag. CI builds the installers and attaches them to a GitHub release.
 7. **SHA-256 digest requirement.** The install scripts and the updater need the SHA-256 digest that GitHub shows on each release asset. After the release is published, open it and confirm every installer has a digest. An asset without one cannot be installed through the scripts or the updater.
 8. Install the published `.exe` on a clean machine or user, open the dashboard, and confirm it renders (the strict CSP blocks anything not shipped with the app).
 9. The builds are unsigned; keep the SmartScreen note in the release text.
