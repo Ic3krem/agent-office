@@ -1,6 +1,6 @@
 {
   "name": "agent-office",
-  "owner": { "name": "Example Example IT" },
+  "owner": { "name": "Ic3krem" },
   "plugins": [
     { "name": "agent-office-bridge", "source": "./bridge", "description": "Lets the Agent Office dashboard reply to this session and answer its permission prompts" }
   ]
