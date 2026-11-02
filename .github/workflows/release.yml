@@ -1,8 +1,8 @@
-# Push a tag like v1.1.0 to build Windows, macOS and Linux installers and attach them to a GitHub release.
+# Run manually (workflow_dispatch) to build Windows, macOS and Linux installers and attach them to a GitHub release.
+# The tag trigger (push: tags ['v*']) is removed on purpose: a tag push would make CI publish its own build over the
+# installer that was QA'd for the release. Restore it once the CI builds themselves are QA'd.
 name: release
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
 permissions:
   contents: write
