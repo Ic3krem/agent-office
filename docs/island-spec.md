@@ -31,17 +31,16 @@ Nectar (notch + dock):
 | Click-through | Only the island rectangle takes the mouse; the rest of the 620x470 window passes clicks through. |
 | Multi-monitor | Tray Island > Display: follow cursor (default), primary, or a specific display. A 200 ms timer moves the window to the cursor's display; display-added / removed / metrics-changed re-place it (setBounds twice for mixed-DPI). A saved display that is unplugged falls back to primary. Pure logic in `desktop/island-logic.mjs`. |
 | Visibility modes | Tray Island: Always (default), Smart, Off. Smart hides the island (fade + slide) when idle (nothing working / asking / toast, and online) or when Windows reports a fullscreen app (resident PowerShell polling SHQueryUserNotificationState every 1.5 s; states 2/3/4). It peeks back when the cursor touches the top edge near the centre (3 px zone, widens to 60 px while peeking), on hover, pin (hotkey) or chat. Fullscreen detection is Windows only; elsewhere Smart is idle-only. Ctrl+Alt+K from Off switches to Always. |
-| Media panels | Not adopted (out of scope for an ops tool). |
+| Media panels | Not in the first version. Added later as a now-playing chip and card with lyrics; see "Now playing" and "Compact notch" below. |
 | Settings file | `~/.claude/agent-office/kiro.json`: `islandMode` (`always|smart|off`; legacy `islandOff` still read and kept in sync), `islandMute` (bool), `islandDisplay` (`cursor|primary|<display id>`). Tray changes apply live and are pushed to the page over IPC `island:state`. |
 
 ## Safety
 - Island page is served by the existing localhost + key-protected server; it only calls existing endpoints.
-- Preload exposes five IPC calls (interactive, focus, office, onToggle, onState); main validates the sender and whitelists office views (`today|reports|usage`).
+- The island preload (`desktop/island-preload.cjs`) exposes a fixed set of IPC calls (interactive, focus, office, mute, settings, media, update get/check/install/set, and listeners for state, toggle, now playing, lyrics and update). It started with five (interactive, focus, office, onToggle, onState); main validates the sender and whitelists office views (`today|reports|usage`).
 - Manager auto-approval and bridge flow untouched; the island is just another client of `/api/decide`.
 
 ## Files
 - `public/island.html`, `desktop/island-preload.cjs`, `desktop/main.mjs` (window, hotkey, tray, IPC, display + fullscreen watch), `desktop/island-logic.mjs` + `island.test.mjs` (pure helpers and tests), `server.mjs` (`/island` route), `public/Agent Office.html` (hash deep links).
-- Backup before changes: `<home>\...`.
 
 ## Nectar-inspired upgrade (2026-11-02)
 Nectar's README, SETTINGS.md and source layout were read as a feature reference only (internal use). All code is original (Electron, vanilla JS); no Nectar code was copied, so no GPL-3 obligation attaches to distribution. If any is reused later, record it here: it would make distribution GPL-3.
@@ -62,7 +61,6 @@ Skipped: music/media, control centre, shelf, weather, timer / stopwatch, CalDAV 
 Settings keys (`islandSettings`): theme, accent, physics, pinned[], hour12, clockInPill, zone2, zone2Label, weekStart, edgeDelay, leaveDelay. Pure logic and tests: `desktop/island-logic.mjs`, `island.test.mjs`. Note: `public/island.html` keeps a small display copy of the theme/physics tables; keep it in sync with island-logic.mjs.
 
 ## Now playing + Tiro character (2026-11-03)
-Backup before changes: `<home>\...`.
 
 **Now playing (Windows SMTC).** `desktop/nowplaying.ps1` is a resident PowerShell poller (700 ms) over `GlobalSystemMediaTransportControlsSessionManager`, so Spotify, Apple Music, browsers (YouTube) and any SMTC player show up with no per-app code. It prints one JSON line on change (`id, status, title, artist, album, canPlayPause/Next/Prev`) and reads commands from stdin (`playpause|next|prev <session id>`). Pick order: a Playing session first (the system "current" one wins ties), then current, then any session that has a title; sessions with no title/artist (idle apps) are skipped. `desktop/nowplaying.mjs` (no electron import) parses and validates lines (length caps, status whitelist, friendly app name), supervises the process (exponential back-off restart, stops when island is Off or pref off) and exposes `control(verb)` which only accepts the three verbs and only targets the session currently shown. main.mjs pushes `island:nowplaying` (null when pref is off) and handles `island:media`. Preload adds `media(verb)` and `onNowPlaying(fn)`.
 - UI: while Playing, a compact chip (equalizer bars + title - artist) slides into the pill; paused or playing, the expanded island's Home tab shows a Now playing card with prev / play-pause / next (buttons disabled when SMTC says the app cannot). Hidden when nothing is playing (a paused track only appears in the expanded card). All of it is inside `#isle[data-hit]`, so click-through behaviour is unchanged.
@@ -77,21 +75,25 @@ Backup before changes: `<home>\...`.
 
 - Code: `desktop/updater.mjs` (version compare, feed parsing, download + SHA-256), wiring in `desktop/main.mjs` ("updates" block), UI in `public/island.html` (`updatesHTML`), tests in `updater.test.mjs`.
 - Prefs in `kiro.json`: `updateFeed` (string; empty = "no update source configured") and `updateAuto` (check on start, default on; check only, install always needs a click).
-- Feed: https URL, local file, or folder containing `latest.json`. Generic `{ "version", "url", "sha256"?, "notes"? }` or the GitHub `/releases/latest` response (picks the platform installer; uses the asset `digest` when present).
-- "Update now" downloads the installer to a temp folder, verifies SHA-256 if the feed gave one, launches the installer and quits the app. Download URLs must be https or a local path.
-- Owner setup: build with `npm run dist`, publish `Agent-Office-Setup-<version>.exe` plus a `latest.json` somewhere reachable (e.g. a GitHub release; feed `https://api.github.com/repos/Ic3krem/agent-office/releases/latest`, public repo only, or a shared folder), then paste the feed into Settings > Updates.
+- Feed: https URL, local file, or folder containing `latest.json`. Generic `{ "version", "url", "sha256", "notes"? }` (`sha256` is required for https downloads) or the GitHub `/releases/latest` response (picks the platform installer; uses the asset `digest` when present).
+- "Update now" downloads the installer to a temp folder, verifies its SHA-256, launches the installer and quits the app. Download URLs must be https or a local path. **An installer downloaded over https is refused if the feed gives no SHA-256** (1.2.4 onward); a local file or folder feed without one is still allowed, with the warning below.
+- Owner setup: build with `npm run dist`, publish `Agent-Office-Setup-<version>.exe` plus a `latest.json` somewhere reachable (e.g. a GitHub release; feed `https://api.github.com/repos/Ic3krem/agent-office/releases/latest`, public repo only, or a shared folder), then paste the feed into Settings > Updates. GitHub only shows a `digest` on release assets it has hashed; a release without one cannot be installed through the updater or the install scripts.
 
 ## Unverified-feed warning and local release feed (1.1.7)
 - `updater.mjs` exports `integrityWarning(update)`; main.mjs adds it as `warning` to the update view, and Settings > Updates shows an amber "Unverified installer" note when a successful check had no sha256 (test in `updater.test.mjs`).
-- First local feed: `release-feed\latest.json` (version, absolute path to `dist\Agent-Office-Setup-<v>.exe`, sha256, notes). Paste the folder path into Settings > Updates. Regenerate sha256 after every `npm run dist`.
+- Local feed: a folder holding `latest.json` (version, path to the built `Agent-Office-Setup-<v>.exe`, sha256, notes). Paste the folder path into Settings > Updates and regenerate the sha256 after every `npm run dist`. Keep that folder out of git (`release-feed/` is ignored) because it contains a machine-specific path.
 - UI smoke: run server.mjs with a temp `USERPROFILE` and `AGENT_OFFICE_PORT` (so bridge.json of the real install is untouched), load /island and / in a separate Electron with temp userData. A fully hidden window does not paint for `capturePage`: use `show:false` then `showInactive()` at x=-4000 with `backgroundThrottling:false`, and force `step()` for the island springs.
 
 ## Compact notch = Tiro eyes + lyrics (1.1.9)
-Backup before changes: `<home>\...`.
 - **Compact notch** shows only the Tiro eyes (bigger, `.face.big`), animated by state: idle (breathe, blink, look), working (scan), waiting for approval (wide amber eyes, nudge), done (green arches), offline (half closed). The pill text, counters, clock and chips only appear in the expanded island. The status text stays in a visually hidden `.sr` span for screen readers. With `kiroFace` off the old dot is the compact indicator.
 - **Music**: while a track is Playing the compact notch becomes a fixed 440 px block (no wobble): eyes, title (bold) with artist (subtle) and, when lyrics exist, a synced lyric line (13 px, one line, ellipsis, 180 ms fade between lines; jumps when motion is reduced). No lyrics = no extra row (36 px). Paused/stopped = eyes only. The expanded Now playing card also shows the current lyric line.
 - **Timeline**: `desktop/nowplaying.ps1` now emits `pos` (ms), `dur` (ms) and `ts` (epoch ms of SMTC LastUpdatedTime; 0 while paused) or nulls when a player gives no timeline. The page extrapolates `pos + (now - ts)` while playing (`positionNow`).
 - **Lyrics** (`desktop/lyrics.mjs`, tests `lyrics.test.mjs`): `parseLrc` (multi-stamp, fractions, `[offset:]`, word stamps, caps), `lineAt` (binary search), LRCLIB client `GET https://lrclib.net/api/get?track_name&artist_name[&album_name]&duration` with a 3 s `AbortSignal.timeout`, only synced lyrics used, fail silent. Only title, artist, album, duration (s) leave the machine, plus a User-Agent `Agent Office v<version>` (LRCLIB asks apps to identify themselves). Disk cache `~/.claude/agent-office/lyrics-cache/<sha1>.json`: hits are permanent, "no lyrics" (404, instrumental, plain-only) lasts 3 days, network failures/5xx are never cached and back off 5 min per track. Requests happen in main only while a track is Playing and the `lyrics` pref is on (IPC `island:lyrics`, keyed by `trackKey` so a stale result never shows on another track).
 - **Pref** `lyrics` (default on) in Settings > Appearance with a note that it looks up lyrics online. `nowPlaying`, `kiroFace`, `animate` and reduced-motion handling are unchanged.
 - Page keeps display copies of `lineAt` / `positionNow` (keep in sync with `lyrics.mjs`). Click-through unchanged (everything is inside `#isle[data-hit]`).
-- Smoke: hidden Electron (temp userData, own server on a spare port with a temp USERPROFILE, preload stub exposing `window.__onState/__onNP/__onLyr`); screenshots in `<home>\...`, script `Tools\tmp-ops\smoke\`.
+- Smoke: hidden Electron (temp userData, own server on a spare port with a temp USERPROFILE, preload stub exposing `window.__onState/__onNP/__onLyr`).
+
+## Security notes (1.2.4 onward)
+- The island and office windows run with context isolation and sandbox on, `nodeIntegration` off and `webSecurity` on. They cannot navigate away from the local server, cannot open popups or webviews, and external links open in your browser.
+- The only outside requests the desktop app makes on its own are the optional update check (https feed you configured), the update download (https, SHA-256 checked) and, if lyrics are on, a lookup to `https://lrclib.net` carrying only title, artist, album and duration.
+- The Windows installer is not code-signed, so SmartScreen may ask you to confirm.
