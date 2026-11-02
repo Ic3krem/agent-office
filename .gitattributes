@@ -3,3 +3,4 @@
 *.png binary
 public/vendor/* binary
 docs/images/*.png binary
+public/fonts/*.woff2 binary

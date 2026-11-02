@@ -313,3 +313,13 @@ test('scheduler subjects are never written into Tiro memory and the tool that sh
   const srv = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
   assert.match(srv, /scheduler_inbox/); assert.match(srv, /UNTRUSTED_EMAIL_SUBJECTS/);
 });
+
+test('pages load no remote resources: CSP has no remote host and the fonts are vendored', () => {
+  const srv = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  const csp = srv.match(/'content-security-policy': "([^"]+)"/)[1];
+  assert.doesNotMatch(csp, /https?:\/\//);
+  for (const f of ['Agent Office.html', 'kiro.html', 'island.html']) assert.doesNotMatch(fs.readFileSync(new URL('./public/' + f, import.meta.url), 'utf8'), /fonts\.(googleapis|gstatic)\.com/, f);
+  assert.ok(fs.existsSync(new URL('./public/fonts/fonts.css', import.meta.url)));
+  for (const f of ['pixelifysans', 'ibmplexmono', 'instrumentsans']) assert.ok(fs.existsSync(new URL('./public/fonts/OFL-' + f + '.txt', import.meta.url)), 'licence text for ' + f);
+  assert.match(fs.readFileSync(new URL('./THIRD_PARTY_NOTICES.md', import.meta.url), 'utf8'), /Open Font License/);
+});

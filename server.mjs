@@ -470,9 +470,9 @@ const readBody = req => new Promise((ok, bad) => { let s = ''; req.on('data', d 
 const publicMessage = e => { const m = String(e?.message || 'error'); return /[\\/]|ENOENT|EACCES|EPERM|\bat \w+/.test(m) ? 'internal error' : m.slice(0, 160); };
 const STATIC = { '/': ['Agent Office.html', 'text/html'], '/office-objects.js': ['office-objects.js', 'text/javascript'], '/office-motion.js': ['office-motion.js', 'text/javascript'], '/office-sprites.js': ['office-sprites.js', 'text/javascript'], '/office-furniture.js': ['office-furniture.js', 'text/javascript'], '/office-world.js': ['office-world.js', 'text/javascript'], '/support.js': ['support.js', 'text/javascript'], '/agent-history.js': ['agent-history.js', 'text/javascript'], '/vendor/react.production.min.js': ['vendor/react.production.min.js', 'text/javascript'], '/vendor/react-dom.production.min.js': ['vendor/react-dom.production.min.js', 'text/javascript'], '/vendor/babel.min.js': ['vendor/babel.min.js', 'text/javascript'], '/kiro': ['kiro.html', 'text/html'], '/kiro-art.js': ['kiro-art.js', 'text/javascript'], '/island': ['island.html', 'text/html'] };
 
-// Pages load only local scripts and data; the one remote host is Google Fonts (CSS + font files). No framing, no plugins, no base-tag tricks.
+// Pages load only local scripts, styles and fonts (fonts are vendored in public/fonts). No remote host at all, no framing, no plugins, no base-tag tricks.
 const SECURITY_HEADERS = {
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
   'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY', 'cross-origin-resource-policy': 'same-origin',
 };
 async function handle(req, res) {
@@ -487,6 +487,8 @@ async function handle(req, res) {
     res.writeHead(302, { location: safeLocal(url.searchParams.get('to')), 'set-cookie': [AUTH.uiCookie(), AUTH.nonceCookie()] });
     return res.end();
   }
+  const fontFile = req.method === 'GET' && /^\/fonts\/[A-Za-z0-9_.-]+\.(woff2|css|txt)$/.exec(url.pathname) ? path.basename(url.pathname) : '';
+  if (fontFile && fs.existsSync(path.join(ROOT, 'public', 'fonts', fontFile))) { res.writeHead(200, { 'content-type': fontFile.endsWith('.woff2') ? 'font/woff2' : fontFile.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=86400' }); return fs.createReadStream(path.join(ROOT, 'public', 'fonts', fontFile)).pipe(res); }
   const s = STATIC[url.pathname];
   if (s && req.method === 'GET') { res.writeHead(200, { 'content-type': s[1] + '; charset=utf-8', ...(uiOk ? { 'set-cookie': AUTH.nonceCookie() } : {}) }); return fs.createReadStream(path.join(ROOT, 'public', s[0])).pipe(res); }
   if (url.pathname.startsWith('/bridge/')) { if (!AUTH.isBridge(req)) return json(res, 401, { error: 'bad key' }); }

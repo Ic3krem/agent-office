@@ -12,6 +12,8 @@ Agent Office itself is MIT licensed (see LICENSE). The production dependency tre
 
 - **React 18.3.1, ReactDOM 18.3.1, @babel/standalone 7.29.0** are vendored unmodified in `public/vendor/` (MIT; (c) Meta Platforms and the Babel contributors). Their SHA-384 hashes are pinned in `public/support.js`.
 
+- **Pixelify Sans, IBM Plex Mono, Instrument Sans** (latin and latin-ext subsets) are vendored in `public/fonts/` and served locally, so the pages make no request to Google Fonts. All three are licensed under the SIL Open Font License 1.1; the license texts are in `public/fonts/OFL-*.txt`.
+
 All other packages are MIT, ISC, BSD, Apache-2.0 or Unlicense.
 
 ## Full list
