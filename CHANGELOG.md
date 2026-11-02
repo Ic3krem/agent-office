@@ -4,7 +4,7 @@ Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 t
 
 ## 1.2.5 (2026-11-03)
 
-Built from `main`; the GitHub release and tag `v1.2.5` are not published yet (the latest published release is v1.1.4).
+Published as [v1.2.5](https://github.com/Ic3krem/agent-office/releases/tag/v1.2.5) with the Windows installer only (macOS and Linux builds are not published yet). The release workflow is manual-only for now so a tag push cannot replace the tested installer.
 
 - The dashboard works under the strict Content-Security-Policy. React, ReactDOM and Babel standalone (same versions as before: 18.3.1, 18.3.1 and 7.29.0) are now shipped in `public/vendor/` and loaded from there with their SRI hashes unchanged, instead of from unpkg. `public/vendor/*` is marked binary so line-ending conversion cannot break the hashes.
 - A test checks that every external host the pages reference is allowed by the CSP, that no script is remote, and that the vendored files match their hashes.

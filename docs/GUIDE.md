@@ -1,6 +1,6 @@
 # Agent Office user guide (1.2.5)
 
-The latest published GitHub release is v1.1.4 until `v1.2.5` is tagged and published; the install scripts and updater use the latest published release.
+The latest release is v1.2.5. It ships the Windows installer only for now; the macOS and Linux install script finds no asset until those builds are published.
 
 This guide covers every part of the app. For install, update and uninstall see the [README](../README.md). For a link index see [RESOURCES.md](RESOURCES.md).
 
