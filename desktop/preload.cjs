@@ -1,4 +1,4 @@
-// The only bridge from Kiro's page to the desktop: click-through, dragging, opening the office.
+// The only bridge from Tiro's page to the desktop: click-through, dragging, opening the office.
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kiroDesk', {
   interactive: on => ipcRenderer.send('kiro:interactive', !!on),
