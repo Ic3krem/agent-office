@@ -1,5 +1,6 @@
 // Backends for the office furniture: the breaker box (persistent switches) and the server rack (host telemetry).
 // Plain code, no model calls.
+import { redact } from './redact.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
@@ -37,7 +38,7 @@ export function rack() {
   setInterval(tick, 5000).unref(); setInterval(dockerCheck, 30e3).unref(); dockerCheck();
   for (const k of ['log', 'error']) {
     const orig = console[k].bind(console);
-    console[k] = (...a) => { log.push({ t: new Date().toTimeString().slice(0, 8), k, text: a.map(String).join(' ').slice(0, 500) }); if (log.length > 300) log.shift(); orig(...a); };
+    console[k] = (...a) => { log.push({ t: new Date().toTimeString().slice(0, 8), k, text: redact(a.map(String).join(' ')).slice(0, 500) }); if (log.length > 300) log.shift(); orig(...a); };
   }
   return {
     status() {

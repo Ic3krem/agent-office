@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { classify, digest, inHours, nextCheckAfter, renderTiroNote, run, mailboxOf } from './scheduler-job.mjs';
+import { classify, digest, inHours, nextCheckAfter, run, mailboxOf } from './scheduler-job.mjs';
 import { readScheduler } from './scheduler.mjs';
 
 const MAILBOX = 'inbox@example.com'; process.env.AGENT_OFFICE_MAILBOX = MAILBOX;
@@ -59,12 +59,11 @@ test('run: dry-run writes nothing; real run writes state, Tiro note, dedupes', (
   assert.equal(r.fresh.length, 2);
   const s = readScheduler(path.join(home, 'scheduler.json'), WED.getTime());
   assert.equal(s.present, true); assert.equal(s.itemsFound, 2); assert.equal(s.items.length, 2); assert.equal(s.stale, false);
-  const note = fs.readFileSync(path.join(home, 'agents', 'tiro', 'memory', 'scheduler-inbox.md'), 'utf8');
-  assert.match(note, /\[need\] Need a new laptop for Sam/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'scheduler.json'), 'utf8')).untrusted, true, 'subjects are marked untrusted');
+  assert.equal(s.untrusted, true);
+  assert.ok(!fs.existsSync(path.join(home, 'agents')), 'nothing is written into Tiro memory');
   const r2 = run({ home, feed, now: new Date(WED.getTime() + 30 * 60e3) });
   assert.equal(r2.fresh.length, 0, 'same mails are not re-announced');
-  const note2 = fs.readFileSync(path.join(home, 'agents', 'tiro', 'memory', 'scheduler-inbox.md'), 'utf8');
-  assert.ok(note2.indexOf('(nothing new)') < note2.indexOf('Need a new laptop'), 'newest first');
 });
 
 test('run: missing feed is reported honestly; outside hours skipped unless forced', () => {
@@ -74,14 +73,6 @@ test('run: missing feed is reported honestly; outside hours skipped unless force
   const off = new Date(2026, 10, 7, 10, 0);
   assert.ok(run({ home: tmp(), now: off }).skipped);
   assert.ok(!run({ home: tmp(), now: off, force: true, dry: true }).skipped);
-});
-
-test('Tiro note is capped and holds no bodies', () => {
-  let t = '';
-  for (let i = 0; i < 60; i++) t = renderTiroNote(t, new Date(2026, 10, 4, 10, i).toISOString(), [{ kind: 'need', title: 'x'.repeat(140) }], 'note');
-  assert.ok(Buffer.byteLength(t) <= 8000);
-  assert.ok((t.match(/^## /gm) || []).length <= 30);
-  assert.ok(/^# Scheduler inbox/.test(t));
 });
 
 test('job source has no network, mail-write or auth code', () => {

@@ -287,3 +287,29 @@ test('server: standalone bootstrap URL signs in once, then the key is not in the
   const cookie = r1.headers['set-cookie'].find(c => c.startsWith('ao_ui=')).split(';')[0];
   assert.equal((await call(port, '/api/roster', { headers: { cookie } })).status, 200);
 });
+
+// ---------------------------------------------------------------- retention, scheduler fencing
+import { prune, days } from './retention.mjs';
+test('retention: off by default, deletes only old history, reports and finished goals when set', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-ret-')), hist = path.join(tmp, 'agents', 'tiro', 'forge', 'history'), rep = path.join(tmp, 'Reports');
+  fs.mkdirSync(hist, { recursive: true }); fs.mkdirSync(rep);
+  const old = Date.now() - 40 * 86400e3, mk = (f, t) => { fs.writeFileSync(f, 'x'); fs.utimesSync(f, new Date(t), new Date(t)); };
+  mk(path.join(hist, 'old.md'), old); mk(path.join(hist, 'new.md'), Date.now()); mk(path.join(hist, 'index.jsonl'), old); mk(path.join(rep, 'r-old.md'), old);
+  const goalsFile = path.join(tmp, 'goals.json');
+  fs.writeFileSync(goalsFile, JSON.stringify({ date: 'x', goals: [{ id: 'g1', status: 'done', at: old }, { id: 'g2', status: 'todo', at: old }, { id: 'g3', status: 'done', at: Date.now() }] }));
+  const args = { agentsRoot: path.join(tmp, 'agents', 'tiro'), reportsDir: rep, goalsFile };
+  assert.equal(prune({ ...args, retentionDays: 0 }).removed, 0, 'off by default');
+  assert.equal(prune({ ...args, retentionDays: 3 }).removed, 0, 'under 7 days is ignored');
+  assert.equal(days('30'), 30);
+  const r = prune({ ...args, retentionDays: 30 });
+  assert.equal(r.removed, 2); assert.equal(r.goals, 1);
+  assert.ok(!fs.existsSync(path.join(hist, 'old.md')) && fs.existsSync(path.join(hist, 'new.md')) && fs.existsSync(path.join(hist, 'index.jsonl')) && !fs.existsSync(path.join(rep, 'r-old.md')));
+  assert.deepEqual(JSON.parse(fs.readFileSync(goalsFile, 'utf8')).goals.map(g => g.id), ['g2', 'g3']);
+});
+
+test('scheduler subjects are never written into Tiro memory and the tool that shows them is fenced', () => {
+  const job = fs.readFileSync(new URL('./scheduler-job.mjs', import.meta.url), 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+  assert.doesNotMatch(job, /MEMORY\.md|scheduler-inbox|agents['"]/);
+  const srv = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  assert.match(srv, /scheduler_inbox/); assert.match(srv, /UNTRUSTED_EMAIL_SUBJECTS/);
+});

@@ -19,6 +19,7 @@ import { readScheduler } from './scheduler.mjs';
 import { switchBox, rack, findClaude } from './office.mjs';
 import { createAuth, loadBridgeKey, lockDown, rand, safeLocal, writePrivate } from './auth.mjs';
 import { redact, hasSecret, redactDeep } from './redact.mjs';
+import { prune } from './retention.mjs';
 
 const PORT = Number(process.env.AGENT_OFFICE_PORT) || 4777;
 const HOME = os.homedir();
@@ -62,9 +63,13 @@ const AH = agentHome(path.join(CFG_DIR, 'agents'));
 try { AH.ensureAll(); } catch (e) { console.error('agent homes:', e.message); }
 const hireGoal = {};   // roster key -> goal id of the approved hire request, used to link the task in history
 const dnames = () => displayNames(nameBox.get());
+// Optional retention ("retentionDays" in kiro.json, 7 or more): old finished goals, history summaries and reports are deleted at start.
+let RETENTION_DAYS = 0; try { RETENTION_DAYS = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')).retentionDays; } catch {}
+prune({ retentionDays: RETENTION_DAYS, goalsFile: path.join(CFG_DIR, 'goals.json') });
 const goals = goalStore(path.join(CFG_DIR, 'goals.json'));
 const V = agentVault(findVault());
 const reports = reportStore(V.dirs.reports);
+prune({ retentionDays: RETENTION_DAYS, agentsRoot: path.join(CFG_DIR, 'agents', 'tiro'), reportsDir: V.dirs.reports });
 // Reports used to live in ~/.claude/agent-office/reports; move them into the vault once.
 const OLD_REPORTS = path.join(CFG_DIR, 'reports');
 if (fs.existsSync(OLD_REPORTS)) { fs.cpSync(OLD_REPORTS, V.dirs.reports, { recursive: true, force: false }); fs.rmSync(OLD_REPORTS, { recursive: true, force: true }); }

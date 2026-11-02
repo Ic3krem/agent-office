@@ -39,6 +39,7 @@
       "agent-home.mjs",
       "auth.mjs",
       "redact.mjs",
+      "retention.mjs",
       "usage.mjs",
       "reports.mjs",
       "vault.mjs",
