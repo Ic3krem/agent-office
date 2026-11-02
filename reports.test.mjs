@@ -44,7 +44,7 @@ test('vault memory: write, search, link, graph; seeding copies Claude memory not
   const mem = tmp('ao-m-');
   fs.writeFileSync(path.join(mem, 'infra_x.md'), '---\nname: infra-x\ndescription: X box\nmetadata:\n  type: reference\n---\n\nBody [[droplet]]');
   fs.writeFileSync(path.join(mem, 'MEMORY.md'), '- index');
-  assert.equal(seedMemory(v, mem), 1);
-  assert.equal(seedMemory(v, mem), 0);
+  assert.equal(seedMemory(v, mem).copied, 1);
+  assert.equal(seedMemory(v, mem).copied, 0);
   assert.match(v.read('infra-x'), /type: reference/);
 });

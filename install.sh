@@ -10,7 +10,7 @@
 # Verify a downloaded release folder without installing:  AGENT_OFFICE_VERIFY_ONLY=/path/to/folder bash install.sh
 set -euo pipefail
 REPO="Ic3krem/agent-office"
-DEFAULT_TAG="v1.2.5"   # bumped for every release so this script and the release it installs always match
+DEFAULT_TAG="v1.2.6"   # bumped for every release so this script and the release it installs always match
 TAG="${AGENT_OFFICE_TAG:-$DEFAULT_TAG}"
 # Ed25519 release key (SPKI PEM); same key as desktop/update-key.mjs
 PUBKEY_PEM='-----BEGIN PUBLIC KEY-----

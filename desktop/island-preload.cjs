@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('islandDesk', {
     get: () => ipcRenderer.invoke('update:get'),
     check: () => ipcRenderer.invoke('update:check'),
     install: () => ipcRenderer.invoke('update:install'),
-    set: patch => ipcRenderer.invoke('update:set', patch && typeof patch === 'object' ? { feed: typeof patch.feed === 'string' ? patch.feed : undefined, auto: typeof patch.auto === 'boolean' ? patch.auto : undefined } : {}),
+    set: patch => ipcRenderer.invoke('update:set', patch && typeof patch === 'object' ? { auto: typeof patch.auto === 'boolean' ? patch.auto : undefined } : {}),
     on: fn => ipcRenderer.on('island:update', (_e, u) => fn(u)),
   },
   onLyrics: fn => ipcRenderer.on('island:lyrics', (_e, l) => fn(l)),

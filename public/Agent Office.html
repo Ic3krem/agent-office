@@ -14,8 +14,7 @@
 <body>
 <x-dc>
 <helmet>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="/fonts/fonts.css" rel="stylesheet">
 <style>
 html,body{margin:0;height:100%;background:#0f0c0d;overflow:hidden}
 a{color:#ffcf6b}a:hover{color:#ffe3a3}
@@ -81,7 +80,7 @@ button:disabled{opacity:.45;cursor:default}
         <div class="pill" style="display:{{ pillDisp }};"><div class="dot" style="background:var(--ok);"></div><span>{{ workingN }} Working</span></div>
         <div class="pill" style="display:{{ pillDisp }};"><div class="dot" style="background:#e9e2d6;"></div><span>{{ idleN }} Free</span></div>
         <button class="pill" onClick="{{ jumpBlocked }}" title="Open the approvals inbox" style="background:{{ blockedPillBg }}; border-color:{{ blockedPillBorder }}; color:#ffd28a;"><div class="dot" style="background:var(--warn); animation:{{ blockedDotAnim }};"></div><span>{{ blockedN }} {{ blockedWord }}</span></button>
-        <button class="pill" onClick="{{ toggleManager }}" title="{{ mgrTitle }}" style="border-color:{{ mgrBorder }};"><div class="dot" style="border-radius:2px; background:{{ mgrDot }};"></div><span>{{ mgrName }} approves {{ mgrLabel }}</span></button>
+        <button class="pill" onClick="{{ toggleManager }}" title="{{ mgrTitle }}" style="border-color:{{ mgrBorder }};"><div class="dot" style="border-radius:2px; background:{{ mgrDot }};"></div><span>{{ mgrLabel }}</span></button>
         <button class="pill" onClick="{{ openUsage }}" title="Usage and plan limits" style="display:{{ pillDisp }}; border-color:{{ weekBorder }};"><span>{{ creditsToday }} today · week {{ weekPct }}</span></button>
         <button class="pill" onClick="{{ openReports }}" title="Open the reports shelf"><span>▤ {{ reportsLabel }}</span></button>
         <div style="position:relative;">
@@ -108,6 +107,7 @@ button:disabled{opacity:.45;cursor:default}
           <div style="font-size:12.5px; color:#ffd28a; font-weight:600;">{{ h.title }}</div>
           <div style="font-size:12px; color:#cdbda9; word-break:break-word;">For: {{ h.goal }}</div>
           <div style="font-size:12px; color:#a8998a; word-break:break-word;">Why: {{ h.why }}</div>
+          <div style="font-size:11.5px; color:#8f8070; word-break:break-word; max-height:110px; overflow:auto; white-space:pre-wrap;">Prompt it will send: {{ h.prompt }}</div>
           <div style="display:flex; gap:6px;">
             <button onClick="{{ h.onApprove }}" style="padding:4px 10px; border-radius:5px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-size:12px; font-weight:600; cursor:pointer;">Approve hire</button>
             <button onClick="{{ h.onDeny }}" style="padding:4px 10px; border-radius:5px; border:1px solid #4a3a2c; background:transparent; color:#a8998a; font:inherit; font-size:12px; cursor:pointer;">Deny</button>
@@ -314,15 +314,18 @@ button:disabled{opacity:.45;cursor:default}
           <sc-if value="{{ sel.blocked }}" hint-placeholder-val="{{ false }}">
             <div style="margin-top:12px; padding:12px; border-radius:8px; background:#2a1d0c; border:1px solid #ffb547; display:flex; flex-direction:column; gap:10px; animation:pop .25s ease-out;">
               <div style="display:flex; align-items:center; gap:8px; color:#ffb547; font-weight:600; letter-spacing:.06em; font-size:11px;"><div style="width:8px; height:8px; border-radius:50%; background:#ffb547; animation:flash 1s infinite;"></div>PERMISSION REQUIRED</div>
-              <div style="color:#f2e2c8;">Allow execution of</div>
+              <div style="color:#f2e2c8;">Claude Code asks your permission:</div>
               <div style="padding:8px 10px; border-radius:6px; background:#120c05; color:#ffd28a; word-break:break-all;">$ {{ sel.permCmd }}</div>
+              <pre style="margin:0; max-height:220px; overflow:auto; padding:8px 10px; border-radius:6px; background:#0d0905; color:#cdbda9; font-size:11px; white-space:pre-wrap; word-break:break-word;">{{ sel.permPreview }}</pre>
               <div style="color:#b39c7e; font-size:12px;">{{ sel.permWhy }}</div>
+              <pre style="margin:0; display:{{ questionDisp }}; white-space:pre-wrap; color:#ffe2b0; font:inherit;">{{ sel.permQuestion }}</pre>
               <sc-if value="{{ modifyOpen }}" hint-placeholder-val="{{ false }}">
-                <input value="{{ modifyText }}" onChange="{{ onModifyInput }}" onKeyDown="{{ onModifyKey }}" style="padding:8px 10px; border-radius:6px; border:1px solid #6b4f2a; background:#120c05; color:#ffe8c2; font:inherit; outline:none;"></input>
+                <input placeholder="Tell Claude what to do instead, then press Enter" value="{{ modifyText }}" onChange="{{ onModifyInput }}" onKeyDown="{{ onModifyKey }}" style="padding:8px 10px; border-radius:6px; border:1px solid #6b4f2a; background:#120c05; color:#ffe8c2; font:inherit; outline:none;"></input>
               </sc-if>
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button onClick="{{ approveSel }}" style="padding:7px 12px; border-radius:6px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#7ee4a5;">{{ approveLabel }}</button>
-                <button onClick="{{ denySel }}" style="padding:7px 12px; border-radius:6px; border:1px solid #ff7a6b; background:transparent; color:#ff9a8d; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#3a1612;">Deny (N)</button>
+                <button onClick="{{ approveSel }}" style="display:{{ yesDisp }}; padding:7px 12px; border-radius:6px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#7ee4a5;">{{ approveLabel }}</button>
+                <button onClick="{{ approveAlways }}" title="Writes the permission rule Claude Code suggests for this request (same settings file it would use)" style="display:{{ alwaysDisp }}; padding:7px 12px; border-radius:6px; border:1px solid #5fd38d; background:transparent; color:#5fd38d; font:inherit; font-weight:600; cursor:pointer;">Always allow</button>
+                <button onClick="{{ denySel }}" style="padding:7px 12px; border-radius:6px; border:1px solid #ff7a6b; background:transparent; color:#ff9a8d; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#3a1612;">No (N)</button>
                 <sc-if value="{{ sel.canModify }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ toggleModify }}" style="padding:7px 12px; border-radius:6px; border:1px solid #6b5a48; background:transparent; color:#d7c3a8; font:inherit; cursor:pointer;" style-hover="background:#2a211b;">{{ modifyLabel }}</button>
                 </sc-if>
@@ -350,9 +353,9 @@ button:disabled{opacity:.45;cursor:default}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
-const KEY=new URLSearchParams(location.search).get('key')||'';
+const nonce=()=>(document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/)||[])[1]||'';
 const MGR=()=>(window.OfficeMotion&&OfficeMotion.TIRO.name)||'Tiro';
-const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-key':KEY},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
+const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-nonce':nonce()},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
 const pad=n=>String(n).padStart(2,'0');
 const stamp=d=>pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
 const KIND={sys:['SYS','#8fb4ff','#b9cdf5'],tool:['TOOL','#e7b75f','#e9d3a6'],think:['THINK','#8c8278','#a59a8e'],out:['OUT','#7fd49b','#d9d1c5'],err:['ERR','#ff7a6b','#ffb1a6'],user:['YOU','#7ee2c8','#c9f3e6'],agent:['AGENT','#f0c27a','#f2e6d6'],hitl:['HITL','#ffb547','#ffd28a']};
@@ -379,7 +382,7 @@ class Component extends DCLogic {
     api('/api/roster').then(j=>this.setState({roster:j.roster})).catch(()=>{});
     window.__demo=sc=>this.setDemo(sc||'');
     if(qd)this.setDemo(qd);
-    this.es=new EventSource('/api/stream?key='+encodeURIComponent(KEY));
+    this.es=new EventSource('/api/stream');
     this.es.onopen=()=>this.setState({online:true});
     this.es.onerror=()=>this.setState({online:false});
     window.officeToast=t=>this.showToast(t);
@@ -390,7 +393,7 @@ class Component extends DCLogic {
       const a=this.sel();
       if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&!document.querySelector('.oo-win')){if(e.key==='+'||e.key==='=')this.zoomBy(1.25);else if(e.key==='-'||e.key==='_')this.zoomBy(0.8);else if(e.key==='0')this.setView({z:1,x:0,y:0});}
       if(e.key==='Escape'&&!document.querySelector('.oo-win'))this.setState(this.state.usageOpen?{usageOpen:false}:(this.state.rosterOpen||this.state.deskInfo)?{rosterOpen:false,deskInfo:null}:{selectedId:null,popout:false});
-      if(a&&a.perm){if(e.key==='y'||e.key==='Y')this.decide(a,'allow');if(e.key==='n'||e.key==='N')this.decide(a,'deny');}
+      if(a&&a.perm){if((e.key==='y'||e.key==='Y')&&!a.perm.defaultToNo)this.decide(a,'allow');if(e.key==='n'||e.key==='N')this.decide(a,'deny');}
     };
     window.addEventListener('keydown',this.onKey);
     // Deep links from the Tiro island dock: #today, #reports, #usage.
@@ -425,9 +428,9 @@ class Component extends DCLogic {
     this.setState(s=>({nudged:{...s.nudged,[id]:Date.now()}}));setTimeout(()=>this.setState(s=>{const n={...s.nudged};delete n[id];return {nudged:n};}),1800);
     if(a.canSend)this.send(a,'continue');else this.showToast(a.name+' is watch-only. Restart that terminal so the bridge loads.');
   }
-  decide(a,decision,command){
+  decide(a,decision,text,always){
     if(!a.perm)return;
-    api('/api/decide',{askId:a.perm.askId,decision,command:command&&command!==a.perm.cmd?command:undefined}).catch(e=>this.showToast(e.message));
+    api('/api/decide',{askId:a.perm.askId,decision,always:!!always,message:decision==='deny'&&text?String(text).trim()||undefined:undefined}).catch(e=>this.showToast(e.message));
     this.setState({modifyOpen:false});
   }
   runCommand(text){
@@ -531,7 +534,7 @@ class Component extends DCLogic {
       tidyOffice:()=>api('/api/tidy').then(r=>this.showToast('Tidied: '+r.desks+' idle desk'+(r.desks===1?'':'s')+' hidden, '+r.goals+' finished goal'+(r.goals===1?'':'s')+' cleared. Reports are kept.')).catch(e=>this.showToast(e.message)),
       resetBoss:()=>{if(!confirm('Start '+MGR()+' with a clean memory? Goals and reports stay.'))return;api('/api/boss-reset').then(()=>this.showToast(''+MGR()+' will start fresh next time')).catch(e=>this.showToast(e.message));},
       startBoss:()=>api('/api/boss').then(()=>this.showToast(''+MGR()+' is checking the board')).catch(e=>this.showToast(e.message)),
-      mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
+      mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,prompt:h.prompt||'',onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
       goalText:s.goalText,onGoalInput:e=>this.setState({goalText:e.target.value}),onGoalKey:e=>{if(e.key==='Enter')addGoal();},addGoal,
       goalsV:live.map(g=>{const c=GOAL[g.status]||GOAL.todo,done=g.status==='done',cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;return {text:done?cut(g.text,70):g.text,note:done?cut(g.note||'',110):(g.note||''),hasNote:!!g.note,label:c[0],chipBg:c[1],chipFg:c[2],
         border:g.status==='blocked'?'#8a5a1c':g.status==='proposed'?'#4a3f6b':'#2a211b',fg:g.status==='done'?'#8c8278':'#f0e4d4',strike:g.status==='done'?'line-through':'none',
@@ -550,7 +553,7 @@ class Component extends DCLogic {
     const st=a&&(s.nudged[a.id]?'nudged':a.status);
     const sel=a?{imgRef:(u=>el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);})(portrait(a)),name:a.name,role:(a.profile&&!a.isManager?a.profile.name+' · '+a.profile.role:a.role)+(a.canSend?'':' · watch-only'),model:a.model,
       statusLabel:STATUS[st][0],statusColor:STATUS[st][1],
-      taskText:a.task||'None, waiting for work',blocked:!!a.perm,permCmd:a.perm?a.perm.cmd:'',permWhy:a.perm?a.perm.why:'',canModify:!!(a.perm&&a.perm.canModify)}:{};
+      taskText:a.task||'None, waiting for work',blocked:!!a.perm,permCmd:a.perm?a.perm.cmd:'',permPreview:a.perm?a.perm.preview||'':'',permWhy:a.perm?a.perm.why:'',canModify:!!a.perm,permQuestion:a.perm&&a.perm.questions?a.perm.questions.map(q=>(q.header?q.header+': ':'')+q.question+'\n'+q.options.map(o=>'  - '+o.label+(o.description?': '+o.description:'')).join('\n')).join('\n\n')+'\n\n(Answer from the island or the terminal.)':''}:{};
     const logs=a?a.logs.slice(s.cleared[a.id]||0).concat(s.local[a.id]||[]):[];
     const selLogs=logs.map(l=>{const k=KIND[l.k]||KIND.sys;return {t:l.t,tag:k[0],tagColor:k[1],color:k[2],fs:l.k==='think'?'italic':'normal',text:l.text};});
     return {
@@ -560,10 +563,10 @@ class Component extends DCLogic {
       overflowLabel:s.overflow?' · +'+s.overflow+' more':'',onlineLabel:s.claudeMissing?'Claude Code not found: install it and log in':s.online?'Live':s.online===null?'Connecting…':'Offline: is the server running?',onlineColor:s.online?'#5fd38d':s.online===null?'#a8998a':'#ff7a6b',
       blockedPillBg:blockedN?'rgba(70,42,10,.92)':'rgba(26,20,17,.88)',blockedPillBorder:blockedN?'#8a5a1c':'#3a2e25',blockedDotAnim:blockedN?'flash 1s infinite':'none',
       jumpBlocked:()=>{window.OfficeObjects&&OfficeObjects.open('inbox');},
-      toggleManager:()=>{const on=!(s.manager&&s.manager.on);api('/api/manager',{on}).then(()=>this.showToast(on?''+MGR()+' is approving safe requests for you':''+MGR()+' auto-approve off: every request comes to you')).catch(e=>this.showToast(e.message));},
-      mgrLabel:s.manager?(s.manager.on?(s.vw<1500?'on · '+s.manager.approved+'✓ · '+s.manager.escalated+'↑':'on · '+s.manager.approved+' approved · '+s.manager.escalated+' to you'):'off'):'…',pillDisp:s.vw<700?'none':'flex',taskBtn:s.vw<700?'+ Task':'+ Give '+MGR()+' a task',blockedWord:s.vw<700?'waiting':'Awaiting permission',
-      mgrDot:s.manager&&s.manager.on?'#5fd38d':'#6b5d50',mgrBorder:s.manager&&s.manager.on?'#3f7a55':'#3a2e25',
-      mgrTitle:s.manager?(s.manager.last||'No decisions yet')+'. Click to turn '+(s.manager.on?'off':'on')+'.':'',
+      toggleManager:()=>this.showToast('Permissions come from your Claude Code settings (allow, deny and ask rules, permission mode). Change them there.'),
+      mgrLabel:s.vw<1500?'Claude Code permissions':'Permissions: your Claude Code settings',pillDisp:s.vw<700?'none':'flex',taskBtn:s.vw<700?'+ Task':'+ Give '+MGR()+' a task',blockedWord:s.vw<700?'waiting':'Awaiting permission',
+      mgrDot:'#5fd38d',mgrBorder:'#3f7a55',
+      mgrTitle:'Tool permissions are decided by Claude Code from your own settings. Prompts it would show you appear here.',
       toggleDispatch:()=>this.setState({dispatchOpen:!s.dispatchOpen}),dispatchOpen:s.dispatchOpen,dispatchText:s.dispatchText,
       onDispatchInput:e=>this.setState({dispatchText:e.target.value}),onDispatchKey:e=>{if(e.key==='Enter')this.dispatch();if(e.key==='Escape')this.setState({dispatchOpen:false});},doDispatch:()=>this.dispatch(),
       hasToast:!!s.toast,toast:s.toast,
@@ -572,10 +575,10 @@ class Component extends DCLogic {
       togglePop:()=>this.setState({popout:!s.popout}),popIcon:s.popout?'▭':'⤢',popTitle:s.popout?'Dock the panel':'Pop out into a window',
       ...this.today(),...this.usageVals(),...this.officeVals(),
       nudgeSel:()=>a&&this.nudge(a.id),
-      approveSel:()=>a&&this.decide(a,'allow',s.modifyOpen?s.modifyText:null),denySel:()=>a&&this.decide(a,'deny'),terminalSel:()=>a&&this.decide(a,'terminal'),
-      approveLabel:s.modifyOpen?'Run modified (Y)':'Approve (Y)',modifyLabel:s.modifyOpen?'Cancel edit':'Modify',
-      toggleModify:()=>this.setState({modifyOpen:!s.modifyOpen,modifyText:a&&a.perm?a.perm.cmd:''}),modifyOpen:s.modifyOpen,modifyText:s.modifyText,
-      onModifyInput:e=>this.setState({modifyText:e.target.value}),onModifyKey:e=>{if(e.key==='Enter'&&a)this.decide(a,'allow',s.modifyText);},
+      approveSel:()=>a&&this.decide(a,'allow'),approveAlways:()=>a&&this.decide(a,'allow',null,true),alwaysDisp:a&&a.perm&&a.perm.canAlways?'inline-block':'none',yesDisp:a&&a.perm&&a.perm.questions?'none':'inline-block',questionDisp:a&&a.perm&&a.perm.questions?'block':'none',denySel:()=>a&&this.decide(a,'deny',s.modifyOpen?s.modifyText:null),terminalSel:()=>a&&this.decide(a,'terminal'),
+      approveLabel:'Yes (Y)',modifyLabel:s.modifyOpen?'Cancel':'No, and tell Claude what to do',
+      toggleModify:()=>this.setState({modifyOpen:!s.modifyOpen,modifyText:''}),modifyOpen:s.modifyOpen,modifyText:s.modifyText,
+      onModifyInput:e=>this.setState({modifyText:e.target.value}),onModifyKey:e=>{if(e.key==='Enter'&&a)this.decide(a,'deny',s.modifyText);},
       input:s.input,onInput:e=>this.setState({input:e.target.value}),onInputKey:e=>{if(e.key==='Enter')this.runCommand(s.input);},submitInput:()=>this.runCommand(s.input),
       inputPh:a?(a.canSend?'Message '+a.name+' or type /help':'Watch-only: exit that terminal and run  claude --resume '+a.id+'  to reply from here'):'',
       chips:['/nudge','/clear','/pause','/task '].map(c=>({label:c.trim()==='/task'?'/task <new task>':c,onClick:()=>{if(c==='/task '){this.setState({input:'/task '});}else this.runCommand(c);}}))

@@ -54,7 +54,7 @@ The user runs a small "company" of Claude agents from a pixel-office dashboard a
 
 ## Team
 - Hiring is the exception, not the default. Do the work yourself when it is a quick read, a lookup or a small edit. Reuse a specialist who is already on the team (SendMessage to an idle one) before hiring another. Hire only when a goal truly needs separate hands: work too large or too specialised for you, or independent work that should run in parallel.
-- You cannot hire on your own. First call mcp__office__request_hire (specialist, goal_id, why: a concrete reason this needs a sub-agent). The user approves or denies it on the dashboard; the call returns their answer. Only after "approved" use the Agent tool, once, for that specialist. A denied request means do the work yourself or mark the goal blocked; do not ask again for the same reason.
+- You cannot hire on your own. First call mcp__office__request_hire (specialist, goal_id, why: a concrete reason this needs a sub-agent, prompt: the exact first prompt you will send). The Agent call must then use that prompt unchanged. The user approves or denies it on the dashboard; the call returns their answer. Only after "approved" use the Agent tool, once, for that specialist. A denied request means do the work yourself or mark the goal blocked; do not ask again for the same reason.
 - Hire with the Agent tool, always with run_in_background: true. At most ${MAX_SPECIALISTS} work at the same time; if you are told the team is full, wait for a report before requesting another hire.
 - The team is exactly eight specialists, hired by subagent_type: pixel (frontend: UI, HTML/CSS/JS, accessibility), forge (backend: APIs, data, scripts, servers), warden (security review, read-only), probe (QA: runs tests, reproduces bugs; read-only), atlas (deep research: long multi-source investigations, read-only), cabalan (quick research: lookups and fact-finding, read-only), tally (task checker and organizer: checks work against the board, tidies notes and checklists), scribe (SOP and document writer; never sends). Old names still work: researcher=cabalan, builder=forge, ops=forge, writer=scribe, reviewer=probe.
 - Each specialist is ONE person with one desk. Never spawn a second copy of a type on your own, and never let a specialist spawn one. If a specialist is short on capacity or needs help, it says so in its report; you then call mcp__office__request_hire for the type that is needed (a second forge is a "Forge helper" and needs the user's approval like any hire). Tell every specialist you brief: do not spawn, ask for help in your report.
@@ -79,6 +79,7 @@ Keep your own messages short: what you assigned, to whom, and what is left.
 `;
 
 // Explicit tool lists keep each specialist's context small; read-only roles get no Edit/Write.
+// "Read-only" is the role's intent, stated in its prompt; what an agent may actually do is decided by Claude Code's permissions (your settings).
 const READ_ONLY = ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Bash']; // Bash runs powershell.exe when needed
 const HANDS_ON = [...READ_ONLY, 'Edit', 'Write'];
 const FOOTER = '\nYou are the only one of your kind: do not spawn sub-agents or copies of yourself. If you lack capacity or need help, say exactly what and which specialist type in your report so the manager can request an approved hire.\nFinish with a short report: what you did, where the result is, and anything left open.';
@@ -146,6 +147,9 @@ export function nameStore(file) {
 }
 
 // ---------- hiring approvals: the manager asks, the user decides, one approval buys one hire ----------
+// Hash of a prompt as the hire gate compares it (line endings and outer whitespace do not matter).
+export const promptHash = t => crypto.createHash('sha256').update(String(t ?? '').replace(/\r\n/g, '\n').trim(), 'utf8').digest('hex');
+
 export function hireGate({ now = Date.now, ttl = 10 * 60e3 } = {}) {
   const pending = new Map(), grants = [];
   let n = 0;
@@ -163,16 +167,23 @@ export function hireGate({ now = Date.now, ttl = 10 * 60e3 } = {}) {
     decide(id, approve, note = '') {
       const p = pending.get(id); if (!p) return false;
       pending.delete(id);
-      if (approve) grants.push({ key: p.key, until: now() + ttl });
+      if (approve) grants.push({ key: p.key, goalId: p.goalId, promptHash: p.promptHash, until: now() + ttl });
       p.resolve(approve ? { approved: true, reason: 'Approved.' } : { approved: false, reason: 'Denied by the user' + (note ? ': ' + note : '') + '. Do the work yourself or mark the goal blocked.' });
       return true;
     },
-    // The Agent-tool hook calls this: consumes one grant for that specialist type.
-    consume(type) {
+    // The Agent-tool hook calls this with the prompt it was given. One grant buys one hire of that type, and only with the
+    // prompt the user approved. Returns true (grant used) or false.
+    consume(type, prompt) {
+      const r = this.check(type, prompt); if (r.ok) grants.splice(r.index, 1); return r.ok;
+    },
+    // Same test without using the grant: { ok, index, why }.
+    check(type, prompt) {
       const k = key(type), t = now();
       for (let i = grants.length - 1; i >= 0; i--) if (grants[i].until < t) grants.splice(i, 1);
-      const i = grants.findIndex(g => g.key === k);
-      if (i < 0) return false; grants.splice(i, 1); return true;
+      const mine = grants.map((g, index) => ({ g, index })).filter(x => x.g.key === k);
+      if (!mine.length) return { ok: false, why: 'no approval' };
+      const hit = mine.find(x => !x.g.promptHash || x.g.promptHash === promptHash(prompt));
+      return hit ? { ok: true, index: hit.index, goalId: hit.g.goalId } : { ok: false, why: 'prompt differs from the approved one' };
     },
     clear() { for (const p of [...pending.values()]) p.resolve({ approved: false, reason: 'Cancelled.' }); pending.clear(); grants.length = 0; },
   };
@@ -213,6 +224,14 @@ export const withAliases = team => ({ ...team, ...Object.fromEntries(Object.entr
 //   tools: Read, Grep, Glob, Write       (default: read, search, web, Bash, Edit, Write)
 //   model: haiku | sonnet | opus         (default: sonnet)
 //   ---
+// A SOP note may remove tools from a specialist, never add any: only names already in the roster's list are kept. What a kept tool may
+// actually do is still decided by Claude Code's permissions.
+export function narrowTools(field, builtin) {
+  if (!field) return builtin;
+  const kept = field.split(/[,\s]+/).filter(Boolean).filter(t => builtin.includes(t));
+  return kept.length ? kept : builtin;
+}
+
 export function teamFromSops(sops, base = SPECIALISTS) {
   const team = { ...base };
   for (const { name, text } of sops) {
@@ -226,7 +245,7 @@ export function teamFromSops(sops, base = SPECIALISTS) {
       ...was,
       description: field('description') || was.description || firstLine,
       prompt: body,
-      tools: field('tools') ? field('tools').split(/[,\s]+/).filter(Boolean) : was.tools || HANDS_ON,
+      tools: narrowTools(field('tools'), was.tools || HANDS_ON),
       model: field('model') || was.model || 'sonnet',
     };
   }

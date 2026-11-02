@@ -2,7 +2,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/Ic3krem/agent-office)](https://github.com/Ic3krem/agent-office/releases/latest) [![Downloads](https://img.shields.io/github/downloads/Ic3krem/agent-office/total)](https://github.com/Ic3krem/agent-office/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) ![Windows, macOS, Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange)
 
-**A pixel office for your own Claude Code agents.** Tiro, a little orange cube-crab, is the office manager. Give Tiro a task and it plans the work, asks you before it hires any of eight specialist agents, routes risky actions to you for approval, files reports and remembers what it learned in a vault of plain Markdown notes. The office itself spends **no tokens**: every piece of furniture reads files, switches and system data directly, and models only run while an agent works, through your own Claude Code install and plan.
+**A pixel office for your own Claude Code agents.** Tiro, a little orange cube-crab, is the office manager. Give Tiro a task and it plans the work, asks you before it hires any of eight specialist agents, shows you the permission prompts Claude Code would show you, files reports and remembers what it learned in a vault of plain Markdown notes. The office itself spends **no tokens**: every piece of furniture reads files, switches and system data directly, and models only run while an agent works, through your own Claude Code install and plan.
 
 ![The Agent Office dashboard: eight specialists at their desks, a hire approval card on the goal board and the status bar on top](docs/images/hero.png)
 
@@ -12,7 +12,7 @@
 
 ## Features
 
-New and current in **1.2.5**:
+New and current in **1.2.6**:
 
 - **Renamable agents.** Give Tiro and each specialist a display name (up to 20 characters). Ids, folders and types never change, and no agent can take another's current or default name.
 - **Strict hiring approvals.** Tiro cannot hire on its own: every hire needs your one-shot approval, which expires after 10 minutes and is cleared whenever Tiro's session ends or resets.
@@ -21,6 +21,7 @@ New and current in **1.2.5**:
 - **Silhouette click areas.** Furniture and characters are picked by their drawn shape (hover shows an outline), and depth sorting keeps a character from being hidden behind its own desk.
 - **Garden, park, garage and Scheduler station.** The office has a fenced park and a garage. The Scheduler station shows the last result of the scheduler job, which classifies a local inbox feed into task, need and info items. Agent Office has no mail access of its own.
 - **Dynamic island.** A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics, themes and a settings tab.
+- **Your Claude Code, unchanged.** Tiro and every agent it hires load the same settings, permissions, hooks, MCP servers, CLAUDE.md, skills, plugins and environment as a plain `claude` run. Agent Office adds no approval rules of its own. See [docs/permissions.md](docs/permissions.md).
 - **Updater.** Checks an https feed or a local folder and refuses any installer it cannot verify with a SHA-256.
 - **Security.** Local-only server with a key, strict Content-Security-Policy with vendored React, ReactDOM and Babel, hardened Electron windows, and verified installs. See the [security model](#security-model).
 
@@ -65,21 +66,21 @@ All screenshots use demo data. The [user guide](docs/GUIDE.md) has the rest.
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later, macOS, or Linux.
 
-> **Release status:** [v1.2.5](https://github.com/Ic3krem/agent-office/releases/tag/v1.2.5) is the latest release. It currently ships the **Windows installer only**; macOS and Linux builds are not published yet, so `install.sh` finds no asset for them. On those systems build from source for now.
+> **Release status:** 1.2.6 is a security patch release and carries the first **signed manifest**. It ships the **Windows installer only**; macOS and Linux builds are not published yet, so `install.sh` finds no asset for them. On those systems build from source for now. **From 1.2.5 or earlier, reinstall once manually** (the old updater cannot verify signatures); see the [changelog](CHANGELOG.md).
 
 **Windows installer.** Download `Agent-Office-Setup-<version>.exe` from [Releases](https://github.com/Ic3krem/agent-office/releases/latest) and run it. It is a normal setup wizard where you can pick the folder. It adds a Start menu entry and a desktop shortcut.
 
 **One-line install.** Run the script from the release tag you want (the tag is part of the URL, so what you read is what runs):
 
 ```powershell
-irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.5/install.ps1 | iex
+irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.6/install.ps1 | iex
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.5/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.6/install.sh | bash
 ```
 
-Both scripts fetch `latest.json` and `latest.json.sig` from that tag's release page, **verify the Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)), then download the installer the manifest names and **verify its SHA-256**. They stop, and install nothing, if the manifest or signature is missing or invalid, the file is not hosted on that release page, or the hash does not match. The Windows script needs no extra tools and no execution-policy change and installs silently for the current user. The shell script needs OpenSSL 3 or Node.js to check the signature. Releases published before signed manifests existed (up to v1.2.5) have no manifest; install those from the Releases page.
+Both scripts fetch `latest.json` and `latest.json.sig` from that tag's release page, **verify the Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)), then download the installer the manifest names and **verify its SHA-256**. They stop, and install nothing, if the manifest or signature is missing or invalid, the file is not hosted on that release page, or the hash does not match. The Windows script needs no extra tools and no execution-policy change and installs silently for the current user. The shell script needs OpenSSL 3 or Node.js to check the signature. Releases published before signed manifests existed (v1.2.5 and earlier) have no manifest; install those from the Releases page.
 
 To check a downloaded release folder without installing, set `AGENT_OFFICE_VERIFY_ONLY` to its path and run the script. Other downloads are on the Releases page: `.dmg` (macOS Apple Silicon or Intel), `.zip` (macOS), `.AppImage` or `.deb` (Linux).
 
@@ -113,6 +114,8 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 | `updateAuto` | Check for updates on start (default on). The update feed itself is fixed in the app and cannot be set here. |
 | `autostart` | Start with Windows (packaged app, default on). |
 | `hidden`, `x`, `y` | Whether the desktop Tiro is hidden, and where it sits. |
+| `workDir` | Folder Tiro runs in, so Claude Code resolves project settings and CLAUDE.md as it would from there (default: your home folder). |
+| `retentionDays` | Delete old history summaries, reports and finished goals after this many days (7 or more; off by default). |
 | `schedulerMailbox` | The one mailbox the scheduler job may report on (see below). |
 
 **Environment variables**
@@ -121,10 +124,11 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 |---|---|
 | `AGENT_OFFICE_PORT` | Port for `node server.mjs`. The desktop app always uses 4777, so use this for dev servers on a spare port. |
 | `AGENT_OFFICE_TEAM_ONLY=1` | Presentation mode: show only Tiro and its specialists. |
+| `AGENT_OFFICE_SHOW_ALL=1` | Show the logs and prompts of your other Claude sessions on their desks (hidden by default). |
 | `AGENT_OFFICE_MAILBOX` | The one mailbox the scheduler job reports on (overrides `schedulerMailbox`). |
 | `CLAUDE_CODE_PATH` | Where the Claude Code executable is, if it is not found automatically. |
 
-Other files in `~/.claude/agent-office/`: `bridge.json` (port and access key, do not share), `switches.json`, `manager.json`, `goals.json`, `credits.json`, `scheduler.json`, and `agents/`. Reports, daily notes, memory and SOPs live in your Obsidian vault (or `~/Documents/Agent Office Vault`). Claude Code transcripts stay in `~/.claude/projects`. The full list is in the [guide](docs/GUIDE.md#settings-files).
+Other files in `~/.claude/agent-office/`: `bridge.json` (port and terminal bridge key, do not share), `switches.json`, `goals.json`, `credits.json`, `scheduler.json`, and `agents/`. Reports, daily notes, memory and SOPs live in your Obsidian vault (or `~/Documents/Agent Office Vault`). Claude Code transcripts stay in `~/.claude/projects`. The full list is in the [guide](docs/GUIDE.md#settings-files).
 
 **Scheduler job.** `node scheduler-job.mjs --dry-run` tries it without writing anything. Agent Office has no mail access built in: you provide a read-only reader that writes `~/.claude/agent-office/inbox-feed.json`. See [docs/scheduler.md](docs/scheduler.md).
 
@@ -158,11 +162,11 @@ More in [docs/RESOURCES.md](docs/RESOURCES.md).
 
 ## Security model
 
-- **Local only.** The server binds `127.0.0.1`, rejects any other `Host` header (DNS rebinding) and requires a random key that is stored locally and compared in constant time.
-- **Strict Content-Security-Policy.** Pages load scripts only from the app itself (`script-src 'self'`, plus inline and eval, which the page runtime needs). React, ReactDOM and Babel standalone are vendored in `public/vendor/` with pinned SHA-384 hashes, so nothing loads from a CDN. The one remote host the pages may use is Google Fonts, for the stylesheet and font files only. Framing, plugins and `<base>` tricks are blocked.
+- **Local only, two separate credentials.** The server binds `127.0.0.1` and rejects any other `Host` header (DNS rebinding). The terminal bridge key in `bridge.json` opens `/bridge/*` only. The UI key exists only in the Electron process and the server's memory and reaches the windows as an HttpOnly, SameSite=Strict cookie, so an agent that can read `bridge.json` still cannot approve its own requests. Decisions also need a per-session nonce. Keys are compared by hash in constant time and never logged.
+- **Strict Content-Security-Policy.** Pages load scripts, styles and fonts only from the app itself (`script-src 'self'`, plus inline and eval, which the page runtime needs). React, ReactDOM, Babel standalone and the fonts are vendored in `public/` (pinned SHA-384 hashes for the scripts, OFL licence texts for the fonts), so nothing loads from a CDN or Google Fonts. Framing, plugins and `<base>` tricks are blocked.
 - **Electron hardening.** Windows run with context isolation and sandbox on, `nodeIntegration` off and `webSecurity` on. They cannot navigate away from the local server or open webviews, and external links open in your browser.
 - **Verified installs.** The install scripts and the updater check SHA-256 before running anything, and use https only.
-- **Hiring and approvals.** Tiro cannot hire without your one-shot approval, and risky tool calls wait for you.
+- **Hiring and approvals.** Tiro cannot hire without your one-shot approval, tied to the goal and the exact first prompt. Tool permissions are Claude Code's own: what your settings allow runs, what they deny is denied, and what Claude Code would ask about is shown to you with Claude Code's choices. Agent Office does not auto-approve anything.
 - **No built-in mail access.** The scheduler only reads a local feed file.
 - **Your data.** Office state and notes stay on your machine; model calls go through your Claude Code install to Anthropic, as in the terminal. The server needs the local key for every API call.
 - **Unsigned builds.** If in doubt, compare the SHA-256 the install script prints with the one GitHub shows on the release asset.
@@ -175,7 +179,8 @@ Report a vulnerability by opening a private security advisory on the GitHub repo
 |---|---|
 | [docs/GUIDE.md](docs/GUIDE.md) | The full user guide: every panel, the island, tray, settings files, API table, troubleshooting, FAQ |
 | [docs/RESOURCES.md](docs/RESOURCES.md) | Index of links, architecture notes, dev setup, release checklist |
-| [CHANGELOG.md](CHANGELOG.md) | What changed, 1.1.0 to 1.2.5 |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, 1.1.0 to 1.2.6 |
+| [docs/permissions.md](docs/permissions.md) | Claude Code parity: what is the same, what differs, what reaches you |
 | [docs/agents-and-memory.md](docs/agents-and-memory.md) | Team, hiring gate, per-agent memory and history |
 | [docs/scheduler.md](docs/scheduler.md) | Scheduler station, job and feed file |
 | [docs/office-spec.md](docs/office-spec.md), [docs/island-spec.md](docs/island-spec.md) | Office world and island design notes |

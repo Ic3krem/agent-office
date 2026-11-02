@@ -6,10 +6,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROSTER } from './company.mjs';
+import { redact } from './redact.mjs';
+export { redact };
 
 export const KEYS = ['tiro', ...Object.keys(ROSTER)];
-const SECRET = /\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["']?[^\s"',;]{4,}|\bbearer\s+[A-Za-z0-9._~+\/=-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|\bsk-[A-Za-z0-9_-]{16,}|\bgh[pousr]_[A-Za-z0-9]{20,}/gi;
-export const redact = t => String(t ?? '').replace(SECRET, '[redacted]');
 const safeId = v => String(v ?? '').replace(/[^\w.-]+/g, '-').slice(0, 64) || 'task';
 const clip = (v, n) => redact(v).replace(/\s+/g, ' ').trim().slice(0, n);
 

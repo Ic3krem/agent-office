@@ -90,15 +90,18 @@ export function agentVault(root) {
 }
 
 // Seed the memory folder from Claude Code's own memory notes (same [[name]] links), skipping ones already there.
-export function seedMemory(v, claudeMemoryDir) {
-  let n = 0;
+// scrub (optional): removes secret-like text from each note before it is copied. Returns { copied, scrubbed }.
+export function seedMemory(v, claudeMemoryDir, scrub = t => t) {
+  let n = 0, scrubbed = 0;
   for (const f of fs.existsSync(claudeMemoryDir) ? fs.readdirSync(claudeMemoryDir) : []) {
     if (!f.endsWith('.md') || f === 'MEMORY.md') continue;
     const text = fs.readFileSync(path.join(claudeMemoryDir, f), 'utf8'), { head, body } = fm(text);
     const name = (field(head, 'name') || f.slice(0, -3)).toLowerCase().replace(/[^a-z0-9-]+/g, '-');
     if (!NAME.test(name) || fs.existsSync(path.join(v.dirs.memory, name + '.md'))) continue;
-    v.write(name, { description: field(head, 'description'), type: field(head, 'type') || 'note', body });
+    const clean = scrub(body), desc = scrub(field(head, 'description') || '');
+    if (clean !== body || desc !== (field(head, 'description') || '')) scrubbed++;
+    v.write(name, { description: desc, type: field(head, 'type') || 'note', body: clean });
     n++;
   }
-  return n;
+  return { copied: n, scrubbed };
 }

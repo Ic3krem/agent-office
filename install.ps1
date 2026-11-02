@@ -9,7 +9,7 @@
 # Verify a downloaded release folder without installing:  $env:AGENT_OFFICE_VERIFY_ONLY='C:\path\to\folder'; .\install.ps1
 $ErrorActionPreference = 'Stop'
 $repo = 'Ic3krem/agent-office'
-$defaultTag = 'v1.2.5'   # bumped for every release so this script and the release it installs always match
+$defaultTag = 'v1.2.6'   # bumped for every release so this script and the release it installs always match
 $tag = if ($env:AGENT_OFFICE_TAG) { $env:AGENT_OFFICE_TAG } else { $defaultTag }
 $PublicKeyBase64 = 'UOhtrcwZBBls13mV3jdJsk4V8xBZOB3cQNypRjN0Vcc='   # Ed25519 release key; same value as desktop/update-key.mjs
 if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw "Invalid release tag '$tag'." }

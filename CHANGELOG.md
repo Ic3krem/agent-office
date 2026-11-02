@@ -2,16 +2,33 @@
 
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
-## Unreleased
+## 1.2.6 (2026-11-03)
 
-Security hardening of the update path, supply chain and project files.
+Security patch release. Read the upgrade notes first.
 
-- Updates are authenticated, not just checked for integrity: releases carry an Ed25519-signed manifest (`latest.json` + `latest.json.sig`) verified against a public key pinned in the app, plus the installer's SHA-256 (checked again right before launch). The update feed is fixed to this project's GitHub releases; the island page can no longer change it, and `kiro.json` `updateFeed` is ignored. Installing needs a confirmation dialog shown by the app. Downloads go to a random folder only the current user can access. Downgrades are never offered.
+**Upgrade notes**
+
+- **One manual reinstall is needed from 1.2.5 or earlier.** Those versions contain the old, unsigned updater and cannot verify this release's signature. Install 1.2.6 once from the [Releases](https://github.com/Ic3krem/agent-office/releases) page (or with the pinned `install.ps1` / `install.sh`, which verify the signature); from then on in-app updates are signed.
+- **Keys rotate and terminal sessions need a restart.** The bridge key used by Claude Code terminal sessions is separate from the dashboard key and is generated fresh, so terminals that were open before the update must be restarted to reconnect to the bridge.
+- **More tokens per turn.** Tiro and the agents it hires now load your Claude Code settings, hooks, MCP servers, CLAUDE.md, skills and plugins, so every turn carries their extra tokens (the earlier lean setup measured about 30K tokens per turn that way).
+
+**Permissions and agents (Claude Code parity)**
+
+- Tiro and the agents it hires load your user, project and local Claude Code settings with the full `claude_code` tool preset, your MCP servers, hooks, CLAUDE.md, skills, plugins and environment, and inherit your model, effort and permission mode. Tool permissions are Claude Code's own; the custom auto-approval rules ("Tiro auto-approve", the manager) are removed. Prompts show Claude Code's choices (Yes, Yes and don't ask again, No with an instruction) and question cards. Commands are never edited and prompts never time out into an answer. See `docs/permissions.md`.
+- Hire grants are bound to the goal and the exact first prompt; a deny-only hook stops `claude` launches that skip `request_hire`.
+- Bridge key and UI key are separate. The UI key is a cookie and `?key=` is gone; decisions need a nonce; keys are never logged.
+- One shared redactor for Agent Office's own history, memory, reports and daily notes; seeded memory is scrubbed; scheduler subjects are untrusted, fenced, and no longer written to Tiro memory.
+- Fonts are vendored and the CSP has no remote host. Optional retention (`retentionDays`). Crash fixes (guarded request handler, process-level error logging).
+
+**Updater, installers and supply chain**
+
+- Updates are authenticated, not just checked for integrity: releases carry an Ed25519-signed manifest (`latest.json` + `latest.json.sig`) verified against a public key pinned in the app, plus the installer's SHA-256, which is checked again right before launch. The update feed is fixed to this project's GitHub releases; the island page can no longer change it, `kiro.json` `updateFeed` is ignored, and an enterprise mirror can only be set with the `AGENT_OFFICE_UPDATE_FEED` environment variable of the app process. Installing needs a confirmation dialog shown by the app. Downloads go to a random folder only the current user can access. Downgrades are never offered. The Updates panel no longer has a feed field.
 - `install.ps1` and `install.sh` are pinned to a release tag, verify the manifest signature and the installer hash, need no execution-policy bypass, and give clear errors.
 - The office server process restarts with backoff if it crashes (up to 5 tries), logging only event data to `~/.claude/agent-office/desktop.log`.
 - GitHub Actions are pinned to full commit SHAs with least-privilege permissions; added CI tests, dependency review, `npm audit`, CodeQL and Dependabot. `release.yml` stays manual-only.
 - Direct dependencies and Electron are pinned to exact versions; `npm audit fix` applied to the lockfile (no high-severity advisories left in production dependencies). The app is packaged in an asar archive with Electron fuses for asar integrity and asar-only loading.
 - Added SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue and pull request templates and docs/RELEASING.md.
+- Windows and macOS builds are still not Authenticode or Apple signed (no certificate yet); the manifest signature authenticates updates.
 
 
 ## 1.2.5 (2026-11-03)

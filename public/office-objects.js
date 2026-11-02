@@ -2,10 +2,10 @@
 // breaker box (switches), server rack (telemetry), arcade, jukebox, plant and coffee machine.
 // Everything here reads files and switches through the local server; nothing calls a model.
 (function () {
-  const KEY = new URLSearchParams(location.search).get('key') || '';
-  const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-key': KEY }, body: JSON.stringify(body || {}) })
+  const nonce = () => (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
+  const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(body || {}) })
     .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
-  const dl = (p, q) => p + '?' + new URLSearchParams({ ...q, key: KEY });
+  const dl = (p, q) => p + '?' + new URLSearchParams(q);
   const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const OUT = { done: ['Done', '#3f9f68'], partial: ['Partly done', '#d39b2a'], blocked: ['Needs you', '#d0503f'], info: ['Info', '#4a86c9'] };
   let snap = {}, kind = null, st = {}, listeners = [], timer = null;
@@ -151,13 +151,12 @@
     ['kiro', 'Tiro (manager)', 'Off stops Tiro and its specialists right away; new tasks wait on the board.'],
     ['autopilot', 'Autopilot', 'Tiro keeps itself going between turns. Off: it only works when you send it something.'],
     ['hiring', 'Hiring', 'Tiro may hire specialists. Off: Tiro works alone (cheapest).'],
-    ['autoApprove', 'Tiro auto-approve', 'Routine actions are approved by Tiro\'s safety rules; risky ones still come to you.'],
     ['bridge', 'Terminal approvals', 'Your own Claude terminals send their permission prompts to the office.'],
     ['guard', 'Subscription guard', 'Stop at the 5-hour or weekly plan limit instead of spending extra-usage credits.'],
   ];
   function breaker() {
     const body = shell('Breaker box', 'Hard switches. Flipping one takes effect immediately.', true);
-    const s = { ...(snap.switches || {}), autoApprove: !!(snap.manager || {}).on };
+    const s = { ...(snap.switches || {}) };
     body.innerHTML = `<div class="oo-pad">${snap.boss?.paused ? `<div style="padding:9px 11px;border-radius:8px;background:#3a2405;border:1px solid #8a5a1c;color:#ffd28a;margin-bottom:10px">⏸ ${esc(snap.boss.paused)}</div>` : ''}
       ${BREAKERS.map(([k, label, desc]) => `<div class="oo-sw" data-act="switch" data-k="${k}" role="switch" aria-checked="${!!s[k]}" tabindex="0">
         <div class="oo-lever"><i style="top:${s[k] ? 4 : 26}px;background:${s[k] ? '#5fd38d' : '#7a3b30'}"></i></div>
@@ -322,8 +321,8 @@
         case 'save-sop': { const r = await api('/api/sops/save', { name: d.name, text: document.getElementById('oo-sop').value }); return toast(r.note); }
         case 'decide': t.disabled = true; await api('/api/decide', { askId: d.ask, decision: d.d }); return;
         case 'switch': {
-          const s = { ...(snap.switches || {}), autoApprove: !!(snap.manager || {}).on }, on = !s[d.k];
-          if (d.k === 'autoApprove') await api('/api/manager', { on }); else await api('/api/switch', { name: d.k, on });
+          const s = { ...(snap.switches || {}) }, on = !s[d.k];
+          await api('/api/switch', { name: d.k, on });
           return;
         }
         case 'play': d.ch ? audio.play(d.ch) : audio.stop(); return jukebox();

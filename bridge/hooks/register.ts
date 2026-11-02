@@ -15,6 +15,7 @@ export const register: Register = on => {
   let cfg: Cfg | undefined
   let session = ''
   let turnId: string | undefined
+  let inboundBlocked = false // the user's crossSessionInbound setting is 'refuse' or 'hold': dashboard messages are not delivered
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -22,6 +23,12 @@ export const register: Register = on => {
       const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
       cfg = JSON.parse(await $.fs.read(`${home}/.claude/agent-office/bridge.json`)) as Cfg
       session = await $.session.id()
+      try {
+        const mode = (JSON.parse(await $.fs.read(`${home}/.claude/settings.json`)) as { crossSessionInbound?: string }).crossSessionInbound
+        inboundBlocked = mode === 'refuse' || mode === 'hold'
+      } catch {
+        inboundBlocked = false
+      }
     } catch {
       cfg = undefined // dashboard never installed: stay out of the way
       return r
@@ -30,6 +37,7 @@ export const register: Register = on => {
       try {
         const res = await call($, cfg!, `/bridge/poll?session=${encodeURIComponent(session)}`)
         if (!res.ok) return
+        if (inboundBlocked) return // honour the user's setting: nothing is injected as if the user had typed it
         const { messages, abort } = JSON.parse(res.text) as { messages: string[]; abort: boolean }
         if (abort && turnId) await $.turn.abort({ turnId })
         for (const text of messages) await $.prompt.submit({ text, asUser: true })

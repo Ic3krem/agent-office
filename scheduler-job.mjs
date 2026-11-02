@@ -12,7 +12,7 @@ import { redact } from './agent-home.mjs';
 
 // The one mailbox this job may report on: AGENT_OFFICE_MAILBOX, else "schedulerMailbox" in ~/.claude/agent-office/kiro.json. Never hardcoded.
 export const mailboxOf = home => { let k = {}; try { k = JSON.parse(fs.readFileSync(path.join(home, 'kiro.json'), 'utf8')); } catch {} return String(process.env.AGENT_OFFICE_MAILBOX || k.schedulerMailbox || '').trim().toLowerCase(); };
-export const INTERVAL_MIN = 30, HOURS = [7, 19], MAX_ITEMS = 20, FEED_STALE_MS = 2 * 3600e3, NOTE_ENTRIES = 30, NOTE_BYTES = 8000;
+export const INTERVAL_MIN = 30, HOURS = [7, 19], MAX_ITEMS = 20, FEED_STALE_MS = 2 * 3600e3;
 
 const NOISE = /\b(daily|weekly|monthly) (report|summary|digest|sales)|\bnewsletter|\bunsubscribe|\bno-?reply\b|\breceipt\b|\bdelivery status|\bout of office|\bautomatic reply|\bwebinar\b|\bpromo/i;
 const NEED = /\b(need|needs|needed|please (provide|send|help|check|review|fix|add|set)|can you|could you|would you|request(ed)?|access|help|urgent|asap|approve|approval|not working|broken|cannot|can't|unable)\b/i;
@@ -66,34 +66,18 @@ export function digest(feed, now = Date.now(), mailbox = '') {
 
 const atomic = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: true }); const t = file + '.tmp' + process.pid; fs.writeFileSync(t, text); fs.renameSync(t, file); };
 
-// Newest-first note for Tiro, subject lines only, capped by entries and bytes. Returns the new file text.
-export function renderTiroNote(prev, at, items, note) {
-  const entry = `## ${at}\n${note}\n` + (items.length ? items.map(i => `- [${i.kind}] ${i.title}`).join('\n') : '- (nothing new)') + '\n';
-  const head = '# Scheduler inbox (subjects only, newest first)\n\nWritten by the scheduler job. No message bodies. Read-only: nothing was sent or changed in the mailbox.\n\n';
-  const old = String(prev || '').split(/^(?=## )/m).filter(s => s.startsWith('## '));
-  const out = [entry, ...old].slice(0, NOTE_ENTRIES);
-  let text = head + out.join('\n');
-  while (Buffer.byteLength(text) > NOTE_BYTES && out.length > 1) { out.pop(); text = head + out.join('\n'); }
-  return text;
-}
-
 export function run({ home = path.join(os.homedir(), '.claude', 'agent-office'), feed, dry = false, force = false, now = new Date() } = {}) {
   const stateFile = path.join(home, 'scheduler.json'), seenFile = path.join(home, 'scheduler-seen.json');
-  const memDir = path.join(home, 'agents', 'tiro', 'memory'), noteFile = path.join(memDir, 'scheduler-inbox.md');
   const iso = now.toISOString();
   if (!force && !inHours(now)) return { skipped: 'outside business hours (Mon-Fri 07:00-19:00 local)', nextCheck: nextCheckAfter(now).toISOString() };
   let raw = null; try { raw = JSON.parse(fs.readFileSync(feed || path.join(home, 'inbox-feed.json'), 'utf8')); } catch {}
   const d = raw ? digest(raw, now.getTime(), mailboxOf(home)) : { items: [], itemsFound: 0, ok: false, note: 'No mail feed file yet: waiting for the approved read-only mailbox reader to produce inbox-feed.json.' };
   let seen = []; try { seen = JSON.parse(fs.readFileSync(seenFile, 'utf8')).seen || []; } catch {}
   const fresh = d.items.filter(i => !seen.includes(i.key));
-  const state = { lastCheck: iso, itemsFound: d.itemsFound, lastUpdateToTiro: iso, nextCheck: nextCheckAfter(now).toISOString(), note: d.note,
+  const state = { lastCheck: iso, itemsFound: d.itemsFound, lastUpdateToTiro: iso, untrusted: true, nextCheck: nextCheckAfter(now).toISOString(), note: d.note,
     items: d.items.map(({ title, kind, at }) => ({ title, kind, at })) };
   const result = { state, fresh: fresh.map(({ title, kind, at }) => ({ title, kind, at })), dry };
   if (dry) return result;
-  let prev = ''; try { prev = fs.readFileSync(noteFile, 'utf8'); } catch {}
-  atomic(noteFile, renderTiroNote(prev, iso, result.fresh, d.note));
-  const idx = path.join(memDir, 'MEMORY.md');
-  try { if (!fs.readFileSync(idx, 'utf8').includes('scheduler-inbox.md')) fs.appendFileSync(idx, '- [scheduler-inbox](scheduler-inbox.md) - newest task/need subjects from the scheduler job\n'); } catch {}
   atomic(seenFile, JSON.stringify({ seen: [...new Set([...fresh.map(i => i.key), ...seen])].slice(0, 200) }));
   atomic(stateFile, JSON.stringify(state, null, 2));
   return result;

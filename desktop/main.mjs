@@ -1,5 +1,6 @@
 // Agent Office desktop app: runs the office server, keeps Tiro on the desktop, and lives in the tray.
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog, session } from 'electron';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -29,6 +30,10 @@ const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let 
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 const up = () => fetch(BASE + '/', { signal: AbortSignal.timeout(1500) }).then(r => r.ok, () => false);
+// The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly
+// SameSite=Strict cookie; it is never in a URL, a file or a log. Agents can read bridge.json but this key is not in it.
+const UI_KEY = crypto.randomBytes(24).toString('hex');
+const signedIn = () => fetch(BASE + '/api/roster', { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(2000) }).then(r => r.ok, () => false);
 // Event log for the desktop shell: no environment, arguments or keys, only the event, exit code or signal, and the retry plan. Capped in size.
 const LOG_FILE = path.join(CFG_DIR, 'desktop.log');
 const logEvent = ev => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, restartLogLine(Date.now(), ev) + String.fromCharCode(10)); } catch {} };
@@ -37,7 +42,7 @@ let quitting = false, gaveUp = false, restartTimer = null;
 function spawnServer() {
   // Electron's own Node runs the server, so the app needs no separate Node install.
   const started = Date.now();
-  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'ignore', windowsHide: true });
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY }, stdio: 'ignore', windowsHide: true });
   server = child;
   child.on('error', e => logEvent({ event: 'spawn-error' }));
   child.on('exit', (code, signal) => {
@@ -50,13 +55,13 @@ function spawnServer() {
   });
 }
 async function ensureServer() {
-  if (await up()) return;
+  if (await up()) { if (await signedIn()) return; throw new Error('Agent Office is already running on port ' + PORT + ' (started by another program). Quit it, then start the app again.'); }
   spawnServer();
   for (let i = 0; i < 60; i++) { if (await up()) return; if (gaveUp) break; await new Promise(r => setTimeout(r, 500)); }
   throw new Error('The Agent Office server did not start on port ' + PORT);
 }
-const key = () => JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'bridge.json'), 'utf8')).key;
-const url = p => `${BASE}${p}?key=${encodeURIComponent(key())}`;
+const url = p => `${BASE}${p}`;
+const signInWindows = () => session.defaultSession.cookies.set({ url: BASE, name: 'ao_ui', value: UI_KEY, httpOnly: true, sameSite: 'strict', path: '/' });
 // Every window: external links open in the browser, the page itself can never navigate away from the local server, no popups.
 const external = wc => {
   wc.setWindowOpenHandler(({ url: u }) => { if (/^https?:/.test(u)) shell.openExternal(u); return { action: 'deny' }; });
@@ -190,7 +195,7 @@ const CURRENT = app.getVersion();
 const FEED = resolveFeed();
 const assetPolicy = makeAssetPolicy(FEED);
 let upd = { state: 'idle', current: CURRENT, feed: FEED, busy: '' };
-const updView = () => ({ ...upd, auto: prefs.updateAuto !== false, warning: '' });
+const updView = () => ({ ...upd, auto: prefs.updateAuto !== false });
 const pushUpdate = () => { if (alive()) island.webContents.send('island:update', updView()); };
 async function runCheck() {
   if (upd.busy) return;
@@ -305,7 +310,7 @@ app.whenReady().then(async () => {
   mgrName = readMgrName();
   buildTray();
   setInterval(() => applyMgrName(), 3000);
-  try { await ensureServer(); }
+  try { await ensureServer(); await signInWindows(); }
   catch (e) { tray.displayBalloon?.({ title: 'Agent Office', content: e.message }); return; }
   if (!prefs.hidden) showKiro();
   watchDisplays();

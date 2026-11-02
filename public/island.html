@@ -120,11 +120,11 @@
   <div id="in"></div>
 </div>
 <script>
-const KEY = new URLSearchParams(location.search).get('key') || '';
+const nonce = () => (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
 const desk = window.islandDesk || { interactive() {}, office() {}, focus() {}, settings() {}, mute() {}, media() {}, onNowPlaying() {}, onLyrics() {}, update: { get: async () => null, check: async () => null, install: async () => null, set: async () => null, on() {} }, onToggle() {}, onState() {} };
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-key': KEY }, body: JSON.stringify(body || {}) })
+const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(body || {}) })
   .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
 
 // ---------- spring: a damped oscillator per property, so size changes overshoot slightly and settle ----------
@@ -273,17 +273,16 @@ function calendarHTML() {
 let upd = null; // update status pushed from the desktop
 function updatesHTML() {
   if (!upd) return '';
-  const msg = { unconfigured: 'No update source configured. Paste a feed URL below.', idle: 'Not checked yet.', current: 'You are up to date.', available: `Version ${esc(upd.available)} is available.`, error: esc(upd.error || 'Check failed.') }[upd.state] || '';
-  const busy = { check: 'Checking...', download: 'Downloading...', install: 'Installing, restarting...' }[upd.busy] || '';
+  const msg = { idle: 'Not checked yet.', current: 'You are up to date.', available: `Version ${esc(upd.available)} is available.`, error: esc(upd.error || 'Check failed.') }[upd.state] || '';
+  const busy = { check: 'Checking...', confirm: 'Waiting for your confirmation...', download: 'Downloading...', install: 'Installing, restarting...' }[upd.busy] || '';
   const act = upd.state === 'available' && !upd.busy ? `<button class="btn yes" data-upd="install">Update now</button>` : '';
-  const warn = upd.warning ? `<div class="note warn" role="alert" data-upd-warning><b>Unverified installer.</b> ${esc(upd.warning)}</div>` : '';
   const err = upd.error && upd.state !== 'error' ? `<div class="note bad" role="alert">${esc(upd.error)}</div>` : '';
   return `<div class="sect"><span class="label">Updates</span>
     <div class="set"><span>Version</span><span>${esc(upd.current)}${upd.available ? ' &rarr; ' + esc(upd.available) : ''}</span></div>
     <div class="set"><span>Status</span><span>${busy || msg}</span></div>
-    ${warn}${err}
+    ${err}
     <div class="set"><span>Check on start</span><div class="chips"><button class="btn ${upd.auto ? 'on' : ''}" data-upd-auto="true">On</button><button class="btn ${upd.auto ? '' : 'on'}" data-upd-auto="false">Off</button></div></div>
-    <div class="set"><span>Update feed</span><input type="text" data-upd-feed value="${esc(upd.feed || '')}" placeholder="https://.../latest.json or folder path" aria-label="Update feed URL"></div>
+    <div class="set"><span>Source</span><span>GitHub releases of Ic3krem/agent-office (signed)</span></div>
     <div class="row"><button class="btn" data-upd="check" ${upd.busy ? 'disabled' : ''}>Check now</button>${act}</div></div>`;
 }
 function settingsHTML() {
@@ -312,10 +311,12 @@ function settingsHTML() {
 }
 function bodyHTML() {
   const asks = asksOf(snap);
-  const askH = asks.map(a => `<div class="ask"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>
+  const qstate = (window.__qsel = window.__qsel || {});
+  const qHTML = a => { const st = (qstate[a.perm.askId] = qstate[a.perm.askId] || {}); return a.perm.questions.map((q, qi) => `<div class="q"><span class="who">${esc(q.header ? q.header + ': ' : '')}${esc(q.question)}</span><div class="row">${q.options.map(o => `<button class="btn${(st[qi] || []).includes(o.label) ? ' yes' : ''}" data-qopt="${esc(a.perm.askId)}|${qi}|${esc(o.label)}|${q.multiSelect ? 1 : 0}" title="${esc(o.description)}">${esc(o.label)}</button>`).join('')}</div></div>`).join('') + `<div class="row"><button class="btn yes" data-qsend="${esc(a.perm.askId)}">Send answers</button><button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">Skip</button></div>`; };
+  const askH = asks.map(a => a.perm.questions ? `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} asks you</span>${qHTML(a)}</div>` : `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>${a.perm.preview ? `<pre class="empty" style="max-height:120px;overflow:auto;white-space:pre-wrap;margin:4px 0">${esc(a.perm.preview.slice(0, 1500))}</pre>` : ''}
     ${a.perm.why ? `<span class="empty">${esc(a.perm.why.slice(0, 140))}</span>` : ''}
-    <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Approve<kbd>Y</kbd></button><button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">Deny<kbd>N</kbd></button><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
-  const hireH = hiresOf(snap).map(h => `<div class="ask"><span class="who">${esc(mgrName())} wants to hire ${esc(h.name)} (${esc(h.role)})</span><code>${esc((h.goalText || '').slice(0, 100))}</code><span class="empty">${esc(h.why)}</span>
+    <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Yes${a.perm.defaultToNo ? '' : '<kbd>Y</kbd>'}</button>${a.perm.canAlways ? `<button class="btn" data-ask="${esc(a.perm.askId)}" data-d="allow" data-always="1" title="Writes the permission rule Claude Code suggests">Yes, and don\'t ask again</button>` : ''}<button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">No<kbd>N</kbd></button><input class="why" data-deny-msg="${esc(a.perm.askId)}" placeholder="No, and tell Claude what to do instead" style="flex:1;min-width:120px"><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
+  const hireH = hiresOf(snap).map(h => `<div class="ask"><span class="who">${esc(mgrName())} wants to hire ${esc(h.name)} (${esc(h.role)})</span><code>${esc((h.goalText || '').slice(0, 100))}</code><span class="empty">${esc(h.why)}</span>${h.prompt ? `<pre class="empty" style="max-height:80px;overflow:auto;white-space:pre-wrap;margin:4px 0">Prompt: ${esc(h.prompt.slice(0, 600))}</pre>` : ''}
     <div class="row"><button class="btn yes" data-hire="${esc(h.id)}" data-ok="1">Approve hire</button><button class="btn no" data-hire="${esc(h.id)}" data-ok="0">Deny</button></div></div>`).join('');
   const ses = (snap?.agents || []).slice(0, 6).map(a => `<div class="ses"><span class="nm">${esc(a.name)}</span><span class="tk">${esc(a.task || a.role || '')}</span><span class="st ${esc(a.status)}">${esc(a.status)}</span></div>`).join('');
   const open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
@@ -331,7 +332,7 @@ function bodyHTML() {
   return `<div class="body">${tabs}${askH || hireH ? `<span class="label">Waiting for you</span>${askH}${hireH}` : ''}
     ${main}
     <form class="chat ${chatOn ? 'on' : ''}" id="chat"><input id="chatIn" placeholder="Tell ${esc(mgrName())} what to do…" autocomplete="off" aria-label="Message ${esc(mgrName())}"><button class="btn yes" type="submit">Send</button></form>
-    <div class="dock">${dock}</div><div class="hint">Ctrl+Alt+K toggles · Esc closes · Y / N answer an approval</div></div>`;
+    <div class="dock">${dock}</div><div class="hint">Ctrl+Alt+K toggles · Esc closes · Y / N answer the focused approval</div></div>`;
 }
 
 let lastKey = '';
@@ -365,10 +366,15 @@ isle.addEventListener('mouseleave', () => { clearTimeout(leaveTimer); leaveTimer
 isle.addEventListener('click', e => {
   const hb = e.target.closest('[data-hire]');
   if (hb) { api('/api/hire/decide', { id: hb.dataset.hire, approve: hb.dataset.ok === '1' }).catch(err => showToast(esc(err.message), 4000)); return; }
+  const qo = e.target.closest('[data-qopt]');
+  if (qo) { const [id, qi, label, multi] = qo.dataset.qopt.split('|'); const st = (window.__qsel[id] = window.__qsel[id] || {}); st[qi] = multi === '1' ? ((st[qi] || []).includes(label) ? st[qi].filter(x => x !== label) : [...(st[qi] || []), label]) : [label]; render(); return; }
+  const qs = e.target.closest('[data-qsend]');
+  if (qs) { const id = qs.dataset.qsend, a = asksOf(snap).find(x => x.perm.askId === id), st = window.__qsel[id] || {}; if (!a) return; const answers = {}; a.perm.questions.forEach((q, qi) => { if ((st[qi] || []).length) answers[q.question] = st[qi].join(', '); }); if (!Object.keys(answers).length) { showToast('Pick an answer first.', 2500); return; } api('/api/decide', { askId: id, decision: 'allow', answers }).catch(err => showToast(esc(err.message), 4000)); return; }
   const ask = e.target.closest('[data-ask]');
   if (ask) {
     ask.disabled = true;
-    api('/api/decide', { askId: ask.dataset.ask, decision: ask.dataset.d }).catch(err => showToast(esc(err.message), 4000));
+    const msg = ask.dataset.d === 'deny' ? (document.querySelector('[data-deny-msg="' + ask.dataset.ask + '"]') || {}).value : undefined;
+    api('/api/decide', { askId: ask.dataset.ask, decision: ask.dataset.d, always: ask.dataset.always === '1', message: msg ? msg.trim() : undefined }).catch(err => showToast(esc(err.message), 4000));
     return;
   }
   const md = e.target.closest('[data-media]');
@@ -401,7 +407,6 @@ isle.addEventListener('change', e => {
   const t = e.target;
   if (t.matches('[data-color]')) setPref({ theme: 'custom', accent: t.value });
   else if (t.matches('[data-zone]')) setPref({ zone2: t.value.trim() });
-  else if (t.matches('[data-upd-feed]')) desk.update.set({ feed: t.value.trim() }).then(u => { if (u) { upd = u; render(); } });
   else if (t.matches('[data-zlabel]')) setPref({ zone2Label: t.value.trim() });
 });
 isle.addEventListener('submit', e => {
@@ -415,9 +420,13 @@ isle.addEventListener('submit', e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { pinned = chatOn = hovered = false; asksOf(snap).forEach(a => dismissed.add(a.perm.askId)); render(); return; }
   if (e.target.tagName === 'INPUT') return;
-  const a = asksOf(snap).find(x => !dismissed.has(x.perm.askId)); if (!a) return;
+  // Y and N answer only the approval card you have focused (click it or Tab to it), never a card you have not looked at.
+  const card = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.ask') : null;
+  const btn = card && card.querySelector('[data-ask]'); if (!btn) return;
+  const a = asksOf(snap).find(x => x.perm.askId === btn.dataset.ask && !dismissed.has(x.perm.askId)); if (!a) return;
+  if (a.perm.questions) return; // a question is answered with its option buttons, never with a key
   const k = e.key.toLowerCase();
-  if (k === 'y' || k === 'n') api('/api/decide', { askId: a.perm.askId, decision: k === 'y' ? 'allow' : 'deny' }).catch(err => showToast(esc(err.message), 4000));
+  if ((k === 'y' && !a.perm.defaultToNo) || k === 'n') api('/api/decide', { askId: a.perm.askId, decision: k === 'y' ? 'allow' : 'deny' }).catch(err => showToast(esc(err.message), 4000));
 });
 desk.update.on(u => { upd = u; render(); });
 desk.update.get().then(u => { if (u) { upd = u; render(); } });
@@ -454,7 +463,7 @@ document.addEventListener('mousemove', e => {
 
 // ---------- live data: the same stream the office uses ----------
 function connect() {
-  const es = new EventSource('/api/stream?key=' + encodeURIComponent(KEY));
+  const es = new EventSource('/api/stream');
   es.onopen = () => { online = true; render(); };
   es.onmessage = ev => { const next = JSON.parse(ev.data); notice(next); prev = snap = next; online = true; render(); };
   es.onerror = () => { online = false; render(); };

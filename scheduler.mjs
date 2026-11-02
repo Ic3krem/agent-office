@@ -18,6 +18,6 @@ export function readScheduler(file, now = Date.now()) {
   const lastCheck = when(raw.lastCheck), lastUpdateToTiro = when(raw.lastUpdateToTiro), nextCheck = when(raw.nextCheck);
   const n = Number.isFinite(Number(raw.itemsFound)) && Number(raw.itemsFound) >= 0 ? Math.min(9999, Math.floor(Number(raw.itemsFound))) : items.length;
   if (!lastCheck && !lastUpdateToTiro && !items.length && raw.itemsFound == null) return { present: false };
-  return { present: true, lastCheck, itemsFound: n, lastUpdateToTiro, nextCheck, note: str(raw.note, 300), items,
+  return { present: true, untrusted: true, lastCheck, itemsFound: n, lastUpdateToTiro, nextCheck, note: str(raw.note, 300), items,
     stale: !lastCheck || now - Date.parse(lastCheck) > STALE_MS };
 }
