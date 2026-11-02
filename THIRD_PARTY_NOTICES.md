@@ -10,6 +10,8 @@ Agent Office itself is MIT licensed (see LICENSE). The production dependency tre
 - **buffers** 0.1.1: the npm package declares no license; its upstream project (substack/node-buffers) is MIT/X11-style. Transitive via exceljs. Verify before redistributing outside this project.
 - **chainsaw** 0.1.0: MIT/X11 (permissive).
 
+- **React 18.3.1, ReactDOM 18.3.1, @babel/standalone 7.29.0** are vendored unmodified in `public/vendor/` (MIT; (c) Meta Platforms and the Babel contributors). Their SHA-384 hashes are pinned in `public/support.js`.
+
 All other packages are MIT, ISC, BSD, Apache-2.0 or Unlicense.
 
 ## Full list

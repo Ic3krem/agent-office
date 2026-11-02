@@ -41,3 +41,32 @@ test('no personal paths or credential-looking values in tracked source', () => {
     assert.doesNotMatch(t, /-----BEGIN [A-Z ]*PRIVATE KEY-----\s*\S{20}|\bsk-[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9]{30,}/, f + ' has a secret');
   }
 });
+
+test('every external host the pages reference is allowed by the CSP, and scripts are all local', () => {
+  const csp = read('./server.mjs').match(/'content-security-policy': "([^"]+)"/)[1];
+  const dirs = Object.fromEntries(csp.split(';').map(d => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
+  const scriptSrc = dirs['script-src'] || [];
+  assert.ok(!scriptSrc.some(v => /^https?:/.test(v) || v === '*'), 'script-src must stay local');
+  const allowed = new Set(Object.values(dirs).flat().filter(v => /^https:/.test(v)).map(v => new URL(v).host));
+  const dir = new URL('./public/', import.meta.url);
+  for (const f of fs.readdirSync(dir).filter(n => /\.(js|html)$/.test(n))) {
+    const t = fs.readFileSync(new URL(f, dir), 'utf8');
+    for (const m of t.matchAll(/https?:\/\/([a-z][a-z0-9.-]*\.[a-z]{2,})/gi)) {
+      if (/^(www\.w3\.org|w3\.org)$/i.test(m[1])) continue; // XML namespaces, never fetched
+      assert.ok(allowed.has(m[1]), f + ' references ' + m[1] + ' which the CSP does not allow');
+    }
+    assert.doesNotMatch(t, /<script[^>]+src="https?:/i, f + ' loads a remote script');
+  }
+});
+
+test('React, ReactDOM and Babel are vendored and match the SRI hashes in support.js', async () => {
+  const crypto = await import('node:crypto');
+  const sup = read('./public/support.js');
+  for (const [file, name] of [['react.production.min.js', 'REACT'], ['react-dom.production.min.js', 'REACT_DOM'], ['babel.min.js', 'BABEL']]) {
+    assert.ok(sup.includes('"/vendor/' + file + '"'), name + ' url points at the local copy');
+    const sri = sup.match(new RegExp(name + '_SRI = "sha384-([^"]+)"'))[1];
+    const got = crypto.createHash('sha384').update(fs.readFileSync(new URL('./public/vendor/' + file, import.meta.url))).digest('base64');
+    assert.equal(got, sri, file + ' hash');
+    assert.ok(read('./server.mjs').includes("'/vendor/" + file + "'"), file + ' is served');
+  }
+});
