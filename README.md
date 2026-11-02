@@ -34,17 +34,17 @@ irm https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.ps1 | ie
 curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.sh | bash
 ```
 
-Both download the latest release over https, **verify its SHA-256** against the digest GitHub publishes for that asset (they stop if it is missing or does not match), install it and put a shortcut on your desktop. You can also download an installer directly from [Releases](https://github.com/Ic3krem/agent-office/releases): `.exe` (Windows), `.dmg` (macOS Apple Silicon / Intel) or `.AppImage` / `.deb` (Linux). The builds aren't code-signed, so Windows SmartScreen may ask you to confirm with "More info → Run anyway". The macOS script clears Gatekeeper's quarantine flag for you.
+Both download the latest release over https, **verify its SHA-256** against the digest GitHub publishes for that release asset, install it and put a shortcut on your desktop. They stop, and install nothing, if there is no published release, the asset has no digest, or the hash does not match. The Windows script installs silently for the current user; running the `.exe` yourself shows the normal setup wizard where you can pick the folder. You can also download an installer directly from [Releases](https://github.com/Ic3krem/agent-office/releases): `.exe` (Windows), `.dmg` (macOS Apple Silicon / Intel) or `.AppImage` / `.deb` (Linux). **The builds aren't code-signed**, so Windows SmartScreen may ask you to confirm with "More info → Run anyway". The macOS script clears Gatekeeper's quarantine flag for you.
 
-Piping a script into your shell trusts whatever is on `main`. To review first, or to pin a release, download the script (for example `.../Ic3krem/agent-office/v1.2.4/install.ps1`), read it, then run it from disk.
+Piping a script into your shell trusts whatever is on `main`. To review first, or to pin a release, download the script (for example `.../Ic3krem/agent-office/<release tag>/install.ps1`), read it, then run it from disk.
 
 ### Update
 
-Agent Office checks for new versions from the island's Updates panel. Set the update feed to an `https://` JSON URL (a GitHub release API URL works) or a local file or folder. An installer fetched over the network is only run when the feed supplies its SHA-256 and the download matches; otherwise it is refused. You can also re-run the install script, which replaces the app in place.
+Open the island's Settings tab and use **Updates**. Set the update feed to an `https://` JSON URL (the GitHub API URL `https://api.github.com/repos/Ic3krem/agent-office/releases/latest` works for a public repo, using the SHA-256 digest GitHub shows on the release asset) or to a local file or a folder holding `latest.json` (`{ "version", "url", "sha256", "notes" }`). Checking on start is on by default but only checks; installing always needs your click ("Update now"), which downloads, verifies and runs the installer and quits the app. An installer fetched over the network is refused unless the feed supplies its SHA-256 and the download matches it. A local feed without one is allowed but shows an "Unverified installer" warning. Settings live in `~/.claude/agent-office/kiro.json` (`updateFeed`, `updateAuto`). You can also re-run the install script, which replaces the app in place. See `docs/island-spec.md` for details.
 
 ### Uninstall
 
-- **Windows:** Settings, Apps, Installed apps, Agent Office, Uninstall (or run the uninstaller in `%LOCALAPPDATA%/Programs`). **macOS:** delete `/Applications/Agent Office.app`. **Linux:** delete `~/.local/bin/agent-office.AppImage` and the `agent-office.desktop` entries.
+- **Windows:** Settings, Apps, Installed apps, Agent Office, Uninstall. **macOS:** delete `/Applications/Agent Office.app`. **Linux:** delete `~/.local/bin/agent-office.AppImage` and the `agent-office.desktop` entries; if you installed the `.deb`, remove it with your package manager.
 - Your data is left in place: `~/.claude/agent-office` (state, per-agent folders) and the vault notes. Delete them if you want a clean slate.
 
 ## What's in the office
@@ -67,11 +67,13 @@ Agents behave like people. They type at their desk with a live token counter, go
 
 ## New in 1.2.x
 
-- **Renamable team:** give Tiro and each specialist a display name; folders, ids and the `subagent_type` never change, and two agents can never share a name.
-- **Strict hiring gate:** Tiro must ask (`request_hire`) and you approve each hire once; an approval is single-use, expires after 10 minutes and is cleared whenever the manager session ends or resets, or hiring is switched off.
-- **Per-agent memory and history:** every agent has its own folder under `~/.claude/agent-office/agents/tiro/<type>/` with `memory/` (the only thing carried between tasks, since every hire starts in a fresh context) and `history/` (a task index plus each final report and its transcript path). Browse it with the **Agent history** button. Secrets are scrubbed from summaries.
-- **Outline click areas:** office objects are clicked by their drawn outline, small pieces win over big ones behind them, and characters are never hidden behind their own desk.
-- **Garage and Scheduler:** a Scheduler station shows what `scheduler-job.mjs` last wrote to `~/.claude/agent-office/scheduler.json`. The job classifies unread-mail subjects from a local feed file into task, need or info, leaves Tiro a subject-only note, is read-only and sends nothing. Run `node scheduler-job.mjs --dry-run` to try it; set `AGENT_OFFICE_MAILBOX` to the one mailbox it may report on. A separate approved reader must produce `inbox-feed.json`.
+- **Renamable team:** give Tiro and each specialist a display name (up to 20 characters). Folders, ids and the `subagent_type` never change, and no agent can take another agent's current or default name.
+- **One person per specialist:** a second agent of an already-hired type is shown as a labelled "helper", not as another full specialist.
+- **Strict hiring gate:** Tiro must ask (`request_hire`) and you approve each hire once; an approval is single-use, expires after 10 minutes and is cleared whenever the manager session ends, resets or stops, or hiring is switched off. Details in `docs/agents-and-memory.md`.
+- **Per-agent memory and history:** every agent has its own folder under `~/.claude/agent-office/agents/tiro/<type>/` with `memory/` (the only thing carried between tasks, since every hire starts in a fresh context) and `history/` (a task index plus each final report and its transcript path). Browse it with the **Agent history** button. The API is `/api/agents/overview`, `/api/agents/tasks` and `/api/agents/task`. Secrets are scrubbed from summaries.
+- **Tight click areas:** office objects are picked by their drawn pixel silhouette (hover shows an outline), small pieces win over big ones behind them, and furniture and characters are depth-sorted by footprint so a character is never hidden behind its own desk.
+- **Park and garage:** the garden grows into a fenced park, with a garage beside the playroom.
+- **Garage and Scheduler:** a Scheduler station shows what `scheduler-job.mjs` last wrote to `~/.claude/agent-office/scheduler.json`. The job classifies unread-mail subjects from a local feed file (`~/.claude/agent-office/inbox-feed.json`) into task, need or info and leaves Tiro a subject-only note in `agents/tiro/memory/scheduler-inbox.md`. **Agent Office has no mail access built in**: you must provide a read-only reader that writes the feed, and name the one mailbox with `AGENT_OFFICE_MAILBOX` (or `schedulerMailbox` in `kiro.json`). The job sends nothing and changes no mail. Try it with `node scheduler-job.mjs --dry-run`. See `docs/scheduler.md`.
 - Dynamic-island overlay with now-playing and lyrics, and an update checker with SHA-256 verification.
 
 ## How it saves tokens
@@ -90,10 +92,20 @@ Agents behave like people. They type at their desk with a live token counter, go
 | Tally | Task checker and organizer | haiku | Read, Grep, Glob, Edit, Write |
 | Scribe | SOP and document writer | sonnet | read, web, Edit, Write |
 
-Old names (researcher, builder, ops, writer, reviewer) still work and map to Cabalan, Forge, Forge, Scribe and Probe. See `docs/office-spec.md` for the planned office world.
+Old names (researcher, builder, ops, writer, reviewer) still work and map to Cabalan, Forge, Forge, Scribe and Probe. See `docs/office-spec.md` for the office world and `docs/agents-and-memory.md` for how the team, hiring and memory work.
 
 Tiro runs on Sonnet at medium effort and picks Haiku, Sonnet or Opus for each hire. Tiro is only nudged to continue when no specialist is out working, since their reports wake it anyway.
 - Reports, memory search, the daily summary, exports and every office object are plain code.
+
+## Security model
+
+- **Local only.** The server binds `127.0.0.1`, rejects any other `Host` header (DNS rebinding) and requires a random key that is stored locally and compared in constant time.
+- **Strict Content-Security-Policy.** Pages load scripts only from the app itself (`script-src 'self'`, plus inline and eval, which the page runtime needs). React, ReactDOM and Babel standalone are vendored in `public/vendor/` with pinned SHA-384 hashes, so nothing is loaded from a CDN. The one remote host the pages may use is Google Fonts, for the stylesheet and font files only. Framing, plugins and `<base>` tricks are blocked.
+- **Electron hardening.** Windows run with context isolation and sandbox on, `nodeIntegration` off and `webSecurity` on; they cannot navigate away from the local server or open webviews; external links open in your browser.
+- **Verified installs.** The install scripts and the updater check SHA-256 before running anything, and use https only.
+- **Hiring and approvals.** Tiro cannot hire without your one-shot approval, and risky tool calls wait for you (see Breaker box).
+- **No built-in mail access.** The scheduler only reads a local feed file.
+- **Unsigned.** The Windows and macOS builds are not code-signed. If in doubt, compare the SHA-256 the install script prints with the one GitHub shows on the release asset.
 
 ## Your data
 
@@ -117,11 +129,11 @@ Set `AGENT_OFFICE_TEAM_ONLY=1` before starting the app to show only Tiro and its
 ```
 npm install
 npm start          # run the desktop app
-npm test           # node:test suites, no network or models needed
+npm test           # node:test suites (company, agent history, scheduler, updater, island, office motion, repo checks), no network or models needed
 npm run dist       # build an installer for this OS
 ```
 
-Every `*.mjs` file can be syntax-checked with `node --check <file>`. Local backups (`*.bak-*`), `dist/`, `release-feed/` and local state files are git-ignored.
+Node 24 is what CI uses. Every `*.mjs` file can be syntax-checked with `node --check <file>`. Set `AGENT_OFFICE_PORT` to run a dev server on a spare port next to an installed copy, and use a temporary `USERPROFILE` so it does not touch the installed app's key and state. Local backups (`*.bak-*`), `dist/`, `release-feed/` and local state files are git-ignored.
 
 Pushing a tag like `v1.1.0` runs `.github/workflows/release.yml`, which builds Windows, macOS (arm64 and x64) and Linux installers and publishes them as a GitHub release.
 
