@@ -13,7 +13,7 @@ Agent Office is a pixel office for your own Claude Code agents. **Tiro** is the 
 ## Starting
 
 - **Installed app:** open Agent Office from the desktop shortcut or Start menu. It starts its local server and shows Tiro on your desktop. Double-click Tiro (or use the tray menu, Open office) to open the dashboard.
-- **From source:** `npm install`, then `npm start` (see [RESOURCES.md](RESOURCES.md)).
+- **From source:** `npm ci`, then `npm start` (see [RESOURCES.md](RESOURCES.md)).
 - The server listens on `127.0.0.1` only. The dashboard URL carries a random key, for example `http://localhost:4777/?key=...`. Pages opened without the key can load but cannot read or change anything.
 
 ## The dashboard
@@ -149,7 +149,7 @@ All state is under `~/.claude/agent-office/` (your home folder). Nothing here ne
 | File or folder | What it holds |
 |---|---|
 | `bridge.json` | Server port and the random access key. Do not share. |
-| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings`, `updateFeed`, `updateAuto`, `hidden`, optional `schedulerMailbox`. |
+| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings`, `updateAuto`, `hidden`, optional `schedulerMailbox`. |
 | `switches.json` | Breaker box switches. |
 | `manager.json` | Tiro auto-approval on or off. |
 | `manager-session.json` | Id of Tiro's current session (one per day). |

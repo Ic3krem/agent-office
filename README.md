@@ -69,25 +69,28 @@ All screenshots use demo data. The [user guide](docs/GUIDE.md) has the rest.
 
 **Windows installer.** Download `Agent-Office-Setup-<version>.exe` from [Releases](https://github.com/Ic3krem/agent-office/releases/latest) and run it. It is a normal setup wizard where you can pick the folder. It adds a Start menu entry and a desktop shortcut.
 
-**One-line install** (downloads the latest release, verifies it, installs it and adds a desktop shortcut):
+**One-line install.** Run the script from the release tag you want (the tag is part of the URL, so what you read is what runs):
 
 ```powershell
-irm https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.5/install.ps1 | iex
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.5/install.sh | bash
 ```
 
-Both scripts download over https and **verify the asset's SHA-256** against the digest GitHub publishes for that release asset. They stop, and install nothing, if there is no published release, the asset has no digest, or the hash does not match. The Windows script installs silently for the current user. Other downloads are on the Releases page: `.dmg` (macOS Apple Silicon or Intel), `.zip` (macOS), `.AppImage` or `.deb` (Linux).
+Both scripts fetch `latest.json` and `latest.json.sig` from that tag's release page, **verify the Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)), then download the installer the manifest names and **verify its SHA-256**. They stop, and install nothing, if the manifest or signature is missing or invalid, the file is not hosted on that release page, or the hash does not match. The Windows script needs no extra tools and no execution-policy change and installs silently for the current user. The shell script needs OpenSSL 3 or Node.js to check the signature. Releases published before signed manifests existed (up to v1.2.5) have no manifest; install those from the Releases page.
 
-Piping a script into your shell trusts whatever is on `main`. To review first or pin a release, download the script from a release tag (for example `.../Ic3krem/agent-office/v1.2.5/install.ps1`), read it, then run it from disk.
+To check a downloaded release folder without installing, set `AGENT_OFFICE_VERIFY_ONLY` to its path and run the script. Other downloads are on the Releases page: `.dmg` (macOS Apple Silicon or Intel), `.zip` (macOS), `.AppImage` or `.deb` (Linux).
+
 
 The builds are **not code-signed**. Windows SmartScreen may ask you to confirm with "More info", then "Run anyway". The macOS script clears Gatekeeper's quarantine flag for you.
 
 ## Update
 
-Open the island's Settings tab and use **Updates**. Set the update feed to an `https://` JSON URL (the GitHub API URL `https://api.github.com/repos/Ic3krem/agent-office/releases/latest` works for a public repo and uses the SHA-256 digest GitHub shows on the release asset), or to a local file or a folder holding `latest.json` (`{ "version", "url", "sha256", "notes" }`). Checking on start is on by default but only checks. Installing always needs your click ("Update now"), which downloads, verifies and runs the installer and quits the app. An installer fetched over the network is refused unless the feed supplies its SHA-256 and the download matches. A local feed without one is allowed but shows an "Unverified installer" warning. You can also re-run the install script, which replaces the app in place. Details: [docs/island-spec.md](docs/island-spec.md).
+Open the island's Settings tab and use **Updates**. The app checks the signed release manifest published with the newest GitHub release of Ic3krem/agent-office. The feed address is fixed in the app; nothing in the page or in `kiro.json` can change it. A release is offered only when its `latest.json` carries a valid **Ed25519 signature** from the release key pinned in the app and a SHA-256 for the installer, and only when it is **newer** than the running version (a downgrade is never offered).
+
+Checking on start is on by default but only checks. Installing always needs your confirmation: the app itself (not the page) shows a dialog, then downloads the installer into a fresh folder only you can access, checks the SHA-256, checks it again immediately before starting it, and quits so the installer can replace the app. You can also re-run the install script from the tag you want. Organisations that mirror releases can point the app at their own signed manifest with the `AGENT_OFFICE_UPDATE_FEED` environment variable of the app process; the signature rules still apply. Details: [docs/island-spec.md](docs/island-spec.md); how releases are signed: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Uninstall
 
@@ -107,7 +110,7 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 | `islandMute` | Silence the approval and done chimes. |
 | `islandDisplay` | `cursor` (default), `primary` or a display id. |
 | `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics`, `kiroFace`, `animate`. |
-| `updateFeed`, `updateAuto` | Update feed (https URL, file or folder) and check on start (default on). |
+| `updateAuto` | Check for updates on start (default on). The update feed itself is fixed in the app and cannot be set here. |
 | `autostart` | Start with Windows (packaged app, default on). |
 | `hidden`, `x`, `y` | Whether the desktop Tiro is hidden, and where it sits. |
 | `schedulerMailbox` | The one mailbox the scheduler job may report on (see below). |
@@ -149,12 +152,7 @@ npm run dist       # electron-builder: installer for this OS, written to dist/
 
 ## Cutting a release
 
-1. Branch is clean and `npm test` passes.
-2. Bump `version` in `package.json` and add the entry to [CHANGELOG.md](CHANGELOG.md).
-3. Build the installer with `npm run dist` (or let CI do it, below), test that exact installer, and keep `dist/Agent-Office-Setup-<version>.exe`, its `.blockmap` and `latest.yml`.
-4. Publish it: `gh release create v<version> --target <commit> --latest <the three files>`. This creates the tag and the release with exactly the files you tested. `.github/workflows/release.yml` is **manual-only** (`workflow_dispatch`) for now, so a tag push does not start CI and cannot replace the tested installer. To build all three platforms in CI, run that workflow by hand (it runs `npm ci`, `npm test`, then `npx electron-builder --publish always` on Windows, macOS and Linux runners), or restore the `push: tags: ['v*']` trigger once the CI builds are QA'd.
-5. Open the published release and confirm each installer shows a **SHA-256 digest**. The install scripts and the updater need that digest, so an asset without one cannot be installed through them.
-6. Install the published build once and confirm the dashboard renders.
+The full, current procedure is in [docs/RELEASING.md](docs/RELEASING.md): clean branch and `npm test`, version bump and changelog, build and test the exact installer, sign the release manifest offline with `scripts/sign-release.mjs`, publish the installer together with `latest.json` and `latest.json.sig`, then bump the tag in `install.ps1` and `install.sh`. `.github/workflows/release.yml` is **manual-only** (`workflow_dispatch`), so a tag push does not start CI and cannot replace the tested installer.
 
 More in [docs/RESOURCES.md](docs/RESOURCES.md).
 

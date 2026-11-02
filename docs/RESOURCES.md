@@ -29,21 +29,21 @@ Quick links for Agent Office 1.2.5. The latest release is v1.2.5 (Windows instal
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.5/install.ps1 | iex
 ```
 
 macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.5/install.sh | bash
 ```
 
-Both verify the SHA-256 GitHub publishes for the release asset and stop if it is missing or wrong. Pin a release by downloading the script from a release tag first and reading it. Update with the island's Settings > Updates or by running the script again. Uninstall from Windows Settings > Apps, delete the macOS app, or remove the Linux AppImage; your data in `~/.claude/agent-office` stays until you delete it. More in the [README](../README.md#install).
+Both are pinned to a release tag (the tag is in the URL), verify the Ed25519 signature of that release's manifest against the key built into the script, then check the SHA-256 of the download, and stop if anything is missing or wrong. Update with the island's Settings > Updates or by running the script again. Uninstall from Windows Settings > Apps, delete the macOS app, or remove the Linux AppImage; your data in `~/.claude/agent-office` stays until you delete it. More in the [README](../README.md#install).
 
 ## Develop
 
 ```
-npm install
+npm ci                         # exactly what package-lock.json lists
 npm start                      # run the desktop app
 npm test                       # all test suites
 node --check server.mjs        # syntax check one file

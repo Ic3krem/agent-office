@@ -2,6 +2,18 @@
 
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
+## Unreleased
+
+Security hardening of the update path, supply chain and project files.
+
+- Updates are authenticated, not just checked for integrity: releases carry an Ed25519-signed manifest (`latest.json` + `latest.json.sig`) verified against a public key pinned in the app, plus the installer's SHA-256 (checked again right before launch). The update feed is fixed to this project's GitHub releases; the island page can no longer change it, and `kiro.json` `updateFeed` is ignored. Installing needs a confirmation dialog shown by the app. Downloads go to a random folder only the current user can access. Downgrades are never offered.
+- `install.ps1` and `install.sh` are pinned to a release tag, verify the manifest signature and the installer hash, need no execution-policy bypass, and give clear errors.
+- The office server process restarts with backoff if it crashes (up to 5 tries), logging only event data to `~/.claude/agent-office/desktop.log`.
+- GitHub Actions are pinned to full commit SHAs with least-privilege permissions; added CI tests, dependency review, `npm audit`, CodeQL and Dependabot. `release.yml` stays manual-only.
+- Direct dependencies and Electron are pinned to exact versions; `npm audit fix` applied to the lockfile (no high-severity advisories left in production dependencies). The app is packaged in an asar archive with Electron fuses for asar integrity and asar-only loading.
+- Added SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue and pull request templates and docs/RELEASING.md.
+
+
 ## 1.2.5 (2026-11-03)
 
 Published as [v1.2.5](https://github.com/Ic3krem/agent-office/releases/tag/v1.2.5) with the Windows installer only (macOS and Linux builds are not published yet). The release workflow is manual-only for now so a tag push cannot replace the tested installer.
