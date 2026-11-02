@@ -18,7 +18,7 @@ Agent Office is a pixel office for your own Claude Code agents. **Tiro** is the 
 
 The header is one row of pills: manager auto-approval, usage and plan limits, reports, and the switches menu. Below it is the office, with the Today panel, the Team panel and the detail pane over it.
 
-![The dashboard](images/01-dashboard-overview.png)
+![The whole office with the eight specialists at work, the goal board on the left and the status bar on top](images/01-dashboard-overview.png)
 
 - **Click a character** to open its detail pane: name, role, task, live log of recent events, the approval it is waiting for, and a box to send it a message.
 - **Click an empty desk** to see who sits there and what they do.
@@ -40,7 +40,7 @@ There are two kinds, and both show on the dashboard and in the island.
 
 **Hire approvals (strict hiring gate).** Tiro cannot start a specialist by itself. It sends a request with the specialist, the goal and a reason; a card appears with Approve and Deny. One approval buys exactly one hire of that type and expires after 10 minutes. Requests are refused automatically if hiring is switched off, the goal is not open, the reason is too short, 8 specialists are already working, or that specialist is already on the team and idle (Tiro is told to reuse it). Pending cards and unused approvals are cleared when Tiro's session ends or resets or when hiring is switched off. Details: [agents-and-memory.md](agents-and-memory.md).
 
-![A hire approval card](images/04-hire-approval.png)
+![Tiro asking to hire Warden, with the goal, the reason and Approve hire and Deny buttons](images/08-hire-approval-card.png)
 
 **Tool approvals.** When an agent wants to run a risky tool call (for example a command that deletes files), the request waits in the **Inbox tray** on Tiro's desk. You can Allow, Deny, edit the command and allow it, or hand it back to the terminal. With **Tiro auto-approve** on, routine actions are approved by Tiro's safety rules and risky ones (remote shells, downloads piped into a shell, and similar) still wait for you. A request with no answer in 10 minutes is declined.
 
@@ -63,7 +63,7 @@ Each specialist is one person with one desk. If a second agent of the same type 
 
 **Renaming.** In the Team panel you can give Tiro and each specialist a display name of up to 20 characters. A name cannot equal another agent's current or default name. Blank resets to the default. Renames only change what is shown: ids, desks and memory folders stay the same, so history stays with the agent.
 
-![The Team panel](images/05-team-panel.png)
+![The Team panel: a role card and a rename box per agent. Forge shows the name Ember being typed as a rename example; it is not saved until you press Rename](images/07-team-panel-rename.png)
 
 **SOPs.** In the filing cabinet, Tiro's brief and each specialist's instructions are editable notes. Edits apply from Tiro's next turn. Each specialist's note can set `description`, `tools` and `model` in its frontmatter.
 
@@ -73,20 +73,26 @@ Each specialist is one person with one desk. If a second agent of the same type 
 - **Reports** (the bookshelf, or the Reports pill) are color-coded by outcome: green done, amber partial, red needs you. Each has a summary, a findings table and next steps. Search them, open one, and export it to **PDF** (print page) or **Excel**. A daily report is written automatically.
 - **Memory** (the corkboard) shows the notes in your vault as pins and strings. Read, delete or link notes. The vault is your open Obsidian vault, or `~/Documents/Agent Office Vault`.
 
-![A report](images/07-report.png)
+![The Reports bookshelf with the daily summary and three demo reports, with PDF and Excel export](images/16-reports-panel.png)
 
 ## The office
 
 The world is isometric with five zones: Tiro's glass office (top left), the focus area with eight desks, the garden and park (top right, with a gate), the playroom (bottom right) and a utility strip (bottom left). The garage and Scheduler station sit beside the playroom.
 
-![The office](images/02-office-world.png)
+![The desk area: each specialist at their own desk with a name tag and status dot](images/02-office-focus-zone.png)
+
+![Tiro, the office manager, at the desk in the glass office](images/06-manager-office-tiro.png)
+
+![The garden and park, with agents thinking on benches](images/03-garden-park.png)
+
+![The playroom with idle agents on the sofa and at the arcade](images/05-playroom.png)
 
 - **Working** agents sit at their own desk. Thinking agents walk to the garden or park. When the board is empty, idle agents go to the playroom. A rate-limited agent waits at the water cooler. A finished goal sends its agent to Tiro's office to report, then back.
 - **Objects:** Today board, Bookshelf (reports), Corkboard (memory), Filing cabinet (SOPs), Inbox tray, Breaker box, Server rack, Whiteboard (tokens and limits), Coffee machine (espresso: the next hire uses the fast model), Arcade, Jukebox, Server plant, and the Scheduler garage and mailbox.
 - **Breaker box switches:** Tiro (manager) on/off, Autopilot, Hiring, Tiro auto-approve, Terminal approvals, and the Subscription guard, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.
 - **Click outlines.** Objects and people are picked by their drawn shape, not a rough box. Hover shows a gold outline that follows the silhouette; where pieces overlap, the smaller one wins. Characters are depth-sorted so none is hidden behind its own desk.
 
-![Hover outline on an object](images/03-click-outline.png)
+![Hovering a desk draws a yellow outline that follows its shape](images/15-click-outline-hover.png)
 
 - **Camera.** Mouse wheel zooms about the cursor (1x to 3x), drag pans when zoomed, keys `+`, `-` and `0` zoom and reset, and corner buttons do the same. Bottom-right controls: Team count, Labels (zone names), and Preview, which plays demo scenes (work, think, blocked, report, empty, tour) without touching real data.
 
@@ -94,7 +100,9 @@ The world is isometric with five zones: Tiro's glass office (top left), the focu
 
 The Scheduler station is the garage and the mailbox. Click either to open a read-only panel showing the last check time, the count of tasks and needs found, when Tiro was last updated, the next check, a note, and the item list (title, kind, time). The panel reads `~/.claude/agent-office/scheduler.json` through `POST /api/scheduler`. It says "no data yet" until the scheduler job has written the file.
 
-![The Scheduler panel](images/08-scheduler-panel.png)
+![The garage and the scheduler character with its "Checked ... 3 items" bubble](images/04-garage-scheduler-station.png)
+
+![The Scheduler and Garage panel: last mail check, items found, next check and subject-only items](images/11-scheduler-panel.png)
 
 The job, its feed file and its mailbox setting are in [scheduler.md](scheduler.md). Agent Office has no mail access built in.
 
@@ -102,13 +110,15 @@ The job, its feed file and its mailbox setting are in [scheduler.md](scheduler.m
 
 The **Agent history** button (bottom left) opens a three-pane browser: agents on the left, that agent's tasks (with search) in the middle, and the task summary on the right with the transcript path and the agent's folder paths. Every hire starts in a fresh context; the only thing carried over is that agent's own memory folder. Folders are under `~/.claude/agent-office/agents/tiro/<type>/{memory,history}`. Summaries are redacted for secrets. See [agents-and-memory.md](agents-and-memory.md).
 
-![Agent history](images/06-agent-history.png)
+![Agent history: every agent with task counts and Forge's past tasks](images/09-agent-history-overlay.png)
+
+![One past task opened: summary, transcript reference and the final report](images/10-agent-history-task-detail.png)
 
 ## Tiro on your desktop
 
 Tiro lives as a small always-on-top character on your desktop. Click to chat, give tasks and approve requests; double-click to open the office. Its mood follows the work: idle, typing, waving a flag when you are needed, confetti when a goal is done, asleep when paused. Hide or show it from the tray.
 
-![Tiro on the desktop](images/17-kiro-window.png)
+![The small Tiro desktop character with its greeting bubble](images/17-kiro-window.png)
 
 ## The island
 
@@ -120,7 +130,11 @@ The island is a notch-style overlay at the top centre of the screen. Its window 
 - **Settings tab:** theme (Ember, Midnight, Forest, Light, Custom accent), motion preset, pinned actions (up to 8), 12 or 24 hour clock, optional second clock, week start, edge and leave delays, now playing, Tiro face, animation and lyrics. Lyrics are looked up online (title, artist, album and duration only); turn them off if you prefer.
 - **Updates:** see [the README](../README.md#update). Set an https feed or a local folder, check, and install with one click. An installer downloaded over the network must come with a SHA-256 that matches; otherwise it is refused.
 
-![The island, expanded](images/09-island-expanded.png)
+![The island expanded from its pill, with Home, Calendar and Settings tabs](images/12-island-pill.png)
+
+![The island chat box and quick actions](images/13-island-chat.png)
+
+![Island settings: quick actions and the Updates section](images/14-island-settings-updates.png)
 
 ## Tray
 

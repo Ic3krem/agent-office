@@ -18,6 +18,22 @@ A pixel office for your Claude Code agents. **Tiro**, a little orange cube-crab,
 
 These screenshots come from a real test run: four low-effort tasks (a research lookup, a checklist draft, a README review and a cleanup drill), all run on Haiku specialists.
 
+## Gallery
+
+All screenshots use demo data. More are in the [user guide](docs/GUIDE.md).
+
+| The office | Approve each hire |
+|---|---|
+| ![The whole office with eight specialists at work](docs/images/01-dashboard-overview.png) | ![Tiro asking to hire Warden, with Approve hire and Deny](docs/images/08-hire-approval-card.png) |
+
+| Rename your team | Per-agent history |
+|---|---|
+| ![The team panel with a rename box per agent](docs/images/07-team-panel-rename.png) | ![Agent history with Forge's past tasks](docs/images/09-agent-history-overlay.png) |
+
+| Scheduler station | Click outlines |
+|---|---|
+| ![The Scheduler and Garage panel](docs/images/11-scheduler-panel.png) | ![A desk outlined on hover](docs/images/15-click-outline-hover.png) |
+
 ## Install
 
 You need [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan.

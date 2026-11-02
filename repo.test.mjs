@@ -76,3 +76,21 @@ test('SVG path data never builds a double minus, and company metadata names the 
   assert.equal(JSON.parse(read('./.claude-plugin/marketplace.json')).owner.name, 'Ic3krem');
   assert.doesNotMatch(read('./README.md') + read('./package.json') + read('./LICENSE'), /Example/i);
 });
+
+test('documentation: relative links and images resolve, images stay small, no personal data in docs', async () => {
+  const path = await import('node:path');
+  const docs = ['README.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md', ...fs.readdirSync(new URL('./docs/', import.meta.url)).filter(f => f.endsWith('.md')).map(f => 'docs/' + f)];
+  for (const f of docs) {
+    const t = read('./' + f);
+    for (const m of t.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const u = m[1].split('#')[0];
+      if (!u || /^(https?:|mailto:)/.test(u)) continue;
+      assert.ok(fs.existsSync(new URL(path.posix.join(path.posix.dirname(f), u), new URL('./', import.meta.url))), f + ' links to missing ' + u);
+    }
+    assert.doesNotMatch(t, /Example|Example|C:\\Users\\[A-Za-z]+\\/i, f + ' has company or personal data');
+  }
+  const dir = new URL('./docs/images/', import.meta.url), imgs = fs.readdirSync(dir).filter(f => f.endsWith('.png'));
+  assert.ok(imgs.length >= 4);
+  assert.ok(imgs.reduce((n, f) => n + fs.statSync(new URL(f, dir)).size, 0) <= 6 * 1024 * 1024, 'docs/images is over 6 MB');
+  assert.ok(read('./.gitattributes').includes('docs/images/*.png binary'));
+});
