@@ -120,11 +120,11 @@
   <div id="in"></div>
 </div>
 <script>
-const KEY = new URLSearchParams(location.search).get('key') || '';
+const nonce = () => (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
 const desk = window.islandDesk || { interactive() {}, office() {}, focus() {}, settings() {}, mute() {}, media() {}, onNowPlaying() {}, onLyrics() {}, update: { get: async () => null, check: async () => null, install: async () => null, set: async () => null, on() {} }, onToggle() {}, onState() {} };
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-key': KEY }, body: JSON.stringify(body || {}) })
+const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(body || {}) })
   .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
 
 // ---------- spring: a damped oscillator per property, so size changes overshoot slightly and settle ----------
@@ -312,10 +312,10 @@ function settingsHTML() {
 }
 function bodyHTML() {
   const asks = asksOf(snap);
-  const askH = asks.map(a => `<div class="ask"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>
+  const askH = asks.map(a => `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>${a.perm.preview ? `<pre class="empty" style="max-height:120px;overflow:auto;white-space:pre-wrap;margin:4px 0">${esc(a.perm.preview.slice(0, 1500))}</pre>` : ''}
     ${a.perm.why ? `<span class="empty">${esc(a.perm.why.slice(0, 140))}</span>` : ''}
     <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Approve<kbd>Y</kbd></button><button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">Deny<kbd>N</kbd></button><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
-  const hireH = hiresOf(snap).map(h => `<div class="ask"><span class="who">${esc(mgrName())} wants to hire ${esc(h.name)} (${esc(h.role)})</span><code>${esc((h.goalText || '').slice(0, 100))}</code><span class="empty">${esc(h.why)}</span>
+  const hireH = hiresOf(snap).map(h => `<div class="ask"><span class="who">${esc(mgrName())} wants to hire ${esc(h.name)} (${esc(h.role)})</span><code>${esc((h.goalText || '').slice(0, 100))}</code><span class="empty">${esc(h.why)}</span>${h.prompt ? `<pre class="empty" style="max-height:80px;overflow:auto;white-space:pre-wrap;margin:4px 0">Prompt: ${esc(h.prompt.slice(0, 600))}</pre>` : ''}
     <div class="row"><button class="btn yes" data-hire="${esc(h.id)}" data-ok="1">Approve hire</button><button class="btn no" data-hire="${esc(h.id)}" data-ok="0">Deny</button></div></div>`).join('');
   const ses = (snap?.agents || []).slice(0, 6).map(a => `<div class="ses"><span class="nm">${esc(a.name)}</span><span class="tk">${esc(a.task || a.role || '')}</span><span class="st ${esc(a.status)}">${esc(a.status)}</span></div>`).join('');
   const open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
@@ -331,7 +331,7 @@ function bodyHTML() {
   return `<div class="body">${tabs}${askH || hireH ? `<span class="label">Waiting for you</span>${askH}${hireH}` : ''}
     ${main}
     <form class="chat ${chatOn ? 'on' : ''}" id="chat"><input id="chatIn" placeholder="Tell ${esc(mgrName())} what to do…" autocomplete="off" aria-label="Message ${esc(mgrName())}"><button class="btn yes" type="submit">Send</button></form>
-    <div class="dock">${dock}</div><div class="hint">Ctrl+Alt+K toggles · Esc closes · Y / N answer an approval</div></div>`;
+    <div class="dock">${dock}</div><div class="hint">Ctrl+Alt+K toggles · Esc closes · Y / N answer the focused approval</div></div>`;
 }
 
 let lastKey = '';
@@ -415,7 +415,10 @@ isle.addEventListener('submit', e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { pinned = chatOn = hovered = false; asksOf(snap).forEach(a => dismissed.add(a.perm.askId)); render(); return; }
   if (e.target.tagName === 'INPUT') return;
-  const a = asksOf(snap).find(x => !dismissed.has(x.perm.askId)); if (!a) return;
+  // Y and N answer only the approval card you have focused (click it or Tab to it), never a card you have not looked at.
+  const card = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.ask') : null;
+  const btn = card && card.querySelector('[data-ask]'); if (!btn) return;
+  const a = asksOf(snap).find(x => x.perm.askId === btn.dataset.ask && !dismissed.has(x.perm.askId)); if (!a) return;
   const k = e.key.toLowerCase();
   if (k === 'y' || k === 'n') api('/api/decide', { askId: a.perm.askId, decision: k === 'y' ? 'allow' : 'deny' }).catch(err => showToast(esc(err.message), 4000));
 });
@@ -454,7 +457,7 @@ document.addEventListener('mousemove', e => {
 
 // ---------- live data: the same stream the office uses ----------
 function connect() {
-  const es = new EventSource('/api/stream?key=' + encodeURIComponent(KEY));
+  const es = new EventSource('/api/stream');
   es.onopen = () => { online = true; render(); };
   es.onmessage = ev => { const next = JSON.parse(ev.data); notice(next); prev = snap = next; online = true; render(); };
   es.onerror = () => { online = false; render(); };

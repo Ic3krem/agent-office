@@ -2,10 +2,10 @@
 // breaker box (switches), server rack (telemetry), arcade, jukebox, plant and coffee machine.
 // Everything here reads files and switches through the local server; nothing calls a model.
 (function () {
-  const KEY = new URLSearchParams(location.search).get('key') || '';
-  const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-key': KEY }, body: JSON.stringify(body || {}) })
+  const nonce = () => (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
+  const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(body || {}) })
     .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
-  const dl = (p, q) => p + '?' + new URLSearchParams({ ...q, key: KEY });
+  const dl = (p, q) => p + '?' + new URLSearchParams(q);
   const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const OUT = { done: ['Done', '#3f9f68'], partial: ['Partly done', '#d39b2a'], blocked: ['Needs you', '#d0503f'], info: ['Info', '#4a86c9'] };
   let snap = {}, kind = null, st = {}, listeners = [], timer = null;

@@ -30,7 +30,7 @@ test('electron windows are hardened and the server sends a CSP and binds loopbac
   assert.equal((m.match(/contextIsolation: true, sandbox: true, nodeIntegration: false/g) || []).length, 3);
   assert.match(m, /will-navigate/); assert.match(m, /setWindowOpenHandler/);
   assert.match(s, /content-security-policy/); assert.match(s, /object-src 'none'/); assert.match(s, /listen\(PORT, '127\.0\.0\.1'/);
-  assert.match(s, /timingSafeEqual/);
+  assert.match(read('./auth.mjs'), /timingSafeEqual/); assert.match(s, /createAuth/);
 });
 
 test('no personal paths or credential-looking values in tracked source', () => {

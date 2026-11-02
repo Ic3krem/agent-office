@@ -1,5 +1,6 @@
 // Agent Office desktop app: runs the office server, keeps Tiro on the desktop, and lives in the tray.
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, session } from 'electron';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -28,15 +29,19 @@ const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let 
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 const up = () => fetch(BASE + '/', { signal: AbortSignal.timeout(1500) }).then(r => r.ok, () => false);
+// The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly
+// SameSite=Strict cookie; it is never in a URL, a file or a log. Agents can read bridge.json but this key is not in it.
+const UI_KEY = crypto.randomBytes(24).toString('hex');
+const signedIn = () => fetch(BASE + '/api/roster', { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(2000) }).then(r => r.ok, () => false);
 async function ensureServer() {
-  if (await up()) return;
+  if (await up()) { if (await signedIn()) return; throw new Error('Agent Office is already running on port ' + PORT + ' (started by another program). Quit it, then start the app again.'); }
   // Electron's own Node runs the server, so the app needs no separate Node install.
-  server = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'ignore', windowsHide: true });
+  server = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY }, stdio: 'ignore', windowsHide: true });
   for (let i = 0; i < 60; i++) { if (await up()) return; await new Promise(r => setTimeout(r, 500)); }
   throw new Error('The Agent Office server did not start on port ' + PORT);
 }
-const key = () => JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'bridge.json'), 'utf8')).key;
-const url = p => `${BASE}${p}?key=${encodeURIComponent(key())}`;
+const url = p => `${BASE}${p}`;
+const signInWindows = () => session.defaultSession.cookies.set({ url: BASE, name: 'ao_ui', value: UI_KEY, httpOnly: true, sameSite: 'strict', path: '/' });
 // Every window: external links open in the browser, the page itself can never navigate away from the local server, no popups.
 const external = wc => {
   wc.setWindowOpenHandler(({ url: u }) => { if (/^https?:/.test(u)) shell.openExternal(u); return { action: 'deny' }; });
@@ -282,7 +287,7 @@ app.whenReady().then(async () => {
   mgrName = readMgrName();
   buildTray();
   setInterval(() => applyMgrName(), 3000);
-  try { await ensureServer(); }
+  try { await ensureServer(); await signInWindows(); }
   catch (e) { tray.displayBalloon?.({ title: 'Agent Office', content: e.message }); return; }
   if (!prefs.hidden) showKiro();
   watchDisplays();

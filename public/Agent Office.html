@@ -108,6 +108,7 @@ button:disabled{opacity:.45;cursor:default}
           <div style="font-size:12.5px; color:#ffd28a; font-weight:600;">{{ h.title }}</div>
           <div style="font-size:12px; color:#cdbda9; word-break:break-word;">For: {{ h.goal }}</div>
           <div style="font-size:12px; color:#a8998a; word-break:break-word;">Why: {{ h.why }}</div>
+          <div style="font-size:11.5px; color:#8f8070; word-break:break-word; max-height:110px; overflow:auto; white-space:pre-wrap;">Prompt it will send: {{ h.prompt }}</div>
           <div style="display:flex; gap:6px;">
             <button onClick="{{ h.onApprove }}" style="padding:4px 10px; border-radius:5px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-size:12px; font-weight:600; cursor:pointer;">Approve hire</button>
             <button onClick="{{ h.onDeny }}" style="padding:4px 10px; border-radius:5px; border:1px solid #4a3a2c; background:transparent; color:#a8998a; font:inherit; font-size:12px; cursor:pointer;">Deny</button>
@@ -316,6 +317,7 @@ button:disabled{opacity:.45;cursor:default}
               <div style="display:flex; align-items:center; gap:8px; color:#ffb547; font-weight:600; letter-spacing:.06em; font-size:11px;"><div style="width:8px; height:8px; border-radius:50%; background:#ffb547; animation:flash 1s infinite;"></div>PERMISSION REQUIRED</div>
               <div style="color:#f2e2c8;">Allow execution of</div>
               <div style="padding:8px 10px; border-radius:6px; background:#120c05; color:#ffd28a; word-break:break-all;">$ {{ sel.permCmd }}</div>
+              <pre style="margin:0; max-height:220px; overflow:auto; padding:8px 10px; border-radius:6px; background:#0d0905; color:#cdbda9; font-size:11px; white-space:pre-wrap; word-break:break-word;">{{ sel.permPreview }}</pre>
               <div style="color:#b39c7e; font-size:12px;">{{ sel.permWhy }}</div>
               <sc-if value="{{ modifyOpen }}" hint-placeholder-val="{{ false }}">
                 <input value="{{ modifyText }}" onChange="{{ onModifyInput }}" onKeyDown="{{ onModifyKey }}" style="padding:8px 10px; border-radius:6px; border:1px solid #6b4f2a; background:#120c05; color:#ffe8c2; font:inherit; outline:none;"></input>
@@ -350,9 +352,9 @@ button:disabled{opacity:.45;cursor:default}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
-const KEY=new URLSearchParams(location.search).get('key')||'';
+const nonce=()=>(document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/)||[])[1]||'';
 const MGR=()=>(window.OfficeMotion&&OfficeMotion.TIRO.name)||'Tiro';
-const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-key':KEY},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
+const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-nonce':nonce()},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
 const pad=n=>String(n).padStart(2,'0');
 const stamp=d=>pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
 const KIND={sys:['SYS','#8fb4ff','#b9cdf5'],tool:['TOOL','#e7b75f','#e9d3a6'],think:['THINK','#8c8278','#a59a8e'],out:['OUT','#7fd49b','#d9d1c5'],err:['ERR','#ff7a6b','#ffb1a6'],user:['YOU','#7ee2c8','#c9f3e6'],agent:['AGENT','#f0c27a','#f2e6d6'],hitl:['HITL','#ffb547','#ffd28a']};
@@ -379,7 +381,7 @@ class Component extends DCLogic {
     api('/api/roster').then(j=>this.setState({roster:j.roster})).catch(()=>{});
     window.__demo=sc=>this.setDemo(sc||'');
     if(qd)this.setDemo(qd);
-    this.es=new EventSource('/api/stream?key='+encodeURIComponent(KEY));
+    this.es=new EventSource('/api/stream');
     this.es.onopen=()=>this.setState({online:true});
     this.es.onerror=()=>this.setState({online:false});
     window.officeToast=t=>this.showToast(t);
@@ -531,7 +533,7 @@ class Component extends DCLogic {
       tidyOffice:()=>api('/api/tidy').then(r=>this.showToast('Tidied: '+r.desks+' idle desk'+(r.desks===1?'':'s')+' hidden, '+r.goals+' finished goal'+(r.goals===1?'':'s')+' cleared. Reports are kept.')).catch(e=>this.showToast(e.message)),
       resetBoss:()=>{if(!confirm('Start '+MGR()+' with a clean memory? Goals and reports stay.'))return;api('/api/boss-reset').then(()=>this.showToast(''+MGR()+' will start fresh next time')).catch(e=>this.showToast(e.message));},
       startBoss:()=>api('/api/boss').then(()=>this.showToast(''+MGR()+' is checking the board')).catch(e=>this.showToast(e.message)),
-      mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
+      mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,prompt:h.prompt||'',onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
       goalText:s.goalText,onGoalInput:e=>this.setState({goalText:e.target.value}),onGoalKey:e=>{if(e.key==='Enter')addGoal();},addGoal,
       goalsV:live.map(g=>{const c=GOAL[g.status]||GOAL.todo,done=g.status==='done',cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;return {text:done?cut(g.text,70):g.text,note:done?cut(g.note||'',110):(g.note||''),hasNote:!!g.note,label:c[0],chipBg:c[1],chipFg:c[2],
         border:g.status==='blocked'?'#8a5a1c':g.status==='proposed'?'#4a3f6b':'#2a211b',fg:g.status==='done'?'#8c8278':'#f0e4d4',strike:g.status==='done'?'line-through':'none',
@@ -550,7 +552,7 @@ class Component extends DCLogic {
     const st=a&&(s.nudged[a.id]?'nudged':a.status);
     const sel=a?{imgRef:(u=>el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);})(portrait(a)),name:a.name,role:(a.profile&&!a.isManager?a.profile.name+' · '+a.profile.role:a.role)+(a.canSend?'':' · watch-only'),model:a.model,
       statusLabel:STATUS[st][0],statusColor:STATUS[st][1],
-      taskText:a.task||'None, waiting for work',blocked:!!a.perm,permCmd:a.perm?a.perm.cmd:'',permWhy:a.perm?a.perm.why:'',canModify:!!(a.perm&&a.perm.canModify)}:{};
+      taskText:a.task||'None, waiting for work',blocked:!!a.perm,permCmd:a.perm?a.perm.cmd:'',permPreview:a.perm?a.perm.preview||'':'',permWhy:a.perm?a.perm.why:'',canModify:!!(a.perm&&a.perm.canModify)}:{};
     const logs=a?a.logs.slice(s.cleared[a.id]||0).concat(s.local[a.id]||[]):[];
     const selLogs=logs.map(l=>{const k=KIND[l.k]||KIND.sys;return {t:l.t,tag:k[0],tagColor:k[1],color:k[2],fs:l.k==='think'?'italic':'normal',text:l.text};});
     return {

@@ -1,7 +1,7 @@
 // Agent history browser: a floating "History" button and a modal. Per agent type: task list, search, summary and transcript path.
 (() => {
-  const KEY = new URLSearchParams(location.search).get('key') || '';
-  const api = (p, b) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-key': KEY }, body: JSON.stringify(b || {}) }).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
+  const nonce = () => (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
+  const api = (p, b) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(b || {}) }).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const css = 'font:13px system-ui,sans-serif;color:#eee;';
   const btn = document.createElement('button');
