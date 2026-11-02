@@ -1,5 +1,5 @@
 // Agent Office desktop app: runs the office server, keeps Tiro on the desktop, and lives in the tray.
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog } from 'electron';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -7,7 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createNowPlaying } from './nowplaying.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
-import { checkForUpdate, downloadUpdate, integrityWarning } from './updater.mjs';
+import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
+import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
 import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady } from './island-logic.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -28,11 +29,30 @@ const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let 
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 const up = () => fetch(BASE + '/', { signal: AbortSignal.timeout(1500) }).then(r => r.ok, () => false);
+// Event log for the desktop shell: no environment, arguments or keys, only the event, exit code or signal, and the retry plan. Capped in size.
+const LOG_FILE = path.join(CFG_DIR, 'desktop.log');
+const logEvent = ev => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, restartLogLine(Date.now(), ev) + String.fromCharCode(10)); } catch {} };
+const restart = createRestartPolicy();
+let quitting = false, gaveUp = false, restartTimer = null;
+function spawnServer() {
+  // Electron's own Node runs the server, so the app needs no separate Node install.
+  const started = Date.now();
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'ignore', windowsHide: true });
+  server = child;
+  child.on('error', e => logEvent({ event: 'spawn-error' }));
+  child.on('exit', (code, signal) => {
+    if (server === child) server = null;
+    if (quitting) return;
+    const r = restart.onExit(Date.now() - started);
+    logEvent({ event: 'exited', code, signal, attempt: r.attempt, delayMs: r.retry ? r.delayMs : undefined });
+    if (!r.retry) { gaveUp = true; logEvent({ event: 'gave-up', attempt: r.attempt }); try { tray?.displayBalloon?.({ title: 'Agent Office', content: 'The office server stopped and could not be restarted. Quit and reopen Agent Office.' }); } catch {} return; }
+    restartTimer = setTimeout(async () => { restartTimer = null; if (!quitting && !(await up())) spawnServer(); }, r.delayMs);
+  });
+}
 async function ensureServer() {
   if (await up()) return;
-  // Electron's own Node runs the server, so the app needs no separate Node install.
-  server = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'ignore', windowsHide: true });
-  for (let i = 0; i < 60; i++) { if (await up()) return; await new Promise(r => setTimeout(r, 500)); }
+  spawnServer();
+  for (let i = 0; i < 60; i++) { if (await up()) return; if (gaveUp) break; await new Promise(r => setTimeout(r, 500)); }
   throw new Error('The Agent Office server did not start on port ' + PORT);
 }
 const key = () => JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'bridge.json'), 'utf8')).key;
@@ -163,24 +183,35 @@ ipcMain.on('island:mute', (e, on) => { if (fromIsland(e)) { prefs.islandMute = !
 ipcMain.on('island:office', (e, view) => { if (fromIsland(e)) openOffice(view); });
 
 // ---------- updates ----------
-// Prefs in kiro.json: updateFeed (https JSON URL, file or folder; empty = not configured), updateAuto (check on start, default on).
+// The feed is fixed in the main process (GitHub releases of Ic3krem/agent-office); only the main-process environment variable
+// AGENT_OFFICE_UPDATE_FEED can point elsewhere (enterprise mirror), and even then the manifest must carry a valid Ed25519 signature.
+// Nothing the page sends (IPC) or kiro.json holds can change the feed. Prefs: updateAuto (check on start, default on).
 const CURRENT = app.getVersion();
-let upd = { state: prefs.updateFeed ? 'idle' : 'unconfigured', current: CURRENT, feed: prefs.updateFeed || '', busy: '' };
-const updView = () => ({ ...upd, auto: prefs.updateAuto !== false, warning: integrityWarning(upd) });
+const FEED = resolveFeed();
+const assetPolicy = makeAssetPolicy(FEED);
+let upd = { state: 'idle', current: CURRENT, feed: FEED, busy: '' };
+const updView = () => ({ ...upd, auto: prefs.updateAuto !== false, warning: '' });
 const pushUpdate = () => { if (alive()) island.webContents.send('island:update', updView()); };
 async function runCheck() {
   if (upd.busy) return;
   upd = { ...upd, busy: 'check', error: '' }; pushUpdate();
-  const r = await checkForUpdate({ feed: prefs.updateFeed, current: CURRENT });
+  const r = await checkForUpdate({ feed: FEED, current: CURRENT });
   upd = { ...r, busy: '' }; pushUpdate();
 }
+// Installing needs a confirmation dialog owned by the main process, so a compromised page cannot trigger it silently.
 async function runInstall() {
   if (upd.busy || upd.state !== 'available') return;
-  if (!upd.url) { upd = { ...upd, error: 'The feed lists a new version but no installer for this platform.' }; return pushUpdate(); }
-  upd = { ...upd, busy: 'download', error: '' }; pushUpdate();
+  if (!upd.url || !upd.sha256) { upd = { ...upd, error: 'The signed manifest lists a new version but no installer for this platform.' }; return pushUpdate(); }
+  upd = { ...upd, busy: 'confirm', error: '' }; pushUpdate();
+  const { response } = await dialog.showMessageBox({ type: 'question', title: 'Install Agent Office update', message: `Install Agent Office ${upd.available}?`, detail: `You are running ${CURRENT}. The installer is downloaded, checked against the signed release manifest, and then started; Agent Office will close while it installs.`, buttons: ['Cancel', 'Download and install'], defaultId: 0, cancelId: 0, noLink: true });
+  if (response !== 1) { upd = { ...upd, busy: '' }; return pushUpdate(); }
+  const job = { url: upd.url, sha256: upd.sha256, name: upd.name, version: upd.available };
+  upd = { ...upd, busy: 'download' }; pushUpdate();
   try {
-    const { file } = await downloadUpdate({ url: upd.url, sha256: upd.sha256, dir: path.join(os.tmpdir(), 'agent-office-update-' + Date.now()) });
+    const dir = makeUpdateDir(path.join(CFG_DIR, 'updates'));
+    const { file } = await downloadUpdate({ url: job.url, sha256: job.sha256, name: job.name, dir, policy: assetPolicy });
     upd = { ...upd, busy: 'install' }; pushUpdate();
+    await verifyBeforeLaunch({ file, sha256: job.sha256, version: job.version, current: CURRENT }); // hash again right before launch
     if (process.platform === 'win32') spawn(file, [], { detached: true, stdio: 'ignore' }).unref(); // the NSIS installer relaunches the app when it finishes
     else await shell.openPath(file);
     setTimeout(() => app.quit(), 800);
@@ -189,16 +220,8 @@ async function runInstall() {
 ipcMain.handle('update:get', e => fromIsland(e) ? updView() : null);
 ipcMain.handle('update:check', async e => { if (fromIsland(e)) await runCheck(); return updView(); });
 ipcMain.handle('update:install', e => { if (fromIsland(e)) runInstall(); return updView(); });
-ipcMain.handle('update:set', async (e, patch) => {
-  if (!fromIsland(e) || !patch || typeof patch !== 'object') return updView();
-  if (typeof patch.auto === 'boolean') { prefs.updateAuto = patch.auto; savePrefs(); }
-  if (typeof patch.feed === 'string') {
-    prefs.updateFeed = patch.feed.trim().slice(0, 500); savePrefs();
-    upd = { state: prefs.updateFeed ? 'idle' : 'unconfigured', current: CURRENT, feed: prefs.updateFeed, busy: '' };
-    if (prefs.updateFeed) await runCheck();
-  }
-  pushUpdate(); return updView();
-});
+// The page may only switch auto-check on or off; a "feed" (or anything else) in the patch is ignored.
+ipcMain.handle('update:set', (e, patch) => { if (!fromIsland(e)) return updView(); if (applyUpdatePatch(prefs, patch)) { savePrefs(); pushUpdate(); } return updView(); });
 
 // Smart mode: a resident PowerShell reports Windows' "is something fullscreen" state (SHQueryUserNotificationState) every 1.5 s.
 let fsProc = null;
@@ -274,7 +297,7 @@ function buildTray() {
 
 app.on('second-instance', () => openOffice());
 app.on('window-all-closed', () => {}); // keep running in the tray
-app.on('before-quit', () => { server?.kill(); fsProc?.kill(); np.stop(); });
+app.on('before-quit', () => { quitting = true; clearTimeout(restartTimer); server?.kill(); fsProc?.kill(); np.stop(); });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.whenReady().then(async () => {
@@ -287,7 +310,7 @@ app.whenReady().then(async () => {
   if (!prefs.hidden) showKiro();
   watchDisplays();
   applyIsland();
-  if (prefs.updateAuto !== false && prefs.updateFeed) setTimeout(runCheck, 8000); // check only; installing always needs a click
+  if (prefs.updateAuto !== false) setTimeout(runCheck, 8000); // check only; installing always needs a click
   globalShortcut.register('Control+Alt+K', toggleIsland);
   if (!process.argv.includes('--hidden')) openOffice();
 });
