@@ -36,7 +36,7 @@ test('the daily report groups goals and links their reports', () => {
 test('vault memory: write, search, link, graph; seeding copies Claude memory notes once', () => {
   const v = agentVault(tmp('ao-v-'));
   v.write('n8n-ops', { description: 'How to edit n8n workflows', body: 'Use the CLI. See [[droplet]].' });
-  v.write('droplet', { description: 'The ExampleExample droplet', body: 'Ubuntu box running n8n.' });
+  v.write('droplet', { description: 'The build server', body: 'Ubuntu box running n8n.' });
   assert.deepEqual(v.search('edit n8n').map(n => n.name), ['n8n-ops', 'droplet']);
   v.link('droplet', 'n8n-ops');
   assert.deepEqual(v.graph().edges, [{ from: 'droplet', to: 'n8n-ops' }, { from: 'n8n-ops', to: 'droplet' }].sort((a, b) => a.from.localeCompare(b.from)));

@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Kiro</title>
+<title>Tiro</title>
 <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500&family=Instrument+Sans:wght@400;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
 <style>
   :root { --bg: #1a1512; --line: #3a2e25; --ink: #f0e4d4; --dim: #a8998a; --accent: #ffcf6b; --orange: #ff6a13; }
@@ -72,19 +72,19 @@
 </head>
 <body>
   <div id="bubble" data-hit role="status" aria-live="polite"></div>
-  <section id="panel" data-hit aria-label="Kiro">
+  <section id="panel" data-hit aria-label="Tiro">
     <div class="head">
-      <span class="name">Kiro</span><span class="status" id="status">…</span>
+      <span class="name" id="mgrName">Tiro</span><span class="status" id="status">…</span>
       <button class="icon-btn" id="office" title="Open the office" aria-label="Open the office">⤢</button>
       <button class="icon-btn" id="close" title="Close" aria-label="Close">×</button>
     </div>
     <div class="scroll" id="body"></div>
     <form class="foot" id="form">
-      <input id="input" placeholder="Tell Kiro what to do…" aria-label="Message Kiro" autocomplete="off">
+      <input id="input" placeholder="Tell Tiro what to do…" aria-label="Message Tiro" autocomplete="off">
       <button class="btn primary" type="submit">Send</button>
     </form>
   </section>
-  <div id="kiro" data-hit tabindex="0" role="button" aria-label="Kiro. Click to chat, double-click to open the office."></div>
+  <div id="kiro" data-hit tabindex="0" role="button" aria-label="Tiro. Click to chat, double-click to open the office."></div>
   <div class="badge" id="badge" data-hit></div>
 
 <script src="./kiro-art.js"></script>
@@ -105,7 +105,7 @@ function pickMood() {
   if (a.some(x => x.perm)) return 'alert';
   const boss = a.find(x => x.isManager);
   const team = a.filter(x => /^Helper/.test(x.role || '') && x.status === 'working');
-  if (team.some(x => /builder|ops/.test(x.role))) return 'build';
+  if (team.some(x => /pixel|forge|builder|ops/.test(x.role))) return 'build';
   if (team.length || (boss && boss.status === 'working' && (snap.boss || {}).running)) return 'work';
   if (boss && boss.status === 'working') return 'think';
   const g = (snap.goals || []).filter(x => x.status !== 'dismissed' && x.status !== 'proposed');
@@ -128,6 +128,7 @@ function say(html, ms = 7000) {
 }
 $('bubble').onclick = () => { $('bubble').style.display = 'none'; openPanel(); };
 function notice(next) {
+  if (next.names?.tiro && $('mgrName')) $('mgrName').textContent = next.names.tiro;
   if (!prev) return;
   const before = Object.fromEntries((prev.goals || []).map(g => [g.id, g.status]));
   for (const g of next.goals || []) {
@@ -135,6 +136,7 @@ function notice(next) {
     if (g.status === 'blocked' && before[g.id] && before[g.id] !== 'blocked') say('<b>I need you:</b> ' + esc((g.note || g.text).slice(0, 110)));
     if (g.status === 'proposed' && !before[g.id]) say('I have an idea: ' + esc(g.text.slice(0, 90)));
   }
+  if ((next.hires || []).length > (prev.hires || []).length) { const h = next.hires[next.hires.length - 1]; say('<b>Hire request</b>: ' + esc(h.name) + '. Open the office to approve or deny.', 10000); }
   const asks = a => (a.agents || []).filter(x => x.perm).length;
   if (asks(next) > asks(prev)) { const x = next.agents.find(a => a.perm); say('<b>Approval needed</b> for ' + esc(x.name) + ': ' + esc(x.perm.short)); }
   if ((next.reportsN || 0) > (prev.reportsN || 0)) say('New report on the shelf. Open the office to read it.');
@@ -181,7 +183,7 @@ $('form').onsubmit = e => {
 };
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 
-// ---- drag Kiro around; a short press is a click, two quick ones open the office
+// ---- drag Tiro around; a short press is a click, two quick ones open the office
 let press = null, lastClick = 0;
 $('kiro').addEventListener('pointerdown', e => { press = { x: e.screenX, y: e.screenY, moved: 0 }; $('kiro').setPointerCapture(e.pointerId); });
 $('kiro').addEventListener('pointermove', e => {
@@ -202,7 +204,7 @@ $('kiro').addEventListener('pointerup', () => {
 $('kiro').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPanel(); } });
 $('badge').onclick = openPanel;
 
-// ---- clicks pass through everything except Kiro, the bubble and the panel
+// ---- clicks pass through everything except Tiro, the bubble and the panel
 let hit = false;
 document.addEventListener('mousemove', e => {
   const on = !!e.target.closest('[data-hit]') && getComputedStyle(e.target.closest('[data-hit]')).display !== 'none';
@@ -219,7 +221,7 @@ function connect() {
 $('kiro').innerHTML = kiroSVG('idle', 140);
 snap = { agents: [], goals: [] };
 connect();
-setTimeout(() => say('Hi, I\'m <b>Kiro</b>. Click me to chat, drag me anywhere, double-click for the office.', 8000), 1200);
+setTimeout(() => say('Hi, I\'m <b>Tiro</b>. Click me to chat, drag me anywhere, double-click for the office.', 8000), 1200);
 </script>
 </body>
 </html>

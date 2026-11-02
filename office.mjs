@@ -5,7 +5,7 @@ import os from 'node:os';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 
-// Breaker box. kiro: Kiro may run at all. autopilot: Kiro keeps itself going between turns. hiring: specialists allowed.
+// Breaker box. kiro: Tiro may run at all. autopilot: Tiro keeps itself going between turns. hiring: specialists allowed.
 // bridge: terminals send approvals to the office. guard: stop at plan limits (subscription only, no extra-usage credits).
 // espresso: the next hire runs on the fast, cheap model.
 export const SWITCHES = { kiro: true, autopilot: true, hiring: true, bridge: true, guard: true, espresso: false };

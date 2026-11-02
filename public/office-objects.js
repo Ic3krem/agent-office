@@ -55,7 +55,7 @@
 
   // ---------- 1. bookshelf: reports ----------
   async function reports(file) {
-    const body = shell('Bookshelf · Reports', 'Every result Kiro filed, plus today\'s summary. Export any of them to PDF or Excel.');
+    const body = shell('Bookshelf · Reports', 'Every result Tiro filed, plus today\'s summary. Export any of them to PDF or Excel.');
     body.innerHTML = `<div class="oo-list"><div class="oo-shelf" id="oo-shelf"></div><div style="padding:8px 10px"><input class="oo-in" id="oo-q" placeholder="Search reports…" style="width:100%;box-sizing:border-box"></div><div class="oo-items" id="oo-items"></div></div><div class="oo-pad oo-reader" id="oo-reader"></div>`;
     const { reports } = await api('/api/reports'); st.reports = reports;
     body.querySelector('#oo-shelf').innerHTML = reports.slice(0, 60).map(r => `<div class="oo-book" data-act="report" data-file="${esc(r.file)}" title="${esc(r.title)}" style="height:${30 + (r.title.length % 20)}px;background:${(OUT[r.outcome] || OUT.info)[1]}"></div>`).join('');
@@ -89,7 +89,7 @@
   // ---------- 2. corkboard: memory graph ----------
   const TYPE = { user: '#e07a5f', feedback: '#f2cc8f', project: '#81b29a', reference: '#9ec5ff', note: '#d4b3ff' };
   async function memory() {
-    const body = shell('Corkboard · Memory', 'Notes in your Obsidian vault that Kiro and the specialists read before they work.');
+    const body = shell('Corkboard · Memory', 'Notes in your Obsidian vault that Tiro and the specialists read before they work.');
     const g = await api('/api/memory/graph'); st.g = g;
     body.innerHTML = `<div class="oo-pad" style="flex:1.4;padding:0;position:relative;overflow:hidden;background:#a4744a url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%224%22 height=%224%22><rect width=%224%22 height=%224%22 fill=%22%23a4744a%22/><rect width=%221%22 height=%221%22 fill=%22%23946640%22/></svg>')"><input class="oo-in" id="oo-mq" placeholder="Find a note…" style="position:absolute;left:10px;top:10px;z-index:2;width:220px"><svg id="oo-graph" style="position:absolute;inset:0;width:100%;height:100%"></svg></div><div class="oo-pad" id="oo-note" style="flex:1;border-left:1px solid #33281f"><div class="oo-meta">${g.nodes.length} notes · ${g.edges.length} links. Click a pin to read it.</div></div>`;
     layout(g); drawGraph('');
@@ -126,7 +126,7 @@
 
   // ---------- 3. filing cabinet: SOPs ----------
   async function sops(name) {
-    const body = shell('Filing cabinet · SOPs', 'Kiro\'s brief and each specialist\'s instructions. Edits apply from Kiro\'s next turn. Add specialist-<name>.md for a new specialist.');
+    const body = shell('Filing cabinet · SOPs', 'Tiro\'s brief and each specialist\'s instructions. Edits apply from Tiro\'s next turn. Edit specialist-<name>.md to retune one of the eight specialists.');
     const { sops } = await api('/api/sops'); st.sops = sops;
     const cur = sops.find(s => s.name === name) || sops[0];
     body.innerHTML = `<div class="oo-list"><div class="oo-items">${sops.map(s => `<div class="oo-item ${s.name === cur?.name ? 'on' : ''}" data-act="sop" data-name="${esc(s.name)}"><div class="oo-spine" style="background:${s.name === 'kiro-brief' ? '#ff6a13' : '#8fa3ff'}"></div><div>📁 ${esc(s.name.replace(/-/g, ' '))}</div></div>`).join('')}</div></div>
@@ -148,10 +148,10 @@
 
   // ---------- 5. breaker box ----------
   const BREAKERS = [
-    ['kiro', 'Kiro (manager)', 'Off stops Kiro and its specialists right away; new tasks wait on the board.'],
-    ['autopilot', 'Autopilot', 'Kiro keeps itself going between turns. Off: it only works when you send it something.'],
-    ['hiring', 'Hiring', 'Kiro may hire specialists. Off: Kiro works alone (cheapest).'],
-    ['autoApprove', 'Kiro auto-approve', 'Routine actions are approved by Kiro\'s safety rules; risky ones still come to you.'],
+    ['kiro', 'Tiro (manager)', 'Off stops Tiro and its specialists right away; new tasks wait on the board.'],
+    ['autopilot', 'Autopilot', 'Tiro keeps itself going between turns. Off: it only works when you send it something.'],
+    ['hiring', 'Hiring', 'Tiro may hire specialists. Off: Tiro works alone (cheapest).'],
+    ['autoApprove', 'Tiro auto-approve', 'Routine actions are approved by Tiro\'s safety rules; risky ones still come to you.'],
     ['bridge', 'Terminal approvals', 'Your own Claude terminals send their permission prompts to the office.'],
     ['guard', 'Subscription guard', 'Stop at the 5-hour or weekly plan limit instead of spending extra-usage credits.'],
   ];
@@ -262,17 +262,48 @@
   const plantLevel = () => Math.min(6, Math.floor((snap.doneReports || 0) / 3));
   function plant() {
     const n = snap.doneReports || 0, lv = plantLevel();
-    shell('Server plant', 'It grows with every goal Kiro finishes successfully.', true).innerHTML = `<div class="oo-pad" style="text-align:center">
+    shell('Server plant', 'It grows with every goal Tiro finishes successfully.', true).innerHTML = `<div class="oo-pad" style="text-align:center">
       <div style="font-size:${40 + lv * 12}px;line-height:1.1">${['🌱', '🌿', '🪴', '🌳', '🌳🌼', '🌳🌸', '🌳🌸🍎'][lv]}</div>
       <p><b>${n}</b> successful report${n === 1 ? '' : 's'} · growth stage ${lv} of 6 · 💧 ${Math.floor(n / 10)} watering can${Math.floor(n / 10) === 1 ? '' : 's'} earned</p>
       <p class="oo-meta">${lv < 6 ? `Next growth after ${3 * (lv + 1) - n} more done report${3 * (lv + 1) - n === 1 ? '' : 's'}.` : 'Fully grown. A thriving office!'}</p></div>`;
   }
   function coffee() {
     const on = !!(snap.switches || {}).espresso;
-    shell('Coffee machine', 'An espresso makes Kiro\'s next hire run on the fast, cheap model (Haiku).', true).innerHTML = `<div class="oo-pad" style="text-align:center">
-      <div style="font-size:54px">${on ? '☕💨' : '☕'}</div><p>${on ? 'An espresso is ready. The next specialist Kiro hires will run on Haiku.' : 'Good for quick lookups and mechanical jobs. One cup covers one hire.'}</p>
+    shell('Coffee machine', 'An espresso makes Tiro\'s next hire run on the fast, cheap model (Haiku).', true).innerHTML = `<div class="oo-pad" style="text-align:center">
+      <div style="font-size:54px">${on ? '☕💨' : '☕'}</div><p>${on ? 'An espresso is ready. The next specialist Tiro hires will run on Haiku.' : 'Good for quick lookups and mechanical jobs. One cup covers one hire.'}</p>
       <button class="oo-btn ${on ? '' : 'pri'}" data-act="espresso" data-on="${on ? '' : '1'}">${on ? 'Pour it out' : 'Brew an espresso'}</button></div>`;
   }
+
+  // ---------- scheduler (garage) ----------
+  // Read-only: shows what the scheduler job last wrote to ~/.claude/agent-office/scheduler.json. This window reads no mail
+  // and sends nothing; the job that fills the file is a separate follow-up.
+  const when = iso => iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'never';
+  const agoTxt = iso => { if (!iso) return 'never'; const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+  const KIND = { task: ['Task', '#3f9f68'], need: ['Need', '#d0503f'], info: ['Info', '#4a86c9'] };
+  async function scheduler() {
+    const body = shell('Scheduler · Garage', 'Checks mail for tasks and needs, checks in, and updates Tiro.', true);
+    body.innerHTML = '<div class="oo-pad"><p class="oo-meta">Loading…</p></div>';
+    let S; try { S = await api('/api/scheduler'); } catch (e) { S = { error: e.message }; }
+    if (kind !== 'scheduler') return;
+    if (window.OfficeWorld && S && !S.error) OfficeWorld.setExtras({ scheduler: S });
+    if (!S || S.error) { body.innerHTML = `<div class="oo-pad"><p>Could not read the scheduler status.</p><p class="oo-meta">${esc(S && S.error)}</p></div>`; return; }
+    if (!S.present) { body.innerHTML = `<div class="oo-pad"><div style="font-size:44px;text-align:center">📪</div><p style="text-align:center"><b>No data yet</b></p>
+      <p class="oo-meta" style="text-align:center">The scheduler has not written a status file. When its job runs it writes <code>~/.claude/agent-office/scheduler.json</code> and this window fills in.</p></div>`; return; }
+    const row = (k, v) => `<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #2a211b"><span class="oo-meta">${k}</span><span>${v}</span></div>`;
+    body.innerHTML = `<div class="oo-pad">
+      ${row('Last mail check', `${esc(agoTxt(S.lastCheck))} <span class="oo-meta">(${esc(when(S.lastCheck))})</span>${S.stale ? ' <b style="color:#ffb547">stale</b>' : ''}`)}
+      ${row('Items found', esc(S.itemsFound))}
+      ${row('Last update sent to Tiro', `${esc(agoTxt(S.lastUpdateToTiro))} <span class="oo-meta">(${esc(when(S.lastUpdateToTiro))})</span>`)}
+      ${S.nextCheck ? row('Next check', esc(when(S.nextCheck))) : ''}
+      ${S.note ? `<p class="oo-meta" style="margin:10px 0">${esc(S.note)}</p>` : ''}
+      <div style="margin-top:10px">${S.items.length ? S.items.map(i => `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #2a211b"><span style="flex:none;width:44px;color:${(KIND[i.kind] || KIND.info)[1]};font:11px 'IBM Plex Mono',monospace">${(KIND[i.kind] || KIND.info)[0]}</span><span>${esc(i.title)}</span></div>`).join('') : '<p class="oo-meta">No items listed.</p>'}</div></div>`;
+  }
+  // keep the garage screen and the scheduler character fresh (one small read-only request every 30 s, only while the tab is visible)
+  function pollScheduler() {
+    if (document.hidden) return;
+    api('/api/scheduler').then(S => { if (window.OfficeWorld && S) OfficeWorld.setExtras({ scheduler: S.present ? S : null }); }).catch(() => { });
+  }
+  setTimeout(pollScheduler, 1500); setInterval(pollScheduler, 30000);
 
   // ---------- events ----------
   win.addEventListener('click', async e => {
@@ -302,7 +333,7 @@
   });
   win.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.oo-sw')) { e.preventDefault(); e.target.click(); } });
 
-  const OPEN = { reports, memory, sops, inbox, breaker, rack: rackWin, arcade, jukebox, plant, coffee };
+  const OPEN = { reports, memory, sops, inbox, breaker, rack: rackWin, arcade, jukebox, plant, coffee, scheduler, garage: scheduler };
   function emit() { listeners.forEach(f => f({ playing: audio.playing })); }
   window.OfficeObjects = {
     open(k, arg) {

@@ -37,7 +37,7 @@ export function agentVault(root) {
   });
 
   if (!fs.existsSync(path.join(base, 'Home.md'))) fs.writeFileSync(path.join(base, 'Home.md'),
-    `# Agent Office\n\nLong-term memory for Kiro and the specialists. Edit freely; agents read it before they work.\n\n- **Memory/**: one fact per note, linked with [[note-name]]\n- **Reports/**: what each finished goal produced\n- **Daily/**: one summary per day (written automatically)\n- **SOPs/**: Kiro's brief and the specialists' instructions\n`);
+    `# Agent Office\n\nLong-term memory for Tiro and the specialists. Edit freely; agents read it before they work.\n\n- **Memory/**: one fact per note, linked with [[note-name]]\n- **Reports/**: what each finished goal produced\n- **Daily/**: one summary per day (written automatically)\n- **SOPs/**: Tiro's brief and the specialists' instructions\n`);
 
   return {
     root, base, dirs,

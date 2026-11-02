@@ -1,0 +1,488 @@
+// Office movement: layout, walk graph, path finding, walkers and the state machine that decides where each
+// agent should be. Pure logic with no DOM, so it is unit tested (office-motion.test.mjs loads this file in a vm).
+// The server snapshot is the only input; everything below is derived from it every tick, so a reload never desyncs.
+(function (root) {
+  'use strict';
+  const WX = 1240, WY = 780; // world size in ground units (isometric 2:1, x runs right-down, y runs left-down)
+
+  // ---------- the team (display copy of ROSTER in company.mjs; company.test.mjs-style drift test in office-motion.test.mjs) ----------
+  const TEAM = [
+    { key: 'pixel', name: 'Pixel', role: 'Frontend engineer', model: 'sonnet', color: '#e0679a', accent: '#ffb3d1', desk: 'desk-1' },
+    { key: 'forge', name: 'Forge', role: 'Backend engineer', model: 'sonnet', color: '#e08a3a', accent: '#ffc78a', desk: 'desk-2' },
+    { key: 'warden', name: 'Warden', role: 'Security reviewer', model: 'opus', color: '#5b7fd1', accent: '#a9c1f5', desk: 'desk-3' },
+    { key: 'probe', name: 'Probe', role: 'QA and test engineer', model: 'sonnet', color: '#4fb286', accent: '#a5e6c6', desk: 'desk-4' },
+    { key: 'atlas', name: 'Atlas', role: 'Deep researcher', model: 'opus', color: '#8a63c9', accent: '#c9b0f0', desk: 'desk-5' },
+    { key: 'cabalan', name: 'Cabalan', role: 'Researcher', model: 'haiku', color: '#3fb0b8', accent: '#9de4e8', desk: 'desk-6' },
+    { key: 'tally', name: 'Tally', role: 'Task checker and organizer', model: 'haiku', color: '#d6b13a', accent: '#f5e08f', desk: 'desk-7' },
+    { key: 'scribe', name: 'Scribe', role: 'SOP and document writer', model: 'sonnet', color: '#b8785a', accent: '#e8b99f', desk: 'desk-8' },
+  ];
+  const TIRO = { key: 'tiro', name: 'Tiro', role: 'Office manager', model: 'sonnet', color: '#e8793a', accent: '#ffcf6b', desk: 'office' };
+
+  // ---------- layout ----------
+  const COLX = [30, 270, 500, 730, 970];           // vertical walkways, in the gaps between desk blocks
+  const ROWY = { n: 250, a: 396, s: 568 };          // north corridor, the aisle between desk rows, south corridor
+  const CX = [155, 385, 615, 845];                  // desk block centres (x)
+  const DESKS = TEAM.map((t, i) => {
+    const col = i % 4, top = i < 4, cx = CX[col];
+    return { id: t.desk, key: t.key, col, top, cx,
+      block: { x0: 60 + 230 * col, x1: 250 + 230 * col, y0: top ? 262 : 427, y1: top ? 372 : 540 },
+      rect: { x0: cx - 50, x1: cx + 50, y0: top ? 275 : 440, y1: top ? 327 : 492 },
+      seat: { x: cx, y: top ? 352 : 516 } };
+  });
+  const TIRO_DESK = { x0: 150, x1: 300, y0: 46, y1: 96 };
+  // Furniture rectangles walkers must never cross (checked by the tests): desks and the manager's desk.
+  const OBSTACLES = [...DESKS.map(d => d.rect), TIRO_DESK];
+
+  // Spots: where a character can be. face: e=+x (down-right), s=+y (down-left), w=-x (up-left), n=-y (up-right).
+  // e and s show the front of the character, w and n the back.
+  const SPOTS = {};
+  const spot = (id, x, y, face, zone, extra) => (SPOTS[id] = Object.assign({ id, x, y, face, zone }, extra || {}));
+  DESKS.forEach(d => spot(d.id, d.seat.x, d.seat.y, 'n', 'focus', { seat: true, desk: true }));
+  spot('tiro:seat', 225, 30, 's', 'office', { seat: true, desk: true });
+  spot('tiro:window', 45, 150, 'w', 'office');
+  spot('office:report', 225, 150, 'n', 'office');
+  [385, 340, 295].forEach((x, i) => spot('queue:' + (i + 1), x, 250, 'e', 'door'));
+  // garden
+  spot('garden:b1', 700, 24, 's', 'garden', { seat: true });
+  spot('garden:b2', 860, 24, 's', 'garden', { seat: true });
+  spot('garden:b3', 585, 118, 'e', 'garden', { seat: true });
+  spot('garden:pS', 790, 178, 'n', 'garden');
+  spot('garden:pE', 864, 105, 'w', 'garden');
+  spot('garden:pW', 716, 105, 'e', 'garden');
+  spot('garden:fl', 620, 178, 'n', 'garden');
+  spot('garden:lamp', 940, 150, 'w', 'garden');
+  // east park (x 1000..1240, y 0..550) beside the focus band, reached through the fence gate at the aisle's east end
+  spot('pk:b1', 1050, 440, 's', 'garden', { seat: true });
+  spot('pk:b2', 1150, 440, 's', 'garden', { seat: true });
+  spot('pk:pond', 1120, 372, 'n', 'garden');
+  // the scheduler's station on the garage forecourt: a fixed non-agent character stands here (see office-world.js)
+  spot('sched:npc', 1072, 758, 's', 'garage');
+  const GARDEN = ['garden:b1', 'garden:b2', 'garden:b3', 'garden:pS', 'garden:pE', 'garden:pW', 'garden:fl', 'garden:lamp', 'pk:b1', 'pk:b2', 'pk:pond'];
+  // playroom
+  spot('play:sofa1', 628, 616, 's', 'play', { seat: true });
+  spot('play:sofa2', 686, 616, 's', 'play', { seat: true });
+  spot('play:sofa3', 744, 616, 's', 'play', { seat: true });
+  spot('play:bean1', 775, 715, 's', 'play', { seat: true });
+  spot('play:bean2', 850, 748, 's', 'play', { seat: true });
+  spot('play:arcade1', 934, 618, 'w', 'play', { game: true });   // beside the cabinet so the screen stays visible
+  spot('play:arcade2', 850, 654, 'n', 'play', { game: true });
+  spot('play:pit', 935, 725, 's', 'play', { seat: true });
+  spot('play:hoop', 568, 735, 'w', 'play', { game: true });
+  spot('play:dart', 560, 690, 'w', 'play', { game: true });
+  spot('play:juke', 545, 640, 'n', 'play');
+  spot('play:table', 705, 690, 'w', 'play');
+  spot('play:rug', 700, 745, 's', 'play');
+  spot('play:toy', 545, 668, 's', 'play');
+  spot('play:plant', 968, 662, 'w', 'play');
+  // ordered so consecutive claims land far apart: eight agents spread over the whole room instead of piling on the sofa
+  const PLAY = ['play:arcade1', 'play:sofa1', 'play:pit', 'play:hoop', 'play:bean2', 'play:sofa3', 'play:dart', 'play:table', 'play:bean1', 'play:plant', 'play:rug', 'play:toy', 'play:juke', 'play:sofa2', 'play:arcade2'];
+  // utility: water cooler corner and hot desks for visitors
+  spot('cool:1', 430, 634, 'n', 'utility');
+  spot('cool:2', 462, 636, 'n', 'utility');
+  const COOLER = ['cool:1', 'cool:2'];
+  [118, 152, 306, 346].forEach((x, i) => spot('hot:' + (i + 1), x, 650, 'n', 'utility', { seat: true, desk: true }));
+  [180, 230, 300, 350].forEach((x, i) => spot('over:' + (i + 1), x, 712, 'n', 'utility'));
+  const HOT = ['hot:1', 'hot:2', 'hot:3', 'hot:4'], OVER = ['over:1', 'over:2', 'over:3', 'over:4'];
+
+  // ---------- walk graph ----------
+  const NODES = {}, EDGES = [];
+  const node = (id, x, y) => (NODES[id] = { id, x, y });
+  const edge = (a, b) => EDGES.push([a, b]);
+  const chain = ids => { for (let i = 1; i < ids.length; i++) edge(ids[i - 1], ids[i]); };
+  // corridor rows
+  const rowIds = { n: [], a: [], s: [] };
+  const addRow = (r, x) => { const id = r + x; node(id, x, ROWY[r]); rowIds[r].push(id); };
+  COLX.forEach(x => ['n', 'a', 's'].forEach(r => addRow(r, x)));
+  [295, 340, 385, 420].forEach(x => addRow('n', x));
+  CX.forEach(x => addRow('a', x));
+  CX.forEach(x => addRow('s', x));
+  ['n', 'a', 's'].forEach(r => chain(rowIds[r].sort((p, q) => NODES[p].x - NODES[q].x)));
+  COLX.forEach(x => { edge('n' + x, 'a' + x); edge('a' + x, 's' + x); });
+  // desks hang off the aisle (top row) or the south corridor (bottom row)
+  const near = (id, to) => { const s = SPOTS[id]; node('s:' + id, s.x, s.y); edge('s:' + id, to); };
+  DESKS.forEach(d => near(d.id, (d.top ? 'a' : 's') + d.cx));
+  // manager's office
+  node('o_gate', 420, 226); node('o_in', 420, 196); node('o_east', 325, 150); node('o_tside', 325, 36); node('o_west', 120, 150);
+  edge('n420', 'o_gate'); edge('o_gate', 'o_in'); edge('o_in', 'o_east'); edge('o_east', 'o_tside');
+  near('tiro:seat', 'o_tside'); near('office:report', 'o_east'); edge('s:office:report', 'o_west'); near('tiro:window', 'o_west');
+  [1, 2, 3].forEach(i => { const q = SPOTS['queue:' + i]; node('s:queue:' + i, q.x, q.y); edge('s:queue:' + i, 'n' + q.x); });
+  // garden: gate from the north corridor, a loop round the pond
+  node('g_gate', 500, 212); node('g_hub', 570, 205); edge('n500', 'g_gate'); edge('g_gate', 'g_hub');
+  const LOOP = []; for (let k = 0; k < 8; k++) { const t = k * Math.PI / 4; node('L' + k, Math.round(790 + 80 * Math.cos(t)), Math.round(105 + 80 * Math.sin(t))); LOOP.push('L' + k); }
+  for (let k = 0; k < 8; k++) edge(LOOP[k], LOOP[(k + 1) % 8]);
+  edge('g_hub', 'L3');
+  const gnear = { 'garden:b1': 'L5', 'garden:b2': 'L7', 'garden:b3': 'L4', 'garden:pS': 'L2', 'garden:pE': 'L0', 'garden:pW': 'L4', 'garden:fl': 'g_hub', 'garden:lamp': 'L1', 'pk:b1': 'k_hub', 'pk:b2': 'k_hub', 'pk:pond': 'k_hub' };
+  node('k_gate', 1010, 396); node('k_hub', 1100, 396); edge('a970', 'k_gate'); edge('k_gate', 'k_hub'); // fence gate and park hub
+  GARDEN.forEach(id => near(id, gnear[id]));
+  // playroom
+  node('pc', 500, 600); edge('s500', 'pc');
+  [['p1', 560, 655], ['p2', 720, 655], ['p3', 880, 655], ['p4', 560, 750], ['p5', 735, 755], ['p6', 880, 756]].forEach(([i, x, y]) => node(i, x, y));
+  edge('pc', 'p1'); edge('p1', 'p2'); edge('p2', 'p3'); edge('p1', 'p4'); edge('p2', 'p5'); edge('p3', 'p6'); edge('p4', 'p5'); edge('p5', 'p6');
+  const pnear = { 'play:sofa1': 'p1', 'play:sofa2': 'p2', 'play:sofa3': 'p2', 'play:bean1': 'p5', 'play:bean2': 'p3', 'play:arcade1': 'p3', 'play:arcade2': 'p3', 'play:pit': 'p6', 'play:hoop': 'p4', 'play:dart': 'p1', 'play:juke': 'pc', 'play:table': 'p2', 'play:rug': 'p3', 'play:toy': 'p1', 'play:plant': 'p3' };
+  PLAY.forEach(id => near(id, pnear[id]));
+  // utility
+  node('u1', 270, 668); node('u2', 440, 668); node('uh1', 135, 668); node('uh2', 326, 668);
+  edge('s270', 'u1'); chain(['uh1', 'u1', 'uh2', 'u2']);
+  edge('s500', 'u2');
+  COOLER.forEach(id => near(id, 'u2'));
+  HOT.forEach((id, i) => near(id, i < 2 ? 'uh1' : 'uh2'));
+  OVER.forEach((id, i) => near(id, ['u1', 'u1', 'uh2', 'uh2'][i]));
+  node('spawn', 420, 250); // newcomers appear at the manager's door and walk in
+
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const ADJ = {}; Object.keys(NODES).forEach(k => (ADJ[k] = []));
+  EDGES.forEach(([a, b]) => { const w = dist(NODES[a], NODES[b]); ADJ[a].push([b, w]); ADJ[b].push([a, w]); });
+
+  function projectOnEdge(p, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+    return { x: a.x + dx * t, y: a.y + dy * t, t };
+  }
+  // Where a free point joins the graph: the closest point on any edge (so a walker mid-corridor can turn around).
+  function attach(p) {
+    let best = null;
+    for (const [a, b] of EDGES) { const q = projectOnEdge(p, NODES[a], NODES[b]); const d = dist(p, q); if (!best || d < best.d) best = { d, a, b, q }; }
+    return best;
+  }
+  const resolve = t => typeof t === 'string' ? (SPOTS[t] ? { x: SPOTS[t].x, y: SPOTS[t].y } : NODES[t]) : t;
+
+  // Dijkstra over the walk graph with temporary start/end nodes. Returns points from `from` to `to` (inclusive).
+  function pathTo(from, to) {
+    const A = resolve(from), B = resolve(to);
+    if (!A || !B) return [];
+    const g = {}, add = (id, p) => (g[id] = { x: p.x, y: p.y, adj: [] });
+    Object.keys(NODES).forEach(k => add(k, NODES[k]));
+    Object.keys(NODES).forEach(k => (g[k].adj = ADJ[k].slice()));
+    const link = (id, p) => {
+      const at = attach(p); add(id, p); g[id].adj = [];
+      const q = at.q; add(id + '*', q); g[id + '*'].adj = [];
+      const join = (x, y) => { const w = dist(g[x], g[y]); g[x].adj.push([y, w]); g[y].adj.push([x, w]); };
+      join(id, id + '*'); join(id + '*', at.a); join(id + '*', at.b);
+      // the edge itself stays; the projection point is a shortcut node that touches both of its ends
+    };
+    link('#from', A); link('#to', B);
+    const D = { '#from': 0 }, prev = {}, seen = new Set();
+    while (true) {
+      let u = null; for (const k in D) if (!seen.has(k) && (u === null || D[k] < D[u])) u = k;
+      if (u === null || u === '#to') break;
+      seen.add(u);
+      for (const [v, w] of g[u].adj) if (D[v] === undefined || D[u] + w < D[v]) { D[v] = D[u] + w; prev[v] = u; }
+    }
+    if (D['#to'] === undefined) return [{ x: A.x, y: A.y }, { x: B.x, y: B.y }];
+    const ids = []; for (let k = '#to'; k; k = prev[k]) ids.unshift(k);
+    const pts = ids.map(k => ({ x: g[k].x, y: g[k].y }));
+    // drop duplicates and collinear leftovers
+    return pts.filter((p, i) => i === 0 || dist(p, pts[i - 1]) > 0.5);
+  }
+  const pathLen = pts => pts.reduce((s, p, i) => s + (i ? dist(p, pts[i - 1]) : 0), 0);
+
+  // ---------- walkers ----------
+  const BASE_SPEED = 110, MAX_SPEED = 260, BUDGET_MS = 6000;
+  const faceOf = (dx, dy, fallback) => (dx === 0 && dy === 0) ? fallback : Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'e' : 'w') : (dy > 0 ? 's' : 'n');
+  const lane = id => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) | 0; return ((Math.abs(h) % 5) - 2) * 3; }; // small sideways offset so opposing walkers pass
+
+  function createWalker(id, x, y, face) {
+    return { id, x, y, face: face || 's', path: [], pi: 0, moving: false, speed: BASE_SPEED, target: null, elapsed: 0, waited: 0, ignore: 0, fade: 1, fadeDir: 0, teleTo: null, hold: 0 };
+  }
+  function setTarget(w, to, opt) {
+    const spotId = typeof to === 'string' ? to : null, B = resolve(to);
+    w.target = spotId || 'pt'; w.goal = B; w.elapsed = 0; w.waited = 0; w.ignore = 0;
+    if (opt && opt.instant) { w.x = B.x; w.y = B.y; w.path = []; w.moving = false; if (spotId && SPOTS[spotId]) w.face = SPOTS[spotId].face; return w; }
+    const pts = pathTo({ x: w.x, y: w.y }, to);
+    w.path = pts; w.pi = 1; w.moving = pts.length > 1;
+    w.speed = Math.max(BASE_SPEED, Math.min(MAX_SPEED, pathLen(pts) / 4.2));
+    if (!w.moving && spotId && SPOTS[spotId]) w.face = SPOTS[spotId].face;
+    return w;
+  }
+  const arrivedAt = (w, spotId) => w.target === spotId && !w.moving && w.fadeDir === 0 && w.fade === 1;
+  // Advance one walker by dt seconds. `others` are other walkers that block softly (wait, then slip past after 1.2 s).
+  function stepWalker(w, dt, others) {
+    if (w.fadeDir) { // fade-teleport fallback
+      w.fade += w.fadeDir * dt / 0.22;
+      if (w.fadeDir < 0 && w.fade <= 0) { w.fade = 0; w.fadeDir = 1; w.x = w.goal.x; w.y = w.goal.y; w.path = []; w.moving = false; if (SPOTS[w.target]) w.face = SPOTS[w.target].face; }
+      else if (w.fadeDir > 0 && w.fade >= 1) { w.fade = 1; w.fadeDir = 0; }
+      return w;
+    }
+    if (!w.moving) return w;
+    w.elapsed += dt * 1000;
+    if (w.elapsed > BUDGET_MS) { w.fadeDir = -1; return w; }
+    let left = w.speed * dt;
+    while (left > 0 && w.pi < w.path.length) {
+      const t = w.path[w.pi], dx = t.x - w.x, dy = t.y - w.y, d = Math.hypot(dx, dy);
+      const last = w.pi === w.path.length - 1;
+      // ease: slow slightly into corners and the final stop
+      const k = last ? Math.min(1, 0.4 + d / 40) : Math.min(1, 0.7 + d / 40);
+      if (d < 0.01) { w.pi++; continue; }
+      const ux = dx / d, uy = dy / d;
+      w.face = faceOf(dx, dy, w.face);
+      // soft collision: someone ahead and close
+      if (w.ignore <= 0 && others) {
+        let hit = null;
+        for (const o of others) {
+          if (o === w || o.fade < 1) continue;
+          const ox = o.x - w.x, oy = o.y - w.y, od = Math.hypot(ox, oy);
+          if (od < 26 && (ox * ux + oy * uy) / (od || 1) > 0.5 && (o.moving ? String(o.id) < String(w.id) : true) && od < d + 2) { hit = o; break; }
+        }
+        if (hit) { w.waited += dt; if (w.waited > 1.2) { w.ignore = 2.2; w.waited = 0; } else { return w; } }
+      }
+      if (w.ignore > 0) w.ignore -= dt;
+      const step = Math.min(left, d), mv = step * k;
+      w.x += ux * mv; w.y += uy * mv; left -= step;
+      if (mv >= d - 0.01) { w.x = t.x; w.y = t.y; w.pi++; }
+      if (k < 1) break;
+    }
+    if (w.pi >= w.path.length) { w.moving = false; w.path = []; if (SPOTS[w.target]) w.face = SPOTS[w.target].face; }
+    return w;
+  }
+
+  // ---------- state machine ----------
+  const THINK_AFTER = 6000, MIN_DWELL = 3000, TOOL_GRACE = 90000, IDLE_DELAY = 20000, REPORT_MS = 4000, REPORT_FRESH = 15000, PLAY_ROTATE = 22000;
+  const S = { DESK: 'AT_DESK', IDLE_DESK: 'IDLE_DESK', THINK: 'THINKING', PLAY: 'PLAYROOM', COOLER: 'COOLER', BLOCKED: 'BLOCKED', ERROR: 'ERROR', WINDOW: 'IDLE_WINDOW', GO: 'WALK_TO_OFFICE', REPORT: 'REPORTING', BACK: 'WALK_BACK', QUEUE: 'QUEUED' };
+
+  function boardOf(snap) {
+    const goals = (snap && snap.goals) || [], agents = (snap && snap.agents) || [];
+    const open = goals.filter(g => g.status === 'todo' || g.status === 'doing').length;
+    const running = (snap && snap.boss && snap.boss.running) || 0;
+    const workingN = agents.filter(a => !a.isManager && (a.status === 'working' || a.status === 'nudged')).length;
+    const done = goals.filter(g => g.status === 'done').length;
+    return { open, running, workingN, done, total: goals.filter(g => g.status !== 'dismissed' && g.status !== 'proposed').length,
+      todo: goals.filter(g => g.status === 'todo').length, doing: goals.filter(g => g.status === 'doing').length,
+      empty: open === 0 && running === 0 && workingN === 0 };
+  }
+
+  // Rules 1-9 for one agent (reporting is a sequence handled by the brain).
+  // a: { isManager, status, perm, quietMs, toolInFlight, prev, prevSince, first }   board: from boardOf(), plus emptyFor (ms)
+  function nextState(a, board, now) {
+    const st = a.status === 'nudged' ? 'working' : a.status;
+    if (st === 'limited' && !a.isManager) return S.COOLER;                       // 7: plan limit stands at the cooler
+    if (a.perm || st === 'blocked') return S.BLOCKED;                              // 6: stay seated, amber badge
+    if (st === 'error') return S.ERROR;                                            // 7: stay at the desk, red badge
+    if (st === 'working') {                                                        // 1: working wins
+      const mayThink = a.isManager || board.open > 0;                              // 2: only while the board is not empty (Tiro may plan)
+      const enter = mayThink && a.quietMs >= THINK_AFTER && !a.toolInFlight;
+      if (a.prev === S.THINK) {                                                    // 3 s hysteresis back to the desk
+        const back = a.quietMs < THINK_AFTER - MIN_DWELL || a.toolInFlight || !mayThink;
+        return back && (now - (a.prevSince || 0) >= MIN_DWELL || !mayThink) ? S.DESK : S.THINK;
+      }
+      return enter ? S.THINK : S.DESK;
+    }
+    if (a.isManager) return board.empty ? S.WINDOW : S.IDLE_DESK;                  // 9: no goals left, Tiro stands at the window
+    if (board.empty && (a.first || a.prev === S.PLAY || (board.emptyFor || 0) >= (board.idleDelay || IDLE_DELAY))) return S.PLAY; // 4: empty board, after 20 s
+    return S.IDLE_DESK;                                                            // 3: open goals, stay seated
+  }
+
+  function createBrain(opts) {
+    const o = Object.assign({ wall: () => Date.now() }, opts || {});
+    const cfg = { idleDelay: IDLE_DELAY };
+    const mem = new Map();       // per agent: observation + state
+    const deskOwner = {};        // desk spot id -> agent id
+    const hotOwner = {};         // visitors
+    const gardenOf = {}, playOf = {}, coolOf = {};
+    const seenGoal = new Map();  // goal id -> last status
+    const reported = new Set();
+    let reps = [], emptySince = null, updateN = 0, lastRotate = 0, rotIdx = 0, lastBackAt = -1e9;
+    const reportLog = [];
+
+    const claim = (map, list, id) => { if (map[id] && list.includes(map[id])) return map[id]; const used = Object.values(map); const s = list.find(x => !used.includes(x)); if (s) map[id] = s; else delete map[id]; return map[id] || null; };
+
+    // playroom: take the free spot farthest from everyone already playing (ties keep list order), so the room fills evenly
+    const farFrom = (map, id) => { const taken = Object.entries(map).filter(([k]) => k !== id).map(([, v]) => v), used = taken.map(v => SPOTS[v]).filter(Boolean); let best = null, bd = -1; for (const x of PLAY) { if (taken.includes(x) || map[id] === x) continue; const sp = SPOTS[x], d = used.length ? Math.min(...used.map(u => Math.hypot(u.x - sp.x, u.y - sp.y))) : 1e6 - PLAY.indexOf(x); if (d > bd) { bd = d; best = x; } } return best; };
+    const claimPlay = (map, id) => { if (map[id] && PLAY.includes(map[id])) return map[id]; const f = farFrom(map, id); if (f) map[id] = f; else delete map[id]; return map[id] || null; };
+
+    function pickReporter(g, present, now) {
+      const mentions = a => (a.logs || []).slice(-8).some(l => l && String(l.text || '').includes(g.id));
+      let c = present.find(a => !a.isManager && mentions(a));
+      if (c) return c;
+      c = present.filter(a => !a.isManager && mem.get(a.id) && mem.get(a.id).lastWorkEnd).sort((x, y) => mem.get(y.id).lastWorkEnd - mem.get(x.id).lastWorkEnd)[0];
+      if (c) return c;
+      return present.filter(a => !a.isManager).sort((x, y) => (mem.get(y.id) ? mem.get(y.id).busyMs : 0) - (mem.get(x.id) ? mem.get(x.id).busyMs : 0))[0] || null;
+    }
+
+    function update(snap, now, ctx) {
+      ctx = ctx || {};
+      const arrived = ctx.arrived || (() => false);
+      const agentsIn = (snap && snap.agents) || [];
+      const goals = (snap && snap.goals) || [];
+      const board = boardOf(snap);
+      if (board.empty) { if (emptySince == null) emptySince = now; } else emptySince = null;
+      board.emptyFor = emptySince == null ? 0 : now - emptySince; board.idleDelay = cfg.idleDelay;
+      const wall = o.wall();
+
+      // observe
+      const ids = new Set(agentsIn.map(a => a.id));
+      for (const id of [...mem.keys()]) if (!ids.has(id)) { mem.delete(id); for (const m of [deskOwner, hotOwner, gardenOf, playOf, coolOf]) for (const k of Object.keys(m)) if (m[k] === id || k === id) delete m[k]; reps = reps.filter(r => r.agentId !== id); }
+      for (const a of agentsIn) {
+        let m = mem.get(a.id);
+        const logs = a.logs || [], last = logs[logs.length - 1];
+        const sig = logs.length + '|' + (last ? last.t + last.text.slice(0, 40) : '') + '|' + a.status + '|' + (a.task || '').slice(0, 30);
+        if (!m) { m = { id: a.id, born: now, first: updateN === 0, sig, lastChange: now, state: null, since: now, busyMs: 0, lastWorkEnd: 0, wasWorking: false, lastTick: now }; mem.set(a.id, m); }
+        if (m.sig !== sig) { m.sig = sig; m.lastChange = now; }
+        m.lastKind = last ? last.k : null;
+        const working = a.status === 'working' || a.status === 'nudged';
+        if (working) m.busyMs = Math.min(60000, m.busyMs + (now - m.lastTick)); else m.busyMs = Math.max(0, m.busyMs - (now - m.lastTick));
+        if (m.wasWorking && !working) m.lastWorkEnd = now;
+        m.wasWorking = working; m.lastTick = now;
+      }
+
+      // goal completion -> reports
+      for (const g of goals) {
+        const was = seenGoal.get(g.id);
+        if (g.status === 'done' && g.report && !reported.has(g.id)) {
+          const stale = (was === undefined && updateN === 0) && (wall - (g.at || 0) > REPORT_FRESH);
+          reported.add(g.id);
+          if (!stale) {
+            const who = pickReporter(g, agentsIn, now);
+            if (who) {
+              const ex = reps.find(r => r.agentId === who.id);
+              if (ex) ex.goalIds.push(g.id); else reps.push({ agentId: who.id, goalIds: [g.id], phase: 'wait', t0: now });
+            }
+          }
+        }
+        seenGoal.set(g.id, g.status);
+      }
+      // advance the report sequence (one in the office at a time, others queue at the door)
+      for (const r of reps) {
+        if (r.phase === 'go' && (arrived(r.agentId, 'office:report') || now - r.t1 > 9000)) { r.phase = 'report'; r.until = now + REPORT_MS; }
+        else if (r.phase === 'report' && now >= r.until) { r.phase = 'back'; r.t2 = now; lastBackAt = now; }
+        else if (r.phase === 'back' && now - r.t2 > 5000) r.done = true;
+      }
+      reps = reps.filter(r => !r.done);
+      if (!reps.find(r => r.phase === 'go' || r.phase === 'report') && now - lastBackAt > 1200) {
+        const nxt = reps.find(r => r.phase === 'wait'); if (nxt) { nxt.phase = 'go'; nxt.t1 = now; }
+      }
+
+      // state per agent
+      const out = [];
+      const sorted = agentsIn.slice().sort((x, y) => String(x.id).localeCompare(String(y.id)));
+      // desks: profile desk is owned by one agent; extras and profile-less helpers become visitors
+      for (const a of sorted) {
+        if (a.isManager) continue;
+        const d = a.profile && !a.profile.helper && DESKS.find(x => x.id === a.profile.desk);
+        if (d && (!deskOwner[d.id] || deskOwner[d.id] === a.id || !ids.has(deskOwner[d.id]))) deskOwner[d.id] = a.id;
+      }
+      const hotIndex = {}; let ovN = 0;
+      for (const a of sorted) {
+        if (a.isManager) continue;
+        const m = mem.get(a.id);
+        const d = a.profile && !a.profile.helper && DESKS.find(x => x.id === a.profile.desk);
+        m.visitor = !(d && deskOwner[d.id] === a.id);
+        if (m.visitor) { const s = claim(hotOwner, HOT, a.id); if (s) hotIndex[a.id] = s; else hotIndex[a.id] = OVER[ovN++ % OVER.length]; }
+      }
+      const rotateNow = now - lastRotate > PLAY_ROTATE;
+      if (rotateNow) { lastRotate = now; rotIdx++; }
+      let rotated = false;
+
+      for (const a of agentsIn) {
+        const m = mem.get(a.id);
+        const quietMs = now - m.lastChange, toolInFlight = m.lastKind === 'tool' && quietMs < TOOL_GRACE;
+        let st = nextState({ isManager: !!a.isManager, status: a.status, perm: a.perm, quietMs, toolInFlight, prev: m.state, prevSince: m.since, first: m.first }, board, now);
+        // reporting overrides everything except a working agent (rule 1)
+        const rep = reps.find(r => r.agentId === a.id);
+        const working = a.status === 'working' || a.status === 'nudged';
+        let spotId, wasRep = false;
+        if (rep && !working && !a.isManager) {
+          if (rep.phase === 'wait') { st = S.QUEUE; } else if (rep.phase === 'go') st = S.GO; else if (rep.phase === 'report') st = S.REPORT; else if (rep.phase === 'back') st = S.BACK;
+          wasRep = true;
+        }
+        const home = () => a.isManager ? 'tiro:seat' : m.visitor ? hotIndex[a.id] : a.profile.desk;
+        if (st === S.GO || st === S.REPORT) spotId = 'office:report';
+        else if (st === S.QUEUE) { const q = reps.filter(r => r.phase === 'wait').findIndex(r => r.agentId === a.id); spotId = 'queue:' + Math.min(3, q + 1); }
+        else if (st === S.BACK) { // return by the normal rules, but not the playroom until the walk back finishes
+          const back = nextState({ isManager: false, status: a.status, perm: a.perm, quietMs, toolInFlight, prev: null, prevSince: 0, first: false }, board, now);
+          spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claim(coolOf, COOLER, a.id) : home();
+        } else if (st === S.THINK) spotId = a.isManager ? 'tiro:window' : (claim(gardenOf, GARDEN, a.id) || home());
+        else if (st === S.WINDOW) spotId = 'tiro:window';
+        else if (st === S.PLAY) {
+          let s = playOf[a.id];
+          if (!s || !PLAY.includes(s)) s = claimPlay(playOf, a.id);
+          else if (rotateNow && !rotated && (rotIdx % Math.max(1, agentsIn.length)) === agentsIn.indexOf(a)) {
+            const f = farFrom(playOf, a.id);
+            if (f) { s = f; playOf[a.id] = s; rotated = true; }
+          }
+          spotId = s || home();
+        } else if (st === S.COOLER) spotId = claim(coolOf, COOLER, a.id) || home();
+        else spotId = home();
+        if (st !== S.PLAY) delete playOf[a.id];
+        if (st !== S.THINK) delete gardenOf[a.id];
+        if (st !== S.COOLER && st !== S.BACK) delete coolOf[a.id];
+        if (m.state !== st) { m.state = st; m.since = now; }
+        const sp = SPOTS[spotId] || SPOTS['tiro:seat'];
+        const look = a.isManager ? TIRO : (a.profile || null);
+        let pose;
+        if (sp.desk) pose = st === S.BLOCKED ? 'hand' : st === S.ERROR ? 'sit' : working ? 'type' : 'sit-idle';
+        else if (st === S.THINK) pose = sp.seat ? 'sit-think' : 'think';
+        else if (st === S.PLAY) pose = sp.game ? 'play' : sp.seat ? 'sit-play' : 'stand';
+        else if (st === S.REPORT || st === S.GO) pose = 'report';
+        else if (st === S.COOLER) pose = 'cooler';
+        else if (st === S.WINDOW) pose = 'cup';
+        else pose = sp.seat ? 'sit-front' : 'stand';
+        const badge = st === S.BLOCKED ? 'perm' : st === S.ERROR ? 'error' : st === S.COOLER || a.status === 'limited' ? 'limited' : null;
+        out.push({ id: a.id, isManager: !!a.isManager, key: look ? look.key : null, name: a.name, role: a.role, model: a.model, color: look ? look.color : null, accent: look ? look.accent : null,
+          visitor: !!m.visitor, state: st, spot: spotId, face: sp.face, pose, badge, status: a.status, working, spawn: !m.first && now - m.born < 100,
+          first: m.first, quietMs, task: a.task || '', turnTok: a.turnTok || 0, errText: a.errText || '', perm: a.perm || null, reporting: wasRep, goalIds: rep ? rep.goalIds : null });
+      }
+      const rp = reps.find(r => r.phase === 'report'), going = reps.find(r => r.phase === 'go');
+      const desksTaken = {}; out.forEach(a => { if (!a.isManager && !a.visitor) desksTaken[a.spot] = a.id; });
+      for (const a of out) if (a.isManager) a.lookUp = !!rp;
+      for (const m of mem.values()) m.first = false;
+      updateN++;
+      return { agents: out, board, reps: reps.map(r => ({ agentId: r.agentId, phase: r.phase })), reporter: rp ? rp.agentId : going ? going.agentId : null,
+        reportIcon: !!(rp || going), occupiedDesks: desksTaken, playActive: out.some(a => a.state === S.PLAY) };
+    }
+    return { update, mem, cfg, reports: reportLog };
+  }
+
+  // ---------- demo / preview mode: fake snapshots that exercise every state without live agents ----------
+  const DEMO_SCENES = ['work', 'think', 'blocked', 'empty', 'report', 'tour'];
+  const TASKS = { pixel: 'Polish the onboarding screen', forge: 'Add retry to the sync job', warden: 'Audit secrets in config', probe: 'Run the regression suite', atlas: 'Compare 3 vendor APIs', cabalan: 'Find the Toast menu endpoint', tally: 'Check goals against done', scribe: 'Draft the SOP for deploys' };
+  function demoSnapshot(scene, t) {
+    t = t || 0;
+    const mk = (m, i, status, extra) => Object.assign({ id: 'demo-' + m.key, name: m.name, role: 'Helper · ' + m.key, profile: { key: m.key, name: m.name, role: m.role, color: m.color, accent: m.accent, desk: m.desk },
+      model: m.model, status, task: status === 'idle' ? '' : TASKS[m.key], turnTok: 1200 + i * 700, logs: [{ t: '10:0' + i + ':' + String(Math.floor((t + i) / 3) % 60), k: Math.floor((t + i) / 3) % 2 ? 'out' : 'tool', text: 'step ' + Math.floor((t + i) / 3) }], perm: null, canSend: false }, extra || {});
+    const boss = (status, extra) => Object.assign({ isManager: true, id: 'demo-tiro', name: 'Tiro', role: 'Manager', profile: TIRO, model: 'sonnet', status, task: status === 'idle' ? '' : 'Checking the board', turnTok: 4200, logs: [{ t: '10:00:' + String(Math.floor(t / 4) % 60), k: 'sys', text: 'Tiro step ' + Math.floor(t / 4) }], perm: null, canSend: false }, extra || {});
+    const goal = (id, text, status, extra) => Object.assign({ id, text, status, by: 'you', note: '', at: Date.now() }, extra || {});
+    const base = { agents: [], goals: [], boss: { active: true, running: 0, max: 8 }, demo: true };
+    const quiet = { logs: [{ t: '10:00:00', k: 'out', text: 'Working on it' }] };
+    let s = scene;
+    if (scene === 'tour') { const order = ['work', 'think', 'blocked', 'report', 'empty']; s = order[Math.floor(t / 26) % order.length]; t = t % 26; }
+    if (s === 'work') {
+      return Object.assign(base, { goals: [goal('gd1', 'Ship the onboarding screen', 'doing'), goal('gd2', 'Review the sync job', 'todo')], boss: { active: true, running: 8, max: 8 },
+        agents: [boss('working'), ...TEAM.map((m, i) => mk(m, i, 'working'))] });
+    }
+    if (s === 'think') {
+      const thinkers = ['pixel', 'warden', 'atlas', 'scribe'];
+      return Object.assign(base, { goals: [goal('gd1', 'Ship the onboarding screen', 'doing')], boss: { active: true, running: 4, max: 8 },
+        agents: [boss('working', quiet), ...TEAM.map((m, i) => thinkers.includes(m.key) ? mk(m, i, 'working', quiet) : mk(m, i, i % 2 ? 'working' : 'idle'))] });
+    }
+    if (s === 'blocked') {
+      return Object.assign(base, { goals: [goal('gd1', 'Deploy the report job', 'doing')], boss: { active: true, running: 4, max: 8 },
+        agents: [boss('working'), ...TEAM.map((m, i) => i === 1 ? mk(m, i, 'blocked', { perm: { askId: 'q1', short: 'Bash', cmd: 'ssh root@host', why: 'deploy' } })
+          : i === 3 ? mk(m, i, 'error', { errText: 'Tests crashed' }) : i === 5 ? mk(m, i, 'limited', { errText: 'Plan limit reached' }) : i === 0 || i === 6 ? mk(m, i, 'working') : mk(m, i, 'idle'))] });
+    }
+    if (s === 'empty') {
+      return Object.assign(base, { goals: [goal('gd1', 'Ship the onboarding screen', 'done', { report: 'r1.md', at: Date.now() - 3600e3 })], boss: { active: true, running: 0, max: 8 },
+        agents: [boss('idle'), ...TEAM.map((m, i) => mk(m, i, 'idle'))] });
+    }
+    if (s === 'report') {
+      const done = t > 2.5;
+      return Object.assign(base, { goals: [goal('gd1', 'Ship the onboarding screen', done ? 'done' : 'doing', done ? { report: 'r1.md' } : {}), goal('gd2', 'Review the sync job', 'todo')], boss: { active: true, running: 2, max: 8 },
+        agents: [boss('working'), ...TEAM.map((m, i) => i === 1 ? mk(m, i, done ? 'idle' : 'working', { logs: [{ t: '10:00:00', k: 'out', text: 'Finished gd1: filed the report' }] }) : mk(m, i, i < 4 ? 'working' : 'idle'))] });
+    }
+    return base;
+  }
+
+  // ---------- camera (pure): zoom 1..3 and pan, in px relative to the centred stage ----------
+  const ZMIN = 1, ZMAX = 3;
+  const clampView = (v, vw, vh, sc, sw, sh) => { // sw x sh = stage size in stage units, sc = fit scale, vw x vh = viewport px
+    const z = Math.min(ZMAX, Math.max(ZMIN, v.z || 1));
+    if (z <= ZMIN + 0.001) return { z: ZMIN, x: 0, y: 0 };
+    const mx = Math.max(0, (sw * sc * z - vw) / 2) + 80, my = Math.max(0, (sh * sc * z - vh) / 2) + 80;
+    return { z, x: Math.min(mx, Math.max(-mx, v.x || 0)), y: Math.min(my, Math.max(-my, v.y || 0)) };
+  };
+  // zoom by factor about the point (cx, cy) given relative to the viewport centre; the stage point under the cursor stays put
+  const zoomAt = (v, factor, cx, cy) => { const z = Math.min(ZMAX, Math.max(ZMIN, v.z * factor)), k = z / v.z; return { z, x: cx - k * (cx - v.x), y: cy - k * (cy - v.y) }; };
+
+  const api = { clampView, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, TIRO_DESK, OBSTACLES, SPOTS, NODES, EDGES, GARDEN, PLAY, COOLER, HOT, OVER, COLX, ROWY, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
+    boardOf, nextState, createBrain, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
+  root.OfficeMotion = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);

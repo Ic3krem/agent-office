@@ -1,4 +1,4 @@
-// Kiro: the office manager's desktop body. An original orange cube-crab drawn as one SVG; moods add props.
+// Tiro: the office manager's desktop body. An original orange cube-crab drawn as one SVG; moods add props.
 // Moods: idle, cool, work, build, think, alert, party, sleep.
 (function () {
   const O = '#4a1f08', BODY = '#ff6a13', TOP = '#ff9147', SIDE = '#d8520a', CLAW = '#ff7a26';
@@ -43,7 +43,7 @@
   };
   window.kiroSVG = function (mood = 'idle', size = 140) {
     const raised = mood === 'party';
-    return `<svg class="kiro mood-${mood}" width="${size}" height="${size}" viewBox="-6 -6 152 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kiro, ${mood}">
+    return `<svg class="kiro mood-${mood}" width="${size}" height="${size}" viewBox="-6 -6 152 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tiro, ${mood}">
       <ellipse cx="64" cy="124" rx="50" ry="7" fill="#000" opacity=".22"/>
       <g class="legs">
         ${leg(38, 96, 24, 104, 16, 122, 0)}${leg(48, 98, 38, 110, 34, 126, .15)}${leg(58, 99, 54, 112, 54, 128, .3)}
