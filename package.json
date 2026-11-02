@@ -15,13 +15,13 @@
   "type": "module",
   "private": "true",
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.301",
-    "exceljs": "^4.4.0",
-    "zod": "^4.6.7"
+    "@anthropic-ai/claude-agent-sdk": "0.3.301",
+    "exceljs": "4.4.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "electron": "^43.7.7",
-    "electron-builder": "^26.15.3"
+    "electron": "43.7.7",
+    "electron-builder": "26.15.3"
   },
   "productName": "Agent Office",
   "build": {
@@ -30,7 +30,7 @@
     "directories": {
       "output": "dist"
     },
-    "asar": false,
+    "asar": true,
     "files": [
       "server.mjs",
       "transcript.mjs",
@@ -90,6 +90,18 @@
       "category": "Development",
       "artifactName": "Agent-Office-${version}-${arch}.${ext}",
       "maintainer": "Ic3krem <Ic3krem@users.noreply.github.com>"
+    },
+    "asarUnpack": [
+      "desktop/nowplaying.ps1"
+    ],
+    "electronFuses": {
+      "runAsNode": true,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
     }
   },
   "homepage": "https://github.com/Ic3krem/agent-office",
