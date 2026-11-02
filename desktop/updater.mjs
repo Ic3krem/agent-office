@@ -72,11 +72,11 @@ const inPolicy = (u, policy) => {
 };
 const sha = v => typeof v === 'string' && /^[0-9a-f]{64}$/i.test(v);
 // Normalise a VERIFIED manifest to { version, url, sha256, name, size, notes } for this platform or throw a readable Error.
-export function parseManifest(doc, platform = process.platform, policy = makeAssetPolicy()) {
+export function parseManifest(doc, platform = process.platform, policy = makeAssetPolicy(), arch = process.arch) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc) || doc.schema !== 1) throw new Error('Update manifest is not a recognised schema-1 document.');
   if (!parseVersion(doc.version)) throw new Error(`Update manifest has no valid version (got ${JSON.stringify(doc.version ?? null)}).`);
   const assets = Array.isArray(doc.assets) ? doc.assets.filter(a => a && typeof a === 'object' && a.platform === platform) : [];
-  const a = assets[0];
+  const a = assets.find(x => x.arch === arch) || assets.find(x => x.arch == null); // an asset may name its arch; one without applies to all
   const version = String(doc.version).trim().replace(/^v/, ''), notes = typeof doc.notes === 'string' ? doc.notes.slice(0, 600) : '';
   if (!a) return { version, url: null, sha256: null, name: null, size: 0, notes };
   if (!sha(a.sha256)) throw new Error('Update asset has no valid SHA-256; refusing it.');
