@@ -1,0 +1,50 @@
+# Agent Office
+
+> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v1.2.8); macOS and Linux are not published yet. Builds are not code-signed. Proprietary licence, all rights reserved.
+
+## Start
+
+- [Quickstart](https://ic3krem.github.io/agent-office/quickstart.html): install and finish a first task
+- [Download](https://ic3krem.github.io/agent-office/download.html): installer, SHA-256 and Windows warnings
+- [Changelog](https://ic3krem.github.io/agent-office/changelog.html): what changed in each version
+
+## Docs (Markdown copies)
+
+### Get started
+
+- [Requirements](https://ic3krem.github.io/agent-office/docs/requirements.md): What you need before installing.
+- [Install and verify](https://ic3krem.github.io/agent-office/docs/install.md): Install Agent Office on Windows and check the download.
+- [First task with Tiro](https://ic3krem.github.io/agent-office/docs/first-task.md): Open the office and give Tiro its first goal.
+- [Update](https://ic3krem.github.io/agent-office/docs/update.md): Check for and install a new version from the island.
+- [Uninstall](https://ic3krem.github.io/agent-office/docs/uninstall.md): Remove the app and decide what to do with your data.
+
+### Using the office
+
+- [The dashboard and the office](https://ic3krem.github.io/agent-office/docs/office.md): The panels, the world, the objects and the agent history.
+- [Hiring and approvals](https://ic3krem.github.io/agent-office/docs/approvals.md): The strict hiring gate and Claude Code tool approvals.
+- [The team](https://ic3krem.github.io/agent-office/docs/team.md): Eight specialists, renaming and SOPs.
+- [Agents and memory](https://ic3krem.github.io/agent-office/docs/agents-and-memory.md): The team, the hiring gate and per-agent memory and history.
+- [Goals, reports and the vault](https://ic3krem.github.io/agent-office/docs/goals-and-reports.md): The Today board, reports with PDF and Excel export, and the memory corkboard.
+- [The island, Tiro and the tray](https://ic3krem.github.io/agent-office/docs/island.md): The notch-style overlay, the desktop character, the tray menu and keyboard use.
+- [Scheduler](https://ic3krem.github.io/agent-office/docs/scheduler.md): The scheduler station, the job and the inbox feed file.
+
+### Safety
+
+- [Permissions and Claude Code parity](https://ic3krem.github.io/agent-office/docs/permissions.md): Agent Office runs on your own Claude Code configuration. What is the same, what differs and what reaches you.
+- [Security model](https://ic3krem.github.io/agent-office/docs/security.md): How the local server, the windows, installs and approvals are protected.
+- [Security Guard](https://ic3krem.github.io/agent-office/docs/security-guard.md): An ask-only safety net for secrets, downloaded scripts and untrusted instructions.
+- [Breaker box and subscription guard](https://ic3krem.github.io/agent-office/docs/breaker-box.md): Hard switches, and the guard that stops at your plan limit.
+
+### Reference
+
+- [Configuration](https://ic3krem.github.io/agent-office/docs/configuration.md): Preferences, environment variables, settings files, the scheduler job and the terminal bridge.
+- [Troubleshooting](https://ic3krem.github.io/agent-office/docs/troubleshooting.md): Windows warnings and common problems.
+- [FAQ](https://ic3krem.github.io/agent-office/docs/faq.md): Short answers.
+- [API reference](https://ic3krem.github.io/agent-office/docs/api.md): The local HTTP API the dashboard and island use.
+- [Full user guide](https://ic3krem.github.io/agent-office/docs/guide.md): Every panel, the island, the tray, settings files and the API table.
+
+## Optional
+
+- [Releases feed](https://ic3krem.github.io/agent-office/releases.xml)
+- [Privacy](https://ic3krem.github.io/agent-office/privacy.html)
+- [Download statistics](https://ic3krem.github.io/agent-office/stats.html)

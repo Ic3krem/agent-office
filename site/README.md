@@ -1,50 +1,46 @@
 # Agent Office product site
 
-Static site: plain HTML, CSS and JavaScript. No build step to host it, no CDN, no remote fonts, no trackers. Fonts are local (`assets/fonts`, OFL texts included). Every page carries a strict Content-Security-Policy meta tag (`default-src 'none'`, scripts, styles, images, fonts and fetch limited to the site itself).
+Static site: plain HTML, CSS and JavaScript. No build step to host it, no CDN, no remote fonts, no trackers, no cookies. Fonts are local (`assets/fonts`, OFL texts included). Every page carries a strict Content-Security-Policy meta tag. Intended host: GitHub Pages, once the repository and its release downloads are public (the proprietary licence stays).
 
-Open `index.html` to browse it. The download page reads `release.json` with `fetch`, which browsers block for `file://`, so preview it over http: `npx http-server site` or `python -m http.server -d site`.
+Preview over http (the pages `fetch` JSON files, which browsers block on `file://`): `python -m http.server -d site`, then open http://localhost:8000/.
 
-## Layout
+## Pages and files
 
 | Path | What |
 |---|---|
-| `index.html` | Home: hero, how it works, features, team, gallery, security model, FAQ |
-| `download.html`, `assets/download.js`, `release.json` | Download button, SHA-256, install steps, one-line installer, SmartScreen note |
-| `docs/*.html` | Docs hub and pages: install, update, uninstall, configuration, permissions, security, scheduler, agents and memory, troubleshooting and FAQ, full guide |
-| `changelog.html` | Generated from `CHANGELOG.md` |
-| `assets/` | CSS, favicon, fonts, screenshots (copied from `docs/images`) |
-| `tools/` | The generator (`gen-docs.mjs`, `layout.mjs`, `home.mjs`, `download.mjs`). Not needed to host. |
-| `config.json` | Early-access edge origin (single place, feeds the download page CSP and `download.js`), `closed` switch, cap. Empty origin = not configured |
-| `edge/` | Cloudflare Worker + D1 download counter (`worker.js`, `schema.sql`, `wrangler.toml` placeholders, `edge.test.mjs`). Not hosted with the site |
-| `docs-internal/` | Early-access design note and deploy runbook. Internal: never publish |
-| `site.test.mjs` | Tests: links and anchors resolve, no remote hosts or inline script, no company name, `release.json` schema, accessibility basics |
+| `index.html` | Download-first landing: OS-aware download button, version and short SHA-256, trust strip, tour, team, security, FAQ, licence |
+| `download.html` | Download, full SHA-256 and PowerShell check, SmartScreen and Smart App Control notes, install steps, other platforms |
+| `quickstart.html`, `stats.html`, `privacy.html`, `changelog.html` | Quickstart, download statistics, privacy, changelog |
+| `docs/*.html`, `docs/*.md` | Docs in four groups (Get started, Using the office, Safety, Reference), with sidebar, on-this-page, prev/next and search. A Markdown copy of each page sits next to it |
+| `search-index.json`, `llms.txt`, `releases.xml` | Local docs search index, LLM index, Atom feed built from CHANGELOG |
+| `release.json`, `stats.json`, `config.json` | Data the pages read: release (source of truth for version, url, sha256, size, date), download statistics, site settings |
+| `assets/` | CSS, JS (`common.js`, `release.js`, `search.js`), fonts, favicon, optimised images |
+| `tools/` | Generators, not needed to host |
+| `site.test.mjs` | Tests |
 
 ## Regenerate and test
 
 ```
-node site/tools/gen-docs.mjs     # rebuilds docs/*.html, changelog.html, index.html, download.html
-node --test site/site.test.mjs site/edge/edge.test.mjs
+python site/tools/optimise-images.py   # only when screenshots change (needs Pillow with AVIF and WebP)
+node site/tools/gen-docs.mjs           # rebuilds every HTML page, the search index, llms.txt, .md copies and releases.xml
+node --test site/site.test.mjs
 ```
 
-The docs pages are cut from `README.md`, `docs/GUIDE.md`, `docs/permissions.md`, `docs/scheduler.md`, `docs/agents-and-memory.md` and `CHANGELOG.md`. Edit those, then regenerate. Links into GitHub are rendered as plain text because the repository is private. Screenshots are copied by hand: when `docs/images` changes, copy the files to `site/assets/img/`.
+Docs are cut from `README.md`, `docs/*.md` and `CHANGELOG.md`; edit those and regenerate. GitHub links in docs render as plain text. "Kiro" in prose becomes "Tiro" (real file names such as `kiro.json` stay in code).
 
-## release.json (filled by the release build)
+## Release checklist
 
-```json
-{ "schema": 1, "version": "1.2.5", "asset": "Agent-Office-Setup-1.2.5.exe",
-  "url": "https://.../Agent-Office-Setup-1.2.5.exe", "sha256": "<64 lowercase hex>",
-  "size": 12345678, "date": "2026-11-03", "notes": "optional text" }
-```
+1. Edit `release.json`: `version`, `asset`, `url` (the public `releases/download/v<version>/...` asset), `sha256` (computed from that exact file), `size`, `date`, `releaseUrl`. Optional: `checksumsUrl`, `previous` (list of `{version, date, url}`). Tests require `url` to be the public GitHub asset for `version`.
+2. `node site/tools/gen-docs.mjs` (bakes the values into the pages so they work without JavaScript, and rewrites the docs stamp), then run the tests.
 
-`asset` must be `Agent-Office-Setup-<version>.exe` and `url` is https or a path relative to the site (a release page or the installer itself). `sha256` may be an empty string until the hash is known; the page then says it is not published and shows no copy button. `size` may be `null`. Never put a hash here that you did not compute from the exact published file. The release build should write the file from the `.exe` it uploads, for example `(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()`.
+## Analytics (off by default)
 
-## Hosting
+`config.json` `analytics.provider` is `none`, `cloudflare` or `goatcounter`. Set the provider and its `token` (Cloudflare Web Analytics) or `code` (GoatCounter site code), then run `node site/tools/gen-docs.mjs`. That one step updates the CSP in every page (`tools/layout.mjs`, function `buildCsp`) and the privacy text. Both are cookieless, so no consent banner is needed. `assets/common.js` skips loading when the browser sends Do Not Track or Global Privacy Control. With provider `none` nothing remote is allowed or loaded.
 
-Nothing has been published. The repository is private and the code is proprietary (all rights reserved), so decide deliberately what becomes public. The site itself contains only marketing text, docs and screenshots, and no source code.
+## Statistics
 
-1. **Public assets repo plus GitHub Pages (simplest).** Create a separate public repo, for example `agent-office-releases`. Publish `site/` through Pages (either as the repo root or via a Pages workflow). Upload each installer as a release asset there, and point `release.json` `url` at its `releases/download/v<version>/...` URL. GitHub also shows a SHA-256 digest on each asset. Only the installer and the site are public; the source repo stays private.
-2. **Any static host** (Cloudflare Pages, Netlify, S3 plus CDN, an nginx box). Upload `site/` as is. Serve installers from a public path on the same host (relative `url`, for example `downloads/Agent-Office-Setup-1.2.5.exe`) or from the assets repo. Add the headers `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`; `frame-ancestors` cannot be set from a meta tag, so set `Content-Security-Policy: frame-ancestors 'none'` as a real header if you can.
-3. **Keep downloads private.** If installers must not be public, a static site cannot gate them. Put the download behind authentication (an authenticated proxy or signed, expiring URLs generated by a small service, or a private GitHub release that people with repo access download through `gh release download`). The download button then needs a `url` that works for the intended audience, and the page's one-line installer should be removed or pointed at a private mirror.
-4. **Known gap with the private repo.** As of 1.2.8 the repo's own docs say Agent Office is installed and updated by invitation while the repo is private: the install scripts and in-app updater need release files at a public URL. The download page therefore has no one-line installer and its button uses `release.json` `url`, currently the GitHub release tag page, which returns 404 to anonymous visitors. Point `url` at a public asset (relative path or assets repo) before publishing.
+`stats.json` is currently SAMPLE DATA (`placeholder: true`); the pages say so and the landing page shows no numbers. A scheduled job should write the real snapshot (`asOf`, `total`, `unique`, `countries`, `byContinent`, `byCountry` with only countries of at least 10 downloads, `other`) with `placeholder: false`, then regenerate. The counter that would produce it is not built into this site.
 
-Before publishing, also check: the docs describe the 1.2.8 source (regenerate after docs change), the build is unsigned (the SmartScreen note must stay), and the proprietary license permits putting the screenshots and text on a public site.
+## Hosting on GitHub Pages
+
+Publish `site/` (a Pages workflow that uploads the folder, or copy it to a `gh-pages` branch or `/docs`). Pages cannot set HTTP headers, so the CSP is a meta tag; `frame-ancestors` cannot be set that way. `config.json` `baseUrl` (used by `llms.txt` and the Atom feed) assumes `https://ic3krem.github.io/agent-office/`; change it if the Pages address differs and regenerate. Nothing has been published. Before going public: decide who the named data controller and contact are (`config.json` `privacy`), check the proprietary licence allows public screenshots and text, and keep the unsigned-build notes until the installer is signed.

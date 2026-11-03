@@ -7,9 +7,10 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#16110e">
-<title>Troubleshooting and FAQ - Agent Office docs</title>
-<meta name="description" content="Common problems and short answers.">
+<title>Troubleshooting - Agent Office docs</title>
+<meta name="description" content="Windows warnings and common problems.">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/atom+xml" title="Agent Office releases" href="../releases.xml">
 <link rel="stylesheet" href="../assets/fonts/fonts.css">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -19,33 +20,34 @@
 <div class="wrap">
 <a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
 <nav class="site-nav" aria-label="Main">
-<a href="../index.html">Home</a>
-<a href="../index.html#features">Features</a>
+<a href="../quickstart.html">Quickstart</a>
 <a href="../docs/index.html" aria-current="page">Docs</a>
 <a href="../changelog.html">Changelog</a>
+<a href="../stats.html">Stats</a>
 <a href="../download.html" class="nav-cta">Download</a>
 </nav>
 </div>
 </header>
-<div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation"><h2>Docs</h2><ul><li><a href="index.html">Overview</a></li><li><a href="install.html">Install</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html">Security</a></li><li><a href="security-guard.html">Security Guard</a></li><li><a href="scheduler.html">Scheduler</a></li><li><a href="agents-and-memory.html">Agents and memory</a></li><li><a href="troubleshooting.html" aria-current="page">Troubleshooting and FAQ</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../download.html">Download</a></li></ul></aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Troubleshooting and FAQ</p><h1>Troubleshooting and FAQ</h1><p class="lead">Common problems and short answers.</p><h2 id="troubleshooting">Troubleshooting</h2>
-<div class="table-wrap" role="region" aria-label="Problem table" tabindex="0"><table><thead><tr><th scope="col">Problem</th><th scope="col">What to try</th></tr></thead><tbody><tr><td>Dashboard is blank</td><td>Reload. If it persists, check the app is up to date (older builds before 1.2.5 could not load their scripts under the security policy).</td></tr><tr><td>&quot;Connecting&quot; banner stays</td><td>The server is not running. Restart Agent Office. If another copy holds the port, quit it first.</td></tr><tr><td>401 &quot;not signed in&quot; from a script</td><td>The API needs the UI session cookie, which only the desktop app (or the one-time sign-in link of a standalone run) has. The bridge key in <code>bridge.json</code> opens <code>/bridge/*</code> only.</td></tr><tr><td>Tiro does nothing</td><td>Check the Breaker box (Tiro on, plan guard not paused) and that Claude Code is installed and logged in.</td></tr><tr><td>Far more (or fewer) prompts than before</td><td>Prompts now follow your Claude Code permission rules and mode; edit your allow, deny and ask rules or <code>permissions.defaultMode</code> (<a href="permissions.html">permissions.md</a>).</td></tr><tr><td>Hire card never appears</td><td>Hiring switch may be off, or Tiro asked for a goal that is not open.</td></tr><tr><td>Scheduler says &quot;no data yet&quot; or &quot;No mail feed file yet&quot;</td><td>The job has not run, or nothing writes <code>inbox-feed.json</code>. See <a href="scheduler.html">scheduler.md</a>.</td></tr><tr><td>SmartScreen warns on install</td><td>The build is not code-signed. Compare the SHA-256 with the one on the GitHub release.</td></tr><tr><td>Update refused</td><td>The feed has no SHA-256, or the hash did not match.</td></tr></tbody></table></div>
-<h2 id="faq">FAQ</h2>
-<p><strong>Does the office cost tokens?</strong> No. Only agents working cost tokens, and only on your Claude Code plan.</p>
-<p><strong>Can an agent hire without asking me?</strong> No. Every hire needs your one-shot approval.</p>
-<p><strong>Where is my data?</strong> On your machine: <code>~/.claude/agent-office</code>, your vault, and Claude Code's own <code>~/.claude/projects</code>. Model calls go to Anthropic through Claude Code, as in the terminal.</p>
-<p><strong>Does it read my email?</strong> No. The scheduler reads a local feed file that you must produce yourself.</p>
-<p><strong>Can I rename agents and keep their history?</strong> Yes; history follows the type, not the name.</p>
-<p><strong>Why a vendored React and Babel?</strong> So the dashboard works under a strict security policy and fully offline; the fonts are vendored too.</p></main></div>
+<div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation">
+<div role="search" class="doc-search"><label for="doc-search">Search the docs</label><input id="doc-search" type="search" autocomplete="off" placeholder="Search"><p id="doc-search-status" class="meta" role="status" aria-live="polite"></p><ul id="doc-results"></ul></div>
+<nav aria-label="Docs sections"><ul class="top"><li><a href="index.html">Overview</a></li></ul><h2>Get started</h2><ul><li><a href="requirements.html">Requirements</a></li><li><a href="install.html">Install and verify</a></li><li><a href="first-task.html">First task with Tiro</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li></ul><h2>Using the office</h2><ul><li><a href="office.html">The dashboard and the office</a></li><li><a href="approvals.html">Hiring and approvals</a></li><li><a href="team.html">The team</a></li><li><a href="agents-and-memory.html">Agents and memory</a></li><li><a href="goals-and-reports.html">Goals, reports and the vault</a></li><li><a href="island.html">The island, Tiro and the tray</a></li><li><a href="scheduler.html">Scheduler</a></li></ul><h2>Safety</h2><ul><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html">Security model</a></li><li><a href="security-guard.html">Security Guard</a></li><li><a href="breaker-box.html">Breaker box and subscription guard</a></li></ul><h2>Reference</h2><ul><li><a href="configuration.html">Configuration</a></li><li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a></li><li><a href="faq.html">FAQ</a></li><li><a href="api.html">API reference</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li></ul></nav>
+</aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Reference / Troubleshooting</p><h1>Troubleshooting</h1><p class="lead">Windows warnings and common problems.</p><p class="meta">Written for v1.2.8 &middot; updated 2026-11-04</p><h2 id="smartscreen-and-smart-app-control">SmartScreen and Smart App Control</h2>
+<p>The installer is not code-signed. Compare its SHA-256 with the one on the <a href="../download.html#verify">download page</a> before you run it.</p>
+<ul><li><strong>SmartScreen</strong> may show &quot;Windows protected your PC&quot;. If the SHA-256 matches, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</li><li><strong>Smart App Control (Windows 11)</strong> can block an unsigned installer and offer no Run anyway option. It is a Windows setting under Windows Security, App and browser control, Smart App Control settings. Turning it off can be permanent on some Windows 11 versions, so decide deliberately. If you cannot accept that, do not install the unsigned build.</li></ul>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<div class="table-wrap" role="region" aria-label="Problem table" tabindex="0"><table><thead><tr><th scope="col">Problem</th><th scope="col">What to try</th></tr></thead><tbody><tr><td>Dashboard is blank</td><td>Reload. If it persists, check the app is up to date (older builds before 1.2.5 could not load their scripts under the security policy).</td></tr><tr><td>&quot;Connecting&quot; banner stays</td><td>The server is not running. Restart Agent Office. If another copy holds the port, quit it first.</td></tr><tr><td>401 &quot;not signed in&quot; from a script</td><td>The API needs the UI session cookie, which only the desktop app (or the one-time sign-in link of a standalone run) has. The bridge key in <code>bridge.json</code> opens <code>/bridge/*</code> only.</td></tr><tr><td>Tiro does nothing</td><td>Check the Breaker box (Tiro on, plan guard not paused) and that Claude Code is installed and logged in.</td></tr><tr><td>Far more (or fewer) prompts than before</td><td>Prompts now follow your Claude Code permission rules and mode; edit your allow, deny and ask rules or <code>permissions.defaultMode</code> (<a href="permissions.html">Permissions and Claude Code parity</a>).</td></tr><tr><td>Hire card never appears</td><td>Hiring switch may be off, or Tiro asked for a goal that is not open.</td></tr><tr><td>Scheduler says &quot;no data yet&quot; or &quot;No mail feed file yet&quot;</td><td>The job has not run, or nothing writes <code>inbox-feed.json</code>. See <a href="scheduler.html">Scheduler</a>.</td></tr><tr><td>SmartScreen warns on install</td><td>The build is not code-signed. Compare the SHA-256 with the one on the GitHub release.</td></tr><tr><td>Update refused</td><td>The feed has no SHA-256, or the hash did not match.</td></tr></tbody></table></div><nav class="prev-next" aria-label="Previous and next page"><a class="prev" href="configuration.html"><span>Previous</span>Configuration</a><a class="next" href="faq.html"><span>Next</span>FAQ</a></nav></main><nav class="page-toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#smartscreen-and-smart-app-control">SmartScreen and Smart App Control</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav></div>
 <footer class="site-footer">
 <div class="wrap">
 <div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
-<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../docs/install.html">Install guide</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../index.html#licence">Licence</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="../docs/guide.html">User guide</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
+<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../quickstart.html">Quickstart</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../releases.xml">Releases feed (Atom)</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="../docs/index.html">Documentation</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting</a></li><li><a href="../llms.txt">llms.txt</a></li></ul></div>
+<div><h2>Legal</h2><ul><li><a href="../index.html#licence">Licence: proprietary</a></li><li><a href="../privacy.html">Privacy</a></li><li><a href="../stats.html">Download statistics</a></li></ul></div>
 </div>
-<small><a href="../index.html#licence">Proprietary software, all rights reserved</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
 </div>
 </footer>
-
+<script src="../assets/common.js" defer></script>
+<script src="../assets/search.js" defer></script>
 </body>
 </html>

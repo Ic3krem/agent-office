@@ -1,0 +1,11 @@
+{
+  "placeholder": true,
+  "note": "SAMPLE DATA. These numbers are invented to test the page layout. They are not real downloads. A scheduled job replaces this file and sets placeholder to false.",
+  "asOf": "2026-11-04",
+  "total": 1234,
+  "unique": 987,
+  "countries": 5,
+  "byContinent": { "Europe": 640, "North America": 400, "Asia": 120, "South America": 44, "Oceania": 20, "Africa": 10 },
+  "byCountry": { "US": 380, "DE": 210, "GB": 160, "FR": 120, "CA": 60, "Other": 304 },
+  "other": 304
+}

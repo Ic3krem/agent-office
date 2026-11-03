@@ -1,98 +1,16 @@
-// Generates the site's HTML pages from the repo docs. Run: node site/tools/gen-docs.mjs
-// The output is committed; hosting needs no build step. Re-run after editing README.md, docs/*.md or CHANGELOG.md.
+// Generates every HTML page, the docs search index, llms.txt, per-page .md copies and the Atom releases feed.
+// Run: node site/tools/gen-docs.mjs. Output is committed; hosting needs no build step.
+// Re-run after editing README.md, docs/*.md, CHANGELOG.md, release.json, stats.json or config.json.
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { layout, esc, picture, release, config, SITE } from './layout.mjs';
+import { renderMd, slugify } from './md.mjs';
 import { homePage } from './home.mjs';
-import { downloadPage } from './download.mjs';
-import { layout, esc } from './layout.mjs';
+import { downloadPage, quickstartPage, statsPage, privacyPage } from './pages.mjs';
 
-const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = path.resolve(SITE, '..');
-const read = f => fs.readFileSync(path.join(REPO, f), 'utf8').replace(/\r\n/g, '\n');
-
-// ---------- markdown subset ----------
-const slugify = t => t.toLowerCase().replace(/<[^>]+>/g, '').replace(/[`*_]/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-
-function pngSize(rel) {
-  try {
-    const b = fs.readFileSync(path.join(SITE, rel));
-    if (b.readUInt32BE(12) === 0x49484452) return [b.readUInt32BE(16), b.readUInt32BE(20)];
-  } catch { /* none */ }
-  return null;
-}
-
-function inline(src, ctx) {
-  const codes = [];
-  let s = src.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
-  s = esc(s);
-  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, href) => {
-    const url = ctx.img(href);
-    const dim = pngSize(url.replace(/^(\.\.\/)+/, '')) ;
-    return `<img src="${url}" alt="${alt}"${dim ? ` width="${dim[0]}" height="${dim[1]}"` : ''} loading="lazy">`;
-  });
-  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, text, href) => {
-    const r = ctx.link(href.replace(/&amp;/g, '&'));
-    return r ? `<a href="${esc(r)}"${/^https:/.test(r) ? ' rel="noopener noreferrer"' : ''}>${text}</a>` : text;
-  });
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:]|$)/g, '$1<em>$2</em>');
-  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${esc(codes[+i])}</code>`);
-}
-
-function renderMd(md, ctx, { shift = 0 } = {}) {
-  const lines = md.split('\n');
-  const out = [], ids = [];
-  let i = 0;
-  const flushPara = para => { if (para.length) out.push(`<p>${inline(para.join(' '), ctx)}</p>`); };
-  while (i < lines.length) {
-    const l = lines[i];
-    if (!l.trim()) { i++; continue; }
-    let m;
-    if ((m = l.match(/^```(\w*)/))) {
-      const buf = []; i++;
-      while (i < lines.length && !lines[i].startsWith('```')) buf.push(lines[i++]);
-      i++;
-      out.push(`<pre tabindex="0"><code>${esc(buf.join('\n'))}</code></pre>`);
-      continue;
-    }
-    if ((m = l.match(/^(#{1,6})\s+(.*)$/))) {
-      const lvl = Math.min(6, Math.max(2, m[1].length + shift));
-      const id = slugify(m[2]); ids.push({ id, text: m[2].replace(/[`*]/g, ''), lvl });
-      out.push(`<h${lvl} id="${id}">${inline(m[2], ctx)}</h${lvl}>`); i++; continue;
-    }
-    if (/^---+\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
-    if (l.startsWith('>')) {
-      const buf = [];
-      while (i < lines.length && lines[i].startsWith('>')) buf.push(lines[i++].replace(/^>\s?/, ''));
-      out.push(`<blockquote>${renderMd(buf.join('\n'), ctx, { shift }).html}</blockquote>`); continue;
-    }
-    if (l.startsWith('|') && /^\|?\s*:?-{3,}/.test(lines[i + 1] || '')) {
-      const cells = r => r.replace(/^\||\|\s*$/g, '').split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
-      const head = cells(l); i += 2;
-      const rows = [];
-      while (i < lines.length && lines[i].startsWith('|')) rows.push(cells(lines[i++]));
-      out.push(`<div class="table-wrap" role="region" aria-label="${esc((head[0] || 'Table') + ' table')}" tabindex="0"><table><thead><tr>${head.map(c => `<th scope="col">${inline(c, ctx)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${inline(c, ctx)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
-      continue;
-    }
-    if (/^(\s*)([-*]|\d+\.)\s+/.test(l)) {
-      const ordered = /^\s*\d+\./.test(l);
-      const items = [];
-      while (i < lines.length && (/^([-*]|\d+\.)\s+/.test(lines[i]) || (/^\s{2,}\S/.test(lines[i]) && items.length))) {
-        if (/^([-*]|\d+\.)\s+/.test(lines[i])) items.push(lines[i].replace(/^([-*]|\d+\.)\s+/, ''));
-        else items[items.length - 1] += ' ' + lines[i].trim();
-        i++;
-        // a blank line followed by a code fence belongs to the list item in the source; keep it simple and end the list
-      }
-      out.push(`<${ordered ? 'ol' : 'ul'}>${items.map(t => `<li>${inline(t, ctx)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`);
-      continue;
-    }
-    const para = [];
-    while (i < lines.length && lines[i].trim() && !/^(```|#{1,6}\s|>|\||---+\s*$|([-*]|\d+\.)\s)/.test(lines[i])) para.push(lines[i++]);
-    if (!para.length) { para.push(lines[i++]); }
-    flushPara(para);
-  }
-  return { html: out.join('\n'), ids };
-}
+const read = f => fs.readFileSync(path.join(REPO, f), 'utf8').replace(/\r\n/g, '\n').replace(/\bKiro\b/g, 'Tiro');
+const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(SITE, rel)), { recursive: true }); fs.writeFileSync(path.join(SITE, rel), text); };
 
 // ---------- section slicing ----------
 function section(md, h2, { keepHeading = false } = {}) {
@@ -101,111 +19,242 @@ function section(md, h2, { keepHeading = false } = {}) {
   if (start < 0) throw new Error('missing section: ' + h2);
   let end = lines.findIndex((l, k) => k > start && /^## /.test(l));
   if (end < 0) end = lines.length;
-  const body = lines.slice(keepHeading ? start : start + 1, end).join('\n');
-  return { md: body, shift: keepHeading ? 0 : -1 };
+  return { md: lines.slice(keepHeading ? start : start + 1, end).join('\n'), shift: keepHeading ? 0 : -1 };
 }
 const body = md => ({ md: md.replace(/^# .*\n+/, ''), shift: 0 });
-
-const GUARD = read('docs/security-guard.md').split(/\n## For maintainers/)[0];
-const README = read('README.md'), GUIDE = read('docs/GUIDE.md'), PERM = read('docs/permissions.md'),
-  SCHED = read('docs/scheduler.md'), AGENTS = read('docs/agents-and-memory.md'), CHANGELOG = read('CHANGELOG.md');
-
+const hand = md => ({ md, shift: 0 });
 const edit = (md, pairs) => pairs.reduce((s, [a, b]) => { if (typeof a === 'string' && !s.includes(a)) throw new Error('edit target missing: ' + a); return s.replace(a, b); }, md);
+
+const README = read('README.md'), GUIDE = read('docs/GUIDE.md'), PERM = read('docs/permissions.md'), SCHED = read('docs/scheduler.md'),
+  AGENTS = read('docs/agents-and-memory.md'), CHANGELOG = read('CHANGELOG.md');
+const GUARD = read('docs/security-guard.md').split(/\n## For maintainers/)[0];
 
 const installMd = edit(section(README, 'Install').md, [
   ['Windows 10 or later, macOS, or Linux.', 'Windows 10 or later. macOS and Linux builds are not published yet.'],
   [" The macOS script clears Gatekeeper's quarantine flag for you.", ''],
 ]);
+const breakerLine = (GUIDE.match(/^- \*\*Breaker box switches:\*\*.*$/m) || [''])[0].replace(/^- /, '');
+if (!breakerLine) throw new Error('breaker box line not found in GUIDE.md');
 
+const requirementsMd = `Agent Office needs:
 
-// ---------- pages ----------
-const PAGES = [
-  { slug: 'install', title: 'Install', lead: 'Install Agent Office on Windows with the installer or a one-line script.', src: [{ md: installMd, shift: -1 }] },
-  { slug: 'update', title: 'Update', lead: 'Check for and install a new version from the island.', src: [section(README, 'Update')] },
-  { slug: 'uninstall', title: 'Uninstall', lead: 'Remove the app and decide what to do with your data.', src: [section(README, 'Uninstall')] },
-  { slug: 'configuration', title: 'Configuration', lead: 'Preferences, environment variables, the scheduler job and the terminal bridge.', src: [section(README, 'Configuration'), section(GUIDE, 'Settings files', { keepHeading: true })] },
-  { slug: 'permissions', title: 'Permissions and Claude Code parity', lead: 'Agent Office runs on your own Claude Code configuration. What is the same, what differs and what reaches you.', src: [body(PERM)] },
-  { slug: 'security', title: 'Security', lead: 'How the local server, the windows, installs and approvals are protected.', src: [section(README, 'Security model', { keepHeading: true }), section(GUIDE, 'Security notes', { keepHeading: true })] },
-  { slug: 'security-guard', title: 'Security Guard', lead: 'An ask-only safety net for secrets, downloaded scripts and untrusted instructions.', src: [body(GUARD)] },
-  { slug: 'scheduler', title: 'Scheduler', lead: 'The scheduler station, the job and the inbox feed file.', src: [body(SCHED)] },
-  { slug: 'agents-and-memory', title: 'Agents and memory', lead: 'The team, the hiring gate and per-agent memory and history.', src: [body(AGENTS)] },
-  { slug: 'troubleshooting', title: 'Troubleshooting and FAQ', lead: 'Common problems and short answers.', src: [section(GUIDE, 'Troubleshooting', { keepHeading: true }), section(GUIDE, 'FAQ', { keepHeading: true })] },
-  { slug: 'guide', title: 'Full user guide', lead: 'Every panel, the island, the tray, settings files and the API table.', src: [body(GUIDE)] },
+- **Windows 10 or later.** macOS and Linux builds are not published yet.
+- **Claude Code** installed and logged in (run \`claude\` once). Agent Office uses your own Claude Code install and plan.
+- Disk space for the installer (about ${(release.size / 1048576).toFixed(0)} MB) and your notes and reports.
+
+Nothing else is required. The office uses no tokens. Models only run while an agent works, through your own Claude Code plan.
+
+The build is **not code-signed**, so Windows may show a SmartScreen warning, and Windows 11 Smart App Control may block it. See [Troubleshooting](troubleshooting.html#smartscreen-and-smart-app-control).`;
+
+const smartAppMd = `## SmartScreen and Smart App Control
+
+The installer is not code-signed. Compare its SHA-256 with the one on the [download page](site:download.html#verify) before you run it.
+
+- **SmartScreen** may show "Windows protected your PC". If the SHA-256 matches, choose **More info**, then **Run anyway**.
+- **Smart App Control (Windows 11)** can block an unsigned installer and offer no Run anyway option. It is a Windows setting under Windows Security, App and browser control, Smart App Control settings. Turning it off can be permanent on some Windows 11 versions, so decide deliberately. If you cannot accept that, do not install the unsigned build.
+`;
+
+const breakerMd = `The breaker box in the office holds hard switches. They are real: they gate what Tiro can do.
+
+${breakerLine}
+
+Switches are stored in \`~/.claude/agent-office/switches.json\`. See [Configuration](configuration.html) and [Hiring and approvals](approvals.html).`;
+
+// ---------- information architecture ----------
+const GROUPS = [
+  { name: 'Get started', pages: [
+    { slug: 'requirements', title: 'Requirements', lead: 'What you need before installing.', src: [hand(requirementsMd)] },
+    { slug: 'install', title: 'Install and verify', lead: 'Install Agent Office on Windows and check the download.', src: [{ md: installMd, shift: -1 }] },
+    { slug: 'first-task', title: 'First task with Tiro', lead: 'Open the office and give Tiro its first goal.', src: [section(GUIDE, 'Starting', { keepHeading: true }), section(GUIDE, 'Giving work', { keepHeading: true })] },
+    { slug: 'update', title: 'Update', lead: 'Check for and install a new version from the island.', src: [section(README, 'Update')] },
+    { slug: 'uninstall', title: 'Uninstall', lead: 'Remove the app and decide what to do with your data.', src: [section(README, 'Uninstall')] },
+  ] },
+  { name: 'Using the office', pages: [
+    { slug: 'office', title: 'The dashboard and the office', lead: 'The panels, the world, the objects and the agent history.', src: [section(GUIDE, 'The dashboard', { keepHeading: true }), section(GUIDE, 'The office', { keepHeading: true }), section(GUIDE, 'Agent history', { keepHeading: true })] },
+    { slug: 'approvals', title: 'Hiring and approvals', lead: 'The strict hiring gate and Claude Code tool approvals.', src: [section(GUIDE, 'Approvals')] },
+    { slug: 'team', title: 'The team', lead: 'Eight specialists, renaming and SOPs.', src: [section(GUIDE, 'The team')] },
+    { slug: 'agents-and-memory', title: 'Agents and memory', lead: 'The team, the hiring gate and per-agent memory and history.', src: [body(AGENTS)] },
+    { slug: 'goals-and-reports', title: 'Goals, reports and the vault', lead: 'The Today board, reports with PDF and Excel export, and the memory corkboard.', src: [section(GUIDE, 'Goals, Today and Reports')] },
+    { slug: 'island', title: 'The island, Tiro and the tray', lead: 'The notch-style overlay, the desktop character, the tray menu and keyboard use.', src: [section(GUIDE, 'The island', { keepHeading: true }), section(GUIDE, 'Tiro on your desktop', { keepHeading: true }), section(GUIDE, 'Tray', { keepHeading: true }), section(GUIDE, 'Keyboard and accessibility', { keepHeading: true })] },
+    { slug: 'scheduler', title: 'Scheduler', lead: 'The scheduler station, the job and the inbox feed file.', src: [body(SCHED)] },
+  ] },
+  { name: 'Safety', pages: [
+    { slug: 'permissions', title: 'Permissions and Claude Code parity', lead: 'Agent Office runs on your own Claude Code configuration. What is the same, what differs and what reaches you.', src: [body(PERM)] },
+    { slug: 'security', title: 'Security model', lead: 'How the local server, the windows, installs and approvals are protected.', src: [section(README, 'Security model', { keepHeading: true }), section(GUIDE, 'Security notes', { keepHeading: true })] },
+    { slug: 'security-guard', title: 'Security Guard', lead: 'An ask-only safety net for secrets, downloaded scripts and untrusted instructions.', src: [body(GUARD)] },
+    { slug: 'breaker-box', title: 'Breaker box and subscription guard', lead: 'Hard switches, and the guard that stops at your plan limit.', src: [hand(breakerMd)] },
+  ] },
+  { name: 'Reference', pages: [
+    { slug: 'configuration', title: 'Configuration', lead: 'Preferences, environment variables, settings files, the scheduler job and the terminal bridge.', src: [section(README, 'Configuration'), section(GUIDE, 'Settings files', { keepHeading: true })] },
+    { slug: 'troubleshooting', title: 'Troubleshooting', lead: 'Windows warnings and common problems.', src: [hand(smartAppMd), section(GUIDE, 'Troubleshooting', { keepHeading: true })] },
+    { slug: 'faq', title: 'FAQ', lead: 'Short answers.', src: [section(GUIDE, 'FAQ')] },
+    { slug: 'api', title: 'API reference', lead: 'The local HTTP API the dashboard and island use.', src: [section(GUIDE, 'API reference')] },
+    { slug: 'guide', title: 'Full user guide', lead: 'Every panel, the island, the tray, settings files and the API table.', src: [body(GUIDE)] },
+  ] },
 ];
-const TITLES = Object.fromEntries(PAGES.map(p => [p.slug, p.title]));
+const PAGES = GROUPS.flatMap(g => g.pages.map(p => ({ ...p, group: g.name })));
+const ORDER = [{ slug: 'index', title: 'Overview', href: 'index.html' }, ...PAGES.map(p => ({ slug: p.slug, title: p.title, href: p.slug + '.html' }))];
+
 const README_ANCHOR = { install: 'install', update: 'update', uninstall: 'uninstall', configuration: 'configuration', 'security-model': 'security' };
-const FILE_PAGE = { 'permissions.md': 'permissions', 'scheduler.md': 'scheduler', 'agents-and-memory.md': 'agents-and-memory', 'GUIDE.md': 'guide' };
+const FILE_PAGE = { 'permissions.md': 'permissions', 'scheduler.md': 'scheduler', 'agents-and-memory.md': 'agents-and-memory', 'GUIDE.md': 'guide', 'security-guard.md': 'security-guard' };
+const ALL_SLUGS = new Set(PAGES.map(p => p.slug));
 
 function makeCtx(page, anchorMap, root) {
   return {
-    img(href) { return root + 'assets/img/' + href.split('/').pop(); },
+    titleOf(n) { const f = { 'permissions': 'permissions', 'scheduler': 'scheduler', 'agents-and-memory': 'agents-and-memory', 'GUIDE': 'guide', 'security-guard': 'security-guard' }[n]; const q = PAGES.find(x => x.slug === f); return q ? q.title : null; },
+    picture(href, alt) { return picture(root, href.split('/').pop(), alt, { sizes: '(min-width: 1200px) 760px, 100vw' }); },
     link(href) {
       if (href.startsWith('site:')) return root + href.slice(5);
-      if (/^https?:/.test(href)) return /^https:\/\/claude\.com\//.test(href) ? href : null; // repo is private: no GitHub links
+      if (/^https?:/.test(href)) return /^https:\/\/claude\.com\//.test(href) ? href : null; // GitHub links are plain text
       const [file, hash = ''] = href.split('#');
       const base = file.split('/').pop();
       let slug = null;
-      if (!file) slug = anchorMap.get(hash) && (anchorMap.get(hash).has(page.slug) ? page.slug : [...anchorMap.get(hash)][0]);
+      if (!file) { const set = anchorMap.get(hash); slug = set && (set.has(page.slug) ? page.slug : [...set][0]); }
       else if (base === 'README.md') slug = hash ? README_ANCHOR[hash] : null;
       else if (FILE_PAGE[base]) slug = FILE_PAGE[base];
       else if (base === 'CHANGELOG.md') return root + 'changelog.html';
+      else if (base.endsWith('.html') && ALL_SLUGS.has(base.slice(0, -5))) slug = base.slice(0, -5);
       if (!slug) return null;
       if (hash && anchorMap.size && !(anchorMap.get(hash) || new Set()).has(slug)) return slug === page.slug ? null : slug + '.html';
       return (slug === page.slug ? '' : slug + '.html') + (hash ? '#' + hash : '');
     },
   };
 }
-
 function build(page, anchorMap) {
   const ctx = makeCtx(page, anchorMap, '../');
   const parts = page.src.map(s => renderMd(s.md, ctx, { shift: s.shift }));
   return { html: parts.map(p => p.html).join('\n'), ids: parts.flatMap(p => p.ids) };
 }
 
-// pass 1 collects anchors, pass 2 resolves links
 const anchorMap = new Map();
 for (const p of PAGES) for (const h of build(p, new Map()).ids) { if (!anchorMap.has(h.id)) anchorMap.set(h.id, new Set()); anchorMap.get(h.id).add(p.slug); }
 
-const write = (rel, html) => fs.writeFileSync(path.join(SITE, rel), html);
-
-for (const p of PAGES) {
-  const { html, ids } = build(p, anchorMap);
-  const toc = ids.filter(h => h.lvl === 2);
-  const tocHtml = toc.length > 2 ? `<nav class="toc" aria-label="On this page"><h2>On this page</h2><ul>${toc.map(h => `<li><a href="#${h.id}">${esc(h.text)}</a></li>`).join('')}</ul></nav>` : '';
-  write(`docs/${p.slug}.html`, layout({
-    root: '../', file: `docs/${p.slug}.html`, title: p.title + ' - Agent Office docs', desc: p.lead, nav: 'docs',
-    main: `<div class="wrap docs-layout">${sidebar(p.slug)}<main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / ${esc(p.title)}</p><h1>${esc(p.title)}</h1><p class="lead">${esc(p.lead)}</p>${tocHtml}${html}</main></div>`,
-  }));
-}
+// ---------- helpers ----------
+const plain = html => html.replace(/<pre[\s\S]*?<\/pre>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const searchIndex = [];
+const stamp = `Written for v${release.version} &middot; updated ${esc(release.date)}`;
 
 function sidebar(current) {
   const item = (href, label, slug) => `<li><a href="${href}"${slug === current ? ' aria-current="page"' : ''}>${esc(label)}</a></li>`;
-  return `<aside class="docs-side" aria-label="Documentation"><h2>Docs</h2><ul>${item('index.html', 'Overview', 'index')}${PAGES.map(p => item(p.slug + '.html', p.title, p.slug)).join('')}<li><a href="../changelog.html">Changelog</a></li><li><a href="../download.html">Download</a></li></ul></aside>`;
+  return `<aside class="docs-side" aria-label="Documentation">
+<div role="search" class="doc-search"><label for="doc-search">Search the docs</label><input id="doc-search" type="search" autocomplete="off" placeholder="Search"><p id="doc-search-status" class="meta" role="status" aria-live="polite"></p><ul id="doc-results"></ul></div>
+<nav aria-label="Docs sections"><ul class="top">${item('index.html', 'Overview', 'index')}</ul>${GROUPS.map(g => `<h2>${esc(g.name)}</h2><ul>${g.pages.map(p => item(p.slug + '.html', p.title, p.slug)).join('')}${g.name === 'Reference' ? '<li><a href="../changelog.html">Changelog</a></li>' : ''}</ul>`).join('')}</nav>
+</aside>`;
+}
+
+function docPage(slug, title, lead, htmlBody, tocItems, group) {
+  const i = ORDER.findIndex(o => o.slug === slug);
+  const prev = ORDER[i - 1], next = ORDER[i + 1];
+  const toc = tocItems.filter(h => h.lvl === 2);
+  const tocHtml = toc.length > 1 ? `<nav class="page-toc" aria-label="On this page"><h2>On this page</h2><ul>${toc.map(h => `<li><a href="#${h.id}">${esc(h.text)}</a></li>`).join('')}</ul></nav>` : '';
+  const pn = `<nav class="prev-next" aria-label="Previous and next page">${prev ? `<a class="prev" href="${prev.href}"><span>Previous</span>${esc(prev.title)}</a>` : '<span></span>'}${next ? `<a class="next" href="${next.href}"><span>Next</span>${esc(next.title)}</a>` : '<span></span>'}</nav>`;
+  return layout({
+    root: '../', title: (slug === 'index' ? 'Documentation' : title) + ' - Agent Office docs', desc: lead, nav: 'docs', scripts: ['search.js'],
+    main: `<div class="wrap docs-layout">${sidebar(slug)}<main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a>${group ? ' / ' + esc(group) : ''}${slug === 'index' ? '' : ' / ' + esc(title)}</p><h1>${esc(title)}</h1><p class="lead">${esc(lead)}</p><p class="meta">${stamp}</p>${htmlBody}${slug === 'index' ? '' : pn}</main>${tocHtml}</div>`,
+  });
+}
+
+const mdCopy = (p, srcs) => `# ${p.title}\n\n${p.lead}\n\n(Agent Office v${release.version}, ${release.date})\n\n` + srcs.map(s => s.md.replace(/!\[[^\]]*\]\([^)]*\)\n?/g, '').replace(/\[([^\]]+)\]\((?!https?:)[^)]*\)/g, '$1').replace(/\[([^\]]+)\]\(https:\/\/github\.com[^)]*\)/g, '$1')).join('\n\n') + '\n';
+
+for (const p of PAGES) {
+  const { html, ids } = build(p, anchorMap);
+  write(`docs/${p.slug}.html`, docPage(p.slug, p.title, p.lead, html, ids, p.group));
+  write(`docs/${p.slug}.md`, mdCopy(p, p.src));
+  // search index: one entry per h2 section
+  const chunks = html.split(/(?=<h2 id=")/);
+  chunks.forEach((c, k) => {
+    const m = c.match(/^<h2 id="([^"]+)">(.*?)<\/h2>/);
+    const text = plain(c).slice(0, 600);
+    if (!text) return;
+    searchIndex.push({ t: m ? `${p.title}: ${plain(m[2])}` : p.title, u: `docs/${p.slug}.html${m ? '#' + m[1] : ''}`, x: text });
+  });
 }
 
 // docs hub
-const hubBlurb = {
-  install: 'Installer, one-line script and the SmartScreen note.', update: 'Update feed, verification and one-click install.', uninstall: 'Remove the app, keep or delete your data.',
-  configuration: 'kiro.json, environment variables, settings files, bridge.', permissions: 'Same settings as plain Claude Code, and what is different.', security: 'Local-only server, CSP, hardened windows, verified installs.', 'security-guard': 'What the Guard asks about, the prompts you will see, settings and limits.',
-  scheduler: 'Inbox feed, classification, status panel.', 'agents-and-memory': 'Eight specialists, hire approvals, memory and history.', troubleshooting: 'Fixes for the usual problems, plus the FAQ.', guide: 'The complete walkthrough, including the API table.',
-};
-write('docs/index.html', layout({
-  root: '../', file: 'docs/index.html', title: 'Documentation - Agent Office', desc: 'Install, update, configure and understand Agent Office.', nav: 'docs',
-  main: `<div class="wrap docs-layout">${sidebar('index')}<main id="main" class="doc"><h1>Documentation</h1><p class="lead">Guides for Agent Office, generated from the project documentation. The pages describe the current release line and name only what the product does today.</p><div class="doc-grid">${PAGES.map(p => `<a class="card" href="${p.slug}.html"><h3>${esc(p.title)}</h3><p>${esc(hubBlurb[p.slug])}</p></a>`).join('')}<a class="card" href="../changelog.html"><h3>Changelog</h3><p>What changed, version by version.</p></a></div></main></div>`,
-}));
-
-// changelog
 {
-  const ctx = { img: h => h, link: h => (/^https:\/\/claude\.com\//.test(h) ? h : null) };
-  const md = CHANGELOG.replace(/^# .*\n+/, '').replace(/`docs\/permissions\.md`/g, '[permissions](docs/permissions.html)');
-  const ctx2 = { ...ctx, link: h => (h.startsWith('docs/') ? h : ctx.link(h)) };
-  const { html } = renderMd(md, ctx2);
-  write('changelog.html', layout({
-    root: '', file: 'changelog.html', title: 'Changelog - Agent Office', desc: 'What changed in each Agent Office version.', nav: 'changelog',
-    main: `<div class="wrap"><main id="main" class="doc changelog"><h1>Changelog</h1>${html}</main></div>`,
-  }));
+  const start = [['quickstart', 'Quickstart', 'Install and finish your first task in ten minutes.', '../quickstart.html'], ['install', 'Install and verify', 'Installer, SHA-256 check and the Windows warnings.', 'install.html'], ['approvals', 'Hiring and approvals', 'How Tiro asks before it hires.', 'approvals.html'], ['troubleshooting', 'Troubleshooting', 'SmartScreen, Smart App Control and common fixes.', 'troubleshooting.html']];
+  const html = `<h2>Start here</h2><div class="doc-grid">${start.map(([, t, d, h]) => `<a class="card" href="${h}"><h3>${esc(t)}</h3><p>${esc(d)}</p></a>`).join('')}</div>${GROUPS.map(g => `<h2>${esc(g.name)}</h2><ul class="hub-list">${g.pages.map(p => `<li><a href="${p.slug}.html">${esc(p.title)}</a> <span class="meta">${esc(p.lead)}</span></li>`).join('')}${g.name === 'Reference' ? '<li><a href="../changelog.html">Changelog</a> <span class="meta">What changed, version by version.</span></li>' : ''}</ul>`).join('')}`;
+  write('docs/index.html', docPage('index', 'Documentation', 'Guides for Agent Office, generated from the project documentation.', html, [], ''));
+  searchIndex.push({ t: 'Documentation', u: 'docs/index.html', x: 'Guides for Agent Office: get started, using the office, safety and reference.' });
 }
 
+// changelog
+const clMd = CHANGELOG.replace(/^# .*\n+/, '').replace(/`docs\/permissions\.md`/g, '[permissions](docs/permissions.html)').replace(/`docs\/security-guard\.md`/g, '[Security Guard](docs/security-guard.html)');
+{
+  const ctx = { picture: (h, a) => '', link: h => (h.startsWith('docs/') || /^https:\/\/claude\.com\//.test(h) ? h : null) };
+  const { html, ids } = renderMd(clMd, ctx);
+  write('changelog.html', layout({
+    root: '', title: 'Changelog - Agent Office', desc: 'What changed in each Agent Office version.', nav: 'changelog',
+    main: `<div class="wrap"><main id="main" class="doc changelog"><h1>Changelog</h1><p class="meta">Subscribe with the <a href="releases.xml">Atom feed</a>.</p>${html}</main></div>`,
+  }));
+  searchIndex.push({ t: 'Changelog', u: 'changelog.html', x: plain(html).slice(0, 600) });
+}
+
+// root pages
 write('index.html', homePage());
 write('download.html', downloadPage());
-console.log('generated', PAGES.length + 4, 'pages');
+write('quickstart.html', quickstartPage());
+write('stats.html', statsPage());
+write('privacy.html', privacyPage());
+searchIndex.push({ t: 'Quickstart', u: 'quickstart.html', x: 'Install Claude Code, download and verify, install, give Tiro a task, approve the hire, read the report.' });
+write('search-index.json', JSON.stringify(searchIndex));
+
+// llms.txt
+{
+  const b = config.baseUrl.replace(/\/?$/, '/');
+  write('llms.txt', `# Agent Office
+
+> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v${release.version}); macOS and Linux are not published yet. Builds are not code-signed. Proprietary licence, all rights reserved.
+
+## Start
+
+- [Quickstart](${b}quickstart.html): install and finish a first task
+- [Download](${b}download.html): installer, SHA-256 and Windows warnings
+- [Changelog](${b}changelog.html): what changed in each version
+
+## Docs (Markdown copies)
+
+${GROUPS.map(g => `### ${g.name}\n\n${g.pages.map(p => `- [${p.title}](${b}docs/${p.slug}.md): ${p.lead}`).join('\n')}`).join('\n\n')}
+
+## Optional
+
+- [Releases feed](${b}releases.xml)
+- [Privacy](${b}privacy.html)
+- [Download statistics](${b}stats.html)
+`);
+}
+
+// Atom feed from CHANGELOG
+{
+  const b = config.baseUrl.replace(/\/?$/, '/');
+  const entries = [];
+  const parts = clMd.split(/^## /m).slice(1);
+  for (const part of parts) {
+    const head = part.split('\n')[0];
+    const m = head.match(/^(\d+\.\d+\.\d+)\s+\((\d{4}-\d{2}-\d{2})\)/);
+    if (!m) continue;
+    const rest = part.split('\n').slice(1).join('\n');
+    const firstPara = (rest.trim().split(/\n\n/)[0] || '').replace(/\*\*|`/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+    entries.push({ v: m[1], d: m[2], id: slugify(head), s: firstPara });
+  }
+  const x = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const updated = entries.length ? entries[0].d : release.date;
+  write('releases.xml', `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<title>Agent Office releases</title>
+<subtitle>New versions of Agent Office, from the changelog.</subtitle>
+<link href="${b}releases.xml" rel="self" type="application/atom+xml"/>
+<link href="${b}changelog.html" rel="alternate" type="text/html"/>
+<id>${b}</id>
+<updated>${updated}T00:00:00Z</updated>
+${entries.map(e => `<entry>
+<title>Agent Office ${e.v}</title>
+<link href="${b}changelog.html#${e.id}"/>
+<id>${b}changelog.html#${e.id}</id>
+<updated>${e.d}T00:00:00Z</updated>
+<summary>${x(e.s)}</summary>
+</entry>`).join('\n')}
+</feed>
+`);
+}
+console.log('generated', PAGES.length + 1 + 5, 'html pages;', searchIndex.length, 'search entries');

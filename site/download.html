@@ -10,6 +10,7 @@
 <title>Download - Agent Office</title>
 <meta name="description" content="Download the Agent Office Windows installer, check its SHA-256 and follow the install steps.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/atom+xml" title="Agent Office releases" href="releases.xml">
 <link rel="stylesheet" href="assets/fonts/fonts.css">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -19,10 +20,10 @@
 <div class="wrap">
 <a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
 <nav class="site-nav" aria-label="Main">
-<a href="index.html">Home</a>
-<a href="index.html#features">Features</a>
+<a href="quickstart.html">Quickstart</a>
 <a href="docs/index.html">Docs</a>
 <a href="changelog.html">Changelog</a>
+<a href="stats.html">Stats</a>
 <a href="download.html" aria-current="page" class="nav-cta">Download</a>
 </nav>
 </div>
@@ -33,63 +34,63 @@
 <p class="lead">The Windows installer. macOS and Linux builds are not published yet.</p>
 
 <div class="dl-card">
-<a id="dl-button" class="btn big" href="#install-steps" aria-disabled="true"><span id="dl-label">Download for Windows</span></a>
-<p id="dl-spots" class="spots" hidden></p>
-<p id="dl-status" class="status" role="status">Loading release information.</p>
-<noscript><p class="notice">JavaScript is off, so the version and checksum cannot be shown here. Use the install guide for the SHA-256 check.</p></noscript>
+<p><span class="badge">Latest</span> <span class="meta">v<span data-fill="version">1.2.8</span> &middot; <span data-fill="date">2026-11-04</span></span></p>
+<div class="cta-row"><a id="dl-button" class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v1.2.8/Agent-Office-Setup-1.2.8.exe" data-dl-link download="Agent-Office-Setup-1.2.8.exe"><span id="dl-label">Download for Windows</span></a><div class="mascot mascot-work" role="img" aria-label="Tiro with a headset, working"></div></div>
+<p id="os-note" class="notice compact" hidden></p>
+<p><button type="button" class="btn-small" id="copy-page" hidden>Copy this page's link</button></p>
+<p id="dl-status" class="status" role="status" aria-live="polite"></p>
 <dl class="dl-meta">
-<dt>Version</dt><dd data-fill="version">-</dd>
-<dt>File</dt><dd><code data-fill="asset">-</code></dd>
-<dt>Released</dt><dd id="dl-date">-</dd>
-<dt>Size</dt><dd id="dl-size">-</dd>
-<dt>SHA-256</dt><dd><div class="hash-row"><div class="hash" id="dl-sha" tabindex="0">-</div><button type="button" class="btn-small" id="dl-copy" hidden>Copy</button></div></dd>
+<dt>File</dt><dd><code data-fill="asset">Agent-Office-Setup-1.2.8.exe</code></dd>
+<dt>Size</dt><dd data-fill="size">106.0 MB</dd>
+<dt>Requires</dt><dd>Windows 10 or later, and Claude Code installed and logged in</dd>
+<dt>SHA-256</dt><dd><div class="hash-row"><div class="hash" id="dl-sha" tabindex="0" data-fill="sha">d101594d116e0e7e133aa03a84d0faa3cbc9111c9a03fde41a297febf3f5eb7b</div><button type="button" class="btn-small" data-copy-sha>Copy</button></div></dd>
 </dl>
-<p id="dl-notes" class="meta"></p>
+<p class="meta" data-fill="notes">Licence, privacy and Security Guard release. Windows installer, not code-signed.</p>
+<p class="meta"><a data-release-link href="https://github.com/Ic3krem/agent-office/releases/tag/v1.2.8">Release page on GitHub</a> &middot; <a href="changelog.html">Changelog</a></p>
 </div>
 
-<div id="dl-closed" class="notice" hidden><p><strong>Early access is full.</strong> All of the early-access spots have been taken, or downloads are closed for now. The installer is not available from this page at the moment. There is no sign-up list here: check this page again later.</p></div>
+<details id="dl-previous" class="faq-like" hidden><summary>Previous versions</summary><ul></ul></details>
 
-<div id="privacy" class="privacy">
-<h2>Privacy: what a download records</h2>
-<p>This site has no cookies, no analytics and no trackers. Pressing the download button goes through a small counter that records only: your <strong>country</strong> (and continent), the <strong>date</strong> (UTC), the <strong>app version</strong>, and your <strong>browser family</strong> (for example Chrome or Firefox). To count each person once it keeps a keyed, one-way hash made from your network address. <strong>Your IP address itself is not stored or logged</strong>, and neither is your full browser string. The numbers are used to count early-access downloads by region and to enforce the limit of <span data-fill="cap">500</span> early-access downloads. Because a hash made from an IP address can still count as personal data in some countries, it is kept only for that purpose. If you would rather not be counted, do not use the download button.</p>
-</div>
+<h2 id="verify">Verify the download</h2>
+<p>Open PowerShell in the folder where you saved the installer and run:</p>
+<pre tabindex="0"><code data-fill="verify">Get-FileHash .\Agent-Office-Setup-1.2.8.exe -Algorithm SHA256</code></pre>
+<p>The result must equal the SHA-256 above, letter for letter. If it does not, delete the file and do not run it.</p>
 
-<div class="notice"><p><strong>Windows SmartScreen.</strong> The build is not code-signed, so Windows may show "Windows protected your PC". Check the SHA-256 below first. If it matches, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p></div>
+<h2 id="smartscreen">Windows warnings</h2>
+<p>The installer is <strong>not code-signed</strong>, so Windows may warn you. That is expected for an unsigned build. Check the SHA-256 first.</p>
+<div class="notice"><p><strong>SmartScreen.</strong> You may see "Windows protected your PC". If the SHA-256 matches, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p></div>
+<div class="notice"><p><strong>Windows 11 Smart App Control.</strong> If Smart App Control is on, Windows may block an unsigned installer with no Run anyway option. You can look at the setting in Windows Security under App and browser control, Smart App Control settings. Turning it off can be permanent on some Windows 11 versions, so decide deliberately. If you cannot accept that, do not install the unsigned build. See also <a href="docs/troubleshooting.html">Troubleshooting</a>.</p></div>
 
-<div class="two-col">
-<div>
 <h2 id="install-steps">Install steps</h2>
 <ol class="dl-steps">
 <li>Install <a href="https://claude.com/claude-code" rel="noopener noreferrer">Claude Code</a> and run <code>claude</code> once to log in. Agent Office uses your own install and plan.</li>
 <li>Download the installer with the button above.</li>
-<li>Verify it. In PowerShell, from the folder you saved it in, run <code id="dl-verify">Get-FileHash .\Agent-Office-Setup-VERSION.exe -Algorithm SHA256</code> and compare the result with the SHA-256 shown above.</li>
+<li>Verify its SHA-256 as shown above.</li>
 <li>Run the installer. It is a normal setup wizard where you pick the folder, and it adds a Start menu entry and a desktop shortcut.</li>
-<li>Open Agent Office from the shortcut. Double-click Tiro, or use the tray menu and choose Open office.</li>
+<li>Open Agent Office from the shortcut. Double-click Tiro, or use the tray menu and choose Open office. Then follow the <a href="quickstart.html">quickstart</a>.</li>
 </ol>
-<p>Requirements: Windows 10 or later, and Claude Code installed and logged in.</p>
-</div>
-<div>
-<h2>How it is distributed</h2>
-<p>While the source repository is private, a release page may need access you do not have. Installers sent to you directly can be checked with the SHA-256 shown above. The in-app updater and the install scripts verify an Ed25519 signature on the release manifest as well as the installer's SHA-256, and stop if either check fails. See <a href="docs/install.html">Install</a> and <a href="docs/update.html">Update</a>.</p>
-<h3>macOS and Linux</h3>
-<p>Not available yet: macOS and Linux builds are not published.</p>
-</div>
-</div>
 
-<h2>After installing</h2>
-<p>Read the <a href="docs/install.html">install guide</a>, then the <a href="docs/guide.html">user guide</a>. To update later, open the island's Settings tab and use Updates, see <a href="docs/update.html">Update</a>. To remove the app, see <a href="docs/uninstall.html">Uninstall</a>.</p>
+<h2 id="platforms">Other platforms</h2>
+<div class="grid">
+<div class="card muted"><h3>macOS</h3><p>Coming soon. No build is published yet.</p></div>
+<div class="card muted"><h3>Linux</h3><p>Coming soon. No build is published yet.</p></div>
+</div>
+<p>To hear about new releases, subscribe to the <a href="releases.xml">releases feed (Atom)</a> or use Watch, then Releases, on the GitHub repository.</p>
+<p>The updater and the install scripts verify an Ed25519 signature on the release manifest as well as the installer's SHA-256. See <a href="docs/install.html">Install and verify</a>, <a href="docs/update.html">Update</a> and <a href="docs/uninstall.html">Uninstall</a>.</p>
 </div>
 </main>
 <footer class="site-footer">
 <div class="wrap">
 <div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
-<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="docs/install.html">Install guide</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="index.html#licence">Licence</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="docs/guide.html">User guide</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
+<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="quickstart.html">Quickstart</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="releases.xml">Releases feed (Atom)</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="docs/index.html">Documentation</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
+<div><h2>Legal</h2><ul><li><a href="index.html#licence">Licence: proprietary</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="stats.html">Download statistics</a></li></ul></div>
 </div>
-<small><a href="index.html#licence">Proprietary software, all rights reserved</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
 </div>
 </footer>
-<script src="assets/download.js"></script>
+<script src="assets/common.js" defer></script>
+<script src="assets/release.js" defer></script>
 </body>
 </html>

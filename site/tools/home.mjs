@@ -1,4 +1,7 @@
-import { layout, esc } from './layout.mjs';
+import { layout, esc, picture, release } from './layout.mjs';
+
+export const fmtSize = n => (typeof n === 'number' && n > 0 ? (n / 1048576).toFixed(1) + ' MB' : '-');
+export const shortSha = s => (/^[0-9a-f]{64}$/.test(s) ? s.slice(0, 8) + '…' + s.slice(-8) : 'not published');
 
 const team = [
   ['Pixel', 'Frontend engineer', 'sonnet', 'read, web, Bash, Edit, Write'],
@@ -11,39 +14,22 @@ const team = [
   ['Scribe', 'SOP and document writer', 'sonnet', 'read, web, Edit, Write'],
 ];
 
-const features = [
-  ['Zero office tokens', 'Every piece of furniture reads files, switches and system data directly. Models run only while an agent works, through your own Claude Code install and plan.'],
-  ['Strict hiring approvals', 'Tiro cannot hire on its own. Every hire needs your one-shot approval, tied to the goal and the first prompt, and it expires after 10 minutes.'],
-  ['Your Claude Code, unchanged', 'Same settings, permissions, hooks, MCP servers, CLAUDE.md, skills and plugins as a plain claude run. Agent Office adds no approval rules of its own.'],
-  ['Renamable team', 'Give Tiro and each specialist a display name. Ids, folders and history stay with the agent.'],
-  ['Per-agent memory and history', 'Each agent type has its own memory and history folder. Every task starts in a fresh context, and the Agent history overlay lets you browse past work.'],
-  ['Reports and a Markdown vault', 'Color-coded reports with PDF and Excel export, a memory corkboard and editable SOPs, all plain Markdown in your own vault.'],
-  ['Dynamic island', 'A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics, themes and settings.'],
-  ['Breaker box switches', 'Hard switches for Tiro, autopilot, hiring and terminal approvals, plus a subscription guard that stops at your plan limit instead of spending extra-usage credits.'],
-  ['Security Guard', 'An ask-only safety net in every session: it asks before secrets leave the computer, before downloaded scripts run, and after untrusted web or mail text tries to steer an agent. It never allows or blocks anything itself.'],
-  ['Silhouette click areas', 'Furniture and characters are picked by their drawn shape, with a hover outline and depth sorting.'],
-];
+const trust = ['No tokens for the office itself', 'You approve every hire', 'Local only: 127.0.0.1', 'Signed updates', 'No cookies, no trackers'];
 
-const gallery = [
-  ['01-dashboard-overview.png', 'The office', 'The whole office with eight specialists at work, the goal board and the status bar.'],
-  ['08-hire-approval-card.png', 'Approve each hire', 'Tiro asks to hire Warden. You see the goal and the reason and choose Approve hire or Deny.'],
-  ['07-team-panel-rename.png', 'Rename your team', 'A role card and a rename box for every agent.'],
-  ['09-agent-history-overlay.png', 'Per-agent history', 'Every agent with task counts, and the past tasks of one of them.'],
-  ['16-reports-panel.png', 'Reports', 'The bookshelf with a daily summary and reports, exportable to PDF and Excel.'],
-  ['11-scheduler-panel.png', 'Scheduler station', 'Read-only status of the scheduler job: items found, next check, subject-only list.'],
-  ['12-island-pill.png', 'The island', 'The notch-style overlay with Home, Calendar and Settings tabs.'],
-  ['15-click-outline-hover.png', 'Click outlines', 'A desk outlined on hover, following its silhouette.'],
-  ['06-manager-office-tiro.png', 'Tiro at work', 'The office manager at the desk in the glass office.'],
+const panels = [
+  ['08-hire-approval-card', 'You approve every hire', 'Tiro cannot hire on its own. A card shows the goal and the reason. One approval buys exactly one hire, tied to the first prompt, and expires after 10 minutes.', 'docs/approvals.html', 'How approvals work', 'Tiro asking to hire Warden, with the goal, the reason and Approve hire and Deny buttons'],
+  ['13-island-chat', 'The dynamic island', 'A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics and themes. Answer a prompt with Y or N without leaving your work.', 'docs/island.html', 'The island and tray', 'The island chat box and quick actions'],
+  ['16-reports-panel', 'Reports and a Markdown vault', 'Findings are filed as color-coded reports with PDF and Excel export. Notes, memory and SOPs are plain Markdown in your own vault.', 'docs/goals-and-reports.html', 'Goals, reports and the vault', 'The Reports bookshelf with a daily summary and demo reports'],
+  ['09-agent-history-overlay', 'Memory and history per agent', 'Every task starts in a fresh context. Each agent keeps its own notes, and the Agent history overlay lets you browse past tasks and summaries.', 'docs/agents-and-memory.html', 'Agents and memory', 'Agent history: every agent with task counts and past tasks'],
 ];
 
 const security = [
-  ['Local only', 'The server binds 127.0.0.1 and rejects any other Host header. The UI key never leaves the app process and an HttpOnly cookie, so an agent cannot approve its own requests.'],
+  ['Local only', 'The server binds 127.0.0.1 and rejects any other Host header. The UI key stays in the app process and an HttpOnly cookie, so an agent cannot approve its own requests.'],
   ['Strict CSP', 'Pages load scripts, styles and fonts only from the app itself. React, Babel and the fonts are vendored, so nothing loads from a CDN.'],
   ['Hardened windows', 'Context isolation and sandbox on, no Node integration, navigation locked to the local server, webviews blocked.'],
   ['Verified updates', 'The updater accepts only a release manifest with a valid Ed25519 signature from the key pinned in the app, and checks the installer SHA-256 twice before it runs.'],
-  ['Security Guard', 'An ask-only layer that watches for secrets leaving the machine, unwanted scripts and persistence, credential stores and untrusted instructions. A safety net, not a boundary. <a href="docs/security-guard.html">How it works</a>.'],
   ['Approvals stay yours', 'Tool permissions are Claude Code\'s own. What would ask you still asks you. Nothing is auto-approved or timed out into an answer.'],
-  ['No mail access', 'The scheduler reads a local feed file that you produce. Agent Office has no mail credentials or network mail code.'],
+  ['Security Guard', 'An ask-only layer that watches for secrets leaving the machine, unwanted scripts and persistence, credential stores and untrusted instructions. A safety net, not a boundary. <a href="docs/security-guard.html">How it works</a>.'],
 ];
 
 const faq = [
@@ -51,25 +37,39 @@ const faq = [
   ['Which systems does it run on?', 'Windows 10 or later today. macOS and Linux builds are not published yet.'],
   ['Do I need Claude Code?', 'Yes. Install Claude Code and log in once by running claude. Agent Office uses your own install and plan.'],
   ['Can an agent hire without asking me?', 'No. Every hire needs your one-shot approval, which expires after 10 minutes and is cleared when Tiro\'s session ends or resets.'],
-  ['Why does Windows show a SmartScreen warning?', 'The builds are not code-signed. Choose More info, then Run anyway, and compare the installer\'s SHA-256 with the one on the download page first.'],
+  ['Why does Windows warn me when I install it?', 'The builds are not code-signed. SmartScreen may show a warning, and Windows 11 Smart App Control can block unsigned installers. Compare the installer\'s SHA-256 first. See the <a href="download.html#smartscreen">download page</a>.'],
   ['Where is my data?', 'On your machine: ~/.claude/agent-office, your vault and Claude Code\'s own ~/.claude/projects. Model calls go to Anthropic through Claude Code, as in the terminal.'],
   ['Does it read my email?', 'No. The scheduler reads a local feed file that you must produce yourself.'],
-  ['Can I rename agents and keep their history?', 'Yes. History follows the agent type, not the display name.'],
-  ['Is it open source?', 'No. It is proprietary software, all rights reserved. See the Licence section below.'],
+  ['Does this site track me?', 'No cookies and no consent banner. See the <a href="privacy.html">privacy page</a>.'],
 ];
+
+export function dlButton({ big = true, id = 'dl-button', label = 'Download for Windows' } = {}) {
+  return `<a ${id ? `id="${id}" ` : ''}class="btn${big ? ' big' : ''}" href="${esc(release.url)}" data-dl-link download="${esc(release.asset)}"><span${id ? ' id="dl-label"' : ''}>${label}</span></a>`;
+}
 
 export function homePage() {
   const main = `<main id="main">
 <section class="hero">
 <div class="wrap hero-grid">
 <div>
-<p class="eyebrow">Windows app, for Claude Code users</p>
+<p class="eyebrow">Windows app for Claude Code users</p>
 <h1>A pixel office for your own Claude Code agents.</h1>
-<p class="lead">Tiro, a little orange cube-crab, is the office manager. Give Tiro a task. It plans the work, asks you before it hires a specialist, files reports and remembers what it learned in plain Markdown notes. The office itself spends no tokens.</p>
-<div class="btn-row"><a class="btn big" href="download.html">Download for Windows</a><a class="btn secondary big" href="docs/index.html">Read the docs</a></div>
-<ul class="pill-row" aria-label="Facts"><li>No tokens for the office</li><li>8 specialists</li><li>You approve every hire</li><li>Unsigned build</li></ul>
+<p class="lead">Tiro, a little orange cube-crab, is the office manager. Give Tiro a task. It plans the work, asks you before it hires a specialist and files reports into plain Markdown notes. The office itself spends no tokens.</p>
+<div class="cta-row">${dlButton()}<div class="mascot mascot-work" role="img" aria-label="Tiro with a headset, working"></div></div>
+<p class="meta dl-line">v<span data-fill="version">${release.version}</span> &middot; <span data-fill="size">${fmtSize(release.size)}</span> &middot; Windows 10/11</p>
+<p class="meta">SHA-256 <code data-fill="sha-short">${shortSha(release.sha256)}</code> &middot; <a href="download.html#verify">Verify</a> &middot; <a href="download.html#smartscreen">Windows warning?</a></p>
+<p id="os-note" class="notice compact" hidden></p>
+<div class="btn-row"><a class="btn secondary" href="docs/index.html">Read the docs</a><a class="btn secondary" href="quickstart.html">Quickstart</a></div>
+<p class="meta">macOS and Linux: coming, not published yet.</p>
 </div>
-<div class="hero-shot"><img src="assets/img/hero.png" width="1480" height="920" alt="The Agent Office dashboard: eight specialists at their desks in an isometric office, a hire approval card on the goal board and the status bar on top"></div>
+<div class="hero-shot">${picture('', 'hero', 'The Agent Office dashboard: eight specialists at their desks in an isometric office, a hire approval card on the goal board and the status bar on top', { priority: true, sizes: '(min-width: 900px) 54vw, 100vw' })}</div>
+</div>
+</section>
+
+<section class="trust" aria-label="Trust">
+<div class="wrap">
+<ul class="trust-list">${trust.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+<p class="meta"><span data-stats>Public download statistics start after the first real snapshot.</span> <a href="stats.html">Statistics</a></p>
 </div>
 </section>
 
@@ -87,23 +87,17 @@ export function homePage() {
 
 <section class="block" id="features">
 <div class="wrap">
-<div class="section-head"><h2>Features</h2><p>Everything runs locally on top of the Claude Code you already have.</p></div>
-<div class="grid">${features.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>
-<div class="moods"><img src="assets/img/kiro-moods.png" width="1000" height="500" alt="Tiro in eight moods: idle, all goals done, agents working, building, planning, needs your approval, goal done and paused at plan limit" loading="lazy"></div>
+<div class="section-head"><h2>A tour of the office</h2><p>Everything runs locally on top of the Claude Code you already have. Your settings, permissions, hooks and MCP servers apply unchanged.</p></div>
+${panels.map(([img, t, d, href, linkText, alt], i) => `<div class="panel${i % 2 ? ' flip' : ''}"><div class="panel-text"><h3>${esc(t)}</h3><p>${esc(d)}</p><p><a href="${href}">${esc(linkText)}</a></p></div><div class="panel-shot">${picture('', img, esc(alt), { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>`).join('\n')}
+<div class="panel"><div class="panel-text"><h3>Breaker box and Security Guard</h3><p>Hard switches for Tiro, autopilot, hiring and terminal approvals, plus a subscription guard that stops at your plan limit instead of spending extra-usage credits. The ask-only Security Guard asks before secrets leave your computer or a downloaded script runs.</p><p><a href="docs/breaker-box.html">Breaker box</a> &middot; <a href="docs/security-guard.html">Security Guard</a></p></div><div class="panel-shot"><div class="card"><h3>What the Guard asks about</h3><ul><li>Secrets leaving this computer</li><li>Downloaded scripts and persistence</li><li>Credential stores</li><li>Untrusted instructions in web or mail text</li></ul></div></div></div>
 </div>
 </section>
 
 <section class="block" id="team">
 <div class="wrap">
-<div class="section-head"><h2>Meet the team</h2><p>Tiro leads a fixed team of eight specialists, at most eight working at once. Tiro runs on Sonnet at medium effort and picks Haiku, Sonnet or Opus for each hire.</p></div>
-<div class="grid">${team.map(([n, r, m, t]) => `<div class="card team-card"><h3>${n}</h3><p>${esc(r)}</p><p class="model">${m}</p><p class="tools">${esc(t)}</p></div>`).join('')}</div>
-</div>
-</section>
-
-<section class="block" id="gallery">
-<div class="wrap">
-<div class="section-head"><h2>Gallery</h2><p>All screenshots use demo data. Select one to see it in full size.</p></div>
-<ul class="gallery">${gallery.map(([f, t, c]) => `<li><figure><a href="assets/img/${f}"><img src="assets/img/${f}" alt="${esc(t + ': ' + c)}" loading="lazy" width="1480" height="920"></a><figcaption><strong>${esc(t)}</strong>${esc(c)}</figcaption></figure></li>`).join('')}</ul>
+<div class="section-head"><h2>Meet Tiro and the team</h2><p>Tiro leads a fixed team of eight specialists, at most eight working at once. Tiro runs on Sonnet at medium effort and picks Haiku, Sonnet or Opus for each hire. Its mood follows the work.</p></div>
+<div class="moods">${picture('', 'tiro-moods', 'Tiro in eight moods: idle, all goals done, agents working, building, planning, needs your approval, goal done and paused at plan limit', { sizes: '(min-width: 1120px) 1080px, 100vw' })}</div>
+<div class="grid team-grid">${team.map(([n, r, m, t]) => `<div class="card team-card"><h3>${n}</h3><p>${esc(r)}</p><p class="model">${m}</p><p class="tools">${esc(t)}</p></div>`).join('')}</div>
 </div>
 </section>
 
@@ -111,18 +105,25 @@ export function homePage() {
 <div class="wrap">
 <div class="section-head"><h2>Security model</h2><p>Built so that an agent working for you cannot approve its own requests. <a href="docs/security.html">Read the full model</a> or the <a href="docs/permissions.html">permissions page</a>.</p></div>
 <div class="grid">${security.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3><p>${d.includes('<a ') ? d : esc(d)}</p></div>`).join('')}</div>
-<div class="notice"><p><strong>Unsigned builds.</strong> Windows SmartScreen may ask you to confirm with More info, then Run anyway. Compare the installer's SHA-256 with the one on the <a href="download.html">download page</a>.</p></div>
 </div>
 </section>
 
 <section class="block" id="faq">
 <div class="wrap">
 <div class="section-head"><h2>FAQ</h2></div>
-<div class="faq">${faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><div><p>${esc(a)}</p></div></details>`).join('')}</div>
-<p>More answers are on the <a href="docs/troubleshooting.html">troubleshooting and FAQ page</a>.</p>
-<div class="btn-row"><a class="btn big" href="download.html">Download for Windows</a></div>
+<div class="faq">${faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><div><p>${a.includes('<a ') ? a : esc(a)}</p></div></details>`).join('')}</div>
+<p>More answers are on the <a href="docs/troubleshooting.html">troubleshooting page</a> and the <a href="docs/faq.html">FAQ</a>.</p>
 </div>
 </section>
+
+<section class="block closing" id="get">
+<div class="wrap">
+<h2>Put Tiro to work</h2>
+<p class="lead">Windows 10 or later and Claude Code, logged in. Takes a few minutes.</p>
+<div class="btn-row">${dlButton({ id: '', label: 'Download for Windows' })}<a class="btn secondary" href="quickstart.html">Quickstart</a></div>
+</div>
+</section>
+
 <section class="block" id="licence">
 <div class="wrap">
 <div class="section-head"><h2>Licence</h2></div>
@@ -131,5 +132,5 @@ export function homePage() {
 </div>
 </section>
 </main>`;
-  return layout({ root: '', title: 'Agent Office - a pixel office for your Claude Code agents', desc: 'Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows installer.', nav: 'home', main });
+  return layout({ root: '', title: 'Agent Office - a pixel office for your Claude Code agents', desc: 'Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows installer.', nav: 'home', main, scripts: ['release.js'] });
 }
