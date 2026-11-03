@@ -5,7 +5,7 @@ import { apply, newAgent, statusOf } from './transcript.mjs';
 const T = '2026-10-17T10:00:00.000Z';
 test('a turn goes working -> idle and logs what happened', () => {
   const a = newAgent('s1');
-  apply(a, { type: 'ai-title', aiTitle: 'Fix M3 retry' });
+  apply(a, { type: 'ai-title', aiTitle: 'Fix retry logic' });
   apply(a, { type: 'user', timestamp: T, message: { content: 'fix the retry' } });
   assert.equal(statusOf(a, Date.parse(T)), 'working');
   const r = apply(a, { type: 'assistant', timestamp: T, message: { id: 'm1', model: 'claude-opus-5-5', usage: { output_tokens: 42 }, content: [{ type: 'tool_use', name: 'Bash', input: { command: 'ls -la' } }] } });
@@ -19,7 +19,7 @@ test('a turn goes working -> idle and logs what happened', () => {
   assert.equal(apply(a, { type: 'system', subtype: 'stop_hook_summary', timestamp: T }).turnEnded, true);
   assert.equal(statusOf(a), 'idle');
   assert.deepEqual(a.logs.map(l => l.k), ['user', 'tool', 'err', 'agent']);
-  assert.equal(a.title, 'Fix M3 retry');
+  assert.equal(a.title, 'Fix retry logic');
   a.perms = [{ askId: 'x' }];
   assert.equal(statusOf(a), 'blocked');
 });
