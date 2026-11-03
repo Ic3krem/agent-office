@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Agent Office - a pixel office for your Claude Code agents</title>
+<meta name="description" content="Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows installer.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="index.html" aria-current="page">Home</a>
+<a href="index.html#features">Features</a>
+<a href="docs/index.html">Docs</a>
+<a href="changelog.html">Changelog</a>
+<a href="download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<section class="hero">
+<div class="wrap hero-grid">
+<div>
+<p class="eyebrow">Windows app, for Claude Code users</p>
+<h1>A pixel office for your own Claude Code agents.</h1>
+<p class="lead">Tiro, a little orange cube-crab, is the office manager. Give Tiro a task. It plans the work, asks you before it hires a specialist, files reports and remembers what it learned in plain Markdown notes. The office itself spends no tokens.</p>
+<div class="btn-row"><a class="btn big" href="download.html">Download for Windows</a><a class="btn secondary big" href="docs/index.html">Read the docs</a></div>
+<ul class="pill-row" aria-label="Facts"><li>No tokens for the office</li><li>8 specialists</li><li>You approve every hire</li><li>Unsigned build</li></ul>
+</div>
+<div class="hero-shot"><img src="assets/img/hero.png" width="1480" height="920" alt="The Agent Office dashboard: eight specialists at their desks in an isometric office, a hire approval card on the goal board and the status bar on top"></div>
+</div>
+</section>
+
+<section class="block" id="how">
+<div class="wrap">
+<div class="section-head"><h2>How it works</h2><p>You stay in charge of every step that matters.</p></div>
+<ol class="steps">
+<li><strong>Give Tiro a task</strong>Type it in the dispatch box. It lands on today's board as a goal.</li>
+<li><strong>Approve the hire</strong>Tiro asks for the specialist it needs. One approval buys exactly one hire.</li>
+<li><strong>Agents work, you watch</strong>Prompts that Claude Code would show you appear in the dashboard and the island.</li>
+<li><strong>Read the report</strong>Findings are filed as reports, and each agent keeps notes for the next task.</li>
+</ol>
+</div>
+</section>
+
+<section class="block" id="features">
+<div class="wrap">
+<div class="section-head"><h2>Features</h2><p>Everything runs locally on top of the Claude Code you already have.</p></div>
+<div class="grid"><div class="card"><h3>Zero office tokens</h3><p>Every piece of furniture reads files, switches and system data directly. Models run only while an agent works, through your own Claude Code install and plan.</p></div><div class="card"><h3>Strict hiring approvals</h3><p>Tiro cannot hire on its own. Every hire needs your one-shot approval, tied to the goal and the first prompt, and it expires after 10 minutes.</p></div><div class="card"><h3>Your Claude Code, unchanged</h3><p>Same settings, permissions, hooks, MCP servers, CLAUDE.md, skills and plugins as a plain claude run. Agent Office adds no approval rules of its own.</p></div><div class="card"><h3>Renamable team</h3><p>Give Tiro and each specialist a display name. Ids, folders and history stay with the agent.</p></div><div class="card"><h3>Per-agent memory and history</h3><p>Each agent type has its own memory and history folder. Every task starts in a fresh context, and the Agent history overlay lets you browse past work.</p></div><div class="card"><h3>Reports and a Markdown vault</h3><p>Color-coded reports with PDF and Excel export, a memory corkboard and editable SOPs, all plain Markdown in your own vault.</p></div><div class="card"><h3>Dynamic island</h3><p>A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics, themes and settings.</p></div><div class="card"><h3>Breaker box switches</h3><p>Hard switches for Tiro, autopilot, hiring and terminal approvals, plus a subscription guard that stops at your plan limit instead of spending extra-usage credits.</p></div><div class="card"><h3>Silhouette click areas</h3><p>Furniture and characters are picked by their drawn shape, with a hover outline and depth sorting.</p></div></div>
+<div class="moods"><img src="assets/img/kiro-moods.png" width="1000" height="500" alt="Tiro in eight moods: idle, all goals done, agents working, building, planning, needs your approval, goal done and paused at plan limit" loading="lazy"></div>
+</div>
+</section>
+
+<section class="block" id="team">
+<div class="wrap">
+<div class="section-head"><h2>Meet the team</h2><p>Tiro leads a fixed team of eight specialists, at most eight working at once. Tiro runs on Sonnet at medium effort and picks Haiku, Sonnet or Opus for each hire.</p></div>
+<div class="grid"><div class="card team-card"><h3>Pixel</h3><p>Frontend engineer</p><p class="model">sonnet</p><p class="tools">read, web, Bash, Edit, Write</p></div><div class="card team-card"><h3>Forge</h3><p>Backend engineer</p><p class="model">sonnet</p><p class="tools">read, web, Bash, Edit, Write</p></div><div class="card team-card"><h3>Warden</h3><p>Security reviewer</p><p class="model">opus</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Probe</h3><p>QA and test engineer</p><p class="model">sonnet</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Atlas</h3><p>Deep researcher</p><p class="model">opus</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Cabalan</h3><p>Researcher</p><p class="model">haiku</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Tally</h3><p>Task checker and organizer</p><p class="model">haiku</p><p class="tools">Read, Grep, Glob, Edit, Write</p></div><div class="card team-card"><h3>Scribe</h3><p>SOP and document writer</p><p class="model">sonnet</p><p class="tools">read, web, Edit, Write</p></div></div>
+</div>
+</section>
+
+<section class="block" id="gallery">
+<div class="wrap">
+<div class="section-head"><h2>Gallery</h2><p>All screenshots use demo data. Select one to see it in full size.</p></div>
+<ul class="gallery"><li><figure><a href="assets/img/01-dashboard-overview.png"><img src="assets/img/01-dashboard-overview.png" alt="The office: The whole office with eight specialists at work, the goal board and the status bar." loading="lazy" width="1480" height="920"></a><figcaption><strong>The office</strong>The whole office with eight specialists at work, the goal board and the status bar.</figcaption></figure></li><li><figure><a href="assets/img/08-hire-approval-card.png"><img src="assets/img/08-hire-approval-card.png" alt="Approve each hire: Tiro asks to hire Warden. You see the goal and the reason and choose Approve hire or Deny." loading="lazy" width="1480" height="920"></a><figcaption><strong>Approve each hire</strong>Tiro asks to hire Warden. You see the goal and the reason and choose Approve hire or Deny.</figcaption></figure></li><li><figure><a href="assets/img/07-team-panel-rename.png"><img src="assets/img/07-team-panel-rename.png" alt="Rename your team: A role card and a rename box for every agent." loading="lazy" width="1480" height="920"></a><figcaption><strong>Rename your team</strong>A role card and a rename box for every agent.</figcaption></figure></li><li><figure><a href="assets/img/09-agent-history-overlay.png"><img src="assets/img/09-agent-history-overlay.png" alt="Per-agent history: Every agent with task counts, and the past tasks of one of them." loading="lazy" width="1480" height="920"></a><figcaption><strong>Per-agent history</strong>Every agent with task counts, and the past tasks of one of them.</figcaption></figure></li><li><figure><a href="assets/img/16-reports-panel.png"><img src="assets/img/16-reports-panel.png" alt="Reports: The bookshelf with a daily summary and reports, exportable to PDF and Excel." loading="lazy" width="1480" height="920"></a><figcaption><strong>Reports</strong>The bookshelf with a daily summary and reports, exportable to PDF and Excel.</figcaption></figure></li><li><figure><a href="assets/img/11-scheduler-panel.png"><img src="assets/img/11-scheduler-panel.png" alt="Scheduler station: Read-only status of the scheduler job: items found, next check, subject-only list." loading="lazy" width="1480" height="920"></a><figcaption><strong>Scheduler station</strong>Read-only status of the scheduler job: items found, next check, subject-only list.</figcaption></figure></li><li><figure><a href="assets/img/12-island-pill.png"><img src="assets/img/12-island-pill.png" alt="The island: The notch-style overlay with Home, Calendar and Settings tabs." loading="lazy" width="1480" height="920"></a><figcaption><strong>The island</strong>The notch-style overlay with Home, Calendar and Settings tabs.</figcaption></figure></li><li><figure><a href="assets/img/15-click-outline-hover.png"><img src="assets/img/15-click-outline-hover.png" alt="Click outlines: A desk outlined on hover, following its silhouette." loading="lazy" width="1480" height="920"></a><figcaption><strong>Click outlines</strong>A desk outlined on hover, following its silhouette.</figcaption></figure></li><li><figure><a href="assets/img/06-manager-office-tiro.png"><img src="assets/img/06-manager-office-tiro.png" alt="Tiro at work: The office manager at the desk in the glass office." loading="lazy" width="1480" height="920"></a><figcaption><strong>Tiro at work</strong>The office manager at the desk in the glass office.</figcaption></figure></li></ul>
+</div>
+</section>
+
+<section class="block" id="security">
+<div class="wrap">
+<div class="section-head"><h2>Security model</h2><p>Built so that an agent working for you cannot approve its own requests. <a href="docs/security.html">Read the full model</a> or the <a href="docs/permissions.html">permissions page</a>.</p></div>
+<div class="grid"><div class="card"><h3>Local only</h3><p>The server binds 127.0.0.1 and rejects any other Host header. The UI key never leaves the app process and an HttpOnly cookie, so an agent cannot approve its own requests.</p></div><div class="card"><h3>Strict CSP</h3><p>Pages load scripts, styles and fonts only from the app itself. React, Babel and the fonts are vendored, so nothing loads from a CDN.</p></div><div class="card"><h3>Hardened windows</h3><p>Context isolation and sandbox on, no Node integration, navigation locked to the local server, webviews blocked.</p></div><div class="card"><h3>Verified installs</h3><p>The install script and the updater check a SHA-256 before running anything, and use https only.</p></div><div class="card"><h3>Approvals stay yours</h3><p>Tool permissions are Claude Code's own. What would ask you still asks you. Nothing is auto-approved or timed out into an answer.</p></div><div class="card"><h3>No mail access</h3><p>The scheduler reads a local feed file that you produce. Agent Office has no mail credentials or network mail code.</p></div></div>
+<div class="notice"><p><strong>Unsigned builds.</strong> Windows SmartScreen may ask you to confirm with More info, then Run anyway. Compare the installer's SHA-256 with the one on the <a href="download.html">download page</a>.</p></div>
+</div>
+</section>
+
+<section class="block" id="faq">
+<div class="wrap">
+<div class="section-head"><h2>FAQ</h2></div>
+<div class="faq"><details><summary>Does the office cost tokens?</summary><div><p>No. Only agents that are working cost tokens, and only on your Claude Code plan.</p></div></details><details><summary>Which systems does it run on?</summary><div><p>Windows 10 or later today. macOS and Linux builds are not published yet.</p></div></details><details><summary>Do I need Claude Code?</summary><div><p>Yes. Install Claude Code and log in once by running claude. Agent Office uses your own install and plan.</p></div></details><details><summary>Can an agent hire without asking me?</summary><div><p>No. Every hire needs your one-shot approval, which expires after 10 minutes and is cleared when Tiro's session ends or resets.</p></div></details><details><summary>Why does Windows show a SmartScreen warning?</summary><div><p>The builds are not code-signed. Choose More info, then Run anyway, and compare the installer's SHA-256 with the one on the download page first.</p></div></details><details><summary>Where is my data?</summary><div><p>On your machine: ~/.claude/agent-office, your vault and Claude Code's own ~/.claude/projects. Model calls go to Anthropic through Claude Code, as in the terminal.</p></div></details><details><summary>Does it read my email?</summary><div><p>No. The scheduler reads a local feed file that you must produce yourself.</p></div></details><details><summary>Can I rename agents and keep their history?</summary><div><p>Yes. History follows the agent type, not the display name.</p></div></details><details><summary>Is it open source?</summary><div><p>No. It is proprietary software, all rights reserved. Dependency licenses are listed in the third-party notices that ship with the installer.</p></div></details></div>
+<p>More answers are on the <a href="docs/troubleshooting.html">troubleshooting and FAQ page</a>.</p>
+<div class="btn-row"><a class="btn big" href="download.html">Download for Windows</a></div>
+</div>
+</section>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
+<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="docs/install.html">Install guide</a></li><li><a href="changelog.html">Changelog</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="docs/guide.html">User guide</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Install - Agent Office docs</title>
+<meta name="description" content="Install Agent Office on Windows with the installer or a one-line script.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="../index.html">Home</a>
+<a href="../index.html#features">Features</a>
+<a href="../docs/index.html" aria-current="page">Docs</a>
+<a href="../changelog.html">Changelog</a>
+<a href="../download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation"><h2>Docs</h2><ul><li><a href="index.html">Overview</a></li><li><a href="install.html" aria-current="page">Install</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html">Security</a></li><li><a href="scheduler.html">Scheduler</a></li><li><a href="agents-and-memory.html">Agents and memory</a></li><li><a href="troubleshooting.html">Troubleshooting and FAQ</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../download.html">Download</a></li></ul></aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Install</p><h1>Install</h1><p class="lead">Install Agent Office on Windows with the installer or a one-line script.</p><p><strong>Requirements:</strong> <a href="https://claude.com/claude-code" rel="noopener noreferrer">Claude Code</a> installed and logged in (run <code>claude</code> once). Agent Office uses your own Claude Code install and plan. Windows 10 or later. macOS and Linux builds are not published yet.</p>
+<p><strong>Windows installer.</strong> Get <code>Agent-Office-Setup-&lt;version&gt;.exe</code> from the <a href="../download.html">download page</a> and run it. It is a normal setup wizard where you can pick the folder. It adds a Start menu entry and a desktop shortcut.</p>
+<p><strong>One-line install</strong> (downloads the latest release, verifies it, installs it and adds a desktop shortcut):</p>
+<pre tabindex="0"><code>irm https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.ps1 | iex</code></pre>
+<p>The script downloads over https and <strong>verify the asset's SHA-256</strong> against the digest GitHub publishes for that release asset. It stops, and installs nothing, if there is no published release, the asset has no digest, or the hash does not match. It installs silently for the current user.</p>
+<p>Piping a script into your shell trusts whatever is on <code>main</code>. To review first or pin a release, download the script from a release tag (for example <code>.../Ic3krem/agent-office/v1.2.5/install.ps1</code>), read it, then run it from disk.</p>
+<p>The builds are <strong>not code-signed</strong>. Windows SmartScreen may ask you to confirm with &quot;More info&quot;, then &quot;Run anyway&quot;.</p></main></div>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
+<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../docs/install.html">Install guide</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="../docs/guide.html">User guide</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+
+</body>
+</html>

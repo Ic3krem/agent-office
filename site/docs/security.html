@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Security - Agent Office docs</title>
+<meta name="description" content="How the local server, the windows, installs and approvals are protected.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="../index.html">Home</a>
+<a href="../index.html#features">Features</a>
+<a href="../docs/index.html" aria-current="page">Docs</a>
+<a href="../changelog.html">Changelog</a>
+<a href="../download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation"><h2>Docs</h2><ul><li><a href="index.html">Overview</a></li><li><a href="install.html">Install</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html" aria-current="page">Security</a></li><li><a href="scheduler.html">Scheduler</a></li><li><a href="agents-and-memory.html">Agents and memory</a></li><li><a href="troubleshooting.html">Troubleshooting and FAQ</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../download.html">Download</a></li></ul></aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Security</p><h1>Security</h1><p class="lead">How the local server, the windows, installs and approvals are protected.</p><h2 id="security-model">Security model</h2>
+<ul><li><strong>Local only, two separate credentials.</strong> The server binds <code>127.0.0.1</code> and rejects any other <code>Host</code> header (DNS rebinding). The terminal bridge key in <code>bridge.json</code> opens <code>/bridge/*</code> only. The UI key exists only in the Electron process and the server's memory and reaches the windows as an HttpOnly, SameSite=Strict cookie, so an agent that can read <code>bridge.json</code> still cannot approve its own requests. Decisions also need a per-session nonce. Keys are compared by hash in constant time and never logged.</li><li><strong>Strict Content-Security-Policy.</strong> Pages load scripts, styles and fonts only from the app itself (<code>script-src 'self'</code>, plus inline and eval, which the page runtime needs). React, ReactDOM, Babel standalone and the fonts are vendored in <code>public/</code> (pinned SHA-384 hashes for the scripts, OFL licence texts for the fonts), so nothing loads from a CDN or Google Fonts. Framing, plugins and <code>&lt;base&gt;</code> tricks are blocked.</li><li><strong>Electron hardening.</strong> Windows run with context isolation and sandbox on, <code>nodeIntegration</code> off and <code>webSecurity</code> on. They cannot navigate away from the local server or open webviews, and external links open in your browser.</li><li><strong>Verified installs.</strong> The install scripts and the updater check SHA-256 before running anything, and use https only.</li><li><strong>Hiring and approvals.</strong> Tiro cannot hire without your one-shot approval, tied to the goal and the exact first prompt. Tool permissions are Claude Code's own: what your settings allow runs, what they deny is denied, and what Claude Code would ask about is shown to you with Claude Code's choices. Agent Office does not auto-approve anything.</li><li><strong>No built-in mail access.</strong> The scheduler only reads a local feed file.</li><li><strong>Your data.</strong> Office state and notes stay on your machine; model calls go through your Claude Code install to Anthropic, as in the terminal. The server needs the local key for every API call.</li><li><strong>Unsigned builds.</strong> If in doubt, compare the SHA-256 the install script prints with the one GitHub shows on the release asset.</li></ul>
+<p>Report a vulnerability by opening a private security advisory on the GitHub repository.</p>
+<h2 id="security-notes">Security notes</h2>
+<p>The server is local only, requires a random key, checks the <code>Host</code> header and sends a strict Content-Security-Policy. Electron windows are sandboxed with context isolation and no Node integration. Installs and updates are https only and SHA-256 verified. Windows and macOS builds are unsigned. Full list in the <a href="#security-model">README</a>.</p></main></div>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
+<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../docs/install.html">Install guide</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="../docs/guide.html">User guide</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+
+</body>
+</html>

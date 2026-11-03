@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "version": "1.2.5",
+  "asset": "Agent-Office-Setup-1.2.5.exe",
+  "url": "https://github.com/Ic3krem/agent-office/releases/download/v1.2.5/Agent-Office-Setup-1.2.5.exe",
+  "sha256": "",
+  "size": null,
+  "date": "2026-11-03",
+  "notes": "Windows installer. The SHA-256 is filled in by the release build; until then the download page says it is not published."
+}

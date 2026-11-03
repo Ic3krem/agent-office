@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Configuration - Agent Office docs</title>
+<meta name="description" content="Preferences, environment variables, the scheduler job and the terminal bridge.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="../index.html">Home</a>
+<a href="../index.html#features">Features</a>
+<a href="../docs/index.html" aria-current="page">Docs</a>
+<a href="../changelog.html">Changelog</a>
+<a href="../download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation"><h2>Docs</h2><ul><li><a href="index.html">Overview</a></li><li><a href="install.html">Install</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li><li><a href="configuration.html" aria-current="page">Configuration</a></li><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html">Security</a></li><li><a href="scheduler.html">Scheduler</a></li><li><a href="agents-and-memory.html">Agents and memory</a></li><li><a href="troubleshooting.html">Troubleshooting and FAQ</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../download.html">Download</a></li></ul></aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Configuration</p><h1>Configuration</h1><p class="lead">Preferences, environment variables, the scheduler job and the terminal bridge.</p><p>State lives in <code>~/.claude/agent-office/</code>. Preferences are in <code>kiro.json</code>; the tray menu and the island Settings tab write most of them, and you rarely need to edit it by hand.</p>
+<div class="table-wrap" role="region" aria-label="Setting in `kiro.json` table" tabindex="0"><table><thead><tr><th scope="col">Setting in <code>kiro.json</code></th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><code>agentNames</code></td><td>Display-name overrides (<code>tiro</code> and the eight specialist keys).</td></tr><tr><td><code>islandMode</code></td><td><code>always</code> (default), <code>smart</code> or <code>off</code>.</td></tr><tr><td><code>islandMute</code></td><td>Silence the approval and done chimes.</td></tr><tr><td><code>islandDisplay</code></td><td><code>cursor</code> (default), <code>primary</code> or a display id.</td></tr><tr><td><code>islandSettings</code></td><td>Island theme, motion, pinned actions, clocks, <code>nowPlaying</code>, <code>lyrics</code>, <code>kiroFace</code>, <code>animate</code>.</td></tr><tr><td><code>updateFeed</code>, <code>updateAuto</code></td><td>Update feed (https URL, file or folder) and check on start (default on).</td></tr><tr><td><code>autostart</code></td><td>Start with Windows (packaged app, default on).</td></tr><tr><td><code>hidden</code>, <code>x</code>, <code>y</code></td><td>Whether the desktop Tiro is hidden, and where it sits.</td></tr><tr><td><code>workDir</code></td><td>Folder Tiro runs in, so Claude Code resolves project settings and CLAUDE.md as it would from there (default: your home folder).</td></tr><tr><td><code>retentionDays</code></td><td>Delete old history summaries, reports and finished goals after this many days (7 or more; off by default).</td></tr><tr><td><code>schedulerMailbox</code></td><td>The one mailbox the scheduler job may report on (see below).</td></tr></tbody></table></div>
+<p><strong>Environment variables</strong></p>
+<div class="table-wrap" role="region" aria-label="Variable table" tabindex="0"><table><thead><tr><th scope="col">Variable</th><th scope="col">Effect</th></tr></thead><tbody><tr><td><code>AGENT_OFFICE_PORT</code></td><td>Port for <code>node server.mjs</code>. The desktop app always uses 4777, so use this for dev servers on a spare port.</td></tr><tr><td><code>AGENT_OFFICE_TEAM_ONLY=1</code></td><td>Presentation mode: show only Tiro and its specialists.</td></tr><tr><td><code>AGENT_OFFICE_SHOW_ALL=1</code></td><td>Show the logs and prompts of your other Claude sessions on their desks (hidden by default).</td></tr><tr><td><code>AGENT_OFFICE_MAILBOX</code></td><td>The one mailbox the scheduler job reports on (overrides <code>schedulerMailbox</code>).</td></tr><tr><td><code>CLAUDE_CODE_PATH</code></td><td>Where the Claude Code executable is, if it is not found automatically.</td></tr></tbody></table></div>
+<p>Other files in <code>~/.claude/agent-office/</code>: <code>bridge.json</code> (port and terminal bridge key, do not share), <code>switches.json</code>, <code>goals.json</code>, <code>credits.json</code>, <code>scheduler.json</code>, and <code>agents/</code>. Reports, daily notes, memory and SOPs live in your Obsidian vault (or <code>~/Documents/Agent Office Vault</code>). Claude Code transcripts stay in <code>~/.claude/projects</code>. The full list is in the <a href="guide.html#settings-files">guide</a>.</p>
+<p><strong>Scheduler job.</strong> <code>node scheduler-job.mjs --dry-run</code> tries it without writing anything. Agent Office has no mail access built in: you provide a read-only reader that writes <code>~/.claude/agent-office/inbox-feed.json</code>. See <a href="scheduler.html">docs/scheduler.md</a>.</p>
+<p><strong>Terminal bridge (optional).</strong> Install the bridge plugin so your own Claude Code terminals can receive messages and send approvals to the office:</p>
+<pre tabindex="0"><code>claude plugin marketplace add Ic3krem/agent-office
+claude plugin install agent-office-bridge@agent-office</code></pre>
+<h2 id="settings-files">Settings files</h2>
+<p>All state is under <code>~/.claude/agent-office/</code> (your home folder). Nothing here needs editing by hand, but it is plain JSON and safe to inspect.</p>
+<div class="table-wrap" role="region" aria-label="File or folder table" tabindex="0"><table><thead><tr><th scope="col">File or folder</th><th scope="col">What it holds</th></tr></thead><tbody><tr><td><code>bridge.json</code></td><td>Server port and the terminal bridge key (opens <code>/bridge/*</code> only). The UI key is never stored.</td></tr><tr><td><code>kiro.json</code></td><td>Desktop and island preferences: <code>agentNames</code>, <code>islandMode</code>, <code>islandMute</code>, <code>islandDisplay</code>, <code>islandSettings</code>, <code>updateFeed</code>, <code>updateAuto</code>, <code>hidden</code>, optional <code>schedulerMailbox</code>.</td></tr><tr><td><code>switches.json</code></td><td>Breaker box switches.</td></tr><tr><td><code>manager.json</code></td><td>Tiro auto-approval on or off.</td></tr><tr><td><code>manager-session.json</code></td><td>Id of Tiro's current session (one per day).</td></tr><tr><td><code>goals.json</code></td><td>Today's board.</td></tr><tr><td><code>credits.json</code></td><td>Extra-usage credit log.</td></tr><tr><td><code>scheduler.json</code>, <code>scheduler-seen.json</code>, <code>inbox-feed.json</code></td><td>Scheduler status, its dedupe list, and its input feed.</td></tr><tr><td><code>agents/tiro/...</code></td><td>Per-agent memory and history.</td></tr></tbody></table></div>
+<p>Reports, daily notes, memory and SOPs live in your vault (<code>Agent Office/</code> folder). Claude Code transcripts stay in <code>~/.claude/projects</code>. Environment variables: <code>AGENT_OFFICE_PORT</code> (server port), <code>AGENT_OFFICE_TEAM_ONLY=1</code> (show only Tiro and its team), <code>AGENT_OFFICE_MAILBOX</code> (scheduler mailbox) and <code>CLAUDE_CODE_PATH</code> (where Claude Code is).</p></main></div>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
+<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../docs/install.html">Install guide</a></li><li><a href="../changelog.html">Changelog</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="../docs/guide.html">User guide</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+
+</body>
+</html>

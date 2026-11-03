@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Changelog - Agent Office</title>
+<meta name="description" content="What changed in each Agent Office version.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="index.html">Home</a>
+<a href="index.html#features">Features</a>
+<a href="docs/index.html">Docs</a>
+<a href="changelog.html" aria-current="page">Changelog</a>
+<a href="download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<div class="wrap"><main id="main" class="doc changelog"><h1>Changelog</h1><p>Versions 1.1.0 to 1.1.4 are tagged in git (<code>v1.1.0</code> to <code>v1.1.4</code>). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.</p>
+<h2 id="unreleased-securitycore">Unreleased (security/core)</h2>
+<ul><li><strong>Claude Code parity.</strong> Tiro and the agents it hires now load your user, project and local Claude Code settings with the full <code>claude_code</code> tool preset, your MCP servers, hooks, CLAUDE.md, skills, plugins and environment, and inherit your model, effort and permission mode. Tool permissions are Claude Code's own; the custom auto-approval rules (&quot;Tiro auto-approve&quot;, the manager) are removed. Prompts show Claude Code's choices (Yes, Yes and don't ask again, No with an instruction) and question cards. Commands are never edited and prompts never time out into an answer. See <a href="docs/permissions.html">permissions</a>.</li><li>Bridge key and UI key are separate; the UI key is a cookie, <code>?key=</code> is gone, decisions need a nonce; keys are never logged.</li><li>Hire grants are bound to the goal and the exact first prompt; a deny-only hook stops <code>claude</code> launches that skip <code>request_hire</code>.</li><li>One shared redactor for Agent Office's own history, memory, reports and daily notes; seeded memory is scrubbed; scheduler subjects are untrusted and fenced and no longer written to Tiro memory.</li><li>Fonts are vendored; the CSP has no remote host. Optional retention (<code>retentionDays</code>). Crash fixes (guarded request handler, process-level error logging).</li><li>Known cost: because your hooks and MCP servers now load for Tiro and each hired agent, every turn carries their extra tokens (the earlier lean setup measured about 30K tokens per turn that way).</li></ul>
+<h2 id="125-2026-11-03">1.2.5 (2026-11-03)</h2>
+<p>Published as v1.2.5 with the Windows installer only (macOS and Linux builds are not published yet). The release workflow is manual-only for now so a tag push cannot replace the tested installer.</p>
+<ul><li>The dashboard works under the strict Content-Security-Policy. React, ReactDOM and Babel standalone (same versions as before: 18.3.1, 18.3.1 and 7.29.0) are now shipped in <code>public/vendor/</code> and loaded from there with their SRI hashes unchanged, instead of from unpkg. <code>public/vendor/*</code> is marked binary so line-ending conversion cannot break the hashes.</li><li>A test checks that every external host the pages reference is allowed by the CSP, that no script is remote, and that the vendored files match their hashes.</li><li>The Kiro claw SVG no longer produces a double minus (<code>q--2 6 --7 7</code>) in its path data when mirrored.</li><li>The plugin marketplace owner is now &quot;Ic3krem&quot;.</li><li>Documentation: README rewritten as the front page, new <code>docs/GUIDE.md</code> user guide with 17 demo screenshots, <code>docs/RESOURCES.md</code>, <code>docs/agents-and-memory.md</code>, <code>docs/scheduler.md</code>, refreshed office and island specs, and this changelog.</li></ul>
+<h2 id="124">1.2.4</h2>
+<p>Security, cleanup and documentation.</p>
+<ul><li><code>install.ps1</code> and <code>install.sh</code> download over https and verify the SHA-256 that GitHub publishes for the release asset. They stop if the digest is missing or does not match.</li><li>The updater refuses to run an installer downloaded over https unless the feed supplies its SHA-256.</li><li>Electron windows run with <code>nodeIntegration</code> off, <code>webSecurity</code> on, context isolation and sandbox on, navigation locked to the local server, and webviews blocked.</li><li>The server sends a Content-Security-Policy and related headers (<code>nosniff</code>, no referrer, no framing). It already bound to <code>127.0.0.1</code>, checked the <code>Host</code> header and compared the key in constant time.</li><li><code>.gitignore</code> excludes backups, the local release feed, local state and secrets. Local <code>*.bak-*</code> files were removed.</li><li>The scheduler mailbox is configured (<code>AGENT_OFFICE_MAILBOX</code> or <code>schedulerMailbox</code>), not hardcoded.</li><li><code>THIRD_PARTY_NOTICES.md</code> added. <code>LICENSE</code> and the notices ship in the installer.</li><li>New tests: <code>repo.test.mjs</code> (license consistency, ignore list, install scripts, Electron and CSP settings, no personal paths or secrets).</li></ul>
+<h2 id="115-to-123-internal-builds">1.1.5 to 1.2.3 (internal builds)</h2>
+<p>Team and manager</p>
+<ul><li><strong>Renamable team.</strong> Tiro and each specialist can have a display name. Names are unique, never equal another agent's default name, and strip HTML tags. Ids, folders and <code>subagent_type</code> never change.</li><li><strong>Strict hiring gate.</strong> Tiro must ask with <code>request_hire</code>; one approval buys one hire and expires after 10 minutes. Pending cards and unused approvals are cleared when the manager session ends, resets or stops, and when hiring is switched off.</li><li><strong>One person per specialist.</strong> An extra agent of an already-hired type is shown as a labelled &quot;helper&quot;.</li><li><strong>Per-agent memory and history.</strong> Folders under <code>~/.claude/agent-office/agents/tiro/&lt;key&gt;/{memory,history}</code>, each task starts with a fresh context, summaries are redacted, and an <strong>Agent history</strong> overlay with <code>/api/agents/*</code> endpoints lets you browse it.</li><li><strong>Scheduler.</strong> <code>scheduler-job.mjs</code> classifies a local inbox feed into task, need and info items, writes <code>scheduler.json</code> and a subject-only note for Tiro. It is read-only and has no mail access of its own.</li></ul>
+<p>Office</p>
+<ul><li>New office world (Phase 2, 1.2.0 polish): isometric rooms, eight desk blocks, a walk graph, a movement state machine, procedural characters and furniture, preview mode, zoom and pan, day and night tint, reduced-motion support.</li><li>East park and the scheduler garage with a read-only Scheduler panel.</li><li>Furniture and characters are picked by their drawn silhouette, with outline highlighting, and drawn in footprint depth order.</li></ul>
+<p>Desktop island and updates</p>
+<ul><li>Dynamic island: Always, Smart and Off modes, multi-monitor placement, hotkey <code>Ctrl+Alt+K</code>, approvals and quick actions, themes, motion presets, clock and calendar, pinned actions.</li><li>Now playing (Windows media controls) and synced lyrics from LRCLIB (optional, off with the <code>lyrics</code> setting); compact notch shows the Tiro eyes (1.1.9).</li><li>Update checker in Settings &gt; Updates with SHA-256 verification (feed is an https URL, a local file or a folder with <code>latest.json</code>), and a warning when a feed has no SHA-256 (1.1.7).</li></ul>
+<h2 id="114">1.1.4</h2>
+<ul><li>SOP notes now define the team and apply from Tiro's next turn.</li></ul>
+<h2 id="113">1.1.3</h2>
+<ul><li>Credits today now count late-posted charges on the last over-limit day.</li></ul>
+<h2 id="112">1.1.2</h2>
+<ul><li>README screenshots from a real test run, review fixes and presentation mode (<code>AGENT_OFFICE_TEAM_ONLY=1</code>).</li><li>MIT license and README badges added in the commits just before this tag.</li></ul>
+<h2 id="111">1.1.1</h2>
+<ul><li>Both macOS architectures are built on one runner.</li></ul>
+<h2 id="110">1.1.0</h2>
+<ul><li>First release: the pixel office, the desktop manager, vault memory, reports with PDF and Excel export, office objects, and installers for Windows, macOS and Linux.</li></ul></main></div>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
+<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="docs/install.html">Install guide</a></li><li><a href="changelog.html">Changelog</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="docs/guide.html">User guide</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+
+</body>
+</html>
