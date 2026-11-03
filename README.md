@@ -12,7 +12,7 @@
 
 ## Features
 
-New and current in **1.2.7**:
+New and current in **1.2.8**:
 
 - **Renamable agents.** Give Tiro and each specialist a display name (up to 20 characters). Ids, folders and types never change, and no agent can take another's current or default name.
 - **Hiring approvals.** Every hire made with the Agent tool needs your one-shot approval, which expires after 10 minutes and is cleared whenever Tiro's session ends or resets. A best-effort check also blocks launching `claude` from a shell command; it is not a sandbox.
@@ -171,7 +171,7 @@ Report a vulnerability by opening a private security advisory on the GitHub repo
 |---|---|
 | [docs/GUIDE.md](docs/GUIDE.md) | The full user guide: every panel, the island, tray, settings files, API table, troubleshooting, FAQ |
 | [docs/RESOURCES.md](docs/RESOURCES.md) | Index of links, architecture notes, dev setup, release checklist |
-| [CHANGELOG.md](CHANGELOG.md) | What changed, 1.1.0 to 1.2.7 |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, 1.1.0 to 1.2.8 |
 | [docs/security-guard.md](docs/security-guard.md) | The Security Guard: what it asks about, the prompts you will see, settings, limits |
 | [docs/permissions.md](docs/permissions.md) | Claude Code parity: what is the same, what differs, what reaches you |
 | [docs/agents-and-memory.md](docs/agents-and-memory.md) | Team, hiring gate, per-agent memory and history |

@@ -3,7 +3,16 @@
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
 
-## Unreleased (release/1.2.8)
+## 1.2.8 (2026-11-04)
+
+Licence, privacy and Security Guard release. It includes the notch on/off setting and the Tiro desk fix from 1.2.7 and builds on 1.2.6, the security patch (signed updater, Claude Code permission parity, hardened install scripts); see those entries below, including the 1.2.6 upgrade notes.
+
+**Upgrade notes**
+
+- **Licence.** The project licence is now proprietary and all rights are reserved (see below). The installer shows `LICENSE.txt` before installing. The text is a plain-English draft that has not been reviewed by a lawyer.
+- **Installs are by invitation.** The repository is private; the install scripts report a clear error when they cannot reach a release. Updates keep using the signed manifest. If you are on 1.2.5 or earlier, reinstall once manually (see 1.2.6).
+- **Lyrics are off by default.** Turn them on in the island settings if you want them; that sends the playing track's title, artist, album and duration to lrclib.net.
+- **Security Guard asks before risky actions** in every Agent Office session and, with the bridge plugin, in terminals. Expect new prompts for things that used to pass silently; see the Security Guard entries below.
 
 - **Security Guard (new).** An ask-only layer that runs as hooks in every Agent Office session (Tiro and hired agents) and, through the bridge plugin, in terminals. It asks before secrets are sent off the computer (the real payload is checked; ignore files are not trusted), before secrets are written to cloud-synced folders, before ignore rules are overridden, before credential stores or the environment are read, before bulk harvesting, screen or clipboard capture, downloaded scripts and persistence, and after untrusted tool output tried to instruct the AI. Eight categories (S, Y, I, C, H, X, U, P), each ask, log or off; remembered answers only for exact C, H, X and U actions; a private audit log; weaker settings need a confirmation dialog in the desktop app and an HMAC (a weaker value written by an agent is ignored). Pure JavaScript, no dependencies, tested for Windows, macOS and Linux paths on every host. See `docs/security-guard.md`.
 
@@ -11,11 +20,16 @@ Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 t
 
 - **Security Guard, second review.** scp/rsync/sftp to host:/path are detected; the terminal Guard is only skipped for sessions the app registered (an environment variable alone no longer disables it); persistent environment changes ask; tunnels that expose a folder holding secrets ask; mapped network drives are treated like UNC paths (cached, and re-detected by the terminal hook when the cache is older than 24 hours). Third pass: xargs, find -exec, parallel, watch, sudo/timeout/env/nice are unwrapped with {} substituted; kubectl/oc cp always asks and docker/podman cp ask when the daemon is remote; ftp/sftp/lftp scripts and openssl s_client are read; copying a secret under its own name to a local folder only logs.
 
+- **Security Guard, red-team fixes.** Seven bypasses closed: a whitelist for file extensions that may leave the machine, PowerShell script bodies are read, staging and sending in the same command is caught, shell variables, aliases and functions are resolved, globs and command substitutions are expanded, node `http` uploads are detected, and `/dev/tcp` file descriptors are covered.
+
+**Licence, privacy and distribution**
+
 - **Licence.** Agent Office is now proprietary: "Copyright (c) 2026 Ic3krem. All rights reserved." Only the owner may use, copy, modify or distribute it unless permission is given in writing; contributions need a signed written agreement. Versions published under MIT (v1.1.0 to v1.1.4 and v1.2.5) stay available under those terms. `LICENSE` is a draft pending legal review; `package.json` says `SEE LICENSE IN LICENSE`, the package is marked private, and the Windows installer shows the licence on its licence page (`LICENSE.txt`, a copy of `LICENSE`).
 - **Lyrics are opt-in** (default off). Turning them on sends the playing track's title, artist, album and duration to lrclib.net; a one-time migration switches an old stored default off. Now playing itself sends nothing off the device.
 - **Distribution by invitation.** The README no longer advertises install commands that cannot work on a private repository; the install scripts report HTTP 401, 403 and 404 in plain words; the CodeQL and dependency-review jobs skip on private repositories.
 - The hiring wording now says Agent-tool hires require approval, and that the check that blocks launching `claude` from a shell is best-effort, not a sandbox.
 - Test data no longer contains company or business names.
+
 ## 1.2.7 (2026-11-03)
 
 Small feature and fix release on top of 1.2.6, which carries the security patch (signed updater, Claude Code permission parity, hardened install scripts); see the 1.2.6 entry below, including its upgrade notes.
