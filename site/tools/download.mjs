@@ -1,4 +1,8 @@
+import fs from 'node:fs';
 import { layout } from './layout.mjs';
+
+const CONFIG = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
+if (CONFIG.edgeOrigin && !/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(CONFIG.edgeOrigin)) throw new Error('config.json edgeOrigin must be an https origin with no path');
 
 export function downloadPage() {
   const main = `<main id="main">
@@ -8,6 +12,7 @@ export function downloadPage() {
 
 <div class="dl-card">
 <a id="dl-button" class="btn big" href="#install-steps" aria-disabled="true"><span id="dl-label">Download for Windows</span></a>
+<p id="dl-spots" class="spots" hidden></p>
 <p id="dl-status" class="status" role="status">Loading release information.</p>
 <noscript><p class="notice">JavaScript is off, so the version and checksum cannot be shown here. Use the install guide for the SHA-256 check.</p></noscript>
 <dl class="dl-meta">
@@ -18,6 +23,13 @@ export function downloadPage() {
 <dt>SHA-256</dt><dd><div class="hash-row"><div class="hash" id="dl-sha" tabindex="0">-</div><button type="button" class="btn-small" id="dl-copy" hidden>Copy</button></div></dd>
 </dl>
 <p id="dl-notes" class="meta"></p>
+</div>
+
+<div id="dl-closed" class="notice" hidden><p><strong>Early access is full.</strong> All of the early-access spots have been taken, or downloads are closed for now. The installer is not available from this page at the moment. There is no sign-up list here: check this page again later.</p></div>
+
+<div id="privacy" class="privacy">
+<h2>Privacy: what a download records</h2>
+<p>This site has no cookies, no analytics and no trackers. Pressing the download button goes through a small counter that records only: your <strong>country</strong> (and continent), the <strong>date</strong> (UTC), the <strong>app version</strong>, and your <strong>browser family</strong> (for example Chrome or Firefox). To count each person once it keeps a keyed, one-way hash made from your network address. <strong>Your IP address itself is not stored or logged</strong>, and neither is your full browser string. The numbers are used to count early-access downloads by region and to enforce the limit of <span data-fill="cap">500</span> early-access downloads. Because a hash made from an IP address can still count as personal data in some countries, it is kept only for that purpose. If you would rather not be counted, do not use the download button.</p>
 </div>
 
 <div class="notice"><p><strong>Windows SmartScreen.</strong> The build is not code-signed, so Windows may show "Windows protected your PC". Check the SHA-256 below first. If it matches, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p></div>
@@ -46,5 +58,5 @@ export function downloadPage() {
 <p>Read the <a href="docs/install.html">install guide</a>, then the <a href="docs/guide.html">user guide</a>. To update later, open the island's Settings tab and use Updates, see <a href="docs/update.html">Update</a>. To remove the app, see <a href="docs/uninstall.html">Uninstall</a>.</p>
 </div>
 </main>`;
-  return layout({ root: '', title: 'Download - Agent Office', desc: 'Download the Agent Office Windows installer, check its SHA-256 and follow the install steps.', nav: 'download', main, scripts: ['download.js'] });
+  return layout({ root: '', title: 'Download - Agent Office', desc: 'Download the Agent Office Windows installer, check its SHA-256 and follow the install steps.', nav: 'download', main, scripts: ['download.js'], connect: CONFIG.edgeOrigin });
 }

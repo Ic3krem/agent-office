@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cspFor } from './tools/layout.mjs';
 
 const SITE = path.dirname(fileURLToPath(import.meta.url));
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
@@ -11,6 +12,7 @@ const all = walk(SITE).filter(f => !f.includes(`${path.sep}tools${path.sep}`) ||
 const html = all.filter(f => f.endsWith('.html'));
 const text = all.filter(f => /\.(html|css|js|json|svg|mjs|md)$/.test(f));
 const rd = f => fs.readFileSync(f, 'utf8');
+const CONFIG = JSON.parse(fs.readFileSync(path.join(SITE, 'config.json'), 'utf8'));
 const rel = f => path.relative(SITE, f).replaceAll('\\', '/');
 
 const idsOf = t => [...t.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
@@ -53,13 +55,13 @@ test('local CSS font and image urls resolve', () => {
 });
 
 test('no remote hosts: no CDN, remote fonts, trackers, inline script or style', () => {
-  for (const f of text.filter(f => !/[\\/]tools[\\/]|README\.md$|site\.test\.mjs$|release\.json$/.test(f))) {
+  for (const f of text.filter(f => !/[\\/](tools|edge|docs-internal)[\\/]|README\.md$|site\.test\.mjs$|(release|config)\.json$/.test(f))) {
     const t = rd(f);
     for (const m of t.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) {
       const host = m[1].toLowerCase();
       // Allowed: the Claude Code link, and install one-liners shown as text in <code> (GitHub raw), XML namespaces.
       const inCode = new RegExp('<code>[^<]*' + host.replaceAll('.', '\\.')).test(t);
-      const ok = host === 'claude.com' || host === 'www.w3.org' || (inCode && /^(raw\.githubusercontent\.com|api\.github\.com|github\.com)$/.test(host));
+      const ok = host === 'claude.com' || (!!CONFIG.edgeOrigin && host === new URL(CONFIG.edgeOrigin).hostname && f.endsWith('download.html')) || host === 'www.w3.org' || (inCode && /^(raw\.githubusercontent\.com|api\.github\.com|github\.com)$/.test(host));
       assert.ok(ok, `${rel(f)} references ${host}`);
     }
     if (f.endsWith('.html')) {
@@ -70,6 +72,7 @@ test('no remote hosts: no CDN, remote fonts, trackers, inline script or style', 
       assert.match(t, /http-equiv="Content-Security-Policy"/);
       assert.doesNotMatch(t, /<link[^>]+href="https?:/i);
       assert.doesNotMatch(t, /(?:src|href)="https?:\/\/(?!claude\.com)/i);
+      assert.doesNotMatch(t, /\sdata-edge=|\ssrc="https?:/i);
     }
     if (f.endsWith('.js')) assert.doesNotMatch(t, /\b(eval|new Function|innerHTML|document\.write|XMLHttpRequest|sendBeacon|WebSocket)\b/, rel(f));
   }
@@ -124,4 +127,41 @@ test('honest platform claims: Windows only, unsigned', () => {
   assert.match(h, /not code-signed/);
   assert.match(h, /id="licence"/); assert.match(h, /All rights reserved/);
   assert.doesNotMatch(h + d, /Windows, macOS(,| and) Linux/);
+});
+
+test('early access: edge origin is configured in config.json only, and the CSP agrees with it', () => {
+  assert.ok(CONFIG.edgeOrigin === '' || /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(CONFIG.edgeOrigin), 'edgeOrigin is empty or a bare https origin');
+  assert.ok(Number.isInteger(CONFIG.cap) && CONFIG.cap > 0);
+  const csp = f => /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(rd(f))[1];
+  for (const f of html) {
+    const want = f.endsWith(`${path.sep}download.html`) && f === path.join(SITE, 'download.html') ? cspFor(CONFIG.edgeOrigin) : cspFor('');
+    assert.equal(csp(f), want, rel(f) + ' CSP differs from what config.json implies (run node site/tools/gen-docs.mjs)');
+  }
+  // only connect-src ever names a remote origin, and only on the download page
+  assert.match(cspFor('https://edge.example'), /connect-src 'self' https:\/\/edge\.example;/);
+  for (const f of all.filter(f => f.endsWith('.js') && !/edge[\/]/.test(f))) {
+    const t = rd(f); assert.doesNotMatch(t, /https?:\/\/[a-z]/i, rel(f) + ' hard-codes an origin; use config.json');
+  }
+});
+
+test('download page: spots counter, privacy notice and closed state are wired and honest', () => {
+  const t = rd(path.join(SITE, 'download.html')), js = rd(path.join(SITE, 'assets/download.js'));
+  for (const id of ['dl-spots', 'dl-closed', 'privacy']) assert.ok(t.includes(`id="${id}"`), id);
+  assert.match(t, /Early access is full/);
+  for (const w of ['country', 'date', 'app version', 'browser family']) assert.match(t, new RegExp(w, 'i'));
+  assert.match(t, /IP address itself is not stored or logged/);
+  assert.match(t, /no cookies/i);
+  assert.match(t, /personal data/);
+  assert.match(js, /config\.json/); assert.match(js, /\/status/); assert.match(js, /\/dl/);
+  assert.match(js, /credentials: 'omit'/);
+  assert.doesNotMatch(js, /document\.cookie|localStorage|sessionStorage|navigator\.sendBeacon/);
+  assert.match(js, /closed === true/);
+  // the counter only shows numbers taken from the status response
+  assert.match(js, /Number\.isInteger\(s\.claimed\)/);
+});
+
+test('released builds do not leak the direct installer URL when the edge is configured', () => {
+  if (!CONFIG.edgeOrigin) return; // pre-launch: release.json may point at a release page
+  const r = JSON.parse(rd(path.join(SITE, 'release.json')));
+  assert.doesNotMatch(r.url, /\.exe(\?|$)/i, 'release.json url must not be the direct installer when downloads are counted');
 });

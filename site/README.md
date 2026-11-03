@@ -14,13 +14,16 @@ Open `index.html` to browse it. The download page reads `release.json` with `fet
 | `changelog.html` | Generated from `CHANGELOG.md` |
 | `assets/` | CSS, favicon, fonts, screenshots (copied from `docs/images`) |
 | `tools/` | The generator (`gen-docs.mjs`, `layout.mjs`, `home.mjs`, `download.mjs`). Not needed to host. |
+| `config.json` | Early-access edge origin (single place, feeds the download page CSP and `download.js`), `closed` switch, cap. Empty origin = not configured |
+| `edge/` | Cloudflare Worker + D1 download counter (`worker.js`, `schema.sql`, `wrangler.toml` placeholders, `edge.test.mjs`). Not hosted with the site |
+| `docs-internal/` | Early-access design note and deploy runbook. Internal: never publish |
 | `site.test.mjs` | Tests: links and anchors resolve, no remote hosts or inline script, no company name, `release.json` schema, accessibility basics |
 
 ## Regenerate and test
 
 ```
 node site/tools/gen-docs.mjs     # rebuilds docs/*.html, changelog.html, index.html, download.html
-node --test site/site.test.mjs
+node --test site/site.test.mjs site/edge/edge.test.mjs
 ```
 
 The docs pages are cut from `README.md`, `docs/GUIDE.md`, `docs/permissions.md`, `docs/scheduler.md`, `docs/agents-and-memory.md` and `CHANGELOG.md`. Edit those, then regenerate. Links into GitHub are rendered as plain text because the repository is private. Screenshots are copied by hand: when `docs/images` changes, copy the files to `site/assets/img/`.

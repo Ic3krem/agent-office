@@ -1,0 +1,6 @@
+{
+  "_comment": "Single place for the early-access edge origin. Empty = not configured (the page uses release.json directly). After editing run: node site/tools/gen-docs.mjs",
+  "edgeOrigin": "",
+  "closed": false,
+  "cap": 500
+}

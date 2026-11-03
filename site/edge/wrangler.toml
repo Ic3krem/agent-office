@@ -1,0 +1,27 @@
+# Cloudflare Worker config. Placeholders only: no secrets belong in this file.
+# Secrets (set with `wrangler secret put`, never committed): ADMIN_TOKEN, HASH_SALT.
+name = "agent-office-dl"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Turn off request-level logging so nothing about a visit is retained by the platform from our side.
+[observability]
+enabled = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agent-office-dl"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+CAP = "500"
+LOCKED = "false"
+# Origin of the Pages site, no trailing slash. Used for CORS and the back link.
+SITE_ORIGIN = "REPLACE_WITH_https://OWNER.github.io"
+# Full base URL of the site including any /repo-name path, for the back link on the full page.
+SITE_URL = "REPLACE_WITH_https://OWNER.github.io/REPO"
+# Installer download URL (https) and the version it is. Keep both in step with release.json.
+DL_TARGET = "REPLACE_WITH_https_INSTALLER_URL"
+DL_VERSION = "REPLACE_WITH_1.2.8"
+# "true" also records the state/province code (more precise, more personal). Leave "false".
+RECORD_SUBDIVISION = "false"

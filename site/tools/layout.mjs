@@ -1,9 +1,11 @@
 // Shared page shell. Strict CSP: everything is same-origin, no inline script or style.
 export const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'";
+export const cspFor = connect => `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'${connect ? ' ' + connect : ''}; base-uri 'none'; form-action 'none'`;
 
-export function layout({ root, title, desc, nav, main, scripts = [], bodyClass = '' }) {
+// connect: extra fetch origin (only the download page passes one: the early-access edge origin from config.json).
+export function layout({ root, title, desc, nav, main, scripts = [], bodyClass = '', connect = '' }) {
+  const CSP = cspFor(connect);
   const link = (href, label, key) => `<a href="${root}${href}"${nav === key ? ' aria-current="page"' : ''}${key === 'download' ? ' class="nav-cta"' : ''}>${label}</a>`;
   return `<!doctype html>
 <html lang="en">

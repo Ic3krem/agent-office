@@ -182,3 +182,9 @@ tr:last-child td { border-bottom: 0; }
 .docs-layout > * { min-width: 0; }
 @media (min-width: 900px) { .docs-layout { grid-template-columns: 250px minmax(0, 1fr); } }
 @media (max-width: 899px) { .docs-side ul { display: flex; flex-wrap: wrap; gap: .2rem .4rem; } .docs-side a { padding: .25rem .6rem; border: 1px solid var(--line); } }
+
+/* early access */
+.spots { font: 600 1rem var(--font-body); color: var(--orange); margin: .8rem 0 0; }
+.spots[hidden], .notice[hidden] { display: none; }
+.privacy { margin: 1.4rem 0; }
+.privacy p { color: var(--ink); max-width: 70ch; }
