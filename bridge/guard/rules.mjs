@@ -100,6 +100,8 @@ export const X_RES = [
 
 // ---- 3.8 unwanted scripts, persistence ----
 export const U_RES = [
+  // persistent environment changes: they outlive the session and can switch off the Guard or hijack PATH / NODE_OPTIONS for every new terminal
+  ['persist-env', /(^|[\s;&|(])setx(\.exe)?\s|setenvironmentvariable\s*\([^)]*,\s*['"]?(user|machine)\b|reg(\.exe)?\s+add[^\n]*\\environment\b|(set|new)-itemproperty[^\n]*\\environment\b|launchctl\s+setenv|environment\.d\/|\/etc\/environment|\.pam_environment/i],
   ['pipe-exec', /\b(curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod|fetch)\b[^\n]*\|\s*(sudo\s+)?(sh|bash|zsh|dash|fish|python\d?|node|perl|ruby|iex|invoke-expression|pwsh|powershell|cmd)\b/i], ['iex', /\b(iex|invoke-expression)\s*[(\$]|\.\s+\(?(iwr|irm)\b|&\s*\(\s*\[scriptblock\]::create|(source|bash|sh)\s+<\(\s*curl|sh\s+-c\s+["']?\$\(\s*curl/i],
   ['encoded', /\b(powershell|pwsh)(\.exe)?\b[^\n]*\s-(e|ec|en|enc|enco|encodedcommand)\b/i], ['b64-exec', /base64\s+(-d|--decode)[^\n]*\|\s*(sh|bash|python|node)|frombase64string[^\n]*(iex|invoke-expression|invoke|load)|certutil\s+-decode|openssl\s+enc\s+-d[^\n]*\|\s*sh/i],
   ['eval', /\beval\s*["'$`(]|python[\d.]*\s+-c\s+[^\n]*exec\(|node\s+-e\s+[^\n]*eval\(|new\s+function\(/i],

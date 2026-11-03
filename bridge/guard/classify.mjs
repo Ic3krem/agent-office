@@ -55,6 +55,21 @@ function globSecret(key, ctx) {
   for (const n of names) if (re.test(String(n)) && (secretByName(dir + '/' + String(n).toLowerCase()).kind === 'secret-name')) return { secret: true, by: 'name', rules: ['secret-name', 'glob'] };
   return null;
 }
+// scp/rsync/sftp remote operand: [user@]host:... where host is 2+ characters (so C:/x is a drive, never a host), [v6]:..., or a scheme URL
+const REMOTE_ARG = /^(?:[^@\s\/]+@)?(?:\[[0-9a-fA-F:.]+\]|[A-Za-z0-9][\w.-]*[A-Za-z0-9]):/;
+export const isRemoteArg = x => { const s = String(x); return (REMOTE_ARG.test(s) && !/^[a-z]:[\\/]/i.test(s)) || /^(rsync|scp|sftp|ssh):\/\//i.test(s); };
+// a tunnel or reverse-forward command that publishes something on this computer to the internet
+function tunnelLabel(c) {
+  const p = c.prog, low = c.args.map(x => String(x).toLowerCase()), sub = low.find(x => !x.startsWith('-')) || '';
+  if (p === 'ngrok') return /^(http|tcp|tls|start|tunnel)$/.test(sub) ? 'ngrok tunnel' : null;
+  if (p === 'cloudflared') return sub === 'tunnel' || low.some(x => x === '--url' || x.startsWith('--url=')) ? 'cloudflared tunnel' : null;
+  if (p === 'lt' || p === 'localtunnel') return p + ' tunnel';
+  if (p === 'tailscale') return /^(funnel|serve)$/.test(sub) ? 'tailscale ' + sub + ' tunnel' : null;
+  if (p === 'bore') return sub === 'local' ? 'bore tunnel' : null;
+  if (p === 'serveo' || p === 'loophole') return p + ' tunnel';
+  if (p === 'ssh' && c.args.some(x => x === '-R' || /^-R\S/.test(String(x)))) return 'ssh -R tunnel';
+  return null;
+}
 function pathArgs(c) {
   const out = [];
   for (const a0 of [...c.args, ...c.redirIn]) {
@@ -62,7 +77,7 @@ function pathArgs(c) {
     if (/^-/.test(t) && !/[=@]/.test(t)) continue;
     const kv = /^(?:--?[\w-]+|[\w.-]+)=@?(.+)$/.exec(t); if (kv) t = kv[1];
     const at = /^(?:--?[\w-]+)?@(.+)$/.exec(t); if (at) t = at[1];
-    if (/^[\w.-]+@[\w.-]+:/.test(t)) continue;                       // remote side of scp/rsync
+    if (isRemoteArg(t) || /^[\w.-]+@[\w.-]+:/.test(t)) continue;      // remote side of scp/rsync
     if (PATHY(t)) out.push(t);
   }
   return out;
@@ -83,13 +98,13 @@ const secretEnvRefs = texts => { const hit = new Set(); for (const t of texts) f
 // Is this command a sender of data? Returns a label, or null.
 function egressOf(c, ctx) {
   const p = c.prog, a = c.args, low = a.map(x => String(x).toLowerCase()), sub = low.find(x => !x.startsWith('-')) || '';
-  if (R.TUNNELS.has(p)) return p + ' tunnel';
+  { const tl = tunnelLabel(c); if (tl) return tl; }
   if (/^(nslookup|dig|host|resolve-dnsname|ping|ping6|tracert|traceroute)$/.test(p) && (c.subs?.length || a.some(x => /\$\(|`|\$\{?[A-Za-z_]|%[A-Za-z_]+%/.test(String(x))))) return p + ' (DNS lookup carrying data)';
   if (R.NET_PROGS.has(p)) {
     if (p === 'certutil') return /http/.test(low.join(' ')) ? 'certutil download' : null;
     if (p === 'bitsadmin') return /\/transfer|\/addfile/.test(low.join(' ')) ? 'bitsadmin' : null;
     if (p === 'ssh') return c.pipeFromCmd || c.redirIn.length ? 'ssh (stdin piped in)' : null;
-    if (p === 'rsync' || p === 'scp' || p === 'sftp') return a.some(x => /^(?:[\w.-]+@)?[\w.-]+:[^\\/\d]|^(rsync|scp|sftp|ssh):\/\//.test(String(x)) && !/^[a-z]:[\\/]/i.test(String(x))) ? p : null;
+    if (p === 'rsync' || p === 'scp' || p === 'sftp') return a.some(x => isRemoteArg(x)) ? p : null;
     if (p === 'rclone') return /^(copy|sync|move|copyto|moveto|bisync|mount)$/.test(sub) ? 'rclone ' + sub : null;
     if (p === 'curl' || p === 'wget' || p === 'iwr' || p === 'irm' || p === 'invoke-webrequest' || p === 'invoke-restmethod' || p === 'http' || p === 'https' || p === 'xh' || p === 'httpie') return p;
     return p;
@@ -131,6 +146,7 @@ function analyzeShell(tool, command, ctx, state, out) {
   // ---------- U: unwanted scripts, persistence
   const uHits = [];
   for (const [id, re] of R.U_RES) { const w = test(re); if (w) { uHits.push([id, w]); out.push(M('U', id, uReason(id), { obf: w })); } }
+  if (uHits.some(([id]) => id === 'persist-env') && texts.some(t => /\b(agent_office_\w*|claude_\w*|node_options|electron_run_as_node)\b|['"\s,\/]path\b/i.test(t))) out.push(M('S', 'env-critical', 'Permanently changes an environment variable the Guard, Claude, Node or the program search path depends on (AGENT_OFFICE_*, CLAUDE_*, NODE_OPTIONS, ELECTRON_RUN_AS_NODE, PATH).'));
   if (uHits.some(([, w]) => w === 'deobf')) out.push(M('U', 'obfuscated', 'The command is written with carets, backticks or split quotes to hide what it runs.'));
   if (hidden >= 3) out.push(M('U', 'hidden-chars', `The command contains ${hidden} hidden characters that a person cannot see.`));
   if (launchesClaude(norm)) out.push(M('U', 'claude-launch', 'Starts Claude outside the hiring approval.'));
@@ -218,7 +234,7 @@ const writeTargets = (c, args) => {
   return w;
 };
 const inPackageJson = (ctx, pkg) => { try { const t = ctx.fs?.sample?.(canon(ctx.cwd || '.', ctx).key + '/package.json', 65536); return !!t && t.includes(`"${String(pkg).replace(/@[^/]+$/, '')}"`); } catch { return false; } };
-function uReason(id) { return ({ 'pipe-exec': 'Downloads text and runs it straight away.', iex: 'Downloads and runs code with Invoke-Expression or a process substitution.', encoded: 'Runs an encoded PowerShell command that hides what it does.', 'b64-exec': 'Decodes hidden text and runs it.', eval: 'Evaluates a string as code.', unblock: 'Removes a safety check (execution policy, quarantine flag) or runs a remote installer.', schtasks: 'Creates a scheduled task, so something runs again later.', 'reg-run': 'Adds a Windows startup entry, service or WMI subscription.', cron: 'Changes cron jobs or system startup scripts.', launchd: 'Adds a launchd job.', systemd: 'Adds a systemd unit or autostart entry.', 'hooks-cfg': 'Changes git hook configuration.', 'supply-url': 'Installs a package straight from a URL or git source.', 'curl-sh': 'Downloads a file and runs it.' })[id] || 'Runs or installs something that may run again later.'; }
+function uReason(id) { return ({ 'persist-env': 'Sets an environment variable that stays for every future terminal and program (setx, registry Environment, launchctl setenv, environment.d).', 'pipe-exec': 'Downloads text and runs it straight away.', iex: 'Downloads and runs code with Invoke-Expression or a process substitution.', encoded: 'Runs an encoded PowerShell command that hides what it does.', 'b64-exec': 'Decodes hidden text and runs it.', eval: 'Evaluates a string as code.', unblock: 'Removes a safety check (execution policy, quarantine flag) or runs a remote installer.', schtasks: 'Creates a scheduled task, so something runs again later.', 'reg-run': 'Adds a Windows startup entry, service or WMI subscription.', cron: 'Changes cron jobs or system startup scripts.', launchd: 'Adds a launchd job.', systemd: 'Adds a systemd unit or autostart entry.', 'hooks-cfg': 'Changes git hook configuration.', 'supply-url': 'Installs a package straight from a URL or git source.', 'curl-sh': 'Downloads a file and runs it.' })[id] || 'Runs or installs something that may run again later.'; }
 function cReason(id) { return ({ cmdkey: 'Lists saved Windows credentials.', vaultcmd: 'Lists the Windows credential vault.', keymgr: 'Opens the Windows credential manager.', 'ps-cred': 'Reads stored credentials with PowerShell.', 'netsh-wifi': 'Reveals saved Wi-Fi passwords.', 'reg-creds': 'Reads credential-bearing registry hives.', lsass: 'Dumps credentials from memory or the domain database.', 'mac-security': 'Reads the macOS Keychain.', 'mac-sqlite': 'Opens a browser database with saved logins or cookies.', 'mac-defaults': 'Reads a stored password from macOS defaults.', 'secret-tool': 'Reads the Linux keyring.', pass: 'Reads the password store or secret keys.', memory: 'Reads another process\'s memory.' })[id] || 'Reads a credential store.'; }
 
 function noteReads(paths, ctx, state, out) {
@@ -262,6 +278,11 @@ function egress(c, label, clipboardOnly, k) {
   const srcDirs = [...a, ...c.redirIn].filter(PATHY).map(o => canon(o, ctx).key);
   const sub = a.find(x => !String(x).startsWith('-')) || '';
   const scopeCmd = p === 'git' || p === 'npm' || p === 'pnpm' || p === 'yarn' || p === 'twine' || p === 'cargo' || p === 'gem' || p === 'docker' || p === 'podman' || /^(vercel|netlify|wrangler|firebase|fly|flyctl|heroku|railway|helm)$/.test(p);
+  let tunnelCase = false;
+  if (/ tunnel$/.test(label)) {
+    tunnelCase = true; const dirs = [cwd], dm = /(?:--directory|\s-d)\s+("[^"]+"|'[^']+'|\S+)/.exec(texts[0] || ''); if (dm) dirs.push(canon(dm[1].replace(/^["']|["']$/g, ''), ctx).key);
+    for (const d of dirs) { const w = walkRoot(ctx, d); if (w) { addFiles(secretsIn(ctx, d, w.files)); if (w.truncated) exact = false; } }
+  }
   // ---- payload by kind (ignore files are not trusted; Docker's own .dockerignore is applied for docker)
   if (p === 'git' && /^(push|send-email|request-pull|format-patch|bundle)$/.test(sub)) {
     const lenient = /^(format-patch|bundle)$/.test(sub);
@@ -283,7 +304,9 @@ function egress(c, label, clipboardOnly, k) {
   } else if (p === 'twine' || p === 'cargo' || p === 'gem') {
     const w = walkRoot(ctx, cwd + '/dist'); if (w) addFiles(secretsIn(ctx, cwd + '/dist', w.files));
   } else if (/^(rsync|scp|rclone|aws|gsutil|az|azcopy|gcloud|sftp)$/.test(p) || /^rclone/.test(label)) {
-    for (const o of srcDirs) { const w = walkRoot(ctx, o); if (w && w.files.length) { addFiles(secretsIn(ctx, o, w.files)); if (w.truncated) { exact = false; found.push({ path: o, why: 'more files than the Guard can check' }); why.push('(estimated: too many files to check)'); } } }
+    // every non-flag, non-remote operand is a possible local source (scp -r deploy host:/x has no slash in 'deploy')
+    const xfer = [...a, ...c.redirIn].map(String).filter(x => x && !x.startsWith('-') && !isRemoteArg(x) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(x)).map(x => canon(x, ctx).key);
+    for (const o of [...new Set([...srcDirs, ...xfer])]) { const w = walkRoot(ctx, o); if (w && w.files.length) { addFiles(secretsIn(ctx, o, w.files)); if (w.truncated) { exact = false; found.push({ path: o, why: 'more files than the Guard can check' }); why.push('(estimated: too many files to check)'); } } }
   }
   // current folder goes out with no explicit file (git add -A style scopes were handled at add time)
   if (scopeCmd && !found.length && ctx.fs?.list && /^(npm|pnpm|yarn|twine|cargo|gem)$/.test(p) === false && /^(vercel|netlify|wrangler|firebase|fly|flyctl|heroku|railway)$/.test(p)) { /* handled above */ }
@@ -299,6 +322,7 @@ function egress(c, label, clipboardOnly, k) {
   if (feederEnv) why.push('the environment variables');
   if (inline) why.push('what looks like a secret typed into the command');
   if (viaArchive) why.push('an archive made from sensitive files');
+  if (tunnelCase && found.length) { out.push(M('S', 'tunnel-exposes', `Exposes the folder to the internet through ${label} (it holds ${found.slice(0, 3).map(f => f.path).join(', ')}).`, { files: found.slice(0, 8), exact })); return; }
   if (found.length) why.unshift('secret files: ' + found.slice(0, 3).map(f => f.path).join(', '));
   const dest = host || (clipboardOnly ? 'the clipboard' : '');
   const uncDest = [...a, ...c.redirOut].map(o => String(o)).find(o => /^\\\\[^?.]|^\/\/[^/]/.test(o));

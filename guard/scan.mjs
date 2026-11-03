@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import { redact, hasSecret, entropy } from '../redact.mjs';
 import { CONTENT_RULES, HEX_NEAR_KEYNAME, PLACEHOLDER, SECRET_NAME_RES, CONDITIONAL_NAME_RES, EXCEPT_NAME_RES, SECRET_DIRS, SSH_PUBLIC_OK } from './rules.mjs';
-import { baseName } from './normalise.mjs';
+import { baseName, isRemoteKey } from './normalise.mjs';
 
 export const SCAN_CAP = 256 * 1024;
 export const sha256 = s => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
@@ -69,7 +69,7 @@ export function secretDirKind(key) {
 const cache = new Map();
 export function classifyFile(key, ctx, { content = true } = {}) {
   const name = secretByName(key), dir = secretDirKind(key);
-  if (String(key).startsWith('//')) {                       // B3: remote path, classify from the text only
+  if (isRemoteKey(key, ctx)) {                       // B3: remote path, classify from the text only
     if (dir) return { secret: true, by: 'dir', rules: ['secret-dir'] };
     if (name.kind === 'secret-name') return { secret: true, by: 'name', rules: ['secret-name'] };
     return { secret: false };

@@ -10,7 +10,7 @@ import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod';
 import { apply, newAgent, statusOf, toolSummary } from './transcript.mjs';
 import { claudeSessionOptions, makeCanUseTool, describeRequest, launchesClaude } from './permissions.mjs';
-import { createGuardHooks, discoverSyncRoots, makeReadReg } from './guard/hook.mjs';
+import { createGuardHooks, discoverSyncRoots, makeReadReg, markSdkSession, unmarkSdkSession, clearSdkMarkers, detectRemoteDrives, saveRemoteDrives } from './guard/hook.mjs';
 import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
@@ -258,6 +258,7 @@ function startSession(text, cwd = HOME, extra = {}) {
       for await (const m of q) {
         if (m.type === 'system' && m.subtype === 'init' && !holder.id) {
           holder.id = m.session_id;
+          markSdkSession(GUARD_DIR, holder.id);   // the terminal hook skips exactly the sessions registered here
           sdk.set(holder.id, { q, push: t => push(msg(t)) });
           const a = agents.get(holder.id) ?? agents.set(holder.id, newAgent(holder.id)).get(holder.id);
           Object.assign(a, { role: 'Dashboard', dashboard: true, busy: true, task: text.slice(0, 80), firstPrompt: text.slice(0, 40), cwd }, extra.agent);
@@ -271,7 +272,7 @@ function startSession(text, cwd = HOME, extra = {}) {
       if (a) { a.logs.push({ t: new Date().toTimeString().slice(0, 8), k: 'err', text: 'Session ended: ' + e.message }); bump(); }
       else console.error('Could not start session:', e.message);
     }
-    if (holder.id) { sdk.delete(holder.id); bump(); }
+    if (holder.id) { sdk.delete(holder.id); unmarkSdkSession(GUARD_DIR, holder.id); bump(); }
     extra.onEnd?.();
   })();
 }
@@ -369,7 +370,12 @@ let SYNC_ROOTS = []; const refreshSyncRoots = () => { try { SYNC_ROOTS = discove
 refreshSyncRoots(); setInterval(refreshSyncRoots, 10 * 60e3).unref();
 guardAudit.prune();
 setInterval(() => { try { guardAudit.prune(); } catch { /* ignore */ } }, 6 * 3600e3).unref?.();
+let REMOTE_DRIVES = new Set();
+clearSdkMarkers(GUARD_DIR);   // markers from a previous run are stale
+const refreshDrives = () => detectRemoteDrives().then(l => { REMOTE_DRIVES = new Set(l); saveRemoteDrives(GUARD_DIR, l); }).catch(() => {});
+refreshDrives(); setInterval(refreshDrives, 10 * 60e3).unref?.();
 const secGuard = createGuardHooks({
+  remoteDrives: () => REMOTE_DRIVES,
   getConfig: () => guardState().eff.config, getRemembered: () => guardState().rem, audit: guardAudit,
   getBase: input => ({ home: HOME, env: process.env, os: process.platform, cwd: input?.cwd || workDir(), projectDirs: [workDir()], syncRoots: [...SYNC_ROOTS, ...guardState().eff.config.syncRoots], vaultDir: V.root }),
   agentOf: input => String(input?.agent_type || input?.agent_id || ''),

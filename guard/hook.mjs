@@ -74,6 +74,25 @@ export function parsePatch(text) {
   }
   return files;
 }
+// ---- Agent Office session markers (NB2): the terminal hook skips ONLY a session the app itself started and registered here.
+// An environment variable alone can be set permanently by anything (setx, registry) and is never trusted for this.
+export const sdkMarkerFile = (guardDir, sessionId) => path.join(guardDir, 'sdk-sessions', crypto.createHash('sha256').update(String(sessionId)).digest('hex'));
+export function markSdkSession(guardDir, sessionId) { try { fs.mkdirSync(path.join(guardDir, 'sdk-sessions'), { recursive: true, mode: 0o700 }); fs.writeFileSync(sdkMarkerFile(guardDir, sessionId), String(Date.now()), { mode: 0o600 }); } catch { /* the terminal hook then simply runs too: stricter, never weaker */ } }
+export function unmarkSdkSession(guardDir, sessionId) { try { fs.rmSync(sdkMarkerFile(guardDir, sessionId), { force: true }); } catch { /* ignore */ } }
+export function clearSdkMarkers(guardDir) { try { const d = path.join(guardDir, 'sdk-sessions'); for (const f of fs.readdirSync(d)) fs.rmSync(path.join(d, f), { force: true }); } catch { /* none */ } }
+// ---- network drives (R1): Windows only, asynchronous, bounded; the answer is cached (drives.json) so terminals never pay for it
+export function detectRemoteDrives(timeoutMs = 4000) {
+  if (process.platform !== 'win32') return Promise.resolve([]);
+  return new Promise(resolve => {
+    try {
+      const ps = "[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Network' } | ForEach-Object { $_.Name.Substring(0,1) }";
+      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: timeoutMs, windowsHide: true, encoding: 'utf8' }, (err, out) => resolve(err ? [] : String(out).split(/\s+/).filter(x => /^[A-Za-z]$/.test(x)).map(x => x.toLowerCase())));
+    } catch { resolve([]); }
+  });
+}
+export const drivesFile = guardDir => path.join(guardDir, 'drives.json');
+export function saveRemoteDrives(guardDir, letters) { try { fs.mkdirSync(guardDir, { recursive: true, mode: 0o700 }); fs.writeFileSync(drivesFile(guardDir), JSON.stringify({ at: Date.now(), letters }), { mode: 0o600 }); } catch { /* ignore */ } }
+export function loadRemoteDrives(guardDir) { try { const j = JSON.parse(fs.readFileSync(drivesFile(guardDir), 'utf8')); return new Set((j.letters || []).map(x => String(x).toLowerCase())); } catch { return new Set(); } }
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const git = (cwd, args, ms = 100) => { try { return execFileSync('git', args, { cwd, timeout: ms, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 4 * 1024 * 1024 }); } catch { return null; } };
 export function makeGit() {
@@ -148,10 +167,10 @@ export function reasonText(res, ctx = {}) {
 
 // opts: getConfig() -> normalised effective config; getRemembered() -> [{ key, at }]; getBase(input) -> { os, home, cwd, env, vaultDir, projectDirs, additionalDirs, syncRoots };
 //       audit: { write }; now; fsFactory/gitApi optional (tests inject virtual ones)
-export function createGuardHooks({ getConfig, getRemembered = () => [], getBase = () => ({}), audit = { write() {} }, now = Date.now, fsFactory = makeFs, gitApi = makeGit(), agentOf = () => '', prefetchMs = PREFETCH_MS } = {}) {
+export function createGuardHooks({ getConfig, getRemembered = () => [], getBase = () => ({}), audit = { write() {} }, now = Date.now, fsFactory = makeFs, gitApi = makeGit(), agentOf = () => '', prefetchMs = PREFETCH_MS, remoteDrives = null } = {}) {
   const sessions = new Map(), meta = new Map();
   const stateOf = id => { const k = String(id || 'default'); let s = sessions.get(k); if (!s) { s = createState(); sessions.set(k, s); if (sessions.size > 50) sessions.delete(sessions.keys().next().value); } return s; };
-  const ctxOf = (input, git = gitApi) => ({ os: process.platform, home: os.homedir(), env: process.env, cwd: input?.cwd || process.cwd(), ...getBase(input), fs: fsFactory(), git, config: getConfig(), remembered: getRemembered(), now });
+  const ctxOf = (input, git = gitApi) => ({ os: process.platform, home: os.homedir(), env: process.env, cwd: input?.cwd || process.cwd(), ...getBase(input), remoteDrives: typeof remoteDrives === 'function' ? remoteDrives() : remoteDrives, fs: fsFactory(), git, config: getConfig(), remembered: getRemembered(), now });
   const guardErr = (e, input, ms) => { try { audit.write(auditEntry({ now: now(), sessionId: input?.session_id, tool: input?.tool_name, category: '', decision: 'guard_error', command: String(e && e.message || e), extra: { ms } })); } catch { /* ignore */ } };
   // The classifier is synchronous, so a timer cannot interrupt it (the old Promise.race only looked like a limit). Everything slow runs async with real abort
   // signals before it (git) or is never done at all (remote paths); here we only measure, and if an S/Y/I-risky request overran or threw, we ask instead of {}.
@@ -225,8 +244,9 @@ function saveSession(dir, id, s) { try { fs.mkdirSync(path.join(dir, 'sessions')
 
 export async function runCommandHook(stdinText, env = process.env, home = os.homedir()) {
   let input; try { input = JSON.parse(stdinText || '{}'); } catch { return {}; }
-  if (env.AGENT_OFFICE_SDK_SESSION === '1') return {};          // an Agent Office session: the SDK hook already ran the Guard
   const base = path.join(home, '.claude', 'agent-office'), dir = path.join(base, 'guard');
+  // an Agent Office session: the SDK hook already ran the Guard. Trusted only when the app registered THIS session id (an env var alone is not enough).
+  if (input.session_id && fs.existsSync(sdkMarkerFile(dir, input.session_id))) return {};
   const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const kiro = readJson(path.join(base, 'kiro.json')) || {}, confirmed = readJson(path.join(dir, 'confirmed.json'));
   const secret = env.AGENT_OFFICE_GUARD_KEY || null;           // only a terminal started by the app can verify the HMAC; otherwise the strictest settings apply
@@ -237,7 +257,7 @@ export async function runCommandHook(stdinText, env = process.env, home = os.hom
   if (eff.notices.length) audit.write(auditEntry({ sessionId: input.session_id, decision: 'log', category: '', command: 'Guard setting changed outside the app; kept ' + eff.notices.map(n => `${n.what}:${n.kept}`).join(', ') }));
   const remembered = verifyRemember(readJson(path.join(dir, 'remember.json'))?.entries, secret);   // unsigned entries (or no app key) are ignored
   const st = loadSession(dir, input.session_id);
-  const hooks = createGuardHooks({ getConfig: () => eff.config, getRemembered: () => remembered, getBase: () => ({ home, env, cwd: input.cwd || process.cwd(), os: process.platform, syncRoots: [...(eff.config.syncRoots || []), ...discoverSyncRoots({ home, env })], vaultDir: '' }), audit });
+  const hooks = createGuardHooks({ remoteDrives: loadRemoteDrives(dir), getConfig: () => eff.config, getRemembered: () => remembered, getBase: () => ({ home, env, cwd: input.cwd || process.cwd(), os: process.platform, syncRoots: [...(eff.config.syncRoots || []), ...discoverSyncRoots({ home, env })], vaultDir: '' }), audit });
   hooks.sessions.set(String(input.session_id || 'default'), st);
   const ev = input.hook_event_name;
   const out = ev === 'PostToolUse' ? await hooks.post(input) : ev === 'PreToolUse' ? await hooks.pre(input) : {};

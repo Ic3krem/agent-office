@@ -3,7 +3,7 @@
 // publish, deploy or copy is computed from the real file set. The one exception is .dockerignore, because Docker itself honours it,
 // so it is applied with Docker's own matcher. File-system and git access come in through ctx (fs, git, npmPack) so everything is
 // testable with a virtual file system; the defaults in hook.mjs are bounded (timeouts, entry caps).
-import { canon, baseName } from './normalise.mjs';
+import { canon, baseName, isRemoteKey } from './normalise.mjs';
 import { classifyFile, scanText, sha256 } from './scan.mjs';
 
 export const WALK_CAP = 500;
@@ -20,7 +20,7 @@ export function dockerIgnore(text) {
 
 // Files under a root (relative paths), capped. Over the cap the caller treats the payload as 'estimated' and the volume rule (H) applies.
 export function walkRoot(ctx, rootKey) {
-  if (String(rootKey).startsWith('//')) return null;   // B3: remote roots are never walked
+  if (isRemoteKey(rootKey, ctx)) return null;   // B3: remote roots are never walked
   try { const list = ctx.fs?.walk?.(rootKey, WALK_CAP + 1); if (!list) return null; return { files: list.slice(0, WALK_CAP), truncated: list.length > WALK_CAP }; } catch { return null; }
 }
 const join = (root, rel) => root.replace(/\/$/, '') + '/' + String(rel).replace(/\\/g, '/').replace(/^\.?\//, '').toLowerCase();

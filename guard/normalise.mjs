@@ -80,12 +80,16 @@ export function canon(p, ctx = {}) {
     const homeName = ctx.home ? String(ctx.home).replace(/\\+/g, '/').replace(/\/$/, '').split('/').pop().toLowerCase() : '';
     key = key.replace(/\/([^/~]{1,6})~\d(?=\/|$)/g, (mm, pre) => { if (homeName && homeName.startsWith(pre.toLowerCase())) return '/' + homeName; wild = true; return mm; });
   }
+  if (!unc && ctx.remoteDrives && /^[a-z]:\//i.test(key) && drivesHas(ctx.remoteDrives, key[0])) { unc = true; host = host || 'network drive ' + key[0].toUpperCase() + ':'; }   // R1: mapped network drive / DFS
   return { key, unc, host, wild };
 }
+const drivesHas = (set, letter) => { const l = String(letter).toLowerCase(); return set instanceof Set ? set.has(l) || set.has(l.toUpperCase()) : Array.isArray(set) && set.some(x => String(x).toLowerCase() === l); };
+// true for UNC keys and for keys on a network drive: nothing may probe the file system there (it can hang for seconds)
+export const isRemoteKey = (key, ctx = {}) => String(key).startsWith('//') || (!!ctx.remoteDrives && /^[a-z]:\//i.test(String(key)) && drivesHas(ctx.remoteDrives, String(key)[0]));
 // requested path plus its symlink / junction / subst target when it can be resolved
 export function pathKeys(p, ctx = {}) {
   const c = canon(p, ctx), keys = [c.key];
-  if (c.unc || c.key.startsWith('//')) return { keys, unc: c.unc, host: c.host, wild: c.wild };   // B3: never touch the network
+  if (c.unc || isRemoteKey(c.key, ctx)) return { keys, unc: c.unc, host: c.host, wild: c.wild };   // B3: never touch the network
   try {
     const real = ctx.fs?.realpath?.(c.key, expandVars(String(p), ctx));
     if (real) { const k = canon(real, ctx).key; if (!keys.includes(k)) keys.push(k); }
