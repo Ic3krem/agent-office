@@ -229,7 +229,7 @@ test('scheduler subjects are never written into Tiro memory and the tool that sh
   const job = fs.readFileSync(new URL('./scheduler-job.mjs', import.meta.url), 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
   assert.doesNotMatch(job, /MEMORY\.md|scheduler-inbox|agents['"]/);
   const srv = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
-  assert.match(srv, /scheduler_inbox/); assert.match(srv, /UNTRUSTED_EMAIL_SUBJECTS/);
+  assert.match(srv, /scheduler_inbox/); assert.match(srv, /fenceSubjects/); assert.match(fs.readFileSync(new URL("./scheduler.mjs", import.meta.url), "utf8"), /UNTRUSTED_EMAIL_SUBJECTS/);
 });
 
 test('pages load no remote resources: CSP has no remote host and the fonts are vendored', () => {

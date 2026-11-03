@@ -326,9 +326,7 @@ button:disabled{opacity:.45;cursor:default}
                 <button onClick="{{ approveSel }}" style="display:{{ yesDisp }}; padding:7px 12px; border-radius:6px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#7ee4a5;">{{ approveLabel }}</button>
                 <button onClick="{{ approveAlways }}" title="Writes the permission rule Claude Code suggests for this request (same settings file it would use)" style="display:{{ alwaysDisp }}; padding:7px 12px; border-radius:6px; border:1px solid #5fd38d; background:transparent; color:#5fd38d; font:inherit; font-weight:600; cursor:pointer;">Always allow</button>
                 <button onClick="{{ denySel }}" style="padding:7px 12px; border-radius:6px; border:1px solid #ff7a6b; background:transparent; color:#ff9a8d; font:inherit; font-weight:600; cursor:pointer;" style-hover="background:#3a1612;">No (N)</button>
-                <sc-if value="{{ sel.canModify }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ toggleModify }}" style="padding:7px 12px; border-radius:6px; border:1px solid #6b5a48; background:transparent; color:#d7c3a8; font:inherit; cursor:pointer;" style-hover="background:#2a211b;">{{ modifyLabel }}</button>
-                </sc-if>
                 <button onClick="{{ terminalSel }}" style="padding:7px 12px; border-radius:6px; border:1px solid #6b5a48; background:transparent; color:#d7c3a8; font:inherit; cursor:pointer;" style-hover="background:#2a211b;">Answer in terminal</button>
               </div>
             </div>
@@ -553,7 +551,7 @@ class Component extends DCLogic {
     const st=a&&(s.nudged[a.id]?'nudged':a.status);
     const sel=a?{imgRef:(u=>el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);})(portrait(a)),name:a.name,role:(a.profile&&!a.isManager?a.profile.name+' · '+a.profile.role:a.role)+(a.canSend?'':' · watch-only'),model:a.model,
       statusLabel:STATUS[st][0],statusColor:STATUS[st][1],
-      taskText:a.task||'None, waiting for work',blocked:!!a.perm,permCmd:a.perm?a.perm.cmd:'',permPreview:a.perm?a.perm.preview||'':'',permWhy:a.perm?a.perm.why:'',canModify:!!a.perm,permQuestion:a.perm&&a.perm.questions?a.perm.questions.map(q=>(q.header?q.header+': ':'')+q.question+'\n'+q.options.map(o=>'  - '+o.label+(o.description?': '+o.description:'')).join('\n')).join('\n\n')+'\n\n(Answer from the island or the terminal.)':''}:{};
+      taskText:a.task||'None, waiting for work',blocked:!!a.perm,permCmd:a.perm?a.perm.cmd:'',permPreview:a.perm?a.perm.preview||'':'',permWhy:a.perm?a.perm.why:'',permQuestion:a.perm&&a.perm.questions?a.perm.questions.map(q=>(q.header?q.header+': ':'')+q.question+'\n'+q.options.map(o=>'  - '+o.label+(o.description?': '+o.description:'')).join('\n')).join('\n\n')+'\n\n(Answer from the island or the terminal.)':''}:{};
     const logs=a?a.logs.slice(s.cleared[a.id]||0).concat(s.local[a.id]||[]):[];
     const selLogs=logs.map(l=>{const k=KIND[l.k]||KIND.sys;return {t:l.t,tag:k[0],tagColor:k[1],color:k[2],fs:l.k==='think'?'italic':'normal',text:l.text};});
     return {

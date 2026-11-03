@@ -89,7 +89,7 @@ function feedFilePath(f) {
   const p = /^file:\/\//i.test(f) ? decodeURIComponent(new URL(f).pathname).replace(/^\/(?=[A-Za-z]:)/, '') : f;
   return /\.json$/i.test(p) ? p : path.join(p, 'latest.json');
 }
-const feedKind = f => /^https:\/\//i.test(f) ? 'https' : /^[a-z][a-z0-9+.-]{1,}:\/\//i.test(f) && !/^file:\/\//i.test(f) ? null : 'file';
+const feedKind = f => /^(\\\\|\/\/)/.test(String(f).trim()) ? null : /^https:\/\//i.test(f) ? 'https' : /^[a-z][a-z0-9+.-]{1,}:\/\//i.test(f) && !/^file:\/\//i.test(f) ? null : 'file';
 const defaultReadBytes = async loc => {
   if (/^https:\/\//i.test(loc)) {
     const r = await fetch(loc, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10000) });

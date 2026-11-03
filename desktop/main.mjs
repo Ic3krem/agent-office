@@ -1,6 +1,7 @@
 // Agent Office desktop app: runs the office server, keeps Tiro on the desktop, and lives in the tray.
 import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog, session } from 'electron';
 import crypto from 'node:crypto';
+import { unsafeSwitches, unsafeEnv, unsafeMessage } from './startup-guard.mjs';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -19,6 +20,8 @@ const KIRO_FILE = path.join(CFG_DIR, 'kiro.json');
 const ICON = nativeImage.createFromPath(path.join(ROOT, 'desktop', 'icon.png'));
 const KIRO_W = 380, KIRO_H = 600;
 
+// A debugging port or inspector would let any local program drive the app's signed-in windows: refuse to start with one.
+{ const bad = [...unsafeSwitches(process.argv), ...unsafeEnv().map(k => k + '=' + process.env[k])]; if (bad.length) { dialog.showErrorBox('Agent Office', unsafeMessage(bad)); process.exit(2); } }
 if (!app.requestSingleInstanceLock()) app.quit();
 if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transparent-visuals'); // Tiro's see-through window
 app.setAppUserModelId('io.github.ic3krem.agentoffice');
