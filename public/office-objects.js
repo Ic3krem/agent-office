@@ -154,8 +154,23 @@
     ['bridge', 'Terminal approvals', 'Your own Claude terminals send their permission prompts to the office.'],
     ['guard', 'Subscription guard', 'Stop at the 5-hour or weekly plan limit instead of spending extra-usage credits.'],
   ];
+  // The notch is a desktop-app feature: this row exists only when the dashboard runs inside the Agent Office window, which
+  // exposes window.agentOfficeDesktop.notch (get/set over a sender-checked IPC). In a plain browser tab it is not shown.
+  const desktop = () => (typeof window !== 'undefined' && window.agentOfficeDesktop && window.agentOfficeDesktop.notch) || null;
+  async function notchRow(body) {
+    const n = desktop(); if (!n) return;
+    let on; try { on = await n.get(); } catch { return; }
+    if (typeof on !== 'boolean' || !body.isConnected) return;
+    body.querySelector('[data-k="notch"]')?.remove();
+    const div = document.createElement('div');
+    div.className = 'oo-sw'; div.dataset.act = 'notch'; div.dataset.k = 'notch'; div.setAttribute('role', 'switch'); div.setAttribute('aria-checked', String(on)); div.tabIndex = 0;
+    div.innerHTML = `<div class="oo-lever"><i style="top:${on ? 4 : 26}px;background:${on ? '#5fd38d' : '#7a3b30'}"></i></div>
+      <div><div style="font-weight:600">Notch <span style="font:11px 'IBM Plex Mono';color:${on ? '#5fd38d' : '#ff9a8d'}">${on ? 'ON' : 'OFF'}</span></div><div class="oo-meta" style="font-family:inherit;font-size:12.5px">The island overlay at the top of your screen. Off removes its window. Also in the tray menu (Show notch) and the island's own Settings.</div></div>`;
+    body.querySelector('.oo-pad')?.append(div);
+  }
   function breaker() {
     const body = shell('Breaker box', 'Hard switches. Flipping one takes effect immediately.', true);
+    queueMicrotask(() => notchRow(body));
     const s = { ...(snap.switches || {}) };
     body.innerHTML = `<div class="oo-pad">${snap.boss?.paused ? `<div style="padding:9px 11px;border-radius:8px;background:#3a2405;border:1px solid #8a5a1c;color:#ffd28a;margin-bottom:10px">⏸ ${esc(snap.boss.paused)}</div>` : ''}
       ${BREAKERS.map(([k, label, desc]) => `<div class="oo-sw" data-act="switch" data-k="${k}" role="switch" aria-checked="${!!s[k]}" tabindex="0">
@@ -325,6 +340,7 @@
           await api('/api/switch', { name: d.k, on });
           return;
         }
+        case 'notch': { const n = desktop(); if (!n) return; const cur = await n.get(); if (typeof cur !== 'boolean') return; await n.set(!cur); return breaker(); }
         case 'play': d.ch ? audio.play(d.ch) : audio.stop(); return jukebox();
         case 'espresso': await api('/api/switch', { name: 'espresso', on: !!d.on }); return;
       }

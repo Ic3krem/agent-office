@@ -11,7 +11,7 @@ import { createNowPlaying } from './nowplaying.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
 import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
 import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
-import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady } from './island-logic.mjs';
+import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, notchStep } from './island-logic.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = 4777, BASE = `http://localhost:${PORT}`;
@@ -27,7 +27,7 @@ if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transpare
 app.setAppUserModelId('io.github.ic3krem.agentoffice');
 
 let server, office, kiro, island, tray;
-const prefs = (() => { try { return JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch { return {}; } })();
+const prefs = (() => { try { return migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8'))); } catch { return migrateNotchPrefs({}); } })();
 // agentNames is owned by the server (rename UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
 const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch {} const out = { ...prefs }; if (disk.agentNames) out.agentNames = disk.agentNames; else delete out.agentNames; fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
@@ -90,7 +90,7 @@ const VIEWS = new Set(['today', 'reports', 'usage', 'office']);
 function openOffice(view) {
   view = typeof view === 'string' && VIEWS.has(view) && view !== 'office' ? view : ''; // 'office' = just open the window
   if (!office) {
-    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'Agent Office', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
+    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'Agent Office', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { preload: path.join(ROOT, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
     office.loadURL(url('/') + (view ? '#' + view : ''));
     external(office.webContents);
     office.on('closed', () => { office = null; });
@@ -134,6 +134,7 @@ ipcMain.on('kiro:office', e => { if (fromKiro(e)) openOffice(); });
 // ---------- Tiro island: a click-through notch at the top centre of a display ----------
 // Prefs in kiro.json: islandMode always|smart|off, islandMute, islandDisplay cursor|primary|<display id>.
 const isleMode = () => resolveMode(prefs);
+const notchOn = () => notchEnabledOf(prefs);   // kiro.json islandSettings.notchEnabled (default on)
 const isleDisplay = () => pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, screen.getCursorScreenPoint(), prefs.islandDisplay);
 const isle = { fs: false, peek: false, edgeSince: null };
 const isleSettings = () => normalizeSettings(prefs.islandSettings);
@@ -153,14 +154,16 @@ function refreshLyrics() {
   lyricsClient.get(nowPlaying).then(lines => { if (lyr.key === key) { lyr = { key, lines }; pushLyrics(); } });
 }
 const np = createNowPlaying(n => { nowPlaying = n; pushNowPlaying(); refreshLyrics(); });
-const syncNowPlaying = () => { if (isleSettings().nowPlaying && isleMode() !== 'off') np.start(); else np.stop(); };
-const pushIsland = () => { if (alive()) island.webContents.send('island:state', { mode: isleMode(), mute: !!prefs.islandMute, fs: isle.fs, peek: isle.peek, settings: isleSettings() }); };
+const syncNowPlaying = () => { if (notchOn() && isleSettings().nowPlaying && isleMode() !== 'off') np.start(); else np.stop(); };
+const pushIsland = () => { if (alive()) island.webContents.send('island:state', { mode: isleMode(), mute: !!prefs.islandMute, fs: isle.fs, peek: isle.peek, settings: isleSettings(), notchShortcutOk: notchKeyOk }); };
 function placeIsland(force) {
   if (!alive()) return;
   const b = isleBoundsFor(isleDisplay().bounds), c = island.getBounds();
   if (!force && c.x === b.x && c.y === b.y && c.width === b.width && c.height === b.height) return;
   island.setBounds(b); island.setBounds(b); // twice: Windows mis-sizes the first call when the target display has another DPI scale
 }
+// Notch off: the window is destroyed, not just hidden, so nothing renders, polls or listens for it.
+function destroyIsland() { if (alive()) { const w = island; island = null; try { w.destroy(); } catch {} } isle.peek = false; isle.edgeSince = null; }
 function showIsland() {
   if (alive()) { placeIsland(); return island.showInactive(); }
   island = new BrowserWindow({
@@ -176,15 +179,22 @@ function showIsland() {
   external(island.webContents);
   island.webContents.on('did-finish-load', () => { pushIsland(); pushNowPlaying(); pushLyrics(); pushUpdate(); });
   island.once('ready-to-show', () => island.showInactive());
-  island.on('closed', () => { island = null; });
+  const me = island; island.on('closed', () => { if (island === me) island = null; }); // a destroyed window must not clear a newer one
 }
 const fromIsland = e => island && e.sender === island.webContents;
+const fromOffice = e => office && !office.isDestroyed() && e.sender === office.webContents;
+ipcMain.handle('notch:get', e => (fromOffice(e) ? notchOn() : null));
+ipcMain.handle('notch:set', (e, on) => { if (!fromOffice(e) || typeof on !== 'boolean') return null; setNotch(on); return notchOn(); });
 ipcMain.on('island:interactive', (e, on) => { if (fromIsland(e)) island.setIgnoreMouseEvents(!on, { forward: true }); });
 ipcMain.on('island:focus', e => { if (fromIsland(e)) island.focus(); });
 // Settings panel in the island: the page sends a patch, main validates + persists, then echoes the result back.
 ipcMain.on('island:settings', (e, patch) => {
   if (!fromIsland(e) || !patch || typeof patch !== 'object' || Array.isArray(patch)) return;
-  prefs.islandSettings = applyPatch(prefs.islandSettings, patch); savePrefs(); syncNowPlaying(); pushIsland(); pushNowPlaying(); refreshLyrics();
+  const was = notchOn(), key = isleSettings().notchShortcut;
+  prefs.islandSettings = applyPatch(prefs.islandSettings, patch); savePrefs();
+  if (notchOn() !== was) { if (notchOn() && resolveMode(prefs) === 'off') { prefs.islandMode = 'always'; savePrefs(); } setImmediate(applyIsland); } // the island may be closing itself: let this handler return first
+  if (isleSettings().notchShortcut !== key) registerNotchShortcut();
+  syncNowPlaying(); pushIsland(); pushNowPlaying(); refreshLyrics();
 });
 ipcMain.on('island:media', (e, verb) => { if (fromIsland(e) && isleSettings().nowPlaying) np.control(verb); });
 ipcMain.on('island:mute', (e, on) => { if (fromIsland(e)) { prefs.islandMute = !!on; savePrefs(); pushIsland(); } });
@@ -262,14 +272,34 @@ setInterval(() => {
 }, 200).unref();
 
 function applyIsland() {
-  const m = isleMode(); prefs.islandOff = m === 'off'; savePrefs();
-  if (m === 'off') { if (alive()) island.hide(); } else showIsland();
-  watchFullscreen(m === 'smart');
+  const on = notchOn(), m = isleMode();
+  prefs.islandOff = !on || m === 'off'; savePrefs();
+  const step = notchStep({ enabled: on, alive: alive() }, on ? 'enable' : 'disable');
+  if (step.effect === 'destroy') destroyIsland();
+  else if (on && m === 'off') { if (alive()) island.hide(); }
+  else if (on) showIsland();
+  watchFullscreen(on && m === 'smart');
   syncNowPlaying();
   pushIsland();
+  if (office && !office.isDestroyed()) office.webContents.send('notch:state', on);
+}
+// The one place the notch is switched on or off (tray, dashboard, island settings and the optional shortcut all come here).
+function setNotch(on) {
+  on = !!on;
+  prefs.islandSettings = applyPatch(prefs.islandSettings, { notchEnabled: on });
+  if (on && resolveMode(prefs) === 'off') prefs.islandMode = 'always';
+  savePrefs(); applyIsland();
+}
+// Optional global shortcut (off unless islandSettings.notchShortcut is set); a failed registration just leaves it unregistered.
+let notchKey = '', notchKeyOk = true;
+function registerNotchShortcut() {
+  if (notchKey) { try { globalShortcut.unregister(notchKey); } catch {} notchKey = ''; }
+  const acc = isleSettings().notchShortcut; notchKeyOk = true;
+  if (!acc) return;
+  try { if (globalShortcut.register(acc, () => setNotch(!notchOn()))) notchKey = acc; else notchKeyOk = false; } catch { notchKeyOk = false; }
 }
 function toggleIsland() {
-  if (isleMode() === 'off') { prefs.islandMode = 'always'; applyIsland(); }
+  if (!notchOn()) return; // the notch is switched off: this shortcut only expands or pins a notch that exists
   if (!alive() || !island.isVisible()) showIsland();
   island.webContents.send('island:toggle');
 }
@@ -285,8 +315,9 @@ function buildTray() {
   tray.setToolTip(`Agent Office - ${mgrName}`);
   const menu = () => Menu.buildFromTemplate([
     { label: 'Open office', click: () => openOffice() },
+    { label: 'Show notch', type: 'checkbox', checked: notchOn(), click: i => setNotch(i.checked) },
     { label: 'Island (Ctrl+Alt+K)', submenu: [
-      ...[['always', 'Always'], ['smart', 'Smart (hide when idle or fullscreen, peek at top edge)'], ['off', 'Off']].map(([v, l]) => ({ label: l, type: 'radio', checked: isleMode() === v, click: () => { prefs.islandMode = v; applyIsland(); } })),
+      ...[['always', 'Always'], ['smart', 'Smart (hide when idle or fullscreen, peek at top edge)']].map(([v, l]) => ({ label: l, type: 'radio', checked: isleMode() === v, enabled: notchOn(), click: () => { prefs.islandMode = v; savePrefs(); applyIsland(); } })),
       { type: 'separator' },
       { label: 'Chime on approval / done', type: 'checkbox', checked: !prefs.islandMute, click: i => { prefs.islandMute = !i.checked; savePrefs(); pushIsland(); } },
       { type: 'separator' },
@@ -320,5 +351,6 @@ app.whenReady().then(async () => {
   applyIsland();
   if (prefs.updateAuto !== false) setTimeout(runCheck, 8000); // check only; installing always needs a click
   globalShortcut.register('Control+Alt+K', toggleIsland);
+  registerNotchShortcut();
   if (!process.argv.includes('--hidden')) openOffice();
 });

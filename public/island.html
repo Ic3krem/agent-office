@@ -153,7 +153,7 @@ let snap = null, prev = null, online = false;
 let pinned = false, hovered = false, chatOn = false, toast = null, toastTimer = 0, leaveTimer = 0;
 let mode = 'always', mute = false, fsApp = false, peek = false;
 let panel = 'home', calOff = 0; // home | calendar | settings; calOff = months away from the current one
-const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, lyrics: true };
+const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, lyrics: true, notchEnabled: true, notchShortcut: '' };
 let S = { ...DEF };
 let lyr = null, lyrIdx = -2, lyrTimer = 0; // synced lyrics {key, lines:[{t,text}]} pushed from the desktop, last shown line index, fade timer
 let np = null, npEnter = false, wasEx = false; // now-playing session (from SMTC), chip entrance flag, previous expanded state
@@ -166,6 +166,7 @@ const THEMES = {
 };
 const PHYS = { soft: [140, 22], default: [230, 21], snappy: [380, 34], bouncy: [260, 13] };
 const ACT = { today: ['☰', 'Today'], reports: ['▤', 'Reports'], usage: ['◔', 'Usage'], office: ['⌂', 'Office'], chat: ['✎', 'Chat'], calendar: ['▦', 'Calendar'], mute: ['♪', 'Chime'], settings: ['⚙', 'Settings'] };
+let shortcutOk = true; // false when the desktop could not register the chosen notch shortcut (another program owns it)
 function applySettings(s) {
   S = { ...DEF, ...s };
   const t = S.theme === 'custom' ? { ...THEMES.ember, accent: S.accent } : THEMES[S.theme] || THEMES.ember, st = document.documentElement.style;
@@ -289,7 +290,11 @@ function settingsHTML() {
   const chips = (key, opts) => `<div class="chips">${opts.map(([v, l]) => `<button class="btn ${S[key] === v ? 'on' : ''}" data-set="${key}" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
   const sw = Object.keys(THEMES).map(k => `<button class="btn sw" data-set="theme" data-v="${k}" title="${k}" style="background:${THEMES[k].accent};border-color:${S.theme === k ? 'var(--ink)' : THEMES[k].line}"></button>`).join('');
   const pins = Object.keys(ACT).map(k => `<button class="btn ${S.pinned.includes(k) ? 'on' : ''}" data-pin="${k}">${ACT[k][0]} ${ACT[k][1]}</button>`).join('');
-  return `<div class="sect"><span class="label">Appearance</span>
+  return `<div class="sect"><span class="label">Notch</span>
+    <div class="set"><span>Notch</span>${chips('notchEnabled', [[true, 'On'], [false, 'Off']])}</div>
+    <div class="set"><span>Toggle shortcut</span><span class="row"><input type="text" data-nshort value="${esc(S.notchShortcut || '')}" placeholder="Ctrl+Alt+N (optional)" aria-label="Global shortcut that turns the notch on or off"></span></div>
+    <div class="hint" style="text-align:left">${shortcutOk ? '' : '<b>That shortcut could not be registered (another program uses it).</b> '}Off closes this window. Turn it back on from the tray menu (Show notch), the dashboard's Breaker box, or the shortcut. The shortcut needs 2 or 3 of Ctrl, Alt, Shift and a letter, digit or F-key; it is empty by default. Ctrl+Alt+K only expands or pins the notch.</div>
+    </div><div class="sect"><span class="label">Appearance</span>
     <div class="set"><span>Theme</span><div class="chips">${sw}<button class="btn ${S.theme === 'custom' ? 'on' : ''}" data-set="theme" data-v="custom">Custom</button><input type="color" data-color value="${esc(S.accent)}" title="Accent colour"></div></div>
     <div class="set"><span>Motion</span>${chips('physics', [['soft', 'Soft'], ['default', 'Default'], ['snappy', 'Snappy'], ['bouncy', 'Bouncy']])}</div>
     <div class="set"><span>Tiro character</span>${chips('kiroFace', [[true, 'On'], [false, 'Off']])}</div>
@@ -406,6 +411,7 @@ isle.addEventListener('click', e => {
 isle.addEventListener('change', e => {
   const t = e.target;
   if (t.matches('[data-color]')) setPref({ theme: 'custom', accent: t.value });
+  else if (t.matches('[data-nshort]')) setPref({ notchShortcut: t.value.trim() });
   else if (t.matches('[data-zone]')) setPref({ zone2: t.value.trim() });
   else if (t.matches('[data-zlabel]')) setPref({ zone2Label: t.value.trim() });
 });
@@ -430,7 +436,7 @@ document.addEventListener('keydown', e => {
 });
 desk.update.on(u => { upd = u; render(); });
 desk.update.get().then(u => { if (u) { upd = u; render(); } });
-desk.onState(st => { if (st.settings) applySettings(st.settings); mode = st.mode; mute = !!st.mute; fsApp = !!st.fs; peek = !!st.peek; render(); });
+desk.onState(st => { shortcutOk = st.notchShortcutOk !== false; if (st.settings) applySettings(st.settings); mode = st.mode; mute = !!st.mute; fsApp = !!st.fs; peek = !!st.peek; render(); });
 desk.onNowPlaying(n => { const was = !!(np && np.playing); np = n && typeof n === 'object' ? n : null; if (!was && np?.playing) npEnter = true; render(); });
 desk.onLyrics(l => { lyr = l && Array.isArray(l.lines) ? { key: String(l.key || ''), lines: l.lines.filter(x => Array.isArray(x)).map(([t, text]) => ({ t: +t || 0, text: String(text ?? '') })) } : null; lyrIdx = -2; render(); });
 desk.onToggle(() => { pinned = !pinned; if (!pinned) { chatOn = false; hovered = false; } else desk.focus(); render(); });

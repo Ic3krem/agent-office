@@ -58,7 +58,52 @@ export const DEFAULT_SETTINGS = {
   hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1,
   edgeDelay: 0, leaveDelay: 900,
   nowPlaying: true, kiroFace: true, animate: true, lyrics: true,
+  notchEnabled: true,   // the notch (island overlay) exists; off removes the window and everything that serves it
+  notchShortcut: '',    // optional global shortcut that toggles the notch; empty = no shortcut (default)
 };
+
+// ---------- notch on/off ----------
+// A global shortcut must be 2 or 3 modifiers plus one letter, digit or F-key, and may not take the island's own Ctrl+Alt+K.
+const MODS = { ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', shift: 'Shift', super: 'Super', cmd: 'Super', command: 'Super', meta: 'Super' };
+export const RESERVED_SHORTCUTS = ['Ctrl+Alt+K'];
+function parseAccelerator(s) {
+  if (typeof s !== 'string' || s.length > 40) return null;
+  const parts = s.trim().split('+').map(x => x.trim());
+  const key = parts.pop();
+  if (!key || !/^([A-Z0-9]|F([1-9]|1\d|2[0-4]))$/i.test(key)) return null;
+  const mods = [...new Set(parts.map(p => MODS[p.toLowerCase()]))];
+  if (mods.length !== parts.length || mods.includes(undefined) || mods.length < 2 || mods.length > 3) return null;
+  const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
+  return [...mods.sort((a, b) => order.indexOf(a) - order.indexOf(b)), key.length === 1 ? key.toUpperCase() : key.toUpperCase()].join('+');
+}
+export const canonicalAccelerator = s => parseAccelerator(s) || '';
+export const validAccelerator = s => { const c = parseAccelerator(s); return !!c && !RESERVED_SHORTCUTS.includes(c); };
+
+// Whether the notch is on. Before the setting existed, islandMode 'off' (or the older islandOff flag) meant "no island"; an explicit
+// islandSettings.notchEnabled always wins.
+export function notchEnabledOf(prefs = {}) {
+  const raw = prefs.islandSettings;
+  if (raw && typeof raw === 'object' && typeof raw.notchEnabled === 'boolean') return raw.notchEnabled;
+  return resolveMode(prefs) !== 'off';
+}
+// Run once at start: make the legacy "off" explicit, so later settings patches (which write every field) cannot turn the notch back on.
+export function migrateNotchPrefs(prefs = {}) {
+  const raw = prefs.islandSettings && typeof prefs.islandSettings === 'object' ? prefs.islandSettings : {};
+  if (typeof raw.notchEnabled === 'boolean') return prefs;
+  return { ...prefs, islandSettings: { ...raw, notchEnabled: notchEnabledOf(prefs) } };
+}
+// The toggle as a pure state machine. state = { enabled, alive } (alive = the island window exists); action = enable | disable | toggle | closed.
+// Returns the new state plus the one effect main must perform: 'create', 'destroy' or 'none'.
+export function notchStep(state, action) {
+  const s = { enabled: !!state?.enabled, alive: !!state?.alive };
+  switch (action) {
+    case 'enable': return { enabled: true, alive: true, effect: s.alive ? 'none' : 'create' };
+    case 'disable': return { enabled: false, alive: false, effect: s.alive ? 'destroy' : 'none' };
+    case 'toggle': return notchStep(s, s.enabled ? 'disable' : 'enable');
+    case 'closed': return { enabled: s.enabled, alive: false, effect: 'none' }; // the window went away (crash, OS): enabled stays, the next apply re-creates it
+    default: return { ...s, effect: 'none' };
+  }
+}
 
 const clampInt = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
 export const isHex = s => typeof s === 'string' && /^#[0-9a-f]{6}$/i.test(s);
@@ -87,6 +132,8 @@ export function normalizeSettings(raw) {
     kiroFace: typeof r.kiroFace === 'boolean' ? r.kiroFace : d.kiroFace,
     animate: typeof r.animate === 'boolean' ? r.animate : d.animate,
     lyrics: typeof r.lyrics === 'boolean' ? r.lyrics : d.lyrics,
+    notchEnabled: typeof r.notchEnabled === 'boolean' ? r.notchEnabled : d.notchEnabled,
+    notchShortcut: validAccelerator(r.notchShortcut) ? canonicalAccelerator(r.notchShortcut) : d.notchShortcut,
   };
 }
 // A patch changes only the keys it names (so the page can send one knob at a time).
