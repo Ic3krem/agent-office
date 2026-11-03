@@ -1,6 +1,6 @@
 # Scheduler station and scheduler job
 
-Agent Office 1.2.6 has a Scheduler station in the office: a garage and a mail bench with a mailbox, east of the playroom. Clicking either opens one read-only panel. The panel shows what the scheduler job last wrote. Neither the panel nor the job has any mail access built in.
+Agent Office 1.2.7 has a Scheduler station in the office: a garage and a mail bench with a mailbox, east of the playroom. Clicking either opens one read-only panel. The panel shows what the scheduler job last wrote. Neither the panel nor the job has any mail access built in.
 
 ## Pieces
 

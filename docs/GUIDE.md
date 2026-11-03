@@ -1,6 +1,6 @@
-# Agent Office user guide (1.2.6)
+# Agent Office user guide (1.2.7)
 
-The current release is v1.2.6. It ships the Windows installer only for now; the macOS and Linux install script finds no asset until those builds are published.
+The current release is v1.2.7. It ships the Windows installer only for now; the macOS and Linux install script finds no asset until those builds are published.
 
 This guide covers every part of the app. For install, update and uninstall see the [README](../README.md). For a link index see [RESOURCES.md](RESOURCES.md).
 

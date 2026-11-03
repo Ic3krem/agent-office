@@ -2,9 +2,12 @@
 
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
-## Unreleased (feature/notch-toggle)
+## 1.2.7 (2026-11-03)
+
+Small feature and fix release on top of 1.2.6, which carries the security patch (signed updater, Claude Code permission parity, hardened install scripts); see the 1.2.6 entry below, including its upgrade notes.
 
 - **Notch on/off.** New setting `islandSettings.notchEnabled` (default on) switches the notch live, without restarting: tray menu **Show notch** checkbox, a **Notch** switch in the dashboard's Breaker box (desktop app), and **Settings, Notch** in the island. Off closes the island window and stops what serves it; the choice is remembered across restarts. An optional global shortcut (`islandSettings.notchShortcut`, off by default, for example `Ctrl+Alt+N`) toggles it. An older `islandMode: "off"` is converted to `notchEnabled: false` on first start, the tray's Off radio is replaced by the checkbox, and `Ctrl+Alt+K` no longer revives a switched-off notch.
+- **Tiro sits behind his desk.** Tiro's desk now has a footprint, so he is drawn behind it instead of on top of it: the desk front covers his lower body, the chair stays behind him and his upper body shows above the desk, with no popping as he moves.
 
 ## 1.2.6 (2026-11-03)
 

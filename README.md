@@ -12,7 +12,7 @@
 
 ## Features
 
-New and current in **1.2.6**:
+New and current in **1.2.7**:
 
 - **Renamable agents.** Give Tiro and each specialist a display name (up to 20 characters). Ids, folders and types never change, and no agent can take another's current or default name.
 - **Strict hiring approvals.** Tiro cannot hire on its own: every hire needs your one-shot approval, which expires after 10 minutes and is cleared whenever Tiro's session ends or resets.
@@ -66,18 +66,18 @@ All screenshots use demo data. The [user guide](docs/GUIDE.md) has the rest.
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later, macOS, or Linux.
 
-> **Release status:** 1.2.6 is a security patch release and carries the first **signed manifest**. It ships the **Windows installer only**; macOS and Linux builds are not published yet, so `install.sh` finds no asset for them. On those systems build from source for now. **From 1.2.5 or earlier, reinstall once manually** (the old updater cannot verify signatures); see the [changelog](CHANGELOG.md).
+> **Release status:** 1.2.7 adds the notch on/off setting and a Tiro desk fix on top of 1.2.6, the security patch release that carries the first **signed manifest**. It ships the **Windows installer only**; macOS and Linux builds are not published yet, so `install.sh` finds no asset for them. On those systems build from source for now. **From 1.2.5 or earlier, reinstall once manually** (the old updater cannot verify signatures); see the [changelog](CHANGELOG.md).
 
 **Windows installer.** Download `Agent-Office-Setup-<version>.exe` from [Releases](https://github.com/Ic3krem/agent-office/releases/latest) and run it. It is a normal setup wizard where you can pick the folder. It adds a Start menu entry and a desktop shortcut.
 
 **One-line install.** Run the script from the release tag you want (the tag is part of the URL, so what you read is what runs):
 
 ```powershell
-irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.6/install.ps1 | iex
+irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.7/install.ps1 | iex
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.6/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.7/install.sh | bash
 ```
 
 Both scripts fetch `latest.json` and `latest.json.sig` from that tag's release page, **verify the Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)), then download the installer the manifest names and **verify its SHA-256**. They stop, and install nothing, if the manifest or signature is missing or invalid, the file is not hosted on that release page, or the hash does not match. The Windows script needs no extra tools and no execution-policy change and installs silently for the current user. The shell script needs OpenSSL 3 or Node.js to check the signature. Releases published before signed manifests existed (v1.2.5 and earlier) have no manifest; install those from the Releases page.
@@ -181,7 +181,7 @@ Report a vulnerability by opening a private security advisory on the GitHub repo
 |---|---|
 | [docs/GUIDE.md](docs/GUIDE.md) | The full user guide: every panel, the island, tray, settings files, API table, troubleshooting, FAQ |
 | [docs/RESOURCES.md](docs/RESOURCES.md) | Index of links, architecture notes, dev setup, release checklist |
-| [CHANGELOG.md](CHANGELOG.md) | What changed, 1.1.0 to 1.2.6 |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, 1.1.0 to 1.2.7 |
 | [docs/permissions.md](docs/permissions.md) | Claude Code parity: what is the same, what differs, what reaches you |
 | [docs/agents-and-memory.md](docs/agents-and-memory.md) | Team, hiring gate, per-agent memory and history |
 | [docs/scheduler.md](docs/scheduler.md) | Scheduler station, job and feed file |

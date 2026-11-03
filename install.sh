@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Agent Office installer for macOS and Linux. Use the script from the release tag you want to install (the tag is pinned in the URL):
-#   curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.6/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.7/install.sh | bash
 # What it does, and what it refuses to do:
 #   1. downloads latest.json + latest.json.sig from THAT release tag over https (no "latest" lookup, no API),
 #   2. verifies the Ed25519 signature of the manifest against the release public key pinned below (OpenSSL 3 or Node.js),
@@ -10,7 +10,7 @@
 # Verify a downloaded release folder without installing:  AGENT_OFFICE_VERIFY_ONLY=/path/to/folder bash install.sh
 set -euo pipefail
 REPO="Ic3krem/agent-office"
-DEFAULT_TAG="v1.2.6"   # bumped for every release so this script and the release it installs always match
+DEFAULT_TAG="v1.2.7"   # bumped for every release so this script and the release it installs always match
 TAG="${AGENT_OFFICE_TAG:-$DEFAULT_TAG}"
 # Ed25519 release key (SPKI PEM); same key as desktop/update-key.mjs
 PUBKEY_PEM='-----BEGIN PUBLIC KEY-----

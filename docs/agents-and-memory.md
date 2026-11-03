@@ -1,6 +1,6 @@
 # Team, hiring gate and per-agent memory
 
-Everything here describes Agent Office 1.2.6. Source files are named so each claim can be checked.
+Everything here describes Agent Office 1.2.7. Source files are named so each claim can be checked.
 
 ## The team
 
