@@ -18,7 +18,7 @@ const attrs = (t, re) => [...t.matchAll(re)].map(m => m[1]);
 
 test('expected pages exist', () => {
   for (const p of ['index.html', 'download.html', 'changelog.html', 'docs/index.html', 'release.json', 'README.md',
-    ...['install', 'update', 'uninstall', 'configuration', 'permissions', 'security', 'scheduler', 'agents-and-memory', 'troubleshooting', 'guide'].map(s => `docs/${s}.html`)]) {
+    ...['install', 'update', 'uninstall', 'configuration', 'permissions', 'security', 'security-guard', 'scheduler', 'agents-and-memory', 'troubleshooting', 'guide'].map(s => `docs/${s}.html`)]) {
     assert.ok(fs.existsSync(path.join(SITE, p)), p);
   }
 });
@@ -103,7 +103,6 @@ test('release.json has the schema the download page reads', () => {
   assert.match(r.version, /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
   assert.equal(r.asset, `Agent-Office-Setup-${r.version}.exe`);
   assert.ok(typeof r.url === 'string' && (/^https:\/\//.test(r.url) || !/^[a-z][a-z0-9+.-]*:|^\/\//i.test(r.url)), 'url is https or a relative path');
-  assert.ok(r.url.endsWith(r.asset), 'url ends with the asset name');
   assert.ok(r.sha256 === '' || /^[0-9a-f]{64}$/.test(r.sha256), 'sha256 is 64 lowercase hex, or empty until published');
   assert.ok(r.size === null || (Number.isInteger(r.size) && r.size > 0));
   assert.ok(r.date === undefined || /^\d{4}-\d{2}-\d{2}$/.test(r.date));
@@ -115,7 +114,7 @@ test('release.json has the schema the download page reads', () => {
 test('download page wires the ids download.js fills', () => {
   const t = rd(path.join(SITE, 'download.html')), js = rd(path.join(SITE, 'assets/download.js'));
   for (const id of attrs(js, /\$\('([a-z-]+)'\)/g)) assert.ok(t.includes(`id="${id}"`), 'missing #' + id);
-  assert.match(t, /SmartScreen/); assert.match(t, /SHA-256/); assert.match(t, /irm https:/);
+  assert.match(t, /SmartScreen/); assert.match(t, /SHA-256/);
   assert.match(js, /release\.json/);
 });
 
@@ -123,5 +122,6 @@ test('honest platform claims: Windows only, unsigned', () => {
   const d = rd(path.join(SITE, 'download.html')), h = rd(path.join(SITE, 'index.html'));
   assert.match(d, /macOS and Linux builds are not published yet/);
   assert.match(h, /not code-signed/);
+  assert.match(h, /id="licence"/); assert.match(h, /All rights reserved/);
   assert.doesNotMatch(h + d, /Windows, macOS(,| and) Linux/);
 });

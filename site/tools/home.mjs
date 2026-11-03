@@ -20,6 +20,7 @@ const features = [
   ['Reports and a Markdown vault', 'Color-coded reports with PDF and Excel export, a memory corkboard and editable SOPs, all plain Markdown in your own vault.'],
   ['Dynamic island', 'A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics, themes and settings.'],
   ['Breaker box switches', 'Hard switches for Tiro, autopilot, hiring and terminal approvals, plus a subscription guard that stops at your plan limit instead of spending extra-usage credits.'],
+  ['Security Guard', 'An ask-only safety net in every session: it asks before secrets leave the computer, before downloaded scripts run, and after untrusted web or mail text tries to steer an agent. It never allows or blocks anything itself.'],
   ['Silhouette click areas', 'Furniture and characters are picked by their drawn shape, with a hover outline and depth sorting.'],
 ];
 
@@ -39,7 +40,8 @@ const security = [
   ['Local only', 'The server binds 127.0.0.1 and rejects any other Host header. The UI key never leaves the app process and an HttpOnly cookie, so an agent cannot approve its own requests.'],
   ['Strict CSP', 'Pages load scripts, styles and fonts only from the app itself. React, Babel and the fonts are vendored, so nothing loads from a CDN.'],
   ['Hardened windows', 'Context isolation and sandbox on, no Node integration, navigation locked to the local server, webviews blocked.'],
-  ['Verified installs', 'The install script and the updater check a SHA-256 before running anything, and use https only.'],
+  ['Verified updates', 'The updater accepts only a release manifest with a valid Ed25519 signature from the key pinned in the app, and checks the installer SHA-256 twice before it runs.'],
+  ['Security Guard', 'An ask-only layer that watches for secrets leaving the machine, unwanted scripts and persistence, credential stores and untrusted instructions. A safety net, not a boundary. <a href="docs/security-guard.html">How it works</a>.'],
   ['Approvals stay yours', 'Tool permissions are Claude Code\'s own. What would ask you still asks you. Nothing is auto-approved or timed out into an answer.'],
   ['No mail access', 'The scheduler reads a local feed file that you produce. Agent Office has no mail credentials or network mail code.'],
 ];
@@ -53,7 +55,7 @@ const faq = [
   ['Where is my data?', 'On your machine: ~/.claude/agent-office, your vault and Claude Code\'s own ~/.claude/projects. Model calls go to Anthropic through Claude Code, as in the terminal.'],
   ['Does it read my email?', 'No. The scheduler reads a local feed file that you must produce yourself.'],
   ['Can I rename agents and keep their history?', 'Yes. History follows the agent type, not the display name.'],
-  ['Is it open source?', 'No. It is proprietary software, all rights reserved. Dependency licenses are listed in the third-party notices that ship with the installer.'],
+  ['Is it open source?', 'No. It is proprietary software, all rights reserved. See the Licence section below.'],
 ];
 
 export function homePage() {
@@ -108,7 +110,7 @@ export function homePage() {
 <section class="block" id="security">
 <div class="wrap">
 <div class="section-head"><h2>Security model</h2><p>Built so that an agent working for you cannot approve its own requests. <a href="docs/security.html">Read the full model</a> or the <a href="docs/permissions.html">permissions page</a>.</p></div>
-<div class="grid">${security.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>
+<div class="grid">${security.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3><p>${d.includes('<a ') ? d : esc(d)}</p></div>`).join('')}</div>
 <div class="notice"><p><strong>Unsigned builds.</strong> Windows SmartScreen may ask you to confirm with More info, then Run anyway. Compare the installer's SHA-256 with the one on the <a href="download.html">download page</a>.</p></div>
 </div>
 </section>
@@ -119,6 +121,13 @@ export function homePage() {
 <div class="faq">${faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><div><p>${esc(a)}</p></div></details>`).join('')}</div>
 <p>More answers are on the <a href="docs/troubleshooting.html">troubleshooting and FAQ page</a>.</p>
 <div class="btn-row"><a class="btn big" href="download.html">Download for Windows</a></div>
+</div>
+</section>
+<section class="block" id="licence">
+<div class="wrap">
+<div class="section-head"><h2>Licence</h2></div>
+<p>Agent Office is proprietary software. All rights reserved. Nobody else may use, copy, modify, publish or distribute it unless the owner gives permission in writing. The installer shows the licence text before installing. The text is a plain-English draft that has not yet been reviewed by a lawyer. Earlier versions published under the MIT licence (1.1.0 to 1.1.4 and 1.2.5) stay available under the terms they were released with. Third-party components keep their own licences, listed in the notices that ship with the installer.</p>
+<p>Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan.</p>
 </div>
 </section>
 </main>`;

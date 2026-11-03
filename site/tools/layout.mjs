@@ -39,10 +39,10 @@ ${main}
 <div class="wrap">
 <div class="cols">
 <div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p></div>
-<div><h2>Get it</h2><ul><li><a href="${root}download.html">Download for Windows</a></li><li><a href="${root}docs/install.html">Install guide</a></li><li><a href="${root}changelog.html">Changelog</a></li></ul></div>
+<div><h2>Get it</h2><ul><li><a href="${root}download.html">Download for Windows</a></li><li><a href="${root}docs/install.html">Install guide</a></li><li><a href="${root}changelog.html">Changelog</a></li><li><a href="${root}index.html#licence">Licence</a></li></ul></div>
 <div><h2>Learn</h2><ul><li><a href="${root}docs/guide.html">User guide</a></li><li><a href="${root}docs/security.html">Security</a></li><li><a href="${root}docs/troubleshooting.html">Troubleshooting and FAQ</a></li></ul></div>
 </div>
-<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<small><a href="${root}index.html#licence">Proprietary software, all rights reserved</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
 </div>
 </footer>
 ${scripts.map(s => `<script src="${root}assets/${s}"></script>`).join('\n')}

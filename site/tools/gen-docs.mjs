@@ -106,6 +106,7 @@ function section(md, h2, { keepHeading = false } = {}) {
 }
 const body = md => ({ md: md.replace(/^# .*\n+/, ''), shift: 0 });
 
+const GUARD = read('docs/security-guard.md').split(/\n## For maintainers/)[0];
 const README = read('README.md'), GUIDE = read('docs/GUIDE.md'), PERM = read('docs/permissions.md'),
   SCHED = read('docs/scheduler.md'), AGENTS = read('docs/agents-and-memory.md'), CHANGELOG = read('CHANGELOG.md');
 
@@ -113,15 +114,9 @@ const edit = (md, pairs) => pairs.reduce((s, [a, b]) => { if (typeof a === 'stri
 
 const installMd = edit(section(README, 'Install').md, [
   ['Windows 10 or later, macOS, or Linux.', 'Windows 10 or later. macOS and Linux builds are not published yet.'],
-  [/> \*\*Release status:\*\*[^\n]*\n\n/, ''],
-  ['Download `Agent-Office-Setup-<version>.exe` from [Releases](https://github.com/Ic3krem/agent-office/releases/latest) and run it.', 'Get `Agent-Office-Setup-<version>.exe` from the [download page](site:download.html) and run it.'],
-  ['Both scripts download over https and', 'The script downloads over https and'],
-  ['They stop, and install nothing,', 'It stops, and installs nothing,'],
-  ['The Windows script installs silently', 'It installs silently'],
-  [/ Other downloads are on the Releases page:[^\n]*\./, ''],
-  [' The macOS script clears Gatekeeper\'s quarantine flag for you.', ''],
-  ['```bash\ncurl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.sh | bash\n```\n\n', ''],
+  [" The macOS script clears Gatekeeper's quarantine flag for you.", ''],
 ]);
+
 
 // ---------- pages ----------
 const PAGES = [
@@ -131,6 +126,7 @@ const PAGES = [
   { slug: 'configuration', title: 'Configuration', lead: 'Preferences, environment variables, the scheduler job and the terminal bridge.', src: [section(README, 'Configuration'), section(GUIDE, 'Settings files', { keepHeading: true })] },
   { slug: 'permissions', title: 'Permissions and Claude Code parity', lead: 'Agent Office runs on your own Claude Code configuration. What is the same, what differs and what reaches you.', src: [body(PERM)] },
   { slug: 'security', title: 'Security', lead: 'How the local server, the windows, installs and approvals are protected.', src: [section(README, 'Security model', { keepHeading: true }), section(GUIDE, 'Security notes', { keepHeading: true })] },
+  { slug: 'security-guard', title: 'Security Guard', lead: 'An ask-only safety net for secrets, downloaded scripts and untrusted instructions.', src: [body(GUARD)] },
   { slug: 'scheduler', title: 'Scheduler', lead: 'The scheduler station, the job and the inbox feed file.', src: [body(SCHED)] },
   { slug: 'agents-and-memory', title: 'Agents and memory', lead: 'The team, the hiring gate and per-agent memory and history.', src: [body(AGENTS)] },
   { slug: 'troubleshooting', title: 'Troubleshooting and FAQ', lead: 'Common problems and short answers.', src: [section(GUIDE, 'Troubleshooting', { keepHeading: true }), section(GUIDE, 'FAQ', { keepHeading: true })] },
@@ -190,7 +186,7 @@ function sidebar(current) {
 // docs hub
 const hubBlurb = {
   install: 'Installer, one-line script and the SmartScreen note.', update: 'Update feed, verification and one-click install.', uninstall: 'Remove the app, keep or delete your data.',
-  configuration: 'kiro.json, environment variables, settings files, bridge.', permissions: 'Same settings as plain Claude Code, and what is different.', security: 'Local-only server, CSP, hardened windows, verified installs.',
+  configuration: 'kiro.json, environment variables, settings files, bridge.', permissions: 'Same settings as plain Claude Code, and what is different.', security: 'Local-only server, CSP, hardened windows, verified installs.', 'security-guard': 'What the Guard asks about, the prompts you will see, settings and limits.',
   scheduler: 'Inbox feed, classification, status panel.', 'agents-and-memory': 'Eight specialists, hire approvals, memory and history.', troubleshooting: 'Fixes for the usual problems, plus the FAQ.', guide: 'The complete walkthrough, including the API table.',
 };
 write('docs/index.html', layout({

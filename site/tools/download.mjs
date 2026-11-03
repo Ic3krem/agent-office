@@ -9,7 +9,7 @@ export function downloadPage() {
 <div class="dl-card">
 <a id="dl-button" class="btn big" href="#install-steps" aria-disabled="true"><span id="dl-label">Download for Windows</span></a>
 <p id="dl-status" class="status" role="status">Loading release information.</p>
-<noscript><p class="notice">JavaScript is off, so the version and checksum cannot be shown here. Use the one-line installer below, which verifies the download itself.</p></noscript>
+<noscript><p class="notice">JavaScript is off, so the version and checksum cannot be shown here. Use the install guide for the SHA-256 check.</p></noscript>
 <dl class="dl-meta">
 <dt>Version</dt><dd data-fill="version">-</dd>
 <dt>File</dt><dd><code data-fill="asset">-</code></dd>
@@ -35,12 +35,10 @@ export function downloadPage() {
 <p>Requirements: Windows 10 or later, and Claude Code installed and logged in.</p>
 </div>
 <div>
-<h2>One-line install</h2>
-<p>Downloads the latest release, verifies its SHA-256 against the digest GitHub publishes for the asset, installs it silently for the current user and adds a desktop shortcut. It stops and installs nothing if there is no published release, no digest, or the hash does not match.</p>
-<pre tabindex="0"><code>irm https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.ps1 | iex</code></pre>
-<p>Piping a script into your shell trusts whatever is on <code>main</code>. To review first or pin a release, download the script from a release tag, read it, then run it from disk.</p>
+<h2>How it is distributed</h2>
+<p>While the source repository is private, a release page may need access you do not have. Installers sent to you directly can be checked with the SHA-256 shown above. The in-app updater and the install scripts verify an Ed25519 signature on the release manifest as well as the installer's SHA-256, and stop if either check fails. See <a href="docs/install.html">Install</a> and <a href="docs/update.html">Update</a>.</p>
 <h3>macOS and Linux</h3>
-<p>Not available yet: no macOS or Linux build is published, so the install script finds nothing to download there.</p>
+<p>Not available yet: macOS and Linux builds are not published.</p>
 </div>
 </div>
 
