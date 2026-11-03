@@ -1,6 +1,7 @@
 // Token usage and API-equivalent cost per day from transcripts, plus the claude.ai plan limits.
 import fs from 'node:fs';
 import path from 'node:path';
+import { capSet, runSliced } from './perf.mjs';
 
 // $ per million tokens (Anthropic first-party list prices, 2026-10). Cache writes: 1.25x input (5 min), 2x (1 h).
 const PRICES = [
@@ -24,9 +25,36 @@ const dayOf = ts => new Date(ts).toLocaleDateString('en-CA');
 const lastDays = () => Array.from({ length: DAYS }, (_, i) => dayOf(Date.now() - (DAYS - 1 - i) * 864e5));
 
 // Reads every transcript (sessions and helpers) touched in the last week, then only what is appended.
-export function usageLedger(projectsDir) {
+// Memory and I/O stay flat: files are streamed in chunk-sized reads (never whole), byte offsets and the day totals are saved to
+// stateFile so a restart resumes instead of re-reading the week, only files that were active recently (or a full walk every
+// fullMs) are stat'ed on a refresh, and each day remembers at most seenCap message ids (one API response is written as several
+// adjacent lines, so a bounded window is enough).
+export function usageLedger(projectsDir, { stateFile = null, chunk = 1 << 20, seenCap = 4000, activeMs = 45 * 60e3, fullMs = 5 * 60e3, now = Date.now } = {}) {
   const offsets = new Map(), days = new Map(); // day -> { cost, tokens, models: {model: cost}, seen: Set }
+  const active = new Map(); // file -> true: touched within activeMs, checked on every refresh
+  let lastFull = -Infinity, dirty = false;
   const bucket = d => days.get(d) ?? days.set(d, { cost: 0, out: 0, tokens: 0, models: {}, seen: new Set() }).get(d);
+  if (stateFile) {
+    try {
+      const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+      if (s && s.v === 1 && s.dir === projectsDir) {
+        for (const [f, o] of Object.entries(s.offsets || {})) if (Number.isFinite(o) && o >= 0) offsets.set(f, o);
+        for (const [d, b] of Object.entries(s.days || {})) days.set(d, { cost: +b.cost || 0, out: +b.out || 0, tokens: +b.tokens || 0, models: b.models || {}, seen: new Set() });
+        lastFull = -Infinity; // always walk once after a start to notice files changed while the server was off
+      }
+    } catch {}
+  }
+  function save() {
+    if (!stateFile || !dirty) return;
+    dirty = false;
+    try {
+      const o = {}; for (const [f, v] of offsets) o[f] = v;
+      const d = {}; for (const [k, b] of days) d[k] = { cost: b.cost, out: b.out, tokens: b.tokens, models: b.models };
+      const tmp = stateFile + '.tmp';
+      fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+      fs.writeFileSync(tmp, JSON.stringify({ v: 1, dir: projectsDir, offsets: o, days: d })); fs.renameSync(tmp, stateFile);
+    } catch {}
+  }
   function eat(line) {
     if (!line.includes('"assistant"') || !line.includes('"usage"')) return;
     let j; try { j = JSON.parse(line); } catch { return; }
@@ -34,36 +62,60 @@ export function usageLedger(projectsDir) {
     if (j.type !== 'assistant' || !u || !j.timestamp || m.model === '<synthetic>') return;
     const b = bucket(dayOf(j.timestamp)), id = m.id || j.uuid;
     if (b.seen.has(id)) return; // one API response is written as several lines
-    b.seen.add(id);
+    b.seen.add(id); capSet(b.seen, seenCap);
     const c = costOf(m.model, u);
     b.cost += c; b.out += u.output_tokens || 0;
     b.tokens += (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
     b.models[m.model] = (b.models[m.model] || 0) + c;
+    dirty = true;
   }
-  function readFile(file, st) {
+  // Streams the new bytes of one file in chunk-sized reads, yielding after each so callers can slice the work.
+  function* readFile(file, st) {
     let off = offsets.get(file) || 0;
     if (st.size < off) off = 0;
     if (st.size === off) return;
-    const fd = fs.openSync(file, 'r'), buf = Buffer.alloc(st.size - off);
-    fs.readSync(fd, buf, 0, buf.length, off); fs.closeSync(fd);
-    const text = buf.toString('utf8'), nl = text.lastIndexOf('\n');
-    if (nl < 0) return;
-    offsets.set(file, off + Buffer.byteLength(text.slice(0, nl + 1), 'utf8'));
-    for (const l of text.slice(0, nl).split('\n')) eat(l);
+    let fd; try { fd = fs.openSync(file, 'r'); } catch { return; }
+    try {
+      let rest = Buffer.alloc(0);
+      while (off < st.size) {
+        const n = Math.min(chunk, st.size - off), buf = Buffer.alloc(n);
+        const got = fs.readSync(fd, buf, 0, n, off);
+        if (got <= 0) break;
+        off += got;
+        let data = rest.length ? Buffer.concat([rest, buf.subarray(0, got)]) : buf.subarray(0, got);
+        const nl = data.lastIndexOf(10);
+        if (nl < 0) { rest = data; continue; }
+        const whole = data.subarray(0, nl).toString('utf8'); rest = Buffer.from(data.subarray(nl + 1));
+        offsets.set(file, off - rest.length); dirty = true;
+        for (const l of whole.split('\n')) eat(l);
+        yield;
+      }
+    } finally { fs.closeSync(fd); }
   }
-  function walk(dir, since) {
+  function* walk(dir, since) {
     let names = []; try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const n of names) {
       const p = path.join(dir, n.name);
-      if (n.isDirectory()) walk(p, since);
-      else if (n.name.endsWith('.jsonl')) { try { const st = fs.statSync(p); if (st.mtimeMs >= since) readFile(p, st); } catch {} }
+      if (n.isDirectory()) yield* walk(p, since);
+      else if (n.name.endsWith('.jsonl')) {
+        try { const st = fs.statSync(p); if (st.mtimeMs >= since) { if (now() - st.mtimeMs <= activeMs) active.set(p, true); yield* readFile(p, st); } } catch {}
+      }
     }
   }
+  function* work() {
+    const t = now();
+    if (t - lastFull >= fullMs) { lastFull = t; active.clear(); yield* walk(projectsDir, t - DAYS * 864e5); }
+    else for (const p of [...active.keys()]) {
+      try { const st = fs.statSync(p); if (t - st.mtimeMs > activeMs) active.delete(p); yield* readFile(p, st); } catch { active.delete(p); }
+    }
+    const keep = new Set(lastDays()); for (const d of days.keys()) if (!keep.has(d)) { days.delete(d); dirty = true; }
+    // forget offsets of files that no longer exist or fell out of the week
+    if (offsets.size > 5000) for (const f of offsets.keys()) { try { fs.statSync(f); } catch { offsets.delete(f); dirty = true; } }
+    save();
+  }
   return {
-    refresh() {
-      walk(projectsDir, Date.now() - DAYS * 864e5);
-      const keep = new Set(lastDays()); for (const d of days.keys()) if (!keep.has(d)) days.delete(d);
-    },
+    refresh() { for (const _ of work()); },                               // synchronous (tests, first paint)
+    refreshAsync(opts) { return runSliced(work(), opts); },               // time-sliced: keeps SSE and approvals responsive
     summary: () => lastDays().map(d => { const b = days.get(d); return { day: d, cost: b?.cost || 0, tokens: b?.tokens || 0, out: b?.out || 0, models: b?.models || {} }; }),
   };
 }
