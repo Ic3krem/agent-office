@@ -1,6 +1,6 @@
 # Agent Office
 
-[![Latest release](https://img.shields.io/github/v/release/Ic3krem/agent-office)](https://github.com/Ic3krem/agent-office/releases/latest) [![Downloads](https://img.shields.io/github/downloads/Ic3krem/agent-office/total)](https://github.com/Ic3krem/agent-office/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) ![Windows, macOS, Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange)
+![Licence: all rights reserved](https://img.shields.io/badge/licence-all%20rights%20reserved-lightgrey) ![Windows, macOS, Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange)
 
 **A pixel office for your own Claude Code agents.** Tiro, a little orange cube-crab, is the office manager. Give Tiro a task and it plans the work, asks you before it hires any of eight specialist agents, shows you the permission prompts Claude Code would show you, files reports and remembers what it learned in a vault of plain Markdown notes. The office itself spends **no tokens**: every piece of furniture reads files, switches and system data directly, and models only run while an agent works, through your own Claude Code install and plan.
 
@@ -8,19 +8,19 @@
 
 ## Contents
 
-[Features](#features) - [Gallery](#gallery) - [Install](#install) - [Update](#update) - [Uninstall](#uninstall) - [Configuration](#configuration) - [Build from source](#build-from-source) - [Cutting a release](#cutting-a-release) - [Security model](#security-model) - [Documentation](#documentation) - [License](#license)
+[Features](#features) - [Gallery](#gallery) - [Install](#install) - [Update](#update) - [Uninstall](#uninstall) - [Configuration](#configuration) - [Build from source](#build-from-source) - [Cutting a release](#cutting-a-release) - [Security model](#security-model) - [Documentation](#documentation) - [Licence](#licence)
 
 ## Features
 
 New and current in **1.2.7**:
 
 - **Renamable agents.** Give Tiro and each specialist a display name (up to 20 characters). Ids, folders and types never change, and no agent can take another's current or default name.
-- **Strict hiring approvals.** Tiro cannot hire on its own: every hire needs your one-shot approval, which expires after 10 minutes and is cleared whenever Tiro's session ends or resets.
+- **Hiring approvals.** Every hire made with the Agent tool needs your one-shot approval, which expires after 10 minutes and is cleared whenever Tiro's session ends or resets. A best-effort check also blocks launching `claude` from a shell command; it is not a sandbox.
 - **One person per specialist.** An extra agent of an already-hired type is shown as a labelled "helper", never as another full copy.
 - **Per-agent memory and history.** Each agent type has its own `memory/` and `history/` folder under Tiro. Every task starts in a fresh context, and an **Agent history** overlay lets you browse past tasks, summaries and transcript paths.
 - **Silhouette click areas.** Furniture and characters are picked by their drawn shape (hover shows an outline), and depth sorting keeps a character from being hidden behind its own desk.
 - **Garden, park, garage and Scheduler station.** The office has a fenced park and a garage. The Scheduler station shows the last result of the scheduler job, which classifies a local inbox feed into task, need and info items. Agent Office has no mail access of its own.
-- **Dynamic island, with an on/off switch.** A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics, themes and a settings tab. Switch the notch on or off at any time, without restarting: tray menu (Show notch), the dashboard's Breaker box, or the island's own Settings. It is on by default.
+- **Dynamic island, with an on/off switch.** A notch-style overlay with live agent status, approvals, quick actions, now playing, optional synced lyrics (off until you turn them on), themes and a settings tab. Switch the notch on or off at any time, without restarting: tray menu (Show notch), the dashboard's Breaker box, or the island's own Settings. It is on by default.
 - **Your Claude Code, unchanged.** Tiro and every agent it hires load the same settings, permissions, hooks, MCP servers, CLAUDE.md, skills, plugins and environment as a plain `claude` run. Agent Office adds no approval rules of its own. See [docs/permissions.md](docs/permissions.md).
 - **Updater.** Checks an https feed or a local folder and refuses any installer it cannot verify with a SHA-256.
 - **Security.** Local-only server with a key, strict Content-Security-Policy with vendored React, ReactDOM and Babel, hardened Electron windows, and verified installs. See the [security model](#security-model).
@@ -66,28 +66,17 @@ All screenshots use demo data. The [user guide](docs/GUIDE.md) has the rest.
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later, macOS, or Linux.
 
-> **Release status:** 1.2.7 adds the notch on/off setting and a Tiro desk fix on top of 1.2.6, the security patch release that carries the first **signed manifest**. It ships the **Windows installer only**; macOS and Linux builds are not published yet, so `install.sh` finds no asset for them. On those systems build from source for now. **From 1.2.5 or earlier, reinstall once manually** (the old updater cannot verify signatures); see the [changelog](CHANGELOG.md).
+> **Distribution status:** this repository is private and there is no public download host yet, so Agent Office is **installed and updated by invitation**: build it from source (below) or use the installer the owner sends you. The install scripts and the in-app updater expect release files at a public URL, so they cannot reach a private repository and will say so. The notes below describe how a published release is installed once a public host exists.
 
-**Windows installer.** Download `Agent-Office-Setup-<version>.exe` from [Releases](https://github.com/Ic3krem/agent-office/releases/latest) and run it. It is a normal setup wizard where you can pick the folder. It adds a Start menu entry and a desktop shortcut.
+**With an installer you were given.** Run `Agent-Office-Setup-<version>.exe` (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). If you also received the release folder (`latest.json`, `latest.json.sig` and the installer), you can check it before installing: set `AGENT_OFFICE_VERIFY_ONLY` to the folder's path and run `install.ps1` or `install.sh` from this repository. The check verifies the **Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)) and the installer's **SHA-256**, and installs nothing.
 
-**One-line install.** Run the script from the release tag you want (the tag is part of the URL, so what you read is what runs):
-
-```powershell
-irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.7/install.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.7/install.sh | bash
-```
-
-Both scripts fetch `latest.json` and `latest.json.sig` from that tag's release page, **verify the Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)), then download the installer the manifest names and **verify its SHA-256**. They stop, and install nothing, if the manifest or signature is missing or invalid, the file is not hosted on that release page, or the hash does not match. The Windows script needs no extra tools and no execution-policy change and installs silently for the current user. The shell script needs OpenSSL 3 or Node.js to check the signature. Releases published before signed manifests existed (v1.2.5 and earlier) have no manifest; install those from the Releases page.
-
-To check a downloaded release folder without installing, set `AGENT_OFFICE_VERIFY_ONLY` to its path and run the script. Other downloads are on the Releases page: `.dmg` (macOS Apple Silicon or Intel), `.zip` (macOS), `.AppImage` or `.deb` (Linux).
-
+**Install scripts (for a published release).** `install.ps1` and `install.sh` take the release tag from the script itself, download `latest.json` and `latest.json.sig` from that tag's release page, verify the signature and the SHA-256, and only then install. They stop with a plain message if the release page is not reachable (for example HTTP 401, 403 or 404 because the repository is private) or if any check fails.
 
 The builds are **not code-signed**. Windows SmartScreen may ask you to confirm with "More info", then "Run anyway". The macOS script clears Gatekeeper's quarantine flag for you.
 
 ## Update
+
+While the repository is private the updater cannot reach any release, so it reports that it could not check; updates are installed by hand from an installer the owner sends. The rest of this section describes how updates work once releases are published on a public host.
 
 Open the island's Settings tab and use **Updates**. The app checks the signed release manifest published with the newest GitHub release of Ic3krem/agent-office. The feed address is fixed in the app; nothing in the page or in `kiro.json` can change it. A release is offered only when its `latest.json` carries a valid **Ed25519 signature** from the release key pinned in the app and a SHA-256 for the installer, and only when it is **newer** than the running version (a downgrade is never offered).
 
@@ -112,7 +101,7 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 | `islandSettings.notchShortcut` | Optional global shortcut that toggles the notch, for example `Ctrl+Alt+N` (empty = none, the default; 2 or 3 modifiers plus a letter, digit or F-key; `Ctrl+Alt+K` is reserved). |
 | `islandMute` | Silence the approval and done chimes. |
 | `islandDisplay` | `cursor` (default), `primary` or a display id. |
-| `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics`, `kiroFace`, `animate`. |
+| `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics` (off by default: turning it on looks songs up at lrclib.net, see the guide), `kiroFace`, `animate`. |
 | `updateAuto` | Check for updates on start (default on). The update feed itself is fixed in the app and cannot be set here. |
 | `autostart` | Start with Windows (packaged app, default on). |
 | `hidden`, `x`, `y` | Whether the desktop Tiro is hidden, and where it sits. |
@@ -168,7 +157,7 @@ More in [docs/RESOURCES.md](docs/RESOURCES.md).
 - **Strict Content-Security-Policy.** Pages load scripts, styles and fonts only from the app itself (`script-src 'self'`, plus inline and eval, which the page runtime needs). React, ReactDOM, Babel standalone and the fonts are vendored in `public/` (pinned SHA-384 hashes for the scripts, OFL licence texts for the fonts), so nothing loads from a CDN or Google Fonts. Framing, plugins and `<base>` tricks are blocked.
 - **Electron hardening.** Windows run with context isolation and sandbox on, `nodeIntegration` off and `webSecurity` on. They cannot navigate away from the local server or open webviews, and external links open in your browser.
 - **Verified installs.** The install scripts and the updater check SHA-256 before running anything, and use https only.
-- **Hiring and approvals.** Tiro cannot hire without your one-shot approval, tied to the goal and the exact first prompt. Tool permissions are Claude Code's own: what your settings allow runs, what they deny is denied, and what Claude Code would ask about is shown to you with Claude Code's choices. Agent Office does not auto-approve anything.
+- **Hiring and approvals.** Agent-tool hires require your one-shot approval, tied to the goal and the exact first prompt (a best-effort check also blocks launching `claude` from Bash; it is not a sandbox). Tool permissions are Claude Code's own: what your settings allow runs, what they deny is denied, and what Claude Code would ask about is shown to you with Claude Code's choices. Agent Office does not auto-approve anything.
 - **No built-in mail access.** The scheduler only reads a local feed file.
 - **Your data.** Office state and notes stay on your machine; model calls go through your Claude Code install to Anthropic, as in the terminal. The server needs the local key for every API call.
 - **Unsigned builds.** If in doubt, compare the SHA-256 the install script prints with the one GitHub shows on the release asset.
@@ -188,6 +177,6 @@ Report a vulnerability by opening a private security advisory on the GitHub repo
 | [docs/office-spec.md](docs/office-spec.md), [docs/island-spec.md](docs/island-spec.md) | Office world and island design notes |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Dependency licenses |
 
-## License
+## Licence
 
-[MIT](LICENSE), (c) 2026 Ic3krem. Dependency licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Note that `@anthropic-ai/claude-agent-sdk` is Anthropic's proprietary software under its own terms, not MIT. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install.
+Agent Office is proprietary software. **Copyright (c) 2026 Ic3krem. All rights reserved.** Nobody else may use, copy, modify, publish or distribute it unless the owner gives permission in writing; contributions are not accepted without a signed written agreement. Versions published earlier under the MIT licence (v1.1.0 to v1.1.4 and v1.2.5) remain available under the MIT terms they were released with. The full text is in [LICENSE](LICENSE), which is a **draft that still needs a lawyer's review**. Third-party components stay under their own licences, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); `@anthropic-ai/claude-agent-sdk` is Anthropic's proprietary software under its own terms. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install.

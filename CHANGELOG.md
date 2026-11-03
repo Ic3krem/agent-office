@@ -2,6 +2,14 @@
 
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
+
+## Unreleased (release/1.2.8)
+
+- **Licence.** Agent Office is now proprietary: "Copyright (c) 2026 Ic3krem. All rights reserved." Only the owner may use, copy, modify or distribute it unless permission is given in writing; contributions need a signed written agreement. Versions published under MIT (v1.1.0 to v1.1.4 and v1.2.5) stay available under those terms. `LICENSE` is a draft pending legal review; `package.json` says `SEE LICENSE IN LICENSE`, the package is marked private, and the Windows installer shows the licence on its licence page (`LICENSE.txt`, a copy of `LICENSE`).
+- **Lyrics are opt-in** (default off). Turning them on sends the playing track's title, artist, album and duration to lrclib.net; a one-time migration switches an old stored default off. Now playing itself sends nothing off the device.
+- **Distribution by invitation.** The README no longer advertises install commands that cannot work on a private repository; the install scripts report HTTP 401, 403 and 404 in plain words; the CodeQL and dependency-review jobs skip on private repositories.
+- The hiring wording now says Agent-tool hires require approval, and that the check that blocks launching `claude` from a shell is best-effort, not a sandbox.
+- Test data no longer contains company or business names.
 ## 1.2.7 (2026-11-03)
 
 Small feature and fix release on top of 1.2.6, which carries the security patch (signed updater, Claude Code permission parity, hardened install scripts); see the 1.2.6 entry below, including its upgrade notes.

@@ -88,13 +88,18 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue) -and -not (Test-Path
 }
 
 $base = "https://github.com/$repo/releases/download/$tag/"
+$failed = $false
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ('agent-office-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
   Write-Host "Fetching the signed manifest for $tag..."
   foreach ($f in 'latest.json', 'latest.json.sig') {
     try { Invoke-WebRequest -Uri ($base + $f) -OutFile (Join-Path $work $f) -UseBasicParsing -MaximumRedirection 5 }
-    catch { throw "Release $tag has no $f ($($_.Exception.Message)). Releases from before signed manifests cannot be installed by this script; download the installer from the release page instead." }
+    catch {
+      $code = 0; try { $code = [int]$_.Exception.Response.StatusCode } catch { }
+      if ($code -eq 401 -or $code -eq 403 -or $code -eq 404) { throw "GitHub answered $code for $f. This repository is private (or release $tag does not exist), so Agent Office is distributed by invitation: ask the owner for the installer, or build it from source." }
+      throw "Release $tag has no $f ($($_.Exception.Message)). Releases from before signed manifests cannot be installed by this script; download the installer from the release page instead."
+    }
   }
   Assert-SignedManifest (Join-Path $work 'latest.json') (Join-Path $work 'latest.json.sig')
   Write-Host 'Manifest signature verified.'
@@ -115,7 +120,8 @@ try {
   Write-Host "SHA-256 verified ($got)."
   Write-Host 'Installing (current user, no admin needed)...'
   Start-Process $out -ArgumentList '/S' -Wait   # silent install; it creates the Start menu and desktop shortcuts
-} finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+} catch { $failed = $true; Write-Host "Install stopped: $($_.Exception.Message)" -ForegroundColor Red } finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+if ($failed) { return }
 
 $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'Agent Office.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($exe) { Start-Process $exe.FullName; Write-Host "Done. Agent Office $tag is running, and there is a shortcut on your desktop." -ForegroundColor Green }

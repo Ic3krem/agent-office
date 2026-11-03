@@ -9,6 +9,8 @@ on:
 permissions: {}
 jobs:
   analyze:
+    # Code scanning on a private repository needs GitHub code security (a paid feature); there the job is skipped instead of failing.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
