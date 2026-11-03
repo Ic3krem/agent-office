@@ -411,17 +411,17 @@
 
   const tiroObj = reg('desk', "Tiro's desk", [150, 14, 0, 150, 84, 64], null, { desk: 'office' });
   // ---------- manager's office ----------
-  tiroObj.src = add(60, g => { // Tiro's desk, trophy shelf, rug items, plant, glass walls are separate items
+  tiroObj.src = add(340, g => { // Tiro's desk, trophy shelf, rug items, plant, glass walls are separate items
     const D = M.TIRO_DESK; const dx = D.x0, dy = D.y0, w = D.x1 - D.x0, dd = D.y1 - D.y0;
     box(g, dx + 4, dy + 2, 0, w - 8, dd - 4, 28, '#5e3a1e'); box(g, dx, dy, 28, w, dd, 6, '#7d5230', { t: '#9a6a3c' });
     Fy(g, dy + dd, 28, () => { g.translate(dx + 4, 0); g.fillStyle = '#4a2c14'; g.fillRect(2, 2, w - 12, 20); g.fillStyle = '#6e4624'; for (let i = 0; i < 6; i++) g.fillRect(4 + i * 23, 4, 21, 16); g.fillStyle = '#d6b13a'; for (let i = 0; i < 6; i++) g.fillRect(12 + i * 23, 11, 5, 1.6); });
     // two monitors (we see their backs), nameplate faces the guests
-    box(g, dx + 30, dy + 12, 34, 38, 3, 24, '#20222a'); box(g, dx + 76, dy + 12, 34, 38, 3, 24, '#20222a'); box(g, dx + 46, dy + 14, 34, 6, 2, 3, '#3a3a44'); box(g, dx + 92, dy + 14, 34, 6, 2, 3, '#3a3a44');
-    const on = ST.tiroBusy; if (on) { const c = P(dx + 49, dy + 26, 50), c2 = P(dx + 95, dy + 26, 50); [c, c2].forEach(q => { const gr = g.createRadialGradient(q[0], q[1], 2, q[0], q[1], 26); gr.addColorStop(0, 'rgba(120,240,170,.16)'); gr.addColorStop(1, 'rgba(120,240,170,0)'); g.fillStyle = gr; g.fillRect(q[0] - 28, q[1] - 24, 56, 48); }); }
+    box(g, dx + 8, dy + 12, 34, 38, 3, 24, '#20222a'); box(g, dx + 104, dy + 12, 34, 38, 3, 24, '#20222a'); box(g, dx + 24, dy + 14, 34, 6, 2, 3, '#3a3a44'); box(g, dx + 120, dy + 14, 34, 6, 2, 3, '#3a3a44'); // monitors flank the chair so Tiro stays visible between them
+    const on = ST.tiroBusy; if (on) { const c = P(dx + 27, dy + 26, 50), c2 = P(dx + 123, dy + 26, 50); [c, c2].forEach(q => { const gr = g.createRadialGradient(q[0], q[1], 2, q[0], q[1], 26); gr.addColorStop(0, 'rgba(120,240,170,.16)'); gr.addColorStop(1, 'rgba(120,240,170,0)'); g.fillStyle = gr; g.fillRect(q[0] - 28, q[1] - 24, 56, 48); }); }
     box(g, dx + 60, dy + dd - 10, 34, 34, 4, 9, '#20202a'); Fy(g, dy + dd - 6, 43, () => { g.translate(dx + 60, 0); g.fillStyle = '#ffcf6b'; g.fillRect(2, 1.5, 30, 5.5); txt(g, 'TIRO · MANAGER', 17, 6.2, 5.2, '#1b1220', 'center'); });
     mug(g, dx + 132, dy + 34, 34, '#ffcf6b', true); lamp(g, dx + 140, dy + 8, 34, true);
     box(g, dx + 10, dy + 30, 34, 14, 11, 1, '#f3ede2'); box(g, dx + 12, dy + 32, 35, 14, 11, 1, '#e9e4d6');
-  }, { nofp: true }); // Tiro sits behind his desk but is drawn over it, so the sitter stays visible
+  }); // Tiro sits behind his desk: the desk has a footprint now, so its top and front panel draw over his lower body
   // Inbox tray (approvals) on the desk, and the report icon
   const inboxItem = add(95, g => {
     const D = M.TIRO_DESK, tx = D.x0 + 8, ty = D.y1 - 24, pend = ST.ex.pending || 0;

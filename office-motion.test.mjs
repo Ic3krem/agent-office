@@ -386,3 +386,29 @@ test('scheduler character is never drawn behind its own bench or mailbox, and sm
   // mailbox and station are registered and have silhouettes
   for (const k of ['mailbox', 'scheduler']) assert.ok(F.objects.find(q => q.key === k).mask, k);
 });
+
+test('Tiro sits behind his desk: desk front over the lower body, chair behind him, upper body visible, no popping', () => {
+  const fctx = { OfficeMotion: M }; fctx.globalThis = fctx;
+  vm.runInNewContext(fs.readFileSync(new URL('./public/office-furniture.js', import.meta.url), 'utf8'), fctx);
+  const F = fctx.OfficeFurniture;
+  const sink = new Proxy(function () { }, { get: (_, k) => k === 'getImageData' ? (x, y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }) : sink, set: () => true, apply: () => sink });
+  F.measure({ createElement: () => ({ width: 0, height: 0, getContext: () => sink }) });
+  const desk = F.objects.find(o => o.desk === 'office').src;
+  assert.ok(desk.fp, 'Tiro desk has a footprint (it used to be nofp, which put him on top of it)');
+  const seat = M.SPOTS['tiro:seat'], tiro = { x: seat.x, y: seat.y, d: seat.x + seat.y + 3.5 };
+  const out = F.layer([tiro]);
+  assert.ok(out.indexOf(tiro) < out.indexOf(desk), 'the desk is drawn after Tiro, so its top and front panel cover his lower body');
+  const chair = F.items.find(i => i.o.nofp && i.d === 26); assert.ok(chair && out.indexOf(chair) < out.indexOf(tiro), 'chair back is behind him');
+  // upper body above the desk's rear top edge, lower body below it (sprite is 3x, hip row 19, 26 rows)
+  const hip = Number(/s === 'tiro:seat' \? (\d+)/.exec(fs.readFileSync(new URL('./public/office-world.js', import.meta.url), 'utf8'))[1]);
+  const hipY = F.P(seat.x, seat.y, hip)[1], top = hipY - 19 * 3, rear = F.P(seat.x + (M.TIRO_DESK.y0 + 2 - seat.y), M.TIRO_DESK.y0 + 2, 34)[1];
+  const rowsAbove = Math.floor((rear - top) / 3);
+  assert.ok(rowsAbove >= 18 && rowsAbove <= 24, 'head, shoulders and torso show above the desk (' + rowsAbove + ' of 26 rows), legs hidden by the desk');
+  // walking in or out along the desk's east side (o_tside) flips the order at most once
+  let last = null, flips = 0;
+  for (let x = 330; x >= 225; x -= 1) { const p = { x, y: 36 - (330 - x) * 6 / 105, d: 0 }; p.d = p.x + p.y + 3.5; const o = F.layer([p]), b = o.indexOf(p) < o.indexOf(desk); if (last !== null && b !== last) flips++; last = b; }
+  assert.ok(flips <= 1, 'order flips ' + flips + ' times along the approach');
+  assert.equal(last, true, 'seated at the end of the approach he is behind the desk');
+  // a visitor standing at the guest spot in front of the desk is in front of it
+  const g = M.SPOTS['office:report'], p2 = { x: g.x, y: g.y, d: g.x + g.y + 3.5 }, o2 = F.layer([p2]); assert.ok(o2.indexOf(p2) > o2.indexOf(desk));
+});
