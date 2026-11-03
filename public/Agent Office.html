@@ -399,7 +399,7 @@ class Component extends DCLogic {
     window.addEventListener('hashchange',this.onHash);this.onHash();
   }
   componentWillUnmount(){this.camOff&&this.camOff();this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
-  componentDidUpdate(){this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
+  componentDidUpdate(){if(this.state.selectedId!==this._selSent){this._selSent=this.state.selectedId;api('/api/select',{id:this.state.selectedId||null}).catch(()=>{});}this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
   // Camera: wheel zooms about the cursor, drag pans, keys + - 0, buttons in the corner. Pure maths lives in OfficeMotion.
   setView(v,sc){const M=window.OfficeMotion,vp=this.vp||{w:1280,h:800},f=sc||this.fitSc||1;const c=M.clampView(v,vp.w,vp.h,f,1480,920);this.view=c;this.setState({view:c});window.OfficeWorld&&OfficeWorld.setScale(f*c.z);}
   zoomBy(k,cx,cy){this.setView(OfficeMotion.zoomAt(this.view||this.state.view,k,cx||0,cy||0));}

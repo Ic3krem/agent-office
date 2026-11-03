@@ -50,7 +50,7 @@ export function apply(a, j) {
     case 'assistant': {
       const m = j.message ?? {};
       if (m.model && !m.model.startsWith('<')) a.model = m.model;
-      if (m.id && m.usage && !a.seenMsg.has(m.id)) { a.seenMsg.add(m.id); tokens = m.usage.output_tokens ?? 0; a.turnTok = (a.turnTok || 0) + tokens; }
+      if (m.id && m.usage && !a.seenMsg.has(m.id)) { a.seenMsg.add(m.id); if (a.seenMsg.size > 500) a.seenMsg.delete(a.seenMsg.values().next().value); tokens = m.usage.output_tokens ?? 0; a.turnTok = (a.turnTok || 0) + tokens; }
       // Claude Code writes API failures as assistant lines: a plan limit shows as rate_limit, anything else is an error.
       a.apiError = j.isApiErrorMessage ? j.error || 'error' : '';
       if (j.isApiErrorMessage) a.errText = clip((m.content ?? []).map(b => b.text ?? '').join(' '), 160);

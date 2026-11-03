@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { shouldCheckDocker } from './perf.mjs';
 
 // Breaker box. kiro: Tiro may run at all. autopilot: Tiro keeps itself going between turns. hiring: specialists allowed.
 // bridge: terminals send approvals to the office. guard: stop at plan limits (subscription only, no extra-usage credits).
@@ -24,7 +25,7 @@ export function switchBox(file) {
 
 // Server rack: CPU and memory of this machine, Docker containers, and the server's own recent log lines.
 export function rack() {
-  let prev = os.cpus(), cpu = 0, docker = null;
+  let prev = os.cpus(), cpu = 0, docker = null, dockerAt = 0, panelOpenAt = 0;
   const log = [];
   const tick = () => {
     const now = os.cpus();
@@ -32,10 +33,11 @@ export function rack() {
     now.forEach((c, i) => { const p = prev[i]?.times || c.times; for (const k in c.times) total += c.times[k] - p[k]; idle += c.times.idle - p.idle; });
     cpu = total ? Math.round(100 * (1 - idle / total)) : 0; prev = now;
   };
-  const dockerCheck = () => execFile('docker', ['ps', '-a', '--format', '{{json .}}'], { timeout: 8000, windowsHide: true }, (err, out) => {
+  const dockerCheck = () => { dockerAt = Date.now(); execFile('docker', ['ps', '-a', '--format', '{{json .}}'], { timeout: 8000, windowsHide: true }, (err, out) => {
     docker = err ? null : out.trim().split('\n').filter(Boolean).map(l => { try { const j = JSON.parse(l); return { name: j.Names, state: j.State, status: j.Status, image: j.Image }; } catch { return null; } }).filter(Boolean);
-  });
-  setInterval(tick, 5000).unref(); setInterval(dockerCheck, 30e3).unref(); dockerCheck();
+  }); };
+  // Docker is only asked when the rack panel was opened in the last minute (every 30 s then) or, otherwise, every 5 minutes.
+  setInterval(tick, 5000).unref(); setInterval(() => { if (shouldCheckDocker({ now: Date.now(), last: dockerAt, panelOpenAt })) dockerCheck(); }, 15e3).unref(); dockerCheck();
   for (const k of ['log', 'error']) {
     const orig = console[k].bind(console);
     console[k] = (...a) => { log.push({ t: new Date().toTimeString().slice(0, 8), k, text: redact(a.map(String).join(' ')).slice(0, 500) }); if (log.length > 300) log.shift(); orig(...a); };
@@ -46,7 +48,7 @@ export function rack() {
       const down = (docker || []).filter(c => c.state !== 'running' && !/^Exited \(0\)/.test(c.status));
       return { cpu, mem, docker: docker && docker.map(({ name, state }) => ({ name, state })), led: down.length ? 'red' : cpu > 85 || mem > 90 ? 'amber' : 'green' };
     },
-    detail: () => ({ cpu, mem: Math.round(100 * (1 - os.freemem() / os.totalmem())), memTotalGb: +(os.totalmem() / 2 ** 30).toFixed(1), host: os.hostname(), uptimeH: Math.round(os.uptime() / 3600), docker, log: log.slice(-200) }),
+    detail: () => (panelOpenAt = Date.now(), { cpu, mem: Math.round(100 * (1 - os.freemem() / os.totalmem())), memTotalGb: +(os.totalmem() / 2 ** 30).toFixed(1), host: os.hostname(), uptimeH: Math.round(os.uptime() / 3600), docker, log: log.slice(-200) }),
     note: text => { log.push({ t: new Date().toTimeString().slice(0, 8), k: 'log', text }); if (log.length > 300) log.shift(); },
   };
 }
