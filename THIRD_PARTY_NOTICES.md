@@ -1,8 +1,8 @@
 # Third-party notices
 
-Agent Office itself is MIT licensed (see LICENSE). The production dependency tree (196 packages, generated from package-lock.json on 2026-11-03) is below. Electron and electron-builder are build-time/runtime shell dependencies and are MIT.
+Agent Office itself is proprietary, all rights reserved (see LICENSE); the components below stay under their own licences, which this file lists and which are not changed by Agent Office's licence. The production dependency tree (196 packages, generated from package-lock.json on 2026-11-03) is below. Electron and electron-builder are build-time/runtime shell dependencies and are MIT.
 
-## Not plain open source, or needing a note
+## Not plain permissive, or needing a note
 
 - **@anthropic-ai/claude-agent-sdk** (and its platform binaries): (c) Anthropic PBC, all rights reserved; use is subject to Anthropic's legal agreements (https://code.claude.com/docs/en/legal-and-compliance). It is a proprietary dependency, not covered by this project's MIT license. Installers bundle it only as an unmodified dependency; users need their own Claude Code / Anthropic account.
 - **jszip** 3.10.2: dual-licensed (MIT OR GPL-3.0-or-later); Agent Office uses it under MIT.

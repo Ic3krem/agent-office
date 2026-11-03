@@ -4,10 +4,23 @@ import fs from 'node:fs';
 const read = f => fs.readFileSync(new URL(f, import.meta.url), 'utf8');
 const pkg = JSON.parse(read('./package.json'));
 
-test('license is consistent: MIT in LICENSE, package.json, README; third-party notice shipped', () => {
-  assert.match(read('./LICENSE'), /^MIT License\s+Copyright \(c\) 20\d\d \S+/);
-  assert.equal(pkg.license, 'MIT');
-  assert.match(read('./README.md'), /MIT/);
+test('licence is consistent: proprietary, all rights reserved, Ic3krem, in LICENSE, LICENSE.txt, package.json, README; third-party notice shipped', () => {
+  const lic = read('./LICENSE');
+  assert.match(lic, /Copyright \(c\) 2026 Ic3krem\. All rights reserved\./);
+  assert.match(lic, /DRAFT/); assert.match(lic, /lawyer/i);
+  assert.match(lic, /Only the copyright holder may use, copy, modify, merge, publish, distribute, sublicense or sell/);
+  assert.match(lic, /signed a written agreement/); assert.match(lic, /THIRD_PARTY_NOTICES\.md/); assert.match(lic, /Anthropic/);
+  assert.match(lic, /v1\.1\.0 to v1\.1\.4 and v1\.2\.5/); assert.match(lic, /MIT terms they were released with/);
+  assert.match(lic, /No trademark grant/); assert.match(lic, /as is/);
+  assert.doesNotMatch(lic, /Permission is hereby granted, free of charge/);
+  assert.equal(read('./LICENSE.txt'), lic, 'the installer licence page file is a copy of LICENSE');
+  assert.equal(pkg.license, 'SEE LICENSE IN LICENSE'); assert.equal(pkg.private, true);
+  assert.equal(pkg.build.nsis.license, 'LICENSE.txt');
+  const readme = read('./README.md');
+  assert.match(readme, /all rights reserved/i); assert.doesNotMatch(readme, /\[MIT\]\(LICENSE\)|license-MIT/);
+  assert.match(read('./CONTRIBUTING.md'), /External contributions are not accepted/); assert.match(read('./CONTRIBUTING.md'), /SECURITY\.md/);
+  assert.doesNotMatch(read('./CONTRIBUTING.md') + read('./SECURITY.md'), /MIT licensed|open source/i);
+  assert.match(read('./THIRD_PARTY_NOTICES.md'), /proprietary, all rights reserved/);
   assert.ok(pkg.build.files.includes('LICENSE') && pkg.build.files.includes('THIRD_PARTY_NOTICES.md'));
   assert.match(read('./THIRD_PARTY_NOTICES.md'), /claude-agent-sdk/);
 });

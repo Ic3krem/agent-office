@@ -1,12 +1,12 @@
 # Contributing to Agent Office
 
-Thanks for helping. This is a small project, so the process is light.
+**External contributions are not accepted.** Agent Office is proprietary software ([LICENSE](LICENSE), all rights reserved), and a contribution can only be taken after the owner has signed a written agreement with you that assigns the rights in it. Please do not open pull requests or send patches without that agreement. **Security reports are still welcome**: see [SECURITY.md](SECURITY.md). The rest of this page is for the owner and for people the owner has invited to work on the code.
 
 ## Ground rules
 
 - Be kind: see the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Report security problems privately, never in a public issue: see [SECURITY.md](SECURITY.md).
-- The project is MIT licensed. By contributing you agree your contribution is released under the same license.
+- The project is proprietary (all rights reserved). Contributions need a signed written agreement assigning the rights to the owner first; without one they cannot be used.
 
 ## Setting up
 
