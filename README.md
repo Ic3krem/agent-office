@@ -20,7 +20,7 @@ New and current in **1.2.6**:
 - **Per-agent memory and history.** Each agent type has its own `memory/` and `history/` folder under Tiro. Every task starts in a fresh context, and an **Agent history** overlay lets you browse past tasks, summaries and transcript paths.
 - **Silhouette click areas.** Furniture and characters are picked by their drawn shape (hover shows an outline), and depth sorting keeps a character from being hidden behind its own desk.
 - **Garden, park, garage and Scheduler station.** The office has a fenced park and a garage. The Scheduler station shows the last result of the scheduler job, which classifies a local inbox feed into task, need and info items. Agent Office has no mail access of its own.
-- **Dynamic island.** A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics, themes and a settings tab.
+- **Dynamic island, with an on/off switch.** A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics, themes and a settings tab. Switch the notch on or off at any time, without restarting: tray menu (Show notch), the dashboard's Breaker box, or the island's own Settings. It is on by default.
 - **Your Claude Code, unchanged.** Tiro and every agent it hires load the same settings, permissions, hooks, MCP servers, CLAUDE.md, skills, plugins and environment as a plain `claude` run. Agent Office adds no approval rules of its own. See [docs/permissions.md](docs/permissions.md).
 - **Updater.** Checks an https feed or a local folder and refuses any installer it cannot verify with a SHA-256.
 - **Security.** Local-only server with a key, strict Content-Security-Policy with vendored React, ReactDOM and Babel, hardened Electron windows, and verified installs. See the [security model](#security-model).
@@ -107,7 +107,9 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 | Setting in `kiro.json` | Meaning |
 |---|---|
 | `agentNames` | Display-name overrides (`tiro` and the eight specialist keys). |
-| `islandMode` | `always` (default), `smart` or `off`. |
+| `islandMode` | `always` (default) or `smart`. (`off` is an older spelling of "no notch" and is converted to `notchEnabled: false` on first start.) |
+| `islandSettings.notchEnabled` | The notch exists: `true` (default) or `false` (the window is closed and nothing runs for it). |
+| `islandSettings.notchShortcut` | Optional global shortcut that toggles the notch, for example `Ctrl+Alt+N` (empty = none, the default; 2 or 3 modifiers plus a letter, digit or F-key; `Ctrl+Alt+K` is reserved). |
 | `islandMute` | Silence the approval and done chimes. |
 | `islandDisplay` | `cursor` (default), `primary` or a display id. |
 | `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics`, `kiroFace`, `animate`. |

@@ -91,7 +91,7 @@ The world is isometric with five zones: Tiro's glass office (top left), the focu
 
 - **Working** agents sit at their own desk. Thinking agents walk to the garden or park. When the board is empty, idle agents go to the playroom. A rate-limited agent waits at the water cooler. A finished goal sends its agent to Tiro's office to report, then back.
 - **Objects:** Today board, Bookshelf (reports), Corkboard (memory), Filing cabinet (SOPs), Inbox tray, Breaker box, Server rack, Whiteboard (tokens and limits), Coffee machine (espresso: the next hire uses the fast model), Arcade, Jukebox, Server plant, and the Scheduler garage and mailbox.
-- **Breaker box switches:** Tiro (manager) on/off, Autopilot, Hiring, Terminal approvals, and the Subscription guard, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.
+- **Breaker box switches:** Tiro (manager) on/off, Autopilot, Hiring, Terminal approvals, the Subscription guard, and (desktop app only) the Notch, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.
 - **Click outlines.** Objects and people are picked by their drawn shape, not a rough box. Hover shows a gold outline that follows the silhouette; where pieces overlap, the smaller one wins. Characters are depth-sorted so none is hidden behind its own desk.
 
 ![Hovering a desk draws a yellow outline that follows its shape](images/15-click-outline-hover.png)
@@ -128,7 +128,8 @@ The island is a notch-style overlay at the top centre of the screen. Its window 
 
 - **Collapsed:** shows Tiro's eyes (idle, working, waiting for approval, done, offline). While music plays it widens to show the title, artist and a synced lyric line.
 - **Expanded** (hover, click, `Ctrl+Alt+K`, or when an approval arrives): tabs Home, Calendar and Settings, a dock of quick actions (Today, Reports, Usage, Office, Chat, and others you pin), approval buttons (keys `Y` and `N` answer the first request, `Esc` waves it away), and a Now playing card with previous, play-pause and next.
-- **Modes:** Always, Smart (hides when idle or when a fullscreen app is running and peeks back when the cursor touches the top edge) and Off. Choose from the tray.
+- **Modes:** Always and Smart (hides when idle or when a fullscreen app is running and peeks back when the cursor touches the top edge). Choose from the tray.
+- **Notch on or off.** The notch is on by default. To remove it, use any of: the tray menu item **Show notch** (a checkbox), the **Notch** switch at the bottom of the dashboard's **Breaker box** (desktop app only), or **Settings, Notch** inside the island itself. Off closes the island window and stops the now-playing and fullscreen watchers; on creates it again on the display you chose. The choice is remembered across restarts and launches at login. If you turn it off from the island, the tray item, the Breaker box or the optional shortcut bring it back. An optional global shortcut (field **Toggle shortcut** in the island's Settings, empty by default, for example `Ctrl+Alt+N`) toggles it; `Ctrl+Alt+K` only expands or pins a notch that exists, and does nothing while the notch is off.
 - **Settings tab:** theme (Ember, Midnight, Forest, Light, Custom accent), motion preset, pinned actions (up to 8), 12 or 24 hour clock, optional second clock, week start, edge and leave delays, now playing, Tiro face, animation and lyrics. Lyrics are looked up online (title, artist, album and duration only); turn them off if you prefer.
 - **Updates:** see [the README](../README.md#update). Set an https feed or a local folder, check, and install with one click. An installer downloaded over the network must come with a SHA-256 that matches; otherwise it is refused.
 
@@ -140,7 +141,7 @@ The island is a notch-style overlay at the top centre of the screen. Its window 
 
 ## Tray
 
-The tray menu has: Open office, Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit Agent Office.
+The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit Agent Office.
 
 ## Settings files
 
@@ -149,7 +150,7 @@ All state is under `~/.claude/agent-office/` (your home folder). Nothing here ne
 | File or folder | What it holds |
 |---|---|
 | `bridge.json` | Server port and the terminal bridge key (opens `/bridge/*` only). The UI key is never stored. |
-| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings`, `updateAuto`, `hidden`, optional `schedulerMailbox`. |
+| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled` and `notchShortcut`), `updateAuto`, `hidden`, optional `schedulerMailbox`. |
 | `switches.json` | Breaker box switches. |
 | `manager.json` | Tiro auto-approval on or off. |
 | `manager-session.json` | Id of Tiro's current session (one per day). |
@@ -192,7 +193,7 @@ Also: `GET /print/report`, `/print/daily`, `/export/report.xlsx` and `/export/da
 
 - Office objects and desks are focusable with the keyboard and have labels (name, role, status).
 - Camera: `+`, `-`, `0`, mouse wheel, drag.
-- Island: `Ctrl+Alt+K` toggles it; `Y` and `N` answer the first pending request, `Esc` dismisses it.
+- Island: `Ctrl+Alt+K` expands or pins it (not while the notch is off); an optional shortcut you set turns the notch on or off; `Y` and `N` answer the first pending request, `Esc` dismisses it.
 - Reduced motion: the office and island follow the system "reduce motion" setting and the animation preference; characters then appear in place instead of walking.
 
 ## Troubleshooting

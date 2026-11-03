@@ -2,6 +2,10 @@
 
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
+## Unreleased (feature/notch-toggle)
+
+- **Notch on/off.** New setting `islandSettings.notchEnabled` (default on) switches the notch live, without restarting: tray menu **Show notch** checkbox, a **Notch** switch in the dashboard's Breaker box (desktop app), and **Settings, Notch** in the island. Off closes the island window and stops what serves it; the choice is remembered across restarts. An optional global shortcut (`islandSettings.notchShortcut`, off by default, for example `Ctrl+Alt+N`) toggles it. An older `islandMode: "off"` is converted to `notchEnabled: false` on first start, the tray's Off radio is replaced by the checkbox, and `Ctrl+Alt+K` no longer revives a switched-off notch.
+
 ## 1.2.6 (2026-11-03)
 
 Security patch release. Read the upgrade notes first.
