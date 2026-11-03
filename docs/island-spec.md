@@ -105,3 +105,8 @@ Settings keys (`islandSettings`): theme, accent, physics, pinned[], hour12, cloc
 - **Controls.** Tray: **Show notch** checkbox. Dashboard: a **Notch** switch in the Breaker box, shown only inside the desktop app. Island: Settings, Notch (On/Off) and Toggle shortcut.
 - **IPC.** The dashboard window has its own preload (`desktop/office-preload.cjs`) exposing only `notch.get()` and `notch.set(boolean)`; `ipcMain` handlers `notch:get` and `notch:set` check that the sender is the office window and that the payload is a boolean. The island uses its existing sender-checked `island:settings` channel. There is no HTTP route for the notch.
 - **Launch at login.** `--hidden` starts still skip the dashboard and create the notch only if it is enabled; the single-instance lock is unchanged.
+
+## Background work (1.2.8)
+- `desktop/main.mjs` tells the server over the signed-in cookie whether any window is visible (`POST /api/visibility`, sent on change and every 2 s). The server coalesces dashboard pushes to one per 3 s while nothing is visible and skips the plan-limits probe unless Tiro is working. The dashboard tells the server which agent is selected (`POST /api/select`) so only that agent and Tiro get a full log tail.
+- The now-playing PowerShell helper starts and stops with the notch's visibility (`syncNowPlaying`); the cursor timer is 200 ms only in smart mode.
+
