@@ -293,7 +293,7 @@ function settingsHTML() {
   const sw = Object.keys(THEMES).map(k => `<button class="btn sw" data-set="theme" data-v="${k}" title="${k}" style="background:${THEMES[k].accent};border-color:${S.theme === k ? 'var(--ink)' : THEMES[k].line}"></button>`).join('');
   const pins = Object.keys(ACT).map(k => `<button class="btn ${S.pinned.includes(k) ? 'on' : ''}" data-pin="${k}">${ACT[k][0]} ${ACT[k][1]}</button>`).join('');
   const gcat = (c, name) => `<div class="set"><span>${esc(c + ' ' + name)}</span><div class="chips">${['ask', 'log', 'off'].map(m => `<button class="btn ${GV && GV.config[c] === m ? 'on' : ''}" data-guard="${c}" data-v="${m}">${m}</button>`).join('')}</div></div>`;
-  const guardSect = GV ? `<div class="sect"><span class="label">Security Guard</span>${['S', 'Y', 'I', 'U', 'C', 'H', 'X', 'P'].map(c => gcat(c, GV.names[c] || c)).join('')}<div class="hint" style="text-align:left">It only ever asks first (never allows or blocks). Turning a category down shows a confirmation window that only the app can open. ${GV.notices && GV.notices.length ? '<b>A setting was changed outside the app and was kept as ' + esc(GV.notices.map(n => n.what + ':' + n.kept).join(', ')) + '.</b>' : ''}</div></div>` : '';
+  const guardSect = GV ? `<div class="sect"><span class="label">Security Guard</span>${['S', 'Y', 'I', 'U', 'C', 'H', 'X', 'P'].map(c => gcat(c, GV.names[c] || c)).join('')}<div class="hint" style="text-align:left">It only ever asks first (never allows or blocks). Turning a category down shows a confirmation window that only the app can open. ${GV.notices && GV.notices.length ? '<b>A setting was changed outside the app and was kept as ' + esc(GV.notices.map(n => n.what + ':' + n.kept).join(', ')) + '.</b>' : ''}${GV.weakStorage ? '<br><b>Weaker protection on this system (no OS keyring): turn protection down from the Breaker box in Agent Office, where a typed confirmation is required.</b>' : ''}${GV.nodeOnPath === false ? '<br><b>Guard inactive in terminals: Node.js was not found on PATH.</b>' : ''}</div></div>` : '';
   return `${guardSect}<div class="sect"><span class="label">Notch</span>
     <div class="set"><span>Notch</span>${chips('notchEnabled', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Toggle shortcut</span><span class="row"><input type="text" data-nshort value="${esc(S.notchShortcut || '')}" placeholder="Ctrl+Alt+N (optional)" aria-label="Global shortcut that turns the notch on or off"></span></div>
@@ -399,7 +399,7 @@ isle.addEventListener('click', e => {
   const cal = e.target.closest('[data-cal]');
   if (cal) { calOff += +cal.dataset.cal; render(); return; }
   const gb = e.target.closest('[data-guard]');
-  if (gb) { desk.guard.set({ [gb.dataset.guard]: gb.dataset.v }).then(v => { if (v) GV = v; render(); }).catch(() => {}); return; }
+  if (gb) { const patch = { [gb.dataset.guard]: gb.dataset.v }; desk.guard.set(patch).then(v => { if (v) GV = v; render(); }).catch(() => {}); return; }
   const st = e.target.closest('[data-set]');
   if (st) { const v = st.dataset.v; setPref({ [st.dataset.set]: v === 'true' ? true : v === 'false' ? false : /^-?\d+$/.test(v) ? +v : v }); return; }
   const pin = e.target.closest('[data-pin]');

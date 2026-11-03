@@ -168,6 +168,14 @@
       <div><div style="font-weight:600">Notch <span style="font:11px 'IBM Plex Mono';color:${on ? '#5fd38d' : '#ff9a8d'}">${on ? 'ON' : 'OFF'}</span></div><div class="oo-meta" style="font-family:inherit;font-size:12.5px">The island overlay at the top of your screen. Off removes its window. Also in the tray menu (Show notch) and the island's own Settings.</div></div>`;
     body.querySelector('.oo-pad')?.append(div);
   }
+  // Electron has no window.prompt: a small typed-confirmation box for turning protection down on systems without a keyring
+  const askWord = () => new Promise(res => {
+    const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:99999;display:flex;align-items:center;justify-content:center';
+    o.innerHTML = '<div style="background:#2a211a;border:1px solid #a8431f;border-radius:10px;padding:16px;max-width:360px;color:#e8dccb;font:13px sans-serif"><div style="font-weight:600;margin-bottom:6px">Turn down Security Guard?</div><div style="margin-bottom:8px">This system has no OS keyring, so the protection is weaker. Type <b>turn down</b> to continue.</div><input style="width:100%;box-sizing:border-box;padding:6px;margin-bottom:8px"><div style="text-align:right"><button data-x="no">Cancel</button> <button data-x="ok">Continue</button></div></div>';
+    const done = v => { o.remove(); res(v); };
+    o.addEventListener('click', e => { const x = e.target.closest('[data-x]'); if (x) done(x.dataset.x === 'ok' ? o.querySelector('input').value : ''); });
+    document.body.append(o); o.querySelector('input').focus();
+  });
   const guardApi = () => (typeof window !== 'undefined' && window.agentOfficeDesktop && window.agentOfficeDesktop.guard) || null;
   const CAT_ORDER = ['S', 'Y', 'I', 'U', 'C', 'H', 'X', 'P'];
   async function guardRows(body) {
@@ -178,7 +186,9 @@
     const div = document.createElement('div'); div.className = 'oo-guard';
     const mode = (c, m) => '<button class="oo-mini' + (v.config[c] === m ? ' on' : '') + '" data-act="guard-set" data-cat="' + c + '" data-mode="' + m + '" style="margin-left:4px;padding:2px 8px;border-radius:5px;border:1px solid ' + (v.config[c] === m ? '#5fd38d' : '#4a3a2c') + ';background:' + (v.config[c] === m ? '#16301f' : 'transparent') + ';color:#e8dccb;font:inherit;font-size:12px;cursor:pointer">' + m + '</button>';
     div.innerHTML = '<div style="margin-top:14px;font-weight:600">Security Guard</div><div class="oo-meta" style="font-family:inherit;font-size:12.5px;margin-bottom:6px">Asks before secrets leave this computer, scripts or startup entries are added, credentials are read, or untrusted text steers an action. It can only ask: it never allows or blocks. Turning a category down needs a confirmation in a window only the app can open.' +
-      (v.notices && v.notices.length ? '<br><b style="color:#ffb199">Guard setting changed outside the app; kept ' + esc(v.notices.map(n => n.what + ':' + n.kept).join(', ')) + '.</b>' : '') + '</div>' +
+      (v.notices && v.notices.length ? '<br><b style="color:#ffb199">Guard setting changed outside the app; kept ' + esc(v.notices.map(n => n.what + ':' + n.kept).join(', ')) + '.</b>' : '') +
+      (v.weakStorage ? '<br><b style="color:#ffd28a">Weaker protection on this system: no OS keyring, so the Guard key is a private file. Turning protection down needs a typed confirmation.</b>' : '') +
+      (v.nodeOnPath === false ? '<br><b style="color:#ffb199">Guard inactive in terminals: Node.js was not found on PATH, so the terminal hook cannot run. Install Node.js 18 or newer.</b>' : '') + '</div>' +
       CAT_ORDER.map(c => '<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="flex:1">' + esc(c + ' ' + (v.names[c] || c)) + '</span>' + ['ask', 'log', 'off'].map(m => mode(c, m)).join('') + '</div>').join('') +
       '<div style="display:flex;align-items:center;gap:6px;padding:6px 0"><span style="flex:1">Terminals (bridge plugin hook)</span><button data-act="guard-term" style="padding:2px 8px;border-radius:5px;border:1px solid #4a3a2c;background:transparent;color:#e8dccb;font:inherit;font-size:12px;cursor:pointer">' + (v.config.hooksInTerminals ? 'on' : 'off') + '</button></div>' +
       '<div style="display:flex;gap:8px;padding-top:6px"><button data-act="guard-log" style="padding:4px 10px;border-radius:6px;border:1px solid #6b5a48;background:transparent;color:#e8dccb;font:inherit;cursor:pointer">Audit log</button><button data-act="guard-forget" style="padding:4px 10px;border-radius:6px;border:1px solid #6b5a48;background:transparent;color:#e8dccb;font:inherit;cursor:pointer">Forget ' + v.remembered.length + ' remembered action(s)</button></div>';
@@ -367,7 +377,7 @@
           await api('/api/switch', { name: d.k, on });
           return;
         }
-        case 'guard-set': { const g = guardApi(); if (!g) return; await g.set({ [d.cat]: d.mode }); return breaker(); }
+        case 'guard-set': { const g = guardApi(); if (!g) return; let v = await g.set({ [d.cat]: d.mode }); if (v && v.needWord) { const w = await askWord(); if (w) await g.set({ [d.cat]: d.mode, _confirm: w }); } return breaker(); }
         case 'guard-term': { const g = guardApi(); if (!g) return; const v = await g.get(); await g.set({ hooksInTerminals: !v.config.hooksInTerminals }); return breaker(); }
         case 'guard-forget': { const g = guardApi(); if (!g) return; if (!confirm('Forget every remembered Guard action? You will be asked again.')) return; await g.forget('all'); return breaker(); }
         case 'guard-log': return guardLog();

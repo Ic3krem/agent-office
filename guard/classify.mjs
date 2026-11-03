@@ -27,7 +27,7 @@ function isSyncPath(key, ctx) {
   if (R.MEMORY_VAULT_FRAGMENTS.some(f => k.includes(f))) return true;
   return syncKeys(ctx).some(r => within(key, r));
 }
-const projectKeys = ctx => (ctx.projectDirs?.length ? ctx.projectDirs : [ctx.cwd]).filter(Boolean).map(d => canon(d, ctx).key);
+const projectKeys = ctx => (ctx.projectDirs?.length ? ctx.projectDirs : [ctx.cwd]).filter(Boolean).map(d => canon(d, ctx).key).filter(k => k !== homeKey(ctx) && k !== '/' && !/^[a-z]:\/?$/.test(k));   // B2: the home folder or a drive root is never 'the project'
 const outsideProject = (key, ctx) => !projectKeys(ctx).some(d => within(key, d)) && !(ctx.additionalDirs || []).some(d => within(key, canon(d, ctx).key)) && !/\/(node_modules|\.git|dist|build|out)\//.test(key + '/');
 const cPath = key => R.C_PATH_RES.some(re => re.test(key));
 const persistKind = key => { const k = key + '/'; return R.PERSIST_PATHS.find(f => (f.endsWith('/') || f.includes('.')) ? (k.includes(f) || key.endsWith(f)) : false) || null; };
@@ -36,13 +36,23 @@ const agentCfgKind = key => { const k = key + '/'; return R.AGENT_CFG_PATHS.find
 // A path argument inspected from every angle (requested + symlink/junction target).
 function inspect(orig, ctx, opts = {}) {
   const { keys, unc, host, wild } = pathKeys(orig, ctx), r = { orig, keys, unc, host, wild, secret: null, c: false, sync: false, persist: null, agentCfg: null };
+  const gl = globSecret(keys[0], ctx); if (gl && !r.secret) r.secret = gl;
   for (const k of keys) {
     const f = classifyFile(k, ctx, { content: opts.content !== false });
     if (f.secret && !r.secret) r.secret = f;
-    r.c ||= cPath(k) || (!!secretDirKind(k) && outsideProject(k, ctx));
+    r.c ||= cPath(k) || !!secretDirKind(k);   // B2: no project exemption for credential dirs
     r.sync ||= isSyncPath(k, ctx); r.persist ||= persistKind(k); r.agentCfg ||= agentCfgKind(k);
   }
   return r;
+}
+// A glob such as ./.e* or *.pem: list the folder and test every match by name (no cap before the secret check)
+function globSecret(key, ctx) {
+  const base = baseName(key); if (!/[*?\[]/.test(base) || key.startsWith('//')) return null;
+  const dir = key.slice(0, key.lastIndexOf('/')) || '/';
+  const re = new RegExp('^' + base.replace(/[.+^$(){}|\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i');
+  const names = safe(() => ctx.fs?.list?.(dir)) || [];
+  for (const n of names) if (re.test(String(n)) && (secretByName(dir + '/' + String(n).toLowerCase()).kind === 'secret-name')) return { secret: true, by: 'name', rules: ['secret-name', 'glob'] };
+  return null;
 }
 function pathArgs(c) {
   const out = [];
@@ -73,6 +83,7 @@ const secretEnvRefs = texts => { const hit = new Set(); for (const t of texts) f
 function egressOf(c, ctx) {
   const p = c.prog, a = c.args, low = a.map(x => String(x).toLowerCase()), sub = low.find(x => !x.startsWith('-')) || '';
   if (R.TUNNELS.has(p)) return p + ' tunnel';
+  if (/^(nslookup|dig|host|resolve-dnsname|ping|ping6|tracert|traceroute)$/.test(p) && (c.subs?.length || a.some(x => /\$\(|`|\$\{?[A-Za-z_]|%[A-Za-z_]+%/.test(String(x))))) return p + ' (DNS lookup carrying data)';
   if (R.NET_PROGS.has(p)) {
     if (p === 'certutil') return /http/.test(low.join(' ')) ? 'certutil download' : null;
     if (p === 'bitsadmin') return /\/transfer|\/addfile/.test(low.join(' ')) ? 'bitsadmin' : null;
@@ -84,7 +95,7 @@ function egressOf(c, ctx) {
   }
   const re = R.CODE_PUSH[p];
   if (re && re.test(sub || '')) {
-    if (p === 'git') return sub === 'push' ? 'git push' : sub === 'send-email' ? 'git send-email' : null;
+    if (p === 'git') return sub === 'push' ? 'git push' : sub === 'send-email' ? 'git send-email' : /^(request-pull|format-patch|bundle)$/.test(sub) ? 'git ' + sub : null;
     if (p === 'gh') { const j = low.join(' '); if (sub === 'gist' && /create|edit/.test(j)) return 'gh gist'; if (sub === 'release' && /upload|create/.test(j)) return 'gh release'; if (sub === 'repo' && /create/.test(j) && /--push/.test(j)) return 'gh repo create --push'; if (sub === 'secret' && /\bset\b/.test(j)) return 'gh secret set'; if (sub === 'api' && /(-x|--method)\s+(post|put|patch)|\s-[fF]\s|--input/.test(' ' + j)) return 'gh api upload'; return null; }
     if (p === 'docker' || p === 'podman') return sub === 'push' ? p + ' push' : (sub === 'build' || (sub === 'buildx' && low.includes('build'))) ? p + ' build' : null;
     if (p === 'aws') return /^(cp|sync|mv)$/.test(low[low.indexOf(sub) + 1] || '') || /^put-/.test(low.find(x => /^put-/.test(x)) || '') ? 'aws ' + sub : null;
@@ -95,7 +106,7 @@ function egressOf(c, ctx) {
   }
   if (p === 'gsutil' && low.some(x => /^(cp|rsync|mv)$/.test(x))) return 'gsutil';
   if (p === 'npx' && /^(np|release-it)$/.test(sub)) return 'npx ' + sub;
-  if (/^(python[\d.]*|py|node|nodejs|deno|bun|perl|ruby|php)$/.test(p) && c.inlineCode && /(requests\.(post|put)|urllib|urlopen|httpx|aiohttp|fetch\(|https?\.request|net::http|axios|socket\.|net\.connect|webclient|httpclient|xmlhttprequest|lwp)/i.test(c.inlineCode)) return p + ' inline network code';
+  if (/^(python[\d.]*|py|node|nodejs|deno|bun|perl|ruby|php)$/.test(p) && c.inlineCode && /(requests\.\w+|import\s+requests|urllib|urlopen|http\.client|httplib|httpx|aiohttp|fetch\(|https?\.(request|get)|net::http|axios|socket\b|net\.connect|webclient|httpclient|xmlhttprequest|lwp|file_get_contents\s*\(\s*['"]https?|curl_init|open-uri|open\(['"]https?)/i.test(c.inlineCode)) return p + ' inline network code';
   const raw = c.argvFull.join(' ');
   if (/\b(invoke-restmethod|invoke-webrequest|iwr|irm)\b[^\n]*(-infile|-body|-form)\b|\[net\.webclient\]|new-object\s+(system\.)?net\.webclient|\.upload(file|string|data)\(|\[system\.net\.http\.httpclient\]|new-object\s+(system\.)?net\.sockets\.tcpclient|invoke-command[^\n]*-computername|copy-item[^\n]*-tosession/i.test(raw)) return 'PowerShell upload';
   if (/\/dev\/(tcp|udp)\//.test(raw) || c.redirOut.some(r => /^\/dev\/(tcp|udp)\//.test(r))) return '/dev/tcp';
@@ -251,9 +262,16 @@ function egress(c, label, clipboardOnly, k) {
   const sub = a.find(x => !String(x).startsWith('-')) || '';
   const scopeCmd = p === 'git' || p === 'npm' || p === 'pnpm' || p === 'yarn' || p === 'twine' || p === 'cargo' || p === 'gem' || p === 'docker' || p === 'podman' || /^(vercel|netlify|wrangler|firebase|fly|flyctl|heroku|railway|helm)$/.test(p);
   // ---- payload by kind (ignore files are not trusted; Docker's own .dockerignore is applied for docker)
-  if (p === 'git' && sub === 'push') {
+  if (p === 'git' && /^(push|send-email|request-pull|format-patch|bundle)$/.test(sub)) {
+    const lenient = /^(format-patch|bundle)$/.test(sub);
     const files = ctx.git?.pushFiles ? safe(() => ctx.git.pushFiles(cwd, a)) : null;
-    if (files) addFiles(secretsInContents(files, ctx, cwd)); else { exact = false; const top = safe(() => ctx.fs?.list?.(cwd)) || []; const s = top.filter(n => R.SECRET_NAME_RES.some(re => re.test(String(n).toLowerCase()))); if (s.length) { addFiles(s.map(n => ({ path: cwd + '/' + n, by: 'name', rules: ['secret-name'] }))); why.push('(estimated: the pushed files could not be listed)'); } }
+    // B1: fail closed. A missing list, a timeout, or a file whose content could not be read means the payload is unverified: ask (estimated).
+    if (files && !files.timedOut) {
+      addFiles(secretsInContents(files, ctx, cwd));
+      const unread = lenient ? [] : files.filter(f => f.content == null);
+      if (unread.length) { exact = false; found.push({ path: unread[0].path + (unread.length > 1 ? ` (+${unread.length - 1} more)` : ''), why: 'content could not be checked' }); why.push('(estimated: some pushed files could not be read in time)'); }
+      if (files.truncated) { exact = false; why.push('(estimated: the push is larger than the check limit)'); }
+    } else if (!lenient) { exact = false; found.push({ path: cwd, why: 'pushed files could not be checked in time' }); why.push('(estimated: the pushed files could not be listed in time)'); }
   } else if ((p === 'npm' || p === 'pnpm' || p === 'yarn') && sub === 'publish') {
     const r = npmPackFiles(ctx, cwd); if (r) { addFiles(secretsIn(ctx, cwd, r.files)); exact = r.computed; } else exact = false;
   } else if ((p === 'docker' || p === 'podman') && /^(build|buildx)$/.test(sub)) {
@@ -264,11 +282,12 @@ function egress(c, label, clipboardOnly, k) {
   } else if (p === 'twine' || p === 'cargo' || p === 'gem') {
     const w = walkRoot(ctx, cwd + '/dist'); if (w) addFiles(secretsIn(ctx, cwd + '/dist', w.files));
   } else if (/^(rsync|scp|rclone|aws|gsutil|az|azcopy|gcloud|sftp)$/.test(p) || /^rclone/.test(label)) {
-    for (const o of srcDirs) { const w = walkRoot(ctx, o); if (w && w.files.length) { addFiles(secretsIn(ctx, o, w.files)); if (w.truncated) exact = false; } }
+    for (const o of srcDirs) { const w = walkRoot(ctx, o); if (w && w.files.length) { addFiles(secretsIn(ctx, o, w.files)); if (w.truncated) { exact = false; found.push({ path: o, why: 'more files than the Guard can check' }); why.push('(estimated: too many files to check)'); } } }
   }
   // current folder goes out with no explicit file (git add -A style scopes were handled at add time)
   if (scopeCmd && !found.length && ctx.fs?.list && /^(npm|pnpm|yarn|twine|cargo|gem)$/.test(p) === false && /^(vercel|netlify|wrangler|firebase|fly|flyctl|heroku|railway)$/.test(p)) { /* handled above */ }
   // env, inline secrets, secret-named variables, archives
+  if (c.inlineCode) { const names = [...String(c.inlineCode).matchAll(/[\w.\/\\~$%{}-]*?(\.env(?:\.[\w-]+)?|id_rsa|id_ed25519|id_ecdsa|\.npmrc|\.netrc|\.pgpass|\.git-credentials|credentials(?:\.json)?|\.aws|\.ssh|\.kube|[\w-]+\.(?:pem|pfx|p12|key|kdbx))(?![\w])/gi)].map(m => m[0]); if (names.length) addFiles(names.slice(0, 5).map(n => ({ path: n, by: 'name', rules: ['inline-code-names-secret'] }))); }
   const envRefs = secretEnvRefs([...a, ...c.redirIn, c.heredoc, ...upstream.flatMap(u => u.args)]);
   const feederEnv = upstream.some(u => ENV_DUMP(u.argvFull.join(' ')));
   const inline = scanText(a.join(' ') + ' ' + c.heredoc).hit || hasSecret(a.join(' '));
@@ -317,6 +336,7 @@ function analyzeWrite(tool, input, ctx, state, out) {
   if (/(^|\/)package\.json$/.test(key) && /"(preinstall|postinstall|install|prepare|prepublish)"\s*:/.test(content) && !/"(preinstall|postinstall|install|prepare|prepublish)"\s*:/.test(oldText)) out.push(M('U', 'package-script', 'Adds an install or prepare script to package.json, which runs on every install.'));
   if (/(^|\/)\.vscode\/tasks\.json$/.test(key) && /runOn"\s*:\s*"folderOpen/.test(content)) out.push(M('U', 'vscode-task', 'Adds a VS Code task that runs when the folder is opened.'));
   if (x.sync && (sc.hit || x.secret || classifyFile(key, ctx, { content: false }).secret)) out.push(M('Y', 'secret-write', `Writes secrets into a cloud-synced folder (${p}), which uploads them.`, { dest: p, files: [{ path: p, why: sc.hit ? `secret content (${sc.rules.slice(0, 2).join(', ')})` : 'secret-named file' }] }));
+  if (sc.hit && !x.sync && ctx.git?.isTracked && !String(key).startsWith('//')) { const tracked = safe(() => ctx.git.isTracked(canon(ctx.cwd || '.', ctx).key, p)); if (tracked) out.push(M('I', 'secret-write-tracked', `Writes a secret into a file that git tracks (${p}); the next commit and push would publish it.`, { files: [{ path: p, why: `secret content (${sc.rules.slice(0, 2).join(', ')})` }] })); }
   if (R.IGNORE_FILES.test(key)) {
     const removed = oldText.split(/\r?\n/).filter(l => l.trim() && R.SECRET_NAME_RES.some(re => re.test(l.trim().replace(/^[!/]+|\/+$/g, '').toLowerCase()))) , negs = content.split(/\r?\n/).filter(l => /^!/.test(l.trim()) && R.SECRET_NAME_RES.some(re => re.test(l.trim().slice(1).replace(/^\/+|\/+$/g, '').toLowerCase())));
     let gone = removed.filter(l => !content.includes(l));
@@ -339,7 +359,9 @@ function analyzeMcp(tool, input, ctx, out) {
   const last = tool.split('__').pop(), outbound = R.OUTBOUND_MCP.test(tool) || R.BROWSER_UPLOAD.test(tool) || R.BROWSER_UPLOAD.test(raw);
   const secrets = [], files = [];
   if (scanText(raw).hit || hasSecret(raw)) secrets.push('text that looks like a secret');
-  for (const m of raw.matchAll(/"((?:[A-Za-z]:)?(?:\\\\|[\\/])[^"]{2,240}|~(?:\\\\|[\\/])[^"]{1,240})"/g)) { let v = m[1]; try { v = JSON.parse('"' + m[1] + '"'); } catch { /* keep */ } const x = inspect(v, ctx); if (x.secret || x.c) { secrets.push('the file ' + v); files.push({ path: v, why: 'secret file' }); } }
+  const leaves = []; const walkV = (v, d) => { if (leaves.length >= 80 || d > 6) return; if (typeof v === 'string') { if (v.length >= 2 && v.length <= 260 && !/[\r\n]/.test(v) && !/^[a-z][a-z0-9+.-]*:\/\/(?!\/)/i.test(v)) leaves.push(v); } else if (Array.isArray(v)) v.forEach(x => walkV(x, d + 1)); else if (v && typeof v === 'object') Object.values(v).forEach(x => walkV(x, d + 1)); };
+  walkV(input, 0);
+  for (const v of leaves) { const x = inspect(v.replace(/^file:\/\/\/?/i, ''), ctx); if (x.secret || x.c) { secrets.push('the file ' + v); files.push({ path: v, why: 'secret file' }); } }
   if ((outbound || !R.READ_ONLY_MCP.test(last)) && secrets.length) out.push(M('S', 'mcp', `Sends ${secrets.slice(0, 2).join(' and ')} through the tool ${last}.`, { files }));
   return outbound;
 }

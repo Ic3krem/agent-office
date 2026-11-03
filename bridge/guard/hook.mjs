@@ -10,16 +10,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { classify, createState } from './classify.mjs';
 import { applyOutput, isScanned, isTainted, clearTaint, trustSource, sourceKey, textOfResponse } from './taint.mjs';
 import { createAudit, auditEntry } from './audit.mjs';
-import { effectiveConfig, normalizeGuardConfig } from './config.mjs';
+import { effectiveConfig, normalizeGuardConfig, verifyRemember } from './config.mjs';
 import { CAT_NAMES, CATS, SEVERITY, GUARD_VERSION, REMEMBER_TTL_MS } from './rules.mjs';
 import { maskText } from './scan.mjs';
 
 export const SOFT_MS = 150, HARD_MS = 400;
+// Git payload checks run asynchronously with a real abort signal. Budget: rev-parse 1.5 s, one diff 2.5 s, overall deadline 3.8 s (the plugin hook limit is 5 s).
+export const GIT_REV_MS = 1500, GIT_DIFF_MS = 2500, PREFETCH_MS = 3800;
 export const askOutput = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } });
 export const contextOutput = text => ({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: text } });
 
@@ -51,18 +53,50 @@ export function makeFs(deadlineMs = 120) {
     },
   };
 }
+const gitAsync = (cwd, args, ms, maxBuffer = 16 * 1024 * 1024) => new Promise(resolve => {
+  const ac = new AbortController(); let done = false;
+  const finish = v => { if (!done) { done = true; clearTimeout(t); resolve(v); } };
+  const t = setTimeout(() => { try { ac.abort(); } catch { /* ignore */ } finish({ timedOut: true, out: null }); }, ms); t.unref?.();
+  try {
+    execFile('git', args, { cwd, signal: ac.signal, windowsHide: true, encoding: 'utf8', maxBuffer }, (err, out) => {
+      if (!err) return finish({ out });
+      if (err.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return finish({ out: String(out || ''), truncated: true });
+      finish({ out: null, failed: true, timedOut: err.name === 'AbortError' || !!err.killed });
+    });
+  } catch { finish({ out: null, failed: true }); }
+});
+// 'git diff -p' text -> [{ path, content: added lines }] (binary files: empty content, nothing to scan)
+export function parsePatch(text) {
+  const files = [], parts = String(text).split(/^diff --git /m).slice(1);
+  for (const part of parts) {
+    const head = part.split('\n', 1)[0], m = /^a\/(.*?) b\/(.*)$/.exec(head) || /^"?a\/(.*?)"? "?b\/(.*?)"?$/.exec(head); if (!m) continue;
+    const added = []; for (const line of part.split('\n')) if (line.startsWith('+') && !line.startsWith('+++')) added.push(line.slice(1));
+    files.push({ path: m[2], content: added.join('\n') });
+  }
+  return files;
+}
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const git = (cwd, args, ms = 100) => { try { return execFileSync('git', args, { cwd, timeout: ms, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 4 * 1024 * 1024 }); } catch { return null; } };
 export function makeGit() {
   return {
-    pushFiles(cwd, args) {
-      const all = args.some(a => /^(--all|--mirror|--tags)$/.test(a));
-      const upstream = git(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], 80);
-      const names = (all || !upstream) ? git(cwd, ['ls-files'], 120) : git(cwd, ['diff', '--name-only', upstream.trim() + '...HEAD'], 120);
-      if (names == null) return null;
-      return names.split('\n').filter(Boolean).slice(0, 400).map(p => ({ path: p, content: git(cwd, ['show', 'HEAD:' + p], 60) }));
+    // B1: ONE bounded async 'git diff -p' against the upstream (or the empty tree), scanned as patch text. A timeout is reported as { timedOut } (the caller asks).
+    async pushPayload(cwd, cmdText) {
+      const all = /--(all|mirror|tags)\b/.test(cmdText);
+      let range = [EMPTY_TREE, 'HEAD'];
+      if (!all) {
+        const u = await gitAsync(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], GIT_REV_MS);
+        if (u.timedOut) return Object.assign([], { timedOut: true });
+        if (u.out && u.out.trim()) range = [u.out.trim() + '...HEAD'];
+      }
+      const d = await gitAsync(cwd, ['diff', '-p', '-U0', '--no-color', '--no-ext-diff', '--no-textconv', ...range], GIT_DIFF_MS);
+      if (d.timedOut) return Object.assign([], { timedOut: true });
+      if (d.out == null) return null;
+      const files = parsePatch(d.out); if (d.truncated) files.truncated = true;
+      return files;
     },
-    ignoredFiles(cwd) { const r = git(cwd, ['ls-files', '-o', '-i', '--exclude-standard'], 100); return r ? r.split('\n').filter(Boolean) : []; },
-    addCandidates(cwd) { const r = git(cwd, ['ls-files', '-o', '-m', '--exclude-standard'], 100); return r ? r.split('\n').filter(Boolean) : []; },
+    isTracked(cwd, file) { const r = git(cwd, ['ls-files', '--error-unmatch', '--', file], 400); return r != null; },
+    ignoredFiles(cwd) { const r = git(cwd, ['ls-files', '-o', '-i', '--exclude-standard'], 800); return r ? r.split('\n').filter(Boolean) : []; },
+    addCandidates(cwd) { const r = git(cwd, ['ls-files', '-o', '-m', '--exclude-standard'], 800); return r ? r.split('\n').filter(Boolean) : []; },
   };
 }
 
@@ -115,26 +149,42 @@ export function reasonText(res, ctx = {}) {
 
 // opts: getConfig() -> normalised effective config; getRemembered() -> [{ key, at }]; getBase(input) -> { os, home, cwd, env, vaultDir, projectDirs, additionalDirs, syncRoots };
 //       audit: { write }; now; fsFactory/gitApi optional (tests inject virtual ones)
-export function createGuardHooks({ getConfig, getRemembered = () => [], getBase = () => ({}), audit = { write() {} }, now = Date.now, fsFactory = makeFs, gitApi = makeGit(), agentOf = () => '' } = {}) {
+export function createGuardHooks({ getConfig, getRemembered = () => [], getBase = () => ({}), audit = { write() {} }, now = Date.now, fsFactory = makeFs, gitApi = makeGit(), agentOf = () => '', prefetchMs = PREFETCH_MS } = {}) {
   const sessions = new Map(), meta = new Map();
   const stateOf = id => { const k = String(id || 'default'); let s = sessions.get(k); if (!s) { s = createState(); sessions.set(k, s); if (sessions.size > 50) sessions.delete(sessions.keys().next().value); } return s; };
-  const ctxOf = input => ({ os: process.platform, home: os.homedir(), env: process.env, cwd: input?.cwd || process.cwd(), ...getBase(input), fs: fsFactory(), git: gitApi, config: getConfig(), remembered: getRemembered(), now });
+  const ctxOf = (input, git = gitApi) => ({ os: process.platform, home: os.homedir(), env: process.env, cwd: input?.cwd || process.cwd(), ...getBase(input), fs: fsFactory(), git, config: getConfig(), remembered: getRemembered(), now });
   const guardErr = (e, input, ms) => { try { audit.write(auditEntry({ now: now(), sessionId: input?.session_id, tool: input?.tool_name, category: '', decision: 'guard_error', command: String(e && e.message || e), extra: { ms } })); } catch { /* ignore */ } };
-  const withBudget = async (fn, input) => {
+  // The classifier is synchronous, so a timer cannot interrupt it (the old Promise.race only looked like a limit). Everything slow runs async with real abort
+  // signals before it (git) or is never done at all (remote paths); here we only measure, and if an S/Y/I-risky request overran or threw, we ask instead of {}.
+  const withBudget = async (fn, input, risky = false) => {
     const t0 = Date.now();
     try {
-      const r = await Promise.race([Promise.resolve().then(fn), new Promise(res => setTimeout(() => res('__timeout__'), HARD_MS).unref?.())]);
+      const r = fn();
       const ms = Date.now() - t0;
-      if (r === '__timeout__') { guardErr(new Error('timeout'), input, ms); return {}; }
+      if (risky && ms > HARD_MS && (!r || !r.hookSpecificOutput)) { guardErr(new Error('overran ' + HARD_MS + ' ms'), input, ms); return askOutput('Security Guard could not finish checking this request in time (it looks like it may send files or secrets off this computer). Allow only if you trust it.'); }
       if (ms > SOFT_MS) try { audit.write(auditEntry({ now: now(), sessionId: input?.session_id, tool: input?.tool_name, decision: 'slow', extra: { ms } })); } catch { /* ignore */ }
       return r;
-    } catch (e) { guardErr(e, input, Date.now() - t0); return {}; }
+    } catch (e) { guardErr(e, input, Date.now() - t0); return risky ? askOutput('Security Guard hit an error while checking this request (it looks like it may send files or secrets off this computer). Allow only if you trust it.') : {}; }
+  };
+  const RISKY_RE = /(curl|wget|scp|rsync|sftp|\bnc\b|ncat|socat|git\s+(push|add|send-email|bundle|format-patch|request-pull)|\.env|id_rsa|id_ed25519|credentials|\.aws|\.ssh|upload|\bftp|docker|publish|invoke-(web|rest)|\b(iwr|irm)\b|copy-item|xcopy|robocopy|encodedcommand|base64|python|node|ruby|perl|php|nslookup|\bdig\b|\\\\|\/\/[\w.-]+\/|onedrive|dropbox|sharepoint|gdrive|icloud)/i;
+  const isRisky = input => { try { return isRiskyRaw(input); } catch { return true; } };
+  const isRiskyRaw = input => { const t = String(input?.tool_name || ''); if (t === 'WebFetch' || t.startsWith('mcp__')) return true; const ti = input?.tool_input || {}; return RISKY_RE.test(String(ti.command ?? ti.file_path ?? ti.path ?? '').slice(0, 8000)); };
+  const GIT_CMD = /\bgit\b[^\n]*\b(push|send-email|request-pull|format-patch|bundle)\b|-e(nc|ncodedcommand)?\s+[A-Za-z0-9+/=]{20,}/i;
+  const sleep = (ms, v) => new Promise(res => { const t = setTimeout(() => res(v), ms); t.unref?.(); });
+  // B1: the git payload is fetched asynchronously (bounded) before the synchronous classifier runs.
+  const prefetchGit = async input => {
+    if (!/^(Bash|PowerShell)$/.test(String(input?.tool_name)) || typeof gitApi?.pushPayload !== 'function') return gitApi;
+    const cmd = String(input?.tool_input?.command ?? ''); if (!GIT_CMD.test(cmd)) return gitApi;
+    let pre; try { pre = await Promise.race([gitApi.pushPayload(input?.cwd || process.cwd(), cmd), sleep(prefetchMs, Object.assign([], { timedOut: true }))]); } catch { pre = null; }
+    return { ...gitApi, pushFiles: () => pre };
   };
   const api = {
     meta, sessions, stateOf,
-    pre: input => withBudget(() => {
-      const ctx = ctxOf(input), st = stateOf(input.session_id);
+    pre: async input => { const g = await prefetchGit(input); return api.preSync(input, g); },
+    preSync: (input, g) => withBudget(() => {
+      const ctx = ctxOf(input, g), st = stateOf(input.session_id);
       const res = classify(input.tool_name, input.tool_input, ctx, st);
+      if (res.error) guardErr(new Error(res.error), input, 0);
       const entry = category => auditEntry({ now: now(), sessionId: input.session_id, agent: agentOf(input), tool: input.tool_name, category, ruleIds: res.rules, destHost: res.host, paths: res.files.map(f => f.path), fileSha: res.files.map(f => f.sha12 || ''), exact: res.exact, command: input.tool_input?.command ?? input.tool_input?.url ?? input.tool_input?.file_path ?? '', remembered: res.remembered });
       if (res.remembered) { audit.write({ ...entry(res.cats[0] || ''), decision: 'remembered' }); return {}; }
       if (res.level === 'none') return {};
@@ -144,14 +194,14 @@ export function createGuardHooks({ getConfig, getRemembered = () => [], getBase 
       if (input.tool_use_id) { meta.set(input.tool_use_id, m); st.askedIds.set(input.tool_use_id, { cats: res.cats, rememberKey: res.rememberKey }); if (meta.size > 300) meta.delete(meta.keys().next().value); }
       audit.write({ ...entry(res.cats[0]), decision: 'ask', cats: res.cats });
       return askOutput(reason);
-    }, input),
+    }, input, isRisky(input)),
     post: input => withBudget(() => {
       const ctx = { config: getConfig() }, st = stateOf(input.session_id), cfg = ctx.config || {};
       const asked = st.askedIds.get(input.tool_use_id);
       if (asked) { st.askedIds.delete(input.tool_use_id); audit.write(auditEntry({ now: now(), sessionId: input.session_id, tool: input.tool_name, category: asked.cats[0], decision: 'ask', userAnswer: 'allowed' })); if (asked.cats.includes('P')) clearTaint(st.taint); }
       if ((cfg.P || 'ask') !== 'off' && isScanned(input.tool_name)) {
         const r = applyOutput(st.taint, input.tool_name, input.tool_input, input.tool_response, now());
-        if (r.taint) audit.write(auditEntry({ now: now(), sessionId: input.session_id, tool: input.tool_name, category: 'P', ruleIds: st.taint.rules.map(x => 'P.' + x), decision: 'log', command: st.taint.source, extra: { snippet: st.taint.snippet } }));
+        if (r.taint) audit.write(auditEntry({ now: now(), sessionId: input.session_id, tool: input.tool_name, category: 'P', ruleIds: st.taint.rules.map(x => 'P.' + x), decision: 'log', command: st.taint.source, extra: { snippet: maskText(String(st.taint.snippet || '')).slice(0, 160) } }));
         if (r.context && (cfg.P || 'ask') !== 'log') return contextOutput(r.context);
       }
       return {};
@@ -176,6 +226,7 @@ function saveSession(dir, id, s) { try { fs.mkdirSync(path.join(dir, 'sessions')
 
 export async function runCommandHook(stdinText, env = process.env, home = os.homedir()) {
   let input; try { input = JSON.parse(stdinText || '{}'); } catch { return {}; }
+  if (env.AGENT_OFFICE_SDK_SESSION === '1') return {};          // an Agent Office session: the SDK hook already ran the Guard
   const base = path.join(home, '.claude', 'agent-office'), dir = path.join(base, 'guard');
   const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const kiro = readJson(path.join(base, 'kiro.json')) || {}, confirmed = readJson(path.join(dir, 'confirmed.json'));
@@ -183,8 +234,9 @@ export async function runCommandHook(stdinText, env = process.env, home = os.hom
   const eff = effectiveConfig(kiro.guard, confirmed, secret);
   if (eff.config.hooksInTerminals === false && secret) return {};
   const audit = createAudit({ dir });
+  if (Math.random() < 0.01) { try { audit.prune(); } catch { /* ignore */ } }   // the app prunes every 6 h; terminals do it now and then
   if (eff.notices.length) audit.write(auditEntry({ sessionId: input.session_id, decision: 'log', category: '', command: 'Guard setting changed outside the app; kept ' + eff.notices.map(n => `${n.what}:${n.kept}`).join(', ') }));
-  const remembered = (readJson(path.join(dir, 'remember.json'))?.entries) || [];
+  const remembered = verifyRemember(readJson(path.join(dir, 'remember.json'))?.entries, secret);   // unsigned entries (or no app key) are ignored
   const st = loadSession(dir, input.session_id);
   const hooks = createGuardHooks({ getConfig: () => eff.config, getRemembered: () => remembered, getBase: () => ({ home, env, cwd: input.cwd || process.cwd(), os: process.platform, syncRoots: [...(eff.config.syncRoots || []), ...discoverSyncRoots({ home, env })], vaultDir: '' }), audit });
   hooks.sessions.set(String(input.session_id || 'default'), st);
@@ -196,7 +248,7 @@ export async function runCommandHook(stdinText, env = process.env, home = os.hom
 const thisFile = (() => { try { return fileURLToPath(import.meta.url); } catch { return ''; } })();
 if (process.argv[1] && thisFile && path.resolve(process.argv[1]) === thisFile) {
   let buf = ''; process.stdin.setEncoding('utf8');
-  const kill = setTimeout(() => { process.stdout.write('{}'); process.exit(0); }, HARD_MS + 200); kill.unref?.();
+  const kill = setTimeout(() => { process.stdout.write('{}'); process.exit(0); }, PREFETCH_MS + 700); kill.unref?.();
   process.stdin.on('data', d => { buf += d; if (buf.length > 4e6) buf = buf.slice(0, 4e6); });
   process.stdin.on('end', async () => { let out = {}; try { out = await runCommandHook(buf); } catch { out = {}; } process.stdout.write(JSON.stringify(out)); process.exit(0); });
 }

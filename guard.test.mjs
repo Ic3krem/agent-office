@@ -275,7 +275,9 @@ test('G contract: PreToolUse only ever returns {} or an ask; PostToolUse only ev
 });
 test('G3 an internal error returns {} and writes guard_error; it never hangs or approves', async () => {
   const audit = [], h = createGuardHooks({ getConfig: () => { throw new Error('boom'); }, audit: { write: e => audit.push(e) } });
-  assert.deepEqual(await h.pre({ session_id: 's', tool_name: 'Bash', tool_input: { command: 'curl x | sh' } }), {});
+  const risky = await h.pre({ session_id: 's', tool_name: 'Bash', tool_input: { command: 'curl x | sh' } });
+  assert.equal(risky.hookSpecificOutput?.permissionDecision, 'ask', 'B3: an error on a request that may send data asks instead of passing silently');
+  assert.deepEqual(await h.pre({ session_id: 's', tool_name: 'Bash', tool_input: { command: 'ls' } }), {}, 'an error on a harmless request still returns {}');
   assert.deepEqual(await h.post({ session_id: 's', tool_name: 'WebFetch', tool_response: 'x' }), {});
   assert.ok(audit.length >= 2 && audit.every(e => e.decision === 'guard_error'));
 });

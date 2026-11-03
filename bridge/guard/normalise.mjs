@@ -86,6 +86,7 @@ export function canon(p, ctx = {}) {
 // requested path plus its symlink / junction / subst target when it can be resolved
 export function pathKeys(p, ctx = {}) {
   const c = canon(p, ctx), keys = [c.key];
+  if (c.unc || c.key.startsWith('//')) return { keys, unc: c.unc, host: c.host, wild: c.wild };   // B3: never touch the network
   try {
     const real = ctx.fs?.realpath?.(c.key, expandVars(String(p), ctx));
     if (real) { const k = canon(real, ctx).key; if (!keys.includes(k)) keys.push(k); }

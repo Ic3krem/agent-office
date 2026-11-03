@@ -38,7 +38,7 @@ export function claudeSessionOptions({ cwd, home = os.homedir(), env = process.e
     cwd,
     settingSources: [...SETTING_SOURCES],
     tools: { type: 'preset', preset: 'claude_code' },
-    env: cleanEnv(env),
+    env: { ...cleanEnv(env), AGENT_OFFICE_SDK_SESSION: '1' },   // the Guard SDK hook already runs here; the plugin command hook exits early
     ...(mode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
     ...(claudeExe ? { pathToClaudeCodeExecutable: claudeExe } : {}),
     ...extra,

@@ -69,6 +69,11 @@ export function secretDirKind(key) {
 const cache = new Map();
 export function classifyFile(key, ctx, { content = true } = {}) {
   const name = secretByName(key), dir = secretDirKind(key);
+  if (String(key).startsWith('//')) {                       // B3: remote path, classify from the text only
+    if (dir) return { secret: true, by: 'dir', rules: ['secret-dir'] };
+    if (name.kind === 'secret-name') return { secret: true, by: 'name', rules: ['secret-name'] };
+    return { secret: false };
+  }
   let size = 0, mtime = 0; try { const st = ctx.fs?.stat?.(key); if (st) { size = st.size || 0; mtime = st.mtimeMs || 0; if (st.isDir) return dir ? { secret: true, by: 'dir', rules: ['secret-dir'] } : { secret: false }; } } catch { /* ignore */ }
   const ck = `${key}|${size}|${mtime}`;
   if (cache.has(ck) && content) return cache.get(ck);

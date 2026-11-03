@@ -12,7 +12,7 @@ import { apply, newAgent, statusOf, toolSummary } from './transcript.mjs';
 import { claudeSessionOptions, makeCanUseTool, describeRequest, launchesClaude } from './permissions.mjs';
 import { createGuardHooks, discoverSyncRoots, makeReadReg } from './guard/hook.mjs';
 import { createAudit } from './guard/audit.mjs';
-import { effectiveConfig } from './guard/config.mjs';
+import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { goalStore, MANAGER_PROMPT, SPECIALISTS, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
@@ -362,12 +362,13 @@ const guardState = () => {
   const now = Date.now(); if (guardCache.eff && now - guardCache.at < 1500) return guardCache;
   const kiro = readJsonSafe(path.join(CFG_DIR, 'kiro.json')) || {}, eff = effectiveConfig(kiro.guard, readJsonSafe(path.join(GUARD_DIR, 'confirmed.json')), GUARD_KEY || null);
   const sig = JSON.stringify(eff.notices); if (eff.notices.length && sig !== guardNoticeSeen) { guardNoticeSeen = sig; guardAudit.write({ ts: now, decision: 'log', category: '', ruleIds: ['guard.setting-ignored'], command: 'Guard setting changed outside the app; kept ' + eff.notices.map(n => n.what + ':' + n.kept).join(', ') }); }
-  guardCache = { at: now, eff, rem: readJsonSafe(path.join(GUARD_DIR, 'remember.json'))?.entries || [] };
+  guardCache = { at: now, eff, rem: verifyRemember(readJsonSafe(path.join(GUARD_DIR, 'remember.json'))?.entries, GUARD_KEY) };
   return guardCache;
 };
 let SYNC_ROOTS = []; const refreshSyncRoots = () => { try { SYNC_ROOTS = discoverSyncRoots({ home: HOME, readReg: makeReadReg() }); } catch { SYNC_ROOTS = []; } };
 refreshSyncRoots(); setInterval(refreshSyncRoots, 10 * 60e3).unref();
 guardAudit.prune();
+setInterval(() => { try { guardAudit.prune(); } catch { /* ignore */ } }, 6 * 3600e3).unref?.();
 const secGuard = createGuardHooks({
   getConfig: () => guardState().eff.config, getRemembered: () => guardState().rem, audit: guardAudit,
   getBase: input => ({ home: HOME, env: process.env, os: process.platform, cwd: input?.cwd || workDir(), projectDirs: [workDir()], syncRoots: [...SYNC_ROOTS, ...guardState().eff.config.syncRoots], vaultDir: V.root }),
@@ -532,7 +533,7 @@ async function handle(req, res) {
     switch (url.pathname) {
       case '/api/send': {
         const text = String(b.text || '').trim(); if (!text) return json(res, 400, { error: 'empty' });
-        for (const id of secGuard.sessions.keys()) secGuard.humanPrompt(id);   // a person is typing again: untrusted-content warnings reset
+        if (b.id) secGuard.humanPrompt(String(b.id));   // only the session the person typed to is reset (never every session)
         if (sdk.has(b.id)) sdk.get(b.id).push(text);
         else { const a = agents.get(b.id); if (!a?.bridged) return json(res, 409, { error: 'This session is watch-only. Restart that terminal so the bridge loads.' }); (a.inbox ||= []).push(text); }
         return json(res, 200, { ok: true });
@@ -550,7 +551,7 @@ async function handle(req, res) {
       case '/api/manager': return json(res, 400, { error: 'Tool permissions come from your Claude Code settings; Agent Office has no auto-approve of its own.' });
       case '/api/task': {
         const text = String(b.text || '').trim(); if (!text) return json(res, 400, { error: 'empty' });
-        for (const id of secGuard.sessions.keys()) secGuard.humanPrompt(id);
+        if (boss.id) secGuard.humanPrompt(boss.id);   // a new task goes to the manager only
         const g = goals.add(text, 'you'); bump();
         const started = tellBoss(`New task from the user (goal ${g.id}): ${text}`) !== false;
         return json(res, 200, { ok: true, goal: g, waiting: started ? '' : (boss.paused || 'Tiro is switched off in the breaker box') });

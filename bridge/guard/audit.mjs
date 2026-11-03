@@ -3,12 +3,15 @@
 // Never records file contents, environment values, clipboard, screenshots, or injection text beyond a sanitised 120-character snippet.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { redact } from './redact.mjs';
 import { GUARD_VERSION } from './rules.mjs';
 import { maskText } from './scan.mjs';
 
 export const MAX_BYTES = 5 * 1024 * 1024, KEEP_FILES = 3, KEEP_DAYS = 90;
-const home = p => p; // paths are made ~-relative by the caller (ctx.home) before they get here
+// paths are stored ~-relative so the log does not carry the account name
+export const homeRel = (p, h = os.homedir()) => { const s = String(p).replace(/\\+/g, '/'), hh = String(h || '').replace(/\\+/g, '/').replace(/\/$/, ''); return hh && (s.toLowerCase() === hh.toLowerCase() || s.toLowerCase().startsWith(hh.toLowerCase() + '/')) ? '~' + s.slice(hh.length) : String(p); };
+const home = p => homeRel(p);
 
 export function auditEntry({ now = Date.now(), sessionId = '', agent = '', tool = '', category = '', ruleIds = [], decision = 'ask', userAnswer = '', remembered = false, destHost = '', paths = [], fileSha = [], exact = true, command = '', extra = {} } = {}) {
   return { ts: now, sessionId: String(sessionId).slice(0, 80), agent: String(agent).slice(0, 60), tool: String(tool).slice(0, 60), category, ruleIds: [...ruleIds].slice(0, 12), decision, userAnswer, remembered: !!remembered,

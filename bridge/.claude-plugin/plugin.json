@@ -1,1 +1,1 @@
-{ "name": "agent-office-bridge", "version": "0.2.0", "description": "Lets the Agent Office dashboard reply to this session and answer its permission prompts; adds the ask-only Security Guard hook", "hooks": "./hooks/guard-hooks.json" }
+{"name":"agent-office-bridge","version":"0.2.0","description":"Lets the Agent Office dashboard reply to this session and answer its permission prompts; adds the ask-only Security Guard hook","hooks":"./hooks/guard-hooks.json","author":{"name":"Agent Office"}}

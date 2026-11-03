@@ -28,6 +28,16 @@ export function weakenings(cur, next) {
 }
 export const canonicalJson = o => JSON.stringify(o, Object.keys(o).sort());
 export const signConfig = (cfg, secret) => crypto.createHmac('sha256', String(secret)).update(canonicalJson(normalizeGuardConfig(cfg))).digest('hex');
+// remember.json integrity: every entry carries an HMAC over key|at, made by the main process. Unsigned or forged entries are ignored (and with no key, all are).
+export const signRemember = (e, secret) => crypto.createHmac('sha256', String(secret)).update(String(e?.key) + '|' + String(e?.at)).digest('hex');
+export function verifyRemember(entries, secret) {
+  if (!secret || !Array.isArray(entries)) return [];
+  const out = [];
+  for (const e of entries) {
+    try { const want = Buffer.from(signRemember(e, secret)), got = Buffer.from(String(e?.sig || '')); if (got.length === want.length && crypto.timingSafeEqual(got, want)) out.push(e); } catch { /* skip */ }
+  }
+  return out;
+}
 export function verifyConfirmed(obj, secret) {
   try {
     if (!obj || typeof obj.hmac !== 'string' || !secret) return null;

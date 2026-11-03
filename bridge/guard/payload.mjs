@@ -20,6 +20,7 @@ export function dockerIgnore(text) {
 
 // Files under a root (relative paths), capped. Over the cap the caller treats the payload as 'estimated' and the volume rule (H) applies.
 export function walkRoot(ctx, rootKey) {
+  if (String(rootKey).startsWith('//')) return null;   // B3: remote roots are never walked
   try { const list = ctx.fs?.walk?.(rootKey, WALK_CAP + 1); if (!list) return null; return { files: list.slice(0, WALK_CAP), truncated: list.length > WALK_CAP }; } catch { return null; }
 }
 const join = (root, rel) => root.replace(/\/$/, '') + '/' + String(rel).replace(/\\/g, '/').replace(/^\.?\//, '').toLowerCase();

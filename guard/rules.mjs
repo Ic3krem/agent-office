@@ -43,7 +43,7 @@ export const NET_PROGS = new Set(['curl', 'wget', 'http', 'https', 'xh', 'aria2c
   'invoke-webrequest', 'iwr', 'invoke-restmethod', 'irm', 'start-bitstransfer', 'send-mailmessage', 'bitsadmin', 'certutil', 'rclone', 'azcopy', 'b2', 's3cmd', 'gsutil', 'onedrive', 'dropbox_uploader', 'httpie']);
 export const TUNNELS = new Set(['ngrok', 'cloudflared', 'localtunnel', 'lt', 'tailscale', 'bore', 'serveo', 'loophole']);
 export const CODE_PUSH = {
-  git: /^(push|send-email|remote)$/, gh: /^(gist|release|repo|secret|api)$/, glab: /^(release)$/, docker: /^(push|build|buildx)$/, podman: /^(push|build)$/, npm: /^(publish)$/, pnpm: /^(publish)$/, yarn: /^(publish)$/, twine: /^(upload)$/, poetry: /^(publish)$/,
+  git: /^(push|send-email|remote|request-pull|format-patch|bundle)$/, gh: /^(gist|release|repo|secret|api)$/, glab: /^(release)$/, docker: /^(push|build|buildx)$/, podman: /^(push|build)$/, npm: /^(publish)$/, pnpm: /^(publish)$/, yarn: /^(publish)$/, twine: /^(upload)$/, poetry: /^(publish)$/,
   cargo: /^(publish)$/, gem: /^(push)$/, dotnet: /^(nuget)$/, mvn: /^(deploy)$/, aws: /^(s3|s3api|secretsmanager|ssm)$/, az: /^(storage)$/, gcloud: /^(storage)$/, doctl: /^(spaces|registry)$/, vercel: /^(deploy)?$/, netlify: /^(deploy)$/,
   wrangler: /^(deploy|publish|secret)$/, fly: /^(deploy)$/, flyctl: /^(deploy)$/, heroku: /^(config:set|push)$/, railway: /^(up)$/, firebase: /^(deploy)$/, helm: /^(push)$/,
 };
