@@ -24,7 +24,7 @@ export function readDefaultMode({ cwd = process.cwd(), home = os.homedir() } = {
 export function cleanEnv(env = process.env) {
   const out = { ...env };
   delete out.ELECTRON_RUN_AS_NODE;
-  for (const k of Object.keys(out)) if (/^AGENT_OFFICE_(UI_KEY|BOOT)/.test(k)) delete out[k];
+  for (const k of Object.keys(out)) if (/^AGENT_OFFICE_(UI_KEY|BOOT|GUARD_KEY)/.test(k)) delete out[k];
   return out;
 }
 
@@ -38,7 +38,7 @@ export function claudeSessionOptions({ cwd, home = os.homedir(), env = process.e
     cwd,
     settingSources: [...SETTING_SOURCES],
     tools: { type: 'preset', preset: 'claude_code' },
-    env: cleanEnv(env),
+    env: { ...cleanEnv(env), AGENT_OFFICE_SDK_SESSION: '1' },   // the Guard SDK hook already runs here; the plugin command hook exits early
     ...(mode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
     ...(claudeExe ? { pathToClaudeCodeExecutable: claudeExe } : {}),
     ...extra,
@@ -65,7 +65,7 @@ export function describeRequest(tool, input, opts = {}) {
     ? i.questions.slice(0, 4).map(q => ({ question: String(q?.question ?? ''), header: String(q?.header ?? ''), multiSelect: !!q?.multiSelect, options: (Array.isArray(q?.options) ? q.options : []).slice(0, 8).map(o => ({ label: String(o?.label ?? ''), description: String(o?.description ?? '') })) }))
     : undefined;
   return {
-    cmd: summary, short: tool, why: opts.decisionReason || '', title: opts.title || '', displayName: opts.displayName || '', description: opts.description || '',
+    toolUseId: opts.toolUseID || '', cmd: summary, short: tool, why: opts.decisionReason || '', title: opts.title || '', displayName: opts.displayName || '', description: opts.description || '',
     blockedPath: opts.blockedPath || '', preview: preview.slice(0, 20000),
     canAlways: suggestions.length > 0 && !opts.suppressAlwaysAllowRule && !questions, // "yes and don't ask again" = Claude Code's own suggested rule
     defaultToNo: !!opts.defaultToNo,

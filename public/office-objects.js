@@ -154,8 +154,60 @@
     ['bridge', 'Terminal approvals', 'Your own Claude terminals send their permission prompts to the office.'],
     ['guard', 'Subscription guard', 'Stop at the 5-hour or weekly plan limit instead of spending extra-usage credits.'],
   ];
+  // The notch is a desktop-app feature: this row exists only when the dashboard runs inside the Agent Office window, which
+  // exposes window.agentOfficeDesktop.notch (get/set over a sender-checked IPC). In a plain browser tab it is not shown.
+  const desktop = () => (typeof window !== 'undefined' && window.agentOfficeDesktop && window.agentOfficeDesktop.notch) || null;
+  async function notchRow(body) {
+    const n = desktop(); if (!n) return;
+    let on; try { on = await n.get(); } catch { return; }
+    if (typeof on !== 'boolean' || !body.isConnected) return;
+    body.querySelector('[data-k="notch"]')?.remove();
+    const div = document.createElement('div');
+    div.className = 'oo-sw'; div.dataset.act = 'notch'; div.dataset.k = 'notch'; div.setAttribute('role', 'switch'); div.setAttribute('aria-checked', String(on)); div.tabIndex = 0;
+    div.innerHTML = `<div class="oo-lever"><i style="top:${on ? 4 : 26}px;background:${on ? '#5fd38d' : '#7a3b30'}"></i></div>
+      <div><div style="font-weight:600">Notch <span style="font:11px 'IBM Plex Mono';color:${on ? '#5fd38d' : '#ff9a8d'}">${on ? 'ON' : 'OFF'}</span></div><div class="oo-meta" style="font-family:inherit;font-size:12.5px">The island overlay at the top of your screen. Off removes its window. Also in the tray menu (Show notch) and the island's own Settings.</div></div>`;
+    body.querySelector('.oo-pad')?.append(div);
+  }
+  // Electron has no window.prompt: a small typed-confirmation box for turning protection down on systems without a keyring
+  const askWord = () => new Promise(res => {
+    const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:99999;display:flex;align-items:center;justify-content:center';
+    o.innerHTML = '<div style="background:#2a211a;border:1px solid #a8431f;border-radius:10px;padding:16px;max-width:360px;color:#e8dccb;font:13px sans-serif"><div style="font-weight:600;margin-bottom:6px">Turn down Security Guard?</div><div style="margin-bottom:8px">This system has no OS keyring, so the protection is weaker. Type <b>turn down</b> to continue.</div><input style="width:100%;box-sizing:border-box;padding:6px;margin-bottom:8px"><div style="text-align:right"><button data-x="no">Cancel</button> <button data-x="ok">Continue</button></div></div>';
+    const done = v => { o.remove(); res(v); };
+    o.addEventListener('click', e => { const x = e.target.closest('[data-x]'); if (x) done(x.dataset.x === 'ok' ? o.querySelector('input').value : ''); });
+    document.body.append(o); o.querySelector('input').focus();
+  });
+  const guardApi = () => (typeof window !== 'undefined' && window.agentOfficeDesktop && window.agentOfficeDesktop.guard) || null;
+  const CAT_ORDER = ['S', 'Y', 'I', 'U', 'C', 'H', 'X', 'P'];
+  async function guardRows(body) {
+    const g = guardApi(); if (!g) return;
+    let v; try { v = await g.get(); } catch { return; }
+    if (!v || !body.isConnected) return;
+    body.querySelector('.oo-guard')?.remove();
+    const div = document.createElement('div'); div.className = 'oo-guard';
+    const mode = (c, m) => '<button class="oo-mini' + (v.config[c] === m ? ' on' : '') + '" data-act="guard-set" data-cat="' + c + '" data-mode="' + m + '" style="margin-left:4px;padding:2px 8px;border-radius:5px;border:1px solid ' + (v.config[c] === m ? '#5fd38d' : '#4a3a2c') + ';background:' + (v.config[c] === m ? '#16301f' : 'transparent') + ';color:#e8dccb;font:inherit;font-size:12px;cursor:pointer">' + m + '</button>';
+    div.innerHTML = '<div style="margin-top:14px;font-weight:600">Security Guard</div><div class="oo-meta" style="font-family:inherit;font-size:12.5px;margin-bottom:6px">Asks before secrets leave this computer, scripts or startup entries are added, credentials are read, or untrusted text steers an action. It can only ask: it never allows or blocks. Turning a category down needs a confirmation in a window only the app can open.' +
+      (v.notices && v.notices.length ? '<br><b style="color:#ffb199">Guard setting changed outside the app; kept ' + esc(v.notices.map(n => n.what + ':' + n.kept).join(', ')) + '.</b>' : '') +
+      (v.weakStorage ? '<br><b style="color:#ffd28a">Weaker protection on this system: no OS keyring, so the Guard key is a private file. Turning protection down needs a typed confirmation.</b>' : '') +
+      (v.nodeOnPath === false ? '<br><b style="color:#ffb199">Guard inactive in terminals: Node.js was not found on PATH, so the terminal hook cannot run. Install Node.js 18 or newer.</b>' : '') + '</div>' +
+      CAT_ORDER.map(c => '<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="flex:1">' + esc(c + ' ' + (v.names[c] || c)) + '</span>' + ['ask', 'log', 'off'].map(m => mode(c, m)).join('') + '</div>').join('') +
+      '<div style="display:flex;align-items:center;gap:6px;padding:6px 0"><span style="flex:1">Terminals (bridge plugin hook)</span><button data-act="guard-term" style="padding:2px 8px;border-radius:5px;border:1px solid #4a3a2c;background:transparent;color:#e8dccb;font:inherit;font-size:12px;cursor:pointer">' + (v.config.hooksInTerminals ? 'on' : 'off') + '</button></div>' +
+      '<div style="display:flex;gap:8px;padding-top:6px"><button data-act="guard-log" style="padding:4px 10px;border-radius:6px;border:1px solid #6b5a48;background:transparent;color:#e8dccb;font:inherit;cursor:pointer">Audit log</button><button data-act="guard-forget" style="padding:4px 10px;border-radius:6px;border:1px solid #6b5a48;background:transparent;color:#e8dccb;font:inherit;cursor:pointer">Forget ' + v.remembered.length + ' remembered action(s)</button></div>';
+    body.querySelector('.oo-pad')?.append(div);
+  }
+  async function guardLog() {
+    const body = shell('Security Guard log', 'What the Guard asked about or noted. Values are masked; file contents are never recorded.');
+    body.innerHTML = '<div class="oo-pad" id="oo-gl">Loading...</div>';
+    let d; try { d = await api('/api/guard/log', { limit: 200 }); } catch (e) { body.querySelector('#oo-gl').textContent = e.message; return; }
+    const el = body.querySelector('#oo-gl'); if (!el) return;
+    const when = t => { const x = new Date(t); return isNaN(x) ? '' : x.toLocaleString(); };
+    el.innerHTML = (d.status.banner ? '<div style="padding:8px 10px;border-radius:8px;background:#2a1710;border:1px solid #a8431f;color:#ffb199;margin-bottom:8px">' + esc(d.status.banner) + '</div>' : '') +
+      '<div class="oo-meta" style="margin-bottom:8px">' + d.entries.length + ' entries, newest first. Kept 90 days; the file is private to you.</div>' +
+      (d.entries.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="text-align:left;color:#a8998a"><th>When</th><th>Tool</th><th>Cat</th><th>Rules</th><th>Decision</th><th>Where</th><th>What</th></tr>' + d.entries.map(e => '<tr style="border-top:1px solid #33281f;vertical-align:top"><td>' + esc(when(e.ts)) + '</td><td>' + esc(e.tool || '') + '</td><td>' + esc(e.category || '') + '</td><td>' + esc((e.ruleIds || []).join(', ')) + '</td><td>' + esc((e.decision || '') + (e.userAnswer ? ' (' + e.userAnswer + ')' : '') + (e.remembered ? ' remembered' : '')) + '</td><td>' + esc(e.destHost || '') + '</td><td style="word-break:break-all">' + esc((e.command || '') + ((e.paths || []).length ? ' ' + e.paths.join(', ') : '')) + '</td></tr>').join('') + '</table>' : '<div class="oo-meta">Nothing yet.</div>');
+  }
   function breaker() {
     const body = shell('Breaker box', 'Hard switches. Flipping one takes effect immediately.', true);
+    queueMicrotask(() => notchRow(body));
+    queueMicrotask(() => guardRows(body));
     const s = { ...(snap.switches || {}) };
     body.innerHTML = `<div class="oo-pad">${snap.boss?.paused ? `<div style="padding:9px 11px;border-radius:8px;background:#3a2405;border:1px solid #8a5a1c;color:#ffd28a;margin-bottom:10px">⏸ ${esc(snap.boss.paused)}</div>` : ''}
       ${BREAKERS.map(([k, label, desc]) => `<div class="oo-sw" data-act="switch" data-k="${k}" role="switch" aria-checked="${!!s[k]}" tabindex="0">
@@ -325,6 +377,11 @@
           await api('/api/switch', { name: d.k, on });
           return;
         }
+        case 'guard-set': { const g = guardApi(); if (!g) return; let v = await g.set({ [d.cat]: d.mode }); if (v && v.needWord) { const w = await askWord(); if (w) await g.set({ [d.cat]: d.mode, _confirm: w }); } return breaker(); }
+        case 'guard-term': { const g = guardApi(); if (!g) return; const v = await g.get(); await g.set({ hooksInTerminals: !v.config.hooksInTerminals }); return breaker(); }
+        case 'guard-forget': { const g = guardApi(); if (!g) return; if (!confirm('Forget every remembered Guard action? You will be asked again.')) return; await g.forget('all'); return breaker(); }
+        case 'guard-log': return guardLog();
+        case 'notch': { const n = desktop(); if (!n) return; const cur = await n.get(); if (typeof cur !== 'boolean') return; await n.set(!cur); return breaker(); }
         case 'play': d.ch ? audio.play(d.ch) : audio.stop(); return jukebox();
         case 'espresso': await api('/api/switch', { name: 'espresso', on: !!d.on }); return;
       }

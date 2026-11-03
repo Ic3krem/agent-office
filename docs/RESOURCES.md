@@ -1,6 +1,6 @@
 # Resources and index
 
-Quick links for Agent Office 1.2.5. The latest release is v1.2.5 (Windows installer only for now). The install scripts and the updater read the latest published release.
+Quick links for Agent Office 1.2.8 (Windows installer only for now). The install scripts and the updater use the signed manifest (`latest.json`) published with a release.
 
 ## Read
 
@@ -15,7 +15,7 @@ Quick links for Agent Office 1.2.5. The latest release is v1.2.5 (Windows instal
 | Office world design and 1.2.x changes | [office-spec.md](office-spec.md) |
 | Island, now playing, lyrics, updates | [island-spec.md](island-spec.md) |
 | Dependency licenses | [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
-| Project license (proprietary, all rights reserved) | [LICENSE](../LICENSE) |
+| Project licence (proprietary, all rights reserved, Ic3krem; draft pending legal review) | [LICENSE](../LICENSE) |
 
 ## Architecture in one page
 
@@ -30,21 +30,21 @@ Quick links for Agent Office 1.2.5. The latest release is v1.2.5 (Windows instal
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.8/install.ps1 | iex
 ```
 
 macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.8/install.sh | bash
 ```
 
-Both verify the SHA-256 GitHub publishes for the release asset and stop if it is missing or wrong. Pin a release by downloading the script from a release tag first and reading it. Update with the island's Settings > Updates or by running the script again. Uninstall from Windows Settings > Apps, delete the macOS app, or remove the Linux AppImage; your data in `~/.claude/agent-office` stays until you delete it. More in the [README](../README.md#install).
+Both are pinned to a release tag (the tag is in the URL), verify the Ed25519 signature of that release's manifest against the key built into the script, then check the SHA-256 of the download, and stop if anything is missing or wrong. Update with the island's Settings > Updates or by running the script again. Uninstall from Windows Settings > Apps, delete the macOS app, or remove the Linux AppImage; your data in `~/.claude/agent-office` stays until you delete it. More in the [README](../README.md#install).
 
 ## Develop
 
 ```
-npm install
+npm ci                         # exactly what package-lock.json lists
 npm start                      # run the desktop app
 npm test                       # all test suites
 node --check server.mjs        # syntax check one file
@@ -71,7 +71,13 @@ npm run dist                   # build an installer for this OS
 3. Check `THIRD_PARTY_NOTICES.md` if dependencies changed.
 4. Check that `package.json` `build.files` lists any new root-level `.mjs` file, or the packaged app will fail to start.
 5. Confirm nothing personal or secret is committed (`repo.test.mjs` covers the common cases) and `public/vendor/` is untouched.
-6. Publish the release. The workflow in `.github/workflows/release.yml` is manual-only (`workflow_dispatch`): a tag push does not trigger it, so that CI cannot replace a QA'd installer. For 1.2.5 the QA'd Windows installer, its `.blockmap` and `latest.yml` were uploaded with `gh release create v1.2.5 --latest <files>`. To use CI instead, restore the `push: tags: ['v*']` trigger once its builds are QA'd, or run the workflow by hand.
+6. Publish the release. The workflow in `.github/workflows/release.yml` is manual-only (`workflow_dispatch`): a tag push does not trigger it, so that CI cannot replace a QA'd installer. From 1.2.6 on, upload the QA'd Windows installer together with the signed `latest.json` and `latest.json.sig` (see [RELEASING.md](RELEASING.md)). To use CI instead, restore the `push: tags: ['v*']` trigger once its builds are QA'd, or run the workflow by hand.
 7. **SHA-256 digest requirement.** The install scripts and the updater need the SHA-256 digest that GitHub shows on each release asset. After the release is published, open it and confirm every installer has a digest. An asset without one cannot be installed through the scripts or the updater.
 8. Install the published `.exe` on a clean machine or user, open the dashboard, and confirm it renders (the strict CSP blocks anything not shipped with the app).
 9. The builds are unsigned; keep the SmartScreen note in the release text.
+
+## Open to-dos for the docs
+
+- **Old screenshots.** `docs/screenshot-*.png`, `docs/kiro-desktop.png` and `docs/kiro-moods.png` come from 1.1.x and some show the removed "Tiro approves" auto-approve wording in the header. They are not used by the README any more except `kiro-moods.png`; retake or delete them when the UI is next photographed. The `docs/images/` set was taken on 1.2.5.
+- **Repo description (GitHub, set by the owner; not edited by this repository).** Suggested text: "Agent Office: a pixel office and desktop notch for your own Claude Code agents. Private, all rights reserved."
+- **Public distribution host.** Until the owner chooses one, installs and updates are by invitation (see the README). The install scripts and the updater expect release assets at a public URL.

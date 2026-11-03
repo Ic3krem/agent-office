@@ -35,14 +35,14 @@ test('the daily report groups goals and links their reports', () => {
 
 test('vault memory: write, search, link, graph; seeding copies Claude memory notes once', () => {
   const v = agentVault(tmp('ao-v-'));
-  v.write('n8n-ops', { description: 'How to edit n8n workflows', body: 'Use the CLI. See [[droplet]].' });
-  v.write('droplet', { description: 'The build server', body: 'Ubuntu box running n8n.' });
-  assert.deepEqual(v.search('edit n8n').map(n => n.name), ['n8n-ops', 'droplet']);
-  v.link('droplet', 'n8n-ops');
-  assert.deepEqual(v.graph().edges, [{ from: 'droplet', to: 'n8n-ops' }, { from: 'n8n-ops', to: 'droplet' }].sort((a, b) => a.from.localeCompare(b.from)));
+  v.write('automation-ops', { description: 'How to edit automation workflows', body: 'Use the CLI. See [[buildbox]].' });
+  v.write('buildbox', { description: 'The build server', body: 'Ubuntu box running the automations.' });
+  assert.deepEqual(v.search('edit automation').map(n => n.name), ['automation-ops', 'buildbox']);
+  v.link('buildbox', 'automation-ops');
+  assert.deepEqual(v.graph().edges, [{ from: 'buildbox', to: 'automation-ops' }, { from: 'automation-ops', to: 'buildbox' }].sort((a, b) => a.from.localeCompare(b.from)));
   assert.throws(() => v.write('../evil', { body: 'x' }));
   const mem = tmp('ao-m-');
-  fs.writeFileSync(path.join(mem, 'infra_x.md'), '---\nname: infra-x\ndescription: X box\nmetadata:\n  type: reference\n---\n\nBody [[droplet]]');
+  fs.writeFileSync(path.join(mem, 'infra_x.md'), '---\nname: infra-x\ndescription: X box\nmetadata:\n  type: reference\n---\n\nBody [[buildbox]]');
   fs.writeFileSync(path.join(mem, 'MEMORY.md'), '- index');
   assert.equal(seedMemory(v, mem).copied, 1);
   assert.equal(seedMemory(v, mem).copied, 0);

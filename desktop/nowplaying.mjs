@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'nowplaying.ps1');
+// PowerShell cannot read inside app.asar, so the packaged build unpacks this one script (asarUnpack) and we point at the real file.
+const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'nowplaying.ps1').replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
 const STATUSES = ['Playing', 'Paused', 'Stopped', 'Opened', 'Changing', 'Closed'];
 const ms = v => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1e13 ? Math.round(v) : null);
 const clip = (v, n) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n) : '');

@@ -17,7 +17,7 @@ test('classify: task, need, info, noise', () => {
   assert.equal(classify('Can you give Maria access to the shared drive?'), 'need');
   assert.equal(classify('Printer on 3rd floor not working'), 'need');
   assert.equal(classify('Lunch menu update'), 'info');
-  assert.equal(classify('Example report for Example'), null);
+  assert.equal(classify('Daily sales report for Store A'), null);
   assert.equal(classify('Weekly digest newsletter'), null);
   assert.equal(classify(''), null);
   assert.equal(classify('Backup job', ['Task']), 'task');
@@ -37,7 +37,7 @@ test('digest: unread only, redacted, capped, wrong mailbox and stale feed refuse
     { subject: 'Need access to ERP', received: WED.toISOString(), isRead: false },
     { subject: 'Already read: need help', isRead: true },
     { subject: 'Reset password=hunter2 please', received: WED.toISOString() },
-    { subject: 'Example report', received: WED.toISOString() },
+    { subject: 'Daily sales report', received: WED.toISOString() },
   ]), WED.getTime(), MAILBOX);
   assert.equal(d.ok, true);
   assert.equal(d.items.length, 2);

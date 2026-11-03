@@ -136,7 +136,8 @@ test('server wiring: no home-made approval rules, Claude Code settings for Tiro,
 test('hooks, MCP servers and env of the user are not replaced: only our hire gate and office tools are added', () => {
   const s = read('./server.mjs');
   const boss = s.slice(s.indexOf('const bossOptions = () =>'), s.indexOf('function tellBoss'));
-  assert.match(boss, /PreToolUse: \[denyClaudeLaunch, \{ matcher: 'Agent\|Task'/);
+  assert.match(boss, /PreToolUse: \[denyClaudeLaunch, \{ hooks: \[secGuard\.pre\] \}, \{ matcher: 'Agent\|Task'/);
+  assert.match(boss, /PostToolUse: \[\{ hooks: \[secGuard\.post\] \}\]/); assert.match(boss, /UserPromptSubmit: \[\{ hooks: \[secGuard\.prompt\] \}\]/);
   assert.match(boss, /mcpServers: \{ office: officeTools \}/);
   assert.doesNotMatch(boss, /USER_ENV|\benv:/);
   const roster = read('./company.mjs');

@@ -1,15 +1,19 @@
 // Agent Office desktop app: runs the office server, keeps Tiro on the desktop, and lives in the tray.
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, session } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog, session, safeStorage } from 'electron';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { normalizeGuardConfig, effectiveConfig, weakenings, signConfig, signRemember, verifyRemember } from '../guard/config.mjs';
+import { CAT_NAMES } from '../guard/rules.mjs';
+import { unsafeSwitches, unsafeEnv, unsafeMessage } from './startup-guard.mjs';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createNowPlaying } from './nowplaying.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
-import { checkForUpdate, downloadUpdate, integrityWarning } from './updater.mjs';
-import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady } from './island-logic.mjs';
+import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
+import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
+import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = 4777, BASE = `http://localhost:${PORT}`;
@@ -18,12 +22,14 @@ const KIRO_FILE = path.join(CFG_DIR, 'kiro.json');
 const ICON = nativeImage.createFromPath(path.join(ROOT, 'desktop', 'icon.png'));
 const KIRO_W = 380, KIRO_H = 600;
 
+// A debugging port or inspector would let any local program drive the app's signed-in windows: refuse to start with one.
+{ const bad = [...unsafeSwitches(process.argv), ...unsafeEnv().map(k => k + '=' + process.env[k])]; if (bad.length) { dialog.showErrorBox('Agent Office', unsafeMessage(bad)); process.exit(2); } }
 if (!app.requestSingleInstanceLock()) app.quit();
 if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transparent-visuals'); // Tiro's see-through window
 app.setAppUserModelId('io.github.ic3krem.agentoffice');
 
 let server, office, kiro, island, tray;
-const prefs = (() => { try { return JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch { return {}; } })();
+const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')))); } catch { return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
 // agentNames is owned by the server (rename UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
 const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch {} const out = { ...prefs }; if (disk.agentNames) out.agentNames = disk.agentNames; else delete out.agentNames; fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
@@ -33,11 +39,30 @@ const up = () => fetch(BASE + '/', { signal: AbortSignal.timeout(1500) }).then(r
 // SameSite=Strict cookie; it is never in a URL, a file or a log. Agents can read bridge.json but this key is not in it.
 const UI_KEY = crypto.randomBytes(24).toString('hex');
 const signedIn = () => fetch(BASE + '/api/roster', { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(2000) }).then(r => r.ok, () => false);
+// Event log for the desktop shell: no environment, arguments or keys, only the event, exit code or signal, and the retry plan. Capped in size.
+const LOG_FILE = path.join(CFG_DIR, 'desktop.log');
+const logEvent = ev => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, restartLogLine(Date.now(), ev) + String.fromCharCode(10)); } catch {} };
+const restart = createRestartPolicy();
+let quitting = false, gaveUp = false, restartTimer = null;
+function spawnServer() {
+  // Electron's own Node runs the server, so the app needs no separate Node install.
+  const started = Date.now();
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY }, stdio: 'ignore', windowsHide: true });
+  server = child;
+  child.on('error', e => logEvent({ event: 'spawn-error' }));
+  child.on('exit', (code, signal) => {
+    if (server === child) server = null;
+    if (quitting) return;
+    const r = restart.onExit(Date.now() - started);
+    logEvent({ event: 'exited', code, signal, attempt: r.attempt, delayMs: r.retry ? r.delayMs : undefined });
+    if (!r.retry) { gaveUp = true; logEvent({ event: 'gave-up', attempt: r.attempt }); try { tray?.displayBalloon?.({ title: 'Agent Office', content: 'The office server stopped and could not be restarted. Quit and reopen Agent Office.' }); } catch {} return; }
+    restartTimer = setTimeout(async () => { restartTimer = null; if (!quitting && !(await up())) spawnServer(); }, r.delayMs);
+  });
+}
 async function ensureServer() {
   if (await up()) { if (await signedIn()) return; throw new Error('Agent Office is already running on port ' + PORT + ' (started by another program). Quit it, then start the app again.'); }
-  // Electron's own Node runs the server, so the app needs no separate Node install.
-  server = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY }, stdio: 'ignore', windowsHide: true });
-  for (let i = 0; i < 60; i++) { if (await up()) return; await new Promise(r => setTimeout(r, 500)); }
+  spawnServer();
+  for (let i = 0; i < 60; i++) { if (await up()) return; if (gaveUp) break; await new Promise(r => setTimeout(r, 500)); }
   throw new Error('The Agent Office server did not start on port ' + PORT);
 }
 const url = p => `${BASE}${p}`;
@@ -67,7 +92,7 @@ const VIEWS = new Set(['today', 'reports', 'usage', 'office']);
 function openOffice(view) {
   view = typeof view === 'string' && VIEWS.has(view) && view !== 'office' ? view : ''; // 'office' = just open the window
   if (!office) {
-    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'Agent Office', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
+    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'Agent Office', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { preload: path.join(ROOT, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
     office.loadURL(url('/') + (view ? '#' + view : ''));
     external(office.webContents);
     office.on('closed', () => { office = null; });
@@ -111,6 +136,7 @@ ipcMain.on('kiro:office', e => { if (fromKiro(e)) openOffice(); });
 // ---------- Tiro island: a click-through notch at the top centre of a display ----------
 // Prefs in kiro.json: islandMode always|smart|off, islandMute, islandDisplay cursor|primary|<display id>.
 const isleMode = () => resolveMode(prefs);
+const notchOn = () => notchEnabledOf(prefs);   // kiro.json islandSettings.notchEnabled (default on)
 const isleDisplay = () => pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, screen.getCursorScreenPoint(), prefs.islandDisplay);
 const isle = { fs: false, peek: false, edgeSince: null };
 const isleSettings = () => normalizeSettings(prefs.islandSettings);
@@ -130,14 +156,16 @@ function refreshLyrics() {
   lyricsClient.get(nowPlaying).then(lines => { if (lyr.key === key) { lyr = { key, lines }; pushLyrics(); } });
 }
 const np = createNowPlaying(n => { nowPlaying = n; pushNowPlaying(); refreshLyrics(); });
-const syncNowPlaying = () => { if (isleSettings().nowPlaying && isleMode() !== 'off') np.start(); else np.stop(); };
-const pushIsland = () => { if (alive()) island.webContents.send('island:state', { mode: isleMode(), mute: !!prefs.islandMute, fs: isle.fs, peek: isle.peek, settings: isleSettings() }); };
+const syncNowPlaying = () => { if (notchOn() && isleSettings().nowPlaying && isleMode() !== 'off') np.start(); else np.stop(); };
+const pushIsland = () => { if (alive()) island.webContents.send('island:state', { mode: isleMode(), mute: !!prefs.islandMute, fs: isle.fs, peek: isle.peek, settings: isleSettings(), notchShortcutOk: notchKeyOk }); };
 function placeIsland(force) {
   if (!alive()) return;
   const b = isleBoundsFor(isleDisplay().bounds), c = island.getBounds();
   if (!force && c.x === b.x && c.y === b.y && c.width === b.width && c.height === b.height) return;
   island.setBounds(b); island.setBounds(b); // twice: Windows mis-sizes the first call when the target display has another DPI scale
 }
+// Notch off: the window is destroyed, not just hidden, so nothing renders, polls or listens for it.
+function destroyIsland() { if (alive()) { const w = island; island = null; try { w.destroy(); } catch {} } isle.peek = false; isle.edgeSince = null; }
 function showIsland() {
   if (alive()) { placeIsland(); return island.showInactive(); }
   island = new BrowserWindow({
@@ -153,39 +181,118 @@ function showIsland() {
   external(island.webContents);
   island.webContents.on('did-finish-load', () => { pushIsland(); pushNowPlaying(); pushLyrics(); pushUpdate(); });
   island.once('ready-to-show', () => island.showInactive());
-  island.on('closed', () => { island = null; });
+  const me = island; island.on('closed', () => { if (island === me) island = null; }); // a destroyed window must not clear a newer one
 }
 const fromIsland = e => island && e.sender === island.webContents;
+const fromOffice = e => office && !office.isDestroyed() && e.sender === office.webContents;
+// ---------- Security Guard settings: the only place a weaker setting can be confirmed ----------
+// A weaker setting needs a native confirmation dialog that only this process can show; the confirmed settings are saved with an HMAC (guard/confirmed.json)
+// keyed by a secret that is encrypted with the OS (Electron safeStorage). A page, an agent or a hand edit of kiro.json cannot produce that HMAC.
+const GUARD_DIR = path.join(CFG_DIR, 'guard');
+let GUARD_KEY = '', GUARD_WEAK = false;   // GUARD_WEAK: the HMAC key sits in a plain 0600 file (no OS keyring)
+function loadGuardKey() {
+  try {
+    fs.mkdirSync(GUARD_DIR, { recursive: true, mode: 0o700 });
+    const enc = path.join(GUARD_DIR, 'hmac.key.enc'), plain = path.join(GUARD_DIR, 'hmac.key');
+    if (safeStorage.isEncryptionAvailable()) {
+      if (fs.existsSync(enc)) { try { return safeStorage.decryptString(fs.readFileSync(enc)); } catch { /* unreadable: make a new one below */ } }
+      const k = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(enc, safeStorage.encryptString(k), { mode: 0o600 }); return k;
+    }
+    GUARD_WEAK = true;
+    if (fs.existsSync(plain)) return fs.readFileSync(plain, 'utf8').trim();            // no OS encryption here: a 0600 file is the best available
+    const k = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(plain, k, { mode: 0o600 }); return k;
+  } catch { GUARD_WEAK = true; return crypto.randomBytes(32).toString('hex'); }
+}
+// The terminal hook is 'node guard/hook.mjs': without node on PATH it cannot run, so say so instead of failing silently
+let NODE_ON_PATH = true;
+try { const r = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['node'], { timeout: 2000, windowsHide: true, stdio: 'ignore' }); NODE_ON_PATH = r.status === 0; } catch { NODE_ON_PATH = false; }
+const readJ = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const guardEffective = () => effectiveConfig(prefs.guard, readJ(path.join(GUARD_DIR, 'confirmed.json')), GUARD_KEY);
+const guardRemembered = () => verifyRemember(readJ(path.join(GUARD_DIR, 'remember.json'))?.entries, GUARD_KEY);
+function guardSave(cfg) {
+  const next = normalizeGuardConfig(cfg);
+  prefs.guard = next; savePrefs();
+  fs.mkdirSync(GUARD_DIR, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(GUARD_DIR, 'confirmed.json'), JSON.stringify({ config: next, hmac: signConfig(next, GUARD_KEY) }), { mode: 0o600 });
+  return next;
+}
+const guardSender = e => fromOffice(e) || fromIsland(e);
+const guardView = () => ({ config: guardEffective().config, notices: guardEffective().notices, remembered: guardRemembered().map(r => ({ key: r.key, label: r.label || '', at: r.at || 0 })), names: CAT_NAMES, weakStorage: GUARD_WEAK, nodeOnPath: NODE_ON_PATH });
+ipcMain.handle('guard:get', e => (guardSender(e) ? guardView() : null));
+ipcMain.handle('guard:set', async (e, patch) => {
+  if (!guardSender(e) || !patch || typeof patch !== 'object' || Array.isArray(patch)) return null;
+  const word = typeof patch._confirm === 'string' ? patch._confirm.trim().toLowerCase() : '';
+  const cur = guardEffective().config, next = normalizeGuardConfig({ ...cur, ...patch, trustedHosts: patch.trustedHosts ?? cur.trustedHosts, trustedNpx: patch.trustedNpx ?? cur.trustedNpx, syncRoots: patch.syncRoots ?? cur.syncRoots });
+  const weak = weakenings(cur, next);
+  if (weak.length) {
+    if (GUARD_WEAK && word !== 'turn down') return { ...guardView(), needWord: true };   // weaker protection on this system: a typed word is required as well
+    const parent = (fromOffice(e) ? office : island) || undefined;
+    const lines = weak.map(w => '- ' + (CAT_NAMES[w.what] || w.what) + (w.from ? ': ' + w.from + ' -> ' + w.to : ': ' + w.to)).join('\n');
+    const r = await dialog.showMessageBox(parent, { type: 'warning', title: 'Security Guard', message: 'Turn down Security Guard protection?', detail: lines + '\n\nThis makes it less likely that you are asked before secrets leave this computer, scripts run, or credentials are read. Only continue if you started this change yourself.', buttons: ['Keep protection on', 'Turn it down'], defaultId: 0, cancelId: 0, noLink: true });
+    if (r.response !== 1) return guardView();
+  }
+  guardSave(next);
+  return guardView();
+});
+ipcMain.handle('guard:remember', (e, key, label) => {
+  if (!guardSender(e) || typeof key !== 'string' || !/^[0-9a-f]{64}$/.test(key)) return null;
+  const entries = guardRemembered().filter(r => r.key !== key).concat([(() => { const e = { key, at: Date.now(), label: String(label ?? '').replace(/[\u0000-\u001f]/g, ' ').slice(0, 120) }; e.sig = signRemember(e, GUARD_KEY); return e; })()]).slice(-200);
+  try { fs.mkdirSync(GUARD_DIR, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(GUARD_DIR, 'remember.json'), JSON.stringify({ entries }), { mode: 0o600 }); } catch { return null; }
+  return guardView();
+});
+ipcMain.handle('guard:forget', (e, key) => {
+  if (!guardSender(e)) return null;
+  const entries = key === 'all' ? [] : guardRemembered().filter(r => r.key !== key);
+  try { fs.writeFileSync(path.join(GUARD_DIR, 'remember.json'), JSON.stringify({ entries }), { mode: 0o600 }); } catch { return null; }
+  return guardView();
+});
+ipcMain.handle('notch:get', e => (fromOffice(e) ? notchOn() : null));
+ipcMain.handle('notch:set', (e, on) => { if (!fromOffice(e) || typeof on !== 'boolean') return null; setNotch(on); return notchOn(); });
 ipcMain.on('island:interactive', (e, on) => { if (fromIsland(e)) island.setIgnoreMouseEvents(!on, { forward: true }); });
 ipcMain.on('island:focus', e => { if (fromIsland(e)) island.focus(); });
 // Settings panel in the island: the page sends a patch, main validates + persists, then echoes the result back.
 ipcMain.on('island:settings', (e, patch) => {
   if (!fromIsland(e) || !patch || typeof patch !== 'object' || Array.isArray(patch)) return;
-  prefs.islandSettings = applyPatch(prefs.islandSettings, patch); savePrefs(); syncNowPlaying(); pushIsland(); pushNowPlaying(); refreshLyrics();
+  const was = notchOn(), key = isleSettings().notchShortcut;
+  prefs.islandSettings = applyPatch(prefs.islandSettings, patch); savePrefs();
+  if (notchOn() !== was) { if (notchOn() && resolveMode(prefs) === 'off') { prefs.islandMode = 'always'; savePrefs(); } setImmediate(applyIsland); } // the island may be closing itself: let this handler return first
+  if (isleSettings().notchShortcut !== key) registerNotchShortcut();
+  syncNowPlaying(); pushIsland(); pushNowPlaying(); refreshLyrics();
 });
 ipcMain.on('island:media', (e, verb) => { if (fromIsland(e) && isleSettings().nowPlaying) np.control(verb); });
 ipcMain.on('island:mute', (e, on) => { if (fromIsland(e)) { prefs.islandMute = !!on; savePrefs(); pushIsland(); } });
 ipcMain.on('island:office', (e, view) => { if (fromIsland(e)) openOffice(view); });
 
 // ---------- updates ----------
-// Prefs in kiro.json: updateFeed (https JSON URL, file or folder; empty = not configured), updateAuto (check on start, default on).
+// The feed is fixed in the main process (GitHub releases of Ic3krem/agent-office); only the main-process environment variable
+// AGENT_OFFICE_UPDATE_FEED can point elsewhere (enterprise mirror), and even then the manifest must carry a valid Ed25519 signature.
+// Nothing the page sends (IPC) or kiro.json holds can change the feed. Prefs: updateAuto (check on start, default on).
 const CURRENT = app.getVersion();
-let upd = { state: prefs.updateFeed ? 'idle' : 'unconfigured', current: CURRENT, feed: prefs.updateFeed || '', busy: '' };
-const updView = () => ({ ...upd, auto: prefs.updateAuto !== false, warning: integrityWarning(upd) });
+const FEED = resolveFeed();
+const assetPolicy = makeAssetPolicy(FEED);
+let upd = { state: 'idle', current: CURRENT, feed: FEED, busy: '' };
+const updView = () => ({ ...upd, auto: prefs.updateAuto !== false });
 const pushUpdate = () => { if (alive()) island.webContents.send('island:update', updView()); };
 async function runCheck() {
   if (upd.busy) return;
   upd = { ...upd, busy: 'check', error: '' }; pushUpdate();
-  const r = await checkForUpdate({ feed: prefs.updateFeed, current: CURRENT });
+  const r = await checkForUpdate({ feed: FEED, current: CURRENT });
   upd = { ...r, busy: '' }; pushUpdate();
 }
+// Installing needs a confirmation dialog owned by the main process, so a compromised page cannot trigger it silently.
 async function runInstall() {
   if (upd.busy || upd.state !== 'available') return;
-  if (!upd.url) { upd = { ...upd, error: 'The feed lists a new version but no installer for this platform.' }; return pushUpdate(); }
-  upd = { ...upd, busy: 'download', error: '' }; pushUpdate();
+  if (!upd.url || !upd.sha256) { upd = { ...upd, error: 'The signed manifest lists a new version but no installer for this platform.' }; return pushUpdate(); }
+  upd = { ...upd, busy: 'confirm', error: '' }; pushUpdate();
+  const { response } = await dialog.showMessageBox({ type: 'question', title: 'Install Agent Office update', message: `Install Agent Office ${upd.available}?`, detail: `You are running ${CURRENT}. The installer is downloaded, checked against the signed release manifest, and then started; Agent Office will close while it installs.`, buttons: ['Cancel', 'Download and install'], defaultId: 0, cancelId: 0, noLink: true });
+  if (response !== 1) { upd = { ...upd, busy: '' }; return pushUpdate(); }
+  const job = { url: upd.url, sha256: upd.sha256, name: upd.name, version: upd.available };
+  upd = { ...upd, busy: 'download' }; pushUpdate();
   try {
-    const { file } = await downloadUpdate({ url: upd.url, sha256: upd.sha256, dir: path.join(os.tmpdir(), 'agent-office-update-' + Date.now()) });
+    const dir = makeUpdateDir(path.join(CFG_DIR, 'updates'));
+    const { file } = await downloadUpdate({ url: job.url, sha256: job.sha256, name: job.name, dir, policy: assetPolicy });
     upd = { ...upd, busy: 'install' }; pushUpdate();
+    await verifyBeforeLaunch({ file, sha256: job.sha256, version: job.version, current: CURRENT }); // hash again right before launch
     if (process.platform === 'win32') spawn(file, [], { detached: true, stdio: 'ignore' }).unref(); // the NSIS installer relaunches the app when it finishes
     else await shell.openPath(file);
     setTimeout(() => app.quit(), 800);
@@ -194,16 +301,8 @@ async function runInstall() {
 ipcMain.handle('update:get', e => fromIsland(e) ? updView() : null);
 ipcMain.handle('update:check', async e => { if (fromIsland(e)) await runCheck(); return updView(); });
 ipcMain.handle('update:install', e => { if (fromIsland(e)) runInstall(); return updView(); });
-ipcMain.handle('update:set', async (e, patch) => {
-  if (!fromIsland(e) || !patch || typeof patch !== 'object') return updView();
-  if (typeof patch.auto === 'boolean') { prefs.updateAuto = patch.auto; savePrefs(); }
-  if (typeof patch.feed === 'string') {
-    prefs.updateFeed = patch.feed.trim().slice(0, 500); savePrefs();
-    upd = { state: prefs.updateFeed ? 'idle' : 'unconfigured', current: CURRENT, feed: prefs.updateFeed, busy: '' };
-    if (prefs.updateFeed) await runCheck();
-  }
-  pushUpdate(); return updView();
-});
+// The page may only switch auto-check on or off; a "feed" (or anything else) in the patch is ignored.
+ipcMain.handle('update:set', (e, patch) => { if (!fromIsland(e)) return updView(); if (applyUpdatePatch(prefs, patch)) { savePrefs(); pushUpdate(); } return updView(); });
 
 // Smart mode: a resident PowerShell reports Windows' "is something fullscreen" state (SHQueryUserNotificationState) every 1.5 s.
 let fsProc = null;
@@ -236,14 +335,34 @@ setInterval(() => {
 }, 200).unref();
 
 function applyIsland() {
-  const m = isleMode(); prefs.islandOff = m === 'off'; savePrefs();
-  if (m === 'off') { if (alive()) island.hide(); } else showIsland();
-  watchFullscreen(m === 'smart');
+  const on = notchOn(), m = isleMode();
+  prefs.islandOff = !on || m === 'off'; savePrefs();
+  const step = notchStep({ enabled: on, alive: alive() }, on ? 'enable' : 'disable');
+  if (step.effect === 'destroy') destroyIsland();
+  else if (on && m === 'off') { if (alive()) island.hide(); }
+  else if (on) showIsland();
+  watchFullscreen(on && m === 'smart');
   syncNowPlaying();
   pushIsland();
+  if (office && !office.isDestroyed()) office.webContents.send('notch:state', on);
+}
+// The one place the notch is switched on or off (tray, dashboard, island settings and the optional shortcut all come here).
+function setNotch(on) {
+  on = !!on;
+  prefs.islandSettings = applyPatch(prefs.islandSettings, { notchEnabled: on });
+  if (on && resolveMode(prefs) === 'off') prefs.islandMode = 'always';
+  savePrefs(); applyIsland();
+}
+// Optional global shortcut (off unless islandSettings.notchShortcut is set); a failed registration just leaves it unregistered.
+let notchKey = '', notchKeyOk = true;
+function registerNotchShortcut() {
+  if (notchKey) { try { globalShortcut.unregister(notchKey); } catch {} notchKey = ''; }
+  const acc = isleSettings().notchShortcut; notchKeyOk = true;
+  if (!acc) return;
+  try { if (globalShortcut.register(acc, () => setNotch(!notchOn()))) notchKey = acc; else notchKeyOk = false; } catch { notchKeyOk = false; }
 }
 function toggleIsland() {
-  if (isleMode() === 'off') { prefs.islandMode = 'always'; applyIsland(); }
+  if (!notchOn()) return; // the notch is switched off: this shortcut only expands or pins a notch that exists
   if (!alive() || !island.isVisible()) showIsland();
   island.webContents.send('island:toggle');
 }
@@ -259,8 +378,9 @@ function buildTray() {
   tray.setToolTip(`Agent Office - ${mgrName}`);
   const menu = () => Menu.buildFromTemplate([
     { label: 'Open office', click: () => openOffice() },
+    { label: 'Show notch', type: 'checkbox', checked: notchOn(), click: i => setNotch(i.checked) },
     { label: 'Island (Ctrl+Alt+K)', submenu: [
-      ...[['always', 'Always'], ['smart', 'Smart (hide when idle or fullscreen, peek at top edge)'], ['off', 'Off']].map(([v, l]) => ({ label: l, type: 'radio', checked: isleMode() === v, click: () => { prefs.islandMode = v; applyIsland(); } })),
+      ...[['always', 'Always'], ['smart', 'Smart (hide when idle or fullscreen, peek at top edge)']].map(([v, l]) => ({ label: l, type: 'radio', checked: isleMode() === v, enabled: notchOn(), click: () => { prefs.islandMode = v; savePrefs(); applyIsland(); } })),
       { type: 'separator' },
       { label: 'Chime on approval / done', type: 'checkbox', checked: !prefs.islandMute, click: i => { prefs.islandMute = !i.checked; savePrefs(); pushIsland(); } },
       { type: 'separator' },
@@ -279,10 +399,12 @@ function buildTray() {
 
 app.on('second-instance', () => openOffice());
 app.on('window-all-closed', () => {}); // keep running in the tray
-app.on('before-quit', () => { server?.kill(); fsProc?.kill(); np.stop(); });
+app.on('before-quit', () => { quitting = true; clearTimeout(restartTimer); server?.kill(); fsProc?.kill(); np.stop(); });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.whenReady().then(async () => {
+  GUARD_KEY = loadGuardKey();
+  { const eff = guardEffective(); if (JSON.stringify(eff.config) !== JSON.stringify(normalizeGuardConfig(prefs.guard))) { prefs.guard = eff.config; savePrefs(); } }   // a Guard setting weakened outside the app is repaired
   syncLogin();
   mgrName = readMgrName();
   buildTray();
@@ -292,7 +414,8 @@ app.whenReady().then(async () => {
   if (!prefs.hidden) showKiro();
   watchDisplays();
   applyIsland();
-  if (prefs.updateAuto !== false && prefs.updateFeed) setTimeout(runCheck, 8000); // check only; installing always needs a click
+  if (prefs.updateAuto !== false) setTimeout(runCheck, 8000); // check only; installing always needs a click
   globalShortcut.register('Control+Alt+K', toggleIsland);
+  registerNotchShortcut();
   if (!process.argv.includes('--hidden')) openOffice();
 });

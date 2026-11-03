@@ -1,11 +1,11 @@
 {
   "name": "agent-office",
-  "version": "1.2.5",
+  "version": "1.2.8",
   "description": "A pixel office for your Claude Code agents: Tiro the manager, specialists, approvals, reports and memory.",
   "main": "desktop/main.mjs",
   "scripts": {
     "start": "electron .",
-    "test": "node --test company.test.mjs agent-home.test.mjs transcript.test.mjs usage.test.mjs reports.test.mjs island.test.mjs office-motion.test.mjs scheduler.test.mjs scheduler-job.test.mjs repo.test.mjs security.test.mjs parity.test.mjs nowplaying.test.mjs lyrics.test.mjs updater.test.mjs",
+    "test": "node --test company.test.mjs agent-home.test.mjs transcript.test.mjs usage.test.mjs reports.test.mjs island.test.mjs office-motion.test.mjs scheduler.test.mjs scheduler-job.test.mjs repo.test.mjs security.test.mjs parity.test.mjs hardening.test.mjs bridge-register.test.mjs notch.test.mjs share-ready.test.mjs guard.test.mjs guard-wiring.test.mjs guard-review.test.mjs nowplaying.test.mjs lyrics.test.mjs updater.test.mjs updater-signed.test.mjs",
     "dist": "electron-builder"
   },
   "author": {
@@ -13,15 +13,15 @@
     "email": "Ic3krem@users.noreply.github.com"
   },
   "type": "module",
-  "private": "true",
+  "private": true,
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.301",
-    "exceljs": "^4.4.0",
-    "zod": "^4.6.7"
+    "@anthropic-ai/claude-agent-sdk": "0.3.301",
+    "exceljs": "4.4.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "electron": "^43.7.7",
-    "electron-builder": "^26.15.3"
+    "electron": "43.7.7",
+    "electron-builder": "26.15.3"
   },
   "productName": "Agent Office",
   "build": {
@@ -30,7 +30,7 @@
     "directories": {
       "output": "dist"
     },
-    "asar": false,
+    "asar": true,
     "files": [
       "server.mjs",
       "transcript.mjs",
@@ -38,6 +38,7 @@
       "agent-home.mjs",
       "auth.mjs",
       "permissions.mjs",
+      "guard/*.mjs",
       "redact.mjs",
       "retention.mjs",
       "usage.mjs",
@@ -68,6 +69,7 @@
       "artifactName": "Agent-Office-Setup-${version}.${ext}"
     },
     "nsis": {
+      "license": "LICENSE.txt",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
@@ -93,6 +95,18 @@
       "category": "Development",
       "artifactName": "Agent-Office-${version}-${arch}.${ext}",
       "maintainer": "Ic3krem <Ic3krem@users.noreply.github.com>"
+    },
+    "asarUnpack": [
+      "desktop/nowplaying.ps1"
+    ],
+    "electronFuses": {
+      "runAsNode": true,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
     }
   },
   "homepage": "https://github.com/Ic3krem/agent-office",
@@ -100,7 +114,7 @@
     "type": "git",
     "url": "https://github.com/Ic3krem/agent-office.git"
   },
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "keywords": [
     "claude",
     "claude-code",

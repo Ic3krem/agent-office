@@ -121,7 +121,7 @@
 </div>
 <script>
 const nonce = () => (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
-const desk = window.islandDesk || { interactive() {}, office() {}, focus() {}, settings() {}, mute() {}, media() {}, onNowPlaying() {}, onLyrics() {}, update: { get: async () => null, check: async () => null, install: async () => null, set: async () => null, on() {} }, onToggle() {}, onState() {} };
+const desk = window.islandDesk || { guard: { get: async () => null, set: async () => null, remember: async () => null, forget: async () => null }, interactive() {}, office() {}, focus() {}, settings() {}, mute() {}, media() {}, onNowPlaying() {}, onLyrics() {}, update: { get: async () => null, check: async () => null, install: async () => null, set: async () => null, on() {} }, onToggle() {}, onState() {} };
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(body || {}) })
@@ -153,7 +153,7 @@ let snap = null, prev = null, online = false;
 let pinned = false, hovered = false, chatOn = false, toast = null, toastTimer = 0, leaveTimer = 0;
 let mode = 'always', mute = false, fsApp = false, peek = false;
 let panel = 'home', calOff = 0; // home | calendar | settings; calOff = months away from the current one
-const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, lyrics: true };
+const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, lyrics: false, notchEnabled: true, notchShortcut: '' };
 let S = { ...DEF };
 let lyr = null, lyrIdx = -2, lyrTimer = 0; // synced lyrics {key, lines:[{t,text}]} pushed from the desktop, last shown line index, fade timer
 let np = null, npEnter = false, wasEx = false; // now-playing session (from SMTC), chip entrance flag, previous expanded state
@@ -166,6 +166,9 @@ const THEMES = {
 };
 const PHYS = { soft: [140, 22], default: [230, 21], snappy: [380, 34], bouncy: [260, 13] };
 const ACT = { today: ['☰', 'Today'], reports: ['▤', 'Reports'], usage: ['◔', 'Usage'], office: ['⌂', 'Office'], chat: ['✎', 'Chat'], calendar: ['▦', 'Calendar'], mute: ['♪', 'Chime'], settings: ['⚙', 'Settings'] };
+const guardText = g => [g.title, 'Rules: ' + (g.rules || []).join(', '), (g.files && g.files.length) ? 'Files: ' + g.files.map(f => f.path + ' (' + f.why + ((f.preview && f.preview.length) ? '; ' + f.preview.slice(0, 3).join(', ') : '') + ')').join('; ') : '', g.host ? 'Destination: ' + g.host : '', g.exact === false ? 'Payload: estimated' : 'Payload: exact', g.source ? 'Source: ' + g.source : '', g.rememberable ? '' : 'This kind of request cannot be remembered.'].filter(Boolean).join('\n');
+let GV = null; // Security Guard settings as the desktop shell reports them (loaded when the Settings tab opens)
+let shortcutOk = true; // false when the desktop could not register the chosen notch shortcut (another program owns it)
 function applySettings(s) {
   S = { ...DEF, ...s };
   const t = S.theme === 'custom' ? { ...THEMES.ember, accent: S.accent } : THEMES[S.theme] || THEMES.ember, st = document.documentElement.style;
@@ -226,7 +229,7 @@ function expanded() {
 // Display copy of desktop/lyrics.mjs (lineAt, positionNow); the tested, authoritative one lives there.
 const lineAt = (lines, pos) => { let lo = 0, hi = lines.length - 1, ans = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (lines[m].t <= pos) { ans = m; lo = m + 1; } else hi = m - 1; } return ans; };
 const positionNow = n => { if (!n || !Number.isFinite(n.pos) || !Number.isFinite(n.ts)) return null; const p = n.pos + (n.playing ? Math.max(0, Date.now() - n.ts) : 0); return Number.isFinite(n.dur) && n.dur > 0 ? Math.min(p, n.dur) : p; };
-const lyricsOn = () => !!(S.lyrics !== false && S.nowPlaying && np?.playing && lyr && np.key && lyr.key === np.key && lyr.lines.length && positionNow(np) != null);
+const lyricsOn = () => !!(S.lyrics === true && S.nowPlaying && np?.playing && lyr && np.key && lyr.key === np.key && lyr.lines.length && positionNow(np) != null);
 function pillHTML(ex) {
   const asks = asksOf(snap), w = working(snap), open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
   let txt, tone = 'off', mood = 'idle';
@@ -273,31 +276,36 @@ function calendarHTML() {
 let upd = null; // update status pushed from the desktop
 function updatesHTML() {
   if (!upd) return '';
-  const msg = { unconfigured: 'No update source configured. Paste a feed URL below.', idle: 'Not checked yet.', current: 'You are up to date.', available: `Version ${esc(upd.available)} is available.`, error: esc(upd.error || 'Check failed.') }[upd.state] || '';
-  const busy = { check: 'Checking...', download: 'Downloading...', install: 'Installing, restarting...' }[upd.busy] || '';
+  const msg = { idle: 'Not checked yet.', current: 'You are up to date.', available: `Version ${esc(upd.available)} is available.`, error: esc(upd.error || 'Check failed.') }[upd.state] || '';
+  const busy = { check: 'Checking...', confirm: 'Waiting for your confirmation...', download: 'Downloading...', install: 'Installing, restarting...' }[upd.busy] || '';
   const act = upd.state === 'available' && !upd.busy ? `<button class="btn yes" data-upd="install">Update now</button>` : '';
-  const warn = upd.warning ? `<div class="note warn" role="alert" data-upd-warning><b>Unverified installer.</b> ${esc(upd.warning)}</div>` : '';
   const err = upd.error && upd.state !== 'error' ? `<div class="note bad" role="alert">${esc(upd.error)}</div>` : '';
   return `<div class="sect"><span class="label">Updates</span>
     <div class="set"><span>Version</span><span>${esc(upd.current)}${upd.available ? ' &rarr; ' + esc(upd.available) : ''}</span></div>
     <div class="set"><span>Status</span><span>${busy || msg}</span></div>
-    ${warn}${err}
+    ${err}
     <div class="set"><span>Check on start</span><div class="chips"><button class="btn ${upd.auto ? 'on' : ''}" data-upd-auto="true">On</button><button class="btn ${upd.auto ? '' : 'on'}" data-upd-auto="false">Off</button></div></div>
-    <div class="set"><span>Update feed</span><input type="text" data-upd-feed value="${esc(upd.feed || '')}" placeholder="https://.../latest.json or folder path" aria-label="Update feed URL"></div>
+    <div class="set"><span>Source</span><span>GitHub releases of Ic3krem/agent-office (signed)</span></div>
     <div class="row"><button class="btn" data-upd="check" ${upd.busy ? 'disabled' : ''}>Check now</button>${act}</div></div>`;
 }
 function settingsHTML() {
   const chips = (key, opts) => `<div class="chips">${opts.map(([v, l]) => `<button class="btn ${S[key] === v ? 'on' : ''}" data-set="${key}" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
   const sw = Object.keys(THEMES).map(k => `<button class="btn sw" data-set="theme" data-v="${k}" title="${k}" style="background:${THEMES[k].accent};border-color:${S.theme === k ? 'var(--ink)' : THEMES[k].line}"></button>`).join('');
   const pins = Object.keys(ACT).map(k => `<button class="btn ${S.pinned.includes(k) ? 'on' : ''}" data-pin="${k}">${ACT[k][0]} ${ACT[k][1]}</button>`).join('');
-  return `<div class="sect"><span class="label">Appearance</span>
+  const gcat = (c, name) => `<div class="set"><span>${esc(c + ' ' + name)}</span><div class="chips">${['ask', 'log', 'off'].map(m => `<button class="btn ${GV && GV.config[c] === m ? 'on' : ''}" data-guard="${c}" data-v="${m}">${m}</button>`).join('')}</div></div>`;
+  const guardSect = GV ? `<div class="sect"><span class="label">Security Guard</span>${['S', 'Y', 'I', 'U', 'C', 'H', 'X', 'P'].map(c => gcat(c, GV.names[c] || c)).join('')}<div class="hint" style="text-align:left">It only ever asks first (never allows or blocks). Turning a category down shows a confirmation window that only the app can open. ${GV.notices && GV.notices.length ? '<b>A setting was changed outside the app and was kept as ' + esc(GV.notices.map(n => n.what + ':' + n.kept).join(', ')) + '.</b>' : ''}${GV.weakStorage ? '<br><b>Weaker protection on this system (no OS keyring): turn protection down from the Breaker box in Agent Office, where a typed confirmation is required.</b>' : ''}${GV.nodeOnPath === false ? '<br><b>Guard inactive in terminals: Node.js was not found on PATH.</b>' : ''}</div></div>` : '';
+  return `${guardSect}<div class="sect"><span class="label">Notch</span>
+    <div class="set"><span>Notch</span>${chips('notchEnabled', [[true, 'On'], [false, 'Off']])}</div>
+    <div class="set"><span>Toggle shortcut</span><span class="row"><input type="text" data-nshort value="${esc(S.notchShortcut || '')}" placeholder="Ctrl+Alt+N (optional)" aria-label="Global shortcut that turns the notch on or off"></span></div>
+    <div class="hint" style="text-align:left">${shortcutOk ? '' : '<b>That shortcut could not be registered (another program uses it).</b> '}Off closes this window. Turn it back on from the tray menu (Show notch), the dashboard's Breaker box, or the shortcut. The shortcut needs 2 or 3 of Ctrl, Alt, Shift and a letter, digit or F-key; it is empty by default. Ctrl+Alt+K only expands or pins the notch.</div>
+    </div><div class="sect"><span class="label">Appearance</span>
     <div class="set"><span>Theme</span><div class="chips">${sw}<button class="btn ${S.theme === 'custom' ? 'on' : ''}" data-set="theme" data-v="custom">Custom</button><input type="color" data-color value="${esc(S.accent)}" title="Accent colour"></div></div>
     <div class="set"><span>Motion</span>${chips('physics', [['soft', 'Soft'], ['default', 'Default'], ['snappy', 'Snappy'], ['bouncy', 'Bouncy']])}</div>
     <div class="set"><span>Tiro character</span>${chips('kiroFace', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Animations</span>${chips('animate', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Now playing</span>${chips('nowPlaying', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Lyrics</span>${chips('lyrics', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="hint" style="text-align:left">Lyrics are looked up online (lrclib.net). Only the song title, artist, album and length are sent; results are cached on this PC.</div>
+    <div class="hint" style="text-align:left">Lyrics are off until you turn them on. When on, the song title, artist, album and length of the playing track are sent to lrclib.net to look up synced lyrics (results are cached on this PC). Nothing else is sent.</div>
     </div><div class="sect"><span class="label">Clock</span>
     <div class="set"><span>Format</span>${chips('hour12', [[false, '24h'], [true, '12h']])}</div>
     <div class="set"><span>Clock in pill</span>${chips('clockInPill', [[true, 'On'], [false, 'Off']])}</div>
@@ -315,8 +323,9 @@ function bodyHTML() {
   const qstate = (window.__qsel = window.__qsel || {});
   const qHTML = a => { const st = (qstate[a.perm.askId] = qstate[a.perm.askId] || {}); return a.perm.questions.map((q, qi) => `<div class="q"><span class="who">${esc(q.header ? q.header + ': ' : '')}${esc(q.question)}</span><div class="row">${q.options.map(o => `<button class="btn${(st[qi] || []).includes(o.label) ? ' yes' : ''}" data-qopt="${esc(a.perm.askId)}|${qi}|${esc(o.label)}|${q.multiSelect ? 1 : 0}" title="${esc(o.description)}">${esc(o.label)}</button>`).join('')}</div></div>`).join('') + `<div class="row"><button class="btn yes" data-qsend="${esc(a.perm.askId)}">Send answers</button><button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">Skip</button></div>`; };
   const askH = asks.map(a => a.perm.questions ? `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} asks you</span>${qHTML(a)}</div>` : `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>${a.perm.preview ? `<pre class="empty" style="max-height:120px;overflow:auto;white-space:pre-wrap;margin:4px 0">${esc(a.perm.preview.slice(0, 1500))}</pre>` : ''}
-    ${a.perm.why ? `<span class="empty">${esc(a.perm.why.slice(0, 140))}</span>` : ''}
-    <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Yes${a.perm.defaultToNo ? '' : '<kbd>Y</kbd>'}</button>${a.perm.canAlways ? `<button class="btn" data-ask="${esc(a.perm.askId)}" data-d="allow" data-always="1" title="Writes the permission rule Claude Code suggests">Yes, and don\'t ask again</button>` : ''}<button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">No<kbd>N</kbd></button><input class="why" data-deny-msg="${esc(a.perm.askId)}" placeholder="No, and tell Claude what to do instead" style="flex:1;min-width:120px"><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
+    ${a.perm.guard ? `<pre class="empty" style="white-space:pre-wrap;margin:4px 0;color:#ffd28a">${esc(guardText(a.perm.guard))}</pre>` : ''}
+    ${a.perm.why && !a.perm.guard ? `<span class="empty">${esc(a.perm.why.slice(0, 140))}</span>` : ''}
+    <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Yes${a.perm.defaultToNo ? '' : '<kbd>Y</kbd>'}</button>${a.perm.guard?.rememberable ? `<button class="btn" data-ask="${esc(a.perm.askId)}" data-d="allow" data-remember="${esc(a.perm.guard.rememberKey)}" title="Allow this exact action again for 24 hours">Yes, remember this exact action</button>` : ''}${a.perm.canAlways && !a.perm.guard ? `<button class="btn" data-ask="${esc(a.perm.askId)}" data-d="allow" data-always="1" title="Writes the permission rule Claude Code suggests">Yes, and don\'t ask again</button>` : ''}<button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">No<kbd>N</kbd></button><input class="why" data-deny-msg="${esc(a.perm.askId)}" placeholder="No, and tell Claude what to do instead" style="flex:1;min-width:120px"><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
   const hireH = hiresOf(snap).map(h => `<div class="ask"><span class="who">${esc(mgrName())} wants to hire ${esc(h.name)} (${esc(h.role)})</span><code>${esc((h.goalText || '').slice(0, 100))}</code><span class="empty">${esc(h.why)}</span>${h.prompt ? `<pre class="empty" style="max-height:80px;overflow:auto;white-space:pre-wrap;margin:4px 0">Prompt: ${esc(h.prompt.slice(0, 600))}</pre>` : ''}
     <div class="row"><button class="btn yes" data-hire="${esc(h.id)}" data-ok="1">Approve hire</button><button class="btn no" data-hire="${esc(h.id)}" data-ok="0">Deny</button></div></div>`).join('');
   const ses = (snap?.agents || []).slice(0, 6).map(a => `<div class="ses"><span class="nm">${esc(a.name)}</span><span class="tk">${esc(a.task || a.role || '')}</span><span class="st ${esc(a.status)}">${esc(a.status)}</span></div>`).join('');
@@ -374,6 +383,7 @@ isle.addEventListener('click', e => {
   const ask = e.target.closest('[data-ask]');
   if (ask) {
     ask.disabled = true;
+    if (ask.dataset.remember) desk.guard.remember(ask.dataset.remember, 'from the island').catch(() => {});
     const msg = ask.dataset.d === 'deny' ? (document.querySelector('[data-deny-msg="' + ask.dataset.ask + '"]') || {}).value : undefined;
     api('/api/decide', { askId: ask.dataset.ask, decision: ask.dataset.d, always: ask.dataset.always === '1', message: msg ? msg.trim() : undefined }).catch(err => showToast(esc(err.message), 4000));
     return;
@@ -388,6 +398,8 @@ isle.addEventListener('click', e => {
   if (pn) { panel = pn.dataset.panel; render(); return; }
   const cal = e.target.closest('[data-cal]');
   if (cal) { calOff += +cal.dataset.cal; render(); return; }
+  const gb = e.target.closest('[data-guard]');
+  if (gb) { const patch = { [gb.dataset.guard]: gb.dataset.v }; desk.guard.set(patch).then(v => { if (v) GV = v; render(); }).catch(() => {}); return; }
   const st = e.target.closest('[data-set]');
   if (st) { const v = st.dataset.v; setPref({ [st.dataset.set]: v === 'true' ? true : v === 'false' ? false : /^-?\d+$/.test(v) ? +v : v }); return; }
   const pin = e.target.closest('[data-pin]');
@@ -407,8 +419,8 @@ isle.addEventListener('click', e => {
 isle.addEventListener('change', e => {
   const t = e.target;
   if (t.matches('[data-color]')) setPref({ theme: 'custom', accent: t.value });
+  else if (t.matches('[data-nshort]')) setPref({ notchShortcut: t.value.trim() });
   else if (t.matches('[data-zone]')) setPref({ zone2: t.value.trim() });
-  else if (t.matches('[data-upd-feed]')) desk.update.set({ feed: t.value.trim() }).then(u => { if (u) { upd = u; render(); } });
   else if (t.matches('[data-zlabel]')) setPref({ zone2Label: t.value.trim() });
 });
 isle.addEventListener('submit', e => {
@@ -432,7 +444,8 @@ document.addEventListener('keydown', e => {
 });
 desk.update.on(u => { upd = u; render(); });
 desk.update.get().then(u => { if (u) { upd = u; render(); } });
-desk.onState(st => { if (st.settings) applySettings(st.settings); mode = st.mode; mute = !!st.mute; fsApp = !!st.fs; peek = !!st.peek; render(); });
+desk.guard.get().then(v => { if (v) { GV = v; render(); } }).catch(() => {});
+desk.onState(st => { shortcutOk = st.notchShortcutOk !== false; if (st.settings) applySettings(st.settings); mode = st.mode; mute = !!st.mute; fsApp = !!st.fs; peek = !!st.peek; render(); });
 desk.onNowPlaying(n => { const was = !!(np && np.playing); np = n && typeof n === 'object' ? n : null; if (!was && np?.playing) npEnter = true; render(); });
 desk.onLyrics(l => { lyr = l && Array.isArray(l.lines) ? { key: String(l.key || ''), lines: l.lines.filter(x => Array.isArray(x)).map(([t, text]) => ({ t: +t || 0, text: String(text ?? '') })) } : null; lyrIdx = -2; render(); });
 desk.onToggle(() => { pinned = !pinned; if (!pinned) { chatOn = false; hovered = false; } else desk.focus(); render(); });

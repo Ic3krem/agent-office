@@ -82,7 +82,7 @@
   }
 
   // ---------- walkers ----------
-  const HIP = s => (s && M.SPOTS[s]) ? (s.startsWith('play:sofa') ? 26 : s.startsWith('play:bean') ? 13 : s === 'play:pit' ? 10 : s === 'tiro:seat' ? 22 : M.SPOTS[s].seat ? 20 : 18) : 18;
+  const HIP = s => (s && M.SPOTS[s]) ? (s.startsWith('play:sofa') ? 26 : s.startsWith('play:bean') ? 13 : s === 'play:pit' ? 10 : s === 'tiro:seat' ? 31 : M.SPOTS[s].seat ? 20 : 18) : 18;
   function syncWalkers(dt) {
     const rd = reduced(), seen = new Set();
     for (const a of frame.agents) {

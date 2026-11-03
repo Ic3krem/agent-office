@@ -1,11 +1,12 @@
 # Run manually (workflow_dispatch) to build Windows, macOS and Linux installers and attach them to a GitHub release.
 # The tag trigger (push: tags ['v*']) is removed on purpose: a tag push would make CI publish its own build over the
 # installer that was QA'd for the release. Restore it once the CI builds themselves are QA'd.
+# These builds are NOT signed with the release key: after the upload, sign the manifest offline with scripts/sign-release.mjs and
+# attach latest.json + latest.json.sig (see docs/RELEASING.md). The private key never goes into CI.
 name: release
 on:
   workflow_dispatch:
-permissions:
-  contents: write
+permissions: {}
 jobs:
   build:
     strategy:
@@ -19,9 +20,13 @@ jobs:
           - os: ubuntu-latest
             args: --linux --x64
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # only this job may create/upload release assets
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -30,4 +35,6 @@ jobs:
       - run: npx electron-builder ${{ matrix.args }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # unsigned builds; the installers say how to open them
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # unsigned builds (no Authenticode/Apple certificate yet); see docs/RELEASING.md to add one
+          # Authenticode (Windows): set CSC_LINK (base64 .pfx or URL) and CSC_KEY_PASSWORD as repository secrets, then drop the line above.
+          # macOS signing/notarisation: CSC_LINK + CSC_KEY_PASSWORD (Developer ID) plus APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.

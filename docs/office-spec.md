@@ -183,7 +183,7 @@ Acceptance: with the board empty all hired agents are in the Playroom; adding a 
 
 ## 13. 1.2.x changes to the world and the team
 - **Names and helpers.** Display names are user-chosen and unique (`docs/agents-and-memory.md`). Plates, tooltips and portraits follow a rename; keys, desks and folders do not. A second agent of an already-hired type is drawn as a labelled "<Name> helper", not as another full specialist, so there is one person per specialist.
-- **Strict hiring gate.** Tiro must call `request_hire`; each approval buys one hire and expires after 10 minutes. Pending cards show in the dashboard; see `docs/agents-and-memory.md`.
+- **Hiring gate.** Agent-tool hires require your approval: Tiro calls `request_hire`; each approval buys one hire and expires after 10 minutes. Pending cards show in the dashboard; see `docs/agents-and-memory.md`.
 - **Per-agent memory and history.** Each type has `memory/` and `history/` under `~/.claude/agent-office/agents/tiro/<key>/`. The **Agent history** button opens the browser; the API is `/api/agents/overview`, `/api/agents/tasks` and `/api/agents/task`.
 - **Click areas.** Furniture and characters are picked by their drawn silhouette: each painted piece is measured into a pixel mask (`OfficeFurniture.measure`, `maskHit`) and hover shows a gold outline that follows that shape. Where pieces overlap, the smaller piece wins the click. People use their own tight bounding box.
 - **Depth sorting.** Furniture and walkers are ordered by each piece's tight ground footprint (`OfficeFurniture.layer`), so a character is never drawn behind its own bench or mailbox.

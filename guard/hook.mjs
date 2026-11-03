@@ -1,0 +1,294 @@
+// Security Guard hooks. ONE implementation used in two places:
+//   1. Agent Office sessions: createGuardHooks(...) gives programmatic PreToolUse / PostToolUse / UserPromptSubmit callbacks for the SDK
+//      (they fire for hired agents too), registered in claudeSessionOptions().hooks.
+//   2. Terminals: `node guard/hook.mjs` is a command hook (bridge plugin): reads the hook JSON on stdin, writes the answer on stdout, exits 0.
+// CONTRACT (never broken): PreToolUse returns {} or { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason } }.
+// Never allow, never deny, never updatedInput. PostToolUse may only add additionalContext. Any error or timeout returns {} and is logged as guard_error.
+// Plain Node >= 18 and Electron-as-Node; no dependencies, no native modules, no network.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { execFileSync, execFile } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { classify, createState } from './classify.mjs';
+import { applyOutput, isScanned, isTainted, clearTaint, trustSource, sourceKey, textOfResponse } from './taint.mjs';
+import { createAudit, auditEntry } from './audit.mjs';
+import { effectiveConfig, normalizeGuardConfig, verifyRemember } from './config.mjs';
+import { CAT_NAMES, CATS, SEVERITY, GUARD_VERSION, REMEMBER_TTL_MS } from './rules.mjs';
+import { maskText } from './scan.mjs';
+
+export const SOFT_MS = 150, HARD_MS = 400;
+// Git payload checks run asynchronously with a real abort signal. Budget: rev-parse 1.5 s, one diff 2.5 s, overall deadline 3.8 s (the plugin hook limit is 5 s).
+export const GIT_REV_MS = 1500, GIT_DIFF_MS = 2500, PREFETCH_MS = 3800;
+export const askOutput = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } });
+export const contextOutput = text => ({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: text } });
+
+// ---------------------------------------------------------------- default ctx providers (bounded: timeouts, entry caps)
+export function makeFs(deadlineMs = 120) {
+  const t0 = Date.now(), over = () => Date.now() - t0 > deadlineMs;
+  const isLink = p => { try { return fs.lstatSync(p).isSymbolicLink(); } catch { return false; } };
+  return {
+    exists: p => { try { return fs.existsSync(p); } catch { return false; } },
+    realpath: (key, orig) => { try { const r = fs.realpathSync.native(orig || key); return r && r !== orig ? r : null; } catch { return null; } },
+    stat: p => { try { const s = fs.statSync(p); return { size: s.size, mtimeMs: s.mtimeMs, isDir: s.isDirectory() }; } catch { return null; } },
+    sample: (p, n = 262144) => {
+      let fd; try { fd = fs.openSync(p, 'r'); const buf = Buffer.alloc(Math.min(n, 262144)); const got = fs.readSync(fd, buf, 0, buf.length, 0); const b = buf.subarray(0, got); if (b.subarray(0, 8192).includes(0)) return null; return b.toString('utf8'); } catch { return null; } finally { if (fd != null) try { fs.closeSync(fd); } catch { /* ignore */ } }
+    },
+    list: d => { try { return fs.readdirSync(d); } catch { return []; } },
+    walk: (root, cap = 500) => {
+      const out = [], stack = [''];
+      while (stack.length && out.length < cap && !over()) {
+        const rel = stack.pop();
+        let names; try { names = fs.readdirSync(path.join(root, rel), { withFileTypes: true }); } catch { continue; }
+        for (const e of names) {
+          if (e.name === 'node_modules' || e.name === '.git') continue;
+          const r = rel ? rel + '/' + e.name : e.name, full = path.join(root, r);
+          if (e.isDirectory() && !isLink(full)) stack.push(r); else if (e.isFile()) out.push(r);
+          if (out.length >= cap) break;
+        }
+      }
+      return out;
+    },
+  };
+}
+const gitAsync = (cwd, args, ms, maxBuffer = 16 * 1024 * 1024) => new Promise(resolve => {
+  const ac = new AbortController(); let done = false;
+  const finish = v => { if (!done) { done = true; clearTimeout(t); resolve(v); } };
+  const t = setTimeout(() => { try { ac.abort(); } catch { /* ignore */ } finish({ timedOut: true, out: null }); }, ms); t.unref?.();
+  try {
+    execFile('git', args, { cwd, signal: ac.signal, windowsHide: true, encoding: 'utf8', maxBuffer }, (err, out) => {
+      if (!err) return finish({ out });
+      if (err.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return finish({ out: String(out || ''), truncated: true });
+      finish({ out: null, failed: true, timedOut: err.name === 'AbortError' || !!err.killed });
+    });
+  } catch { finish({ out: null, failed: true }); }
+});
+// 'git diff -p' text -> [{ path, content: added lines }] (binary files: empty content, nothing to scan)
+export function parsePatch(text) {
+  const files = [], parts = String(text).split(/^diff --git /m).slice(1);
+  for (const part of parts) {
+    const head = part.split('\n', 1)[0], m = /^a\/(.*?) b\/(.*)$/.exec(head) || /^"?a\/(.*?)"? "?b\/(.*?)"?$/.exec(head); if (!m) continue;
+    const added = []; for (const line of part.split('\n')) if (line.startsWith('+') && !line.startsWith('+++')) added.push(line.slice(1));
+    files.push({ path: m[2], content: added.join('\n') });
+  }
+  return files;
+}
+// ---- Agent Office session markers (NB2): the terminal hook skips ONLY a session the app itself started and registered here.
+// An environment variable alone can be set permanently by anything (setx, registry) and is never trusted for this.
+export const sdkMarkerFile = (guardDir, sessionId) => path.join(guardDir, 'sdk-sessions', crypto.createHash('sha256').update(String(sessionId)).digest('hex'));
+export function markSdkSession(guardDir, sessionId) { try { fs.mkdirSync(path.join(guardDir, 'sdk-sessions'), { recursive: true, mode: 0o700 }); fs.writeFileSync(sdkMarkerFile(guardDir, sessionId), String(Date.now()), { mode: 0o600 }); } catch { /* the terminal hook then simply runs too: stricter, never weaker */ } }
+export function unmarkSdkSession(guardDir, sessionId) { try { fs.rmSync(sdkMarkerFile(guardDir, sessionId), { force: true }); } catch { /* ignore */ } }
+export function clearSdkMarkers(guardDir) { try { const d = path.join(guardDir, 'sdk-sessions'); for (const f of fs.readdirSync(d)) fs.rmSync(path.join(d, f), { force: true }); } catch { /* none */ } }
+// ---- network drives (R1): Windows only, asynchronous, bounded; the answer is cached (drives.json) so terminals never pay for it
+export function detectRemoteDrives(timeoutMs = 4000) {
+  if (process.platform !== 'win32') return Promise.resolve([]);
+  return new Promise(resolve => {
+    try {
+      const ps = "[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Network' } | ForEach-Object { $_.Name.Substring(0,1) }";
+      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: timeoutMs, windowsHide: true, encoding: 'utf8' }, (err, out) => resolve(err ? null : String(out).split(/\s+/).filter(x => /^[A-Za-z]$/.test(x)).map(x => x.toLowerCase())));
+    } catch { resolve(null); }   // null = could not find out (callers then treat non-system drives as possibly remote)
+  });
+}
+// Is the docker / podman daemon remote (DOCKER_HOST, DOCKER_CONTEXT or the current docker context points at tcp:// or ssh://)? Unknown counts as remote.
+export function dockerIsRemote(env = process.env, home = os.homedir()) {
+  try {
+    const h = String(env.DOCKER_HOST || env.CONTAINER_HOST || ''); if (h) return !/^(unix|npipe):/i.test(h);
+    let ctxName = String(env.DOCKER_CONTEXT || '');
+    if (!ctxName) { const cfg = JSON.parse(fs.readFileSync(path.join(home, '.docker', 'config.json'), 'utf8')); ctxName = String(cfg.currentContext || ''); }
+    if (!ctxName || ctxName === 'default') return false;
+    const meta = JSON.parse(fs.readFileSync(path.join(home, '.docker', 'contexts', 'meta', crypto.createHash('sha256').update(ctxName).digest('hex'), 'meta.json'), 'utf8'));
+    const host = String(meta?.Endpoints?.docker?.Host || ''); return host ? !/^(unix|npipe):/i.test(host) : true;
+  } catch (e) { return e && e.code === 'ENOENT' && !fs.existsSync(path.join(home, '.docker', 'config.json')) ? false : true; }
+}
+export const drivesFile = guardDir => path.join(guardDir, 'drives.json');
+export function saveRemoteDrives(guardDir, letters) { try { fs.mkdirSync(guardDir, { recursive: true, mode: 0o700 }); fs.writeFileSync(drivesFile(guardDir), JSON.stringify({ at: Date.now(), letters }), { mode: 0o600 }); } catch { /* ignore */ } }
+export function loadRemoteDrives(guardDir) { try { const j = JSON.parse(fs.readFileSync(drivesFile(guardDir), 'utf8')); return new Set((j.letters || []).map(x => String(x).toLowerCase())); } catch { return new Set(); } }
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+const git = (cwd, args, ms = 100) => { try { return execFileSync('git', args, { cwd, timeout: ms, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 4 * 1024 * 1024 }); } catch { return null; } };
+export function makeGit() {
+  return {
+    // B1: ONE bounded async 'git diff -p' against the upstream (or the empty tree), scanned as patch text. A timeout is reported as { timedOut } (the caller asks).
+    async pushPayload(cwd, cmdText) {
+      const all = /--(all|mirror|tags)\b/.test(cmdText);
+      let range = [EMPTY_TREE, 'HEAD'];
+      if (!all) {
+        const u = await gitAsync(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], GIT_REV_MS);
+        if (u.timedOut) return Object.assign([], { timedOut: true });
+        if (u.out && u.out.trim()) range = [u.out.trim() + '...HEAD'];
+      }
+      const d = await gitAsync(cwd, ['diff', '-p', '-U0', '--no-color', '--no-ext-diff', '--no-textconv', ...range], GIT_DIFF_MS);
+      if (d.timedOut) return Object.assign([], { timedOut: true });
+      if (d.out == null) return null;
+      const files = parsePatch(d.out); if (d.truncated) files.truncated = true;
+      return files;
+    },
+    isTracked(cwd, file) { const r = git(cwd, ['ls-files', '--error-unmatch', '--', file], 400); return r != null; },
+    ignoredFiles(cwd) { const r = git(cwd, ['ls-files', '-o', '-i', '--exclude-standard'], 800); return r ? r.split('\n').filter(Boolean) : []; },
+    addCandidates(cwd) { const r = git(cwd, ['ls-files', '-o', '-m', '--exclude-standard'], 800); return r ? r.split('\n').filter(Boolean) : []; },
+  };
+}
+
+// Registry values (OneDrive account folders, known-folder redirection): Windows only, a bounded 'reg query', run at start-up and every 10 minutes (never per tool call).
+export function makeReadReg() {
+  if (process.platform !== 'win32') return null;
+  return (key, name) => {
+    try {
+      const out = execFileSync('reg', ['query', key, '/s', '/v', name], { timeout: 400, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      return [...out.matchAll(/^\s*\S+\s+REG_(?:EXPAND_)?SZ\s+(.+)$/gm)].map(m => m[1].trim());
+    } catch { return []; }
+  };
+}
+
+// ---------------------------------------------------------------- cloud-sync roots (resolved at start and every 10 minutes)
+export function discoverSyncRoots({ os: osName = process.platform, home = os.homedir(), env = process.env, fsApi = fs, readReg = null } = {}) {
+  const out = new Set(), has = p => { try { return fsApi.existsSync(p); } catch { return false; } };
+  const readJson = f => { try { return JSON.parse(fsApi.readFileSync(f, 'utf8')); } catch { return null; } };
+  const add = p => { if (p && typeof p === 'string') out.add(p); };
+  for (const k of ['OneDrive', 'OneDriveCommercial', 'OneDriveConsumer']) add(env[k]);
+  for (const d of ['OneDrive', 'Dropbox', 'Google Drive', 'iCloudDrive', 'iCloud Drive', 'Box', 'Box Sync', 'Nextcloud', 'ownCloud', 'pCloudDrive', 'Insync', 'MEGA', 'Sync', 'Tresorit']) if (has(path.join(home, d))) add(path.join(home, d));
+  if (osName === 'win32') {
+    for (const f of [path.join(env.APPDATA || '', 'Dropbox', 'info.json'), path.join(env.LOCALAPPDATA || '', 'Dropbox', 'info.json')]) { const j = readJson(f); for (const a of Object.values(j || {})) add(a?.path); }
+    const nc = path.join(env.APPDATA || '', 'Nextcloud', 'nextcloud.cfg'); try { const t = fsApi.readFileSync(nc, 'utf8'); for (const m of t.matchAll(/localPath=(.+)/g)) add(m[1].trim()); } catch { /* none */ }
+    if (has('G:\\My Drive')) add('G:\\My Drive');
+    if (readReg) { try { for (const v of readReg('HKCU\\Software\\Microsoft\\OneDrive\\Accounts', 'UserFolder') || []) add(v); for (const n of ['Desktop', 'Personal', 'My Pictures']) { const v = readReg('HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders', n)?.[0]; if (v && /onedrive/i.test(v)) add(v.replace(/%userprofile%/i, home)); } } catch { /* registry unavailable */ } }
+  } else if (osName === 'darwin') {
+    add(path.join(home, 'Library', 'Mobile Documents')); add(path.join(home, 'Library', 'CloudStorage'));
+    const nc = path.join(home, 'Library', 'Preferences', 'Nextcloud', 'nextcloud.cfg'); try { for (const m of fsApi.readFileSync(nc, 'utf8').matchAll(/localPath=(.+)/g)) add(m[1].trim()); } catch { /* none */ }
+  } else {
+    const j = readJson(path.join(home, '.dropbox', 'info.json')); for (const a of Object.values(j || {})) add(a?.path);
+    try { for (const m of fsApi.readFileSync(path.join(home, '.config', 'Nextcloud', 'nextcloud.cfg'), 'utf8').matchAll(/localPath=(.+)/g)) add(m[1].trim()); } catch { /* none */ }
+  }
+  const obs = osName === 'win32' ? path.join(env.APPDATA || '', 'obsidian', 'obsidian.json') : osName === 'darwin' ? path.join(home, 'Library', 'Application Support', 'obsidian', 'obsidian.json') : path.join(home, '.config', 'obsidian', 'obsidian.json');
+  for (const v of Object.values(readJson(obs)?.vaults || {})) add(v?.path);
+  return [...out];
+}
+
+// ---------------------------------------------------------------- the hooks
+export function reasonText(res, ctx = {}) {
+  const home = ctx.home ? String(ctx.home).replace(/\\+/g, '/').replace(/\/$/, '') : '';
+  const rel = p => { const s = String(p).replace(/\\+/g, '/'); return home && s.toLowerCase().startsWith(home.toLowerCase() + '/') ? '~' + s.slice(home.length) : s; };
+  const lines = [`Security Guard: ${res.cats.map(c => CAT_NAMES[c]).join('; ')} [${res.rules.join(', ')}].`, ...res.reasons];
+  if (res.host) lines.push(`Destination: ${res.host}.`);
+  if (res.files.length) lines.push('Files: ' + res.files.map(f => `${rel(f.path)} (${f.why}${f.preview?.length ? '; ' + f.preview.slice(0, 3).join(', ') : ''})`).join('; ') + '.');
+  lines.push(res.exact ? 'Payload: exact.' : 'Payload: estimated (could not be listed exactly).');
+  if (!res.rememberable) lines.push('This kind of request cannot be remembered.');
+  return maskText(lines.join(' ')).slice(0, 1800);
+}
+
+// opts: getConfig() -> normalised effective config; getRemembered() -> [{ key, at }]; getBase(input) -> { os, home, cwd, env, vaultDir, projectDirs, additionalDirs, syncRoots };
+//       audit: { write }; now; fsFactory/gitApi optional (tests inject virtual ones)
+export function createGuardHooks({ getConfig, getRemembered = () => [], getBase = () => ({}), audit = { write() {} }, now = Date.now, fsFactory = makeFs, gitApi = makeGit(), agentOf = () => '', prefetchMs = PREFETCH_MS, remoteDrives = null, remoteDrivesUnknown = false, dockerRemote = () => dockerIsRemote() } = {}) {
+  const sessions = new Map(), meta = new Map();
+  const stateOf = id => { const k = String(id || 'default'); let s = sessions.get(k); if (!s) { s = createState(); sessions.set(k, s); if (sessions.size > 50) sessions.delete(sessions.keys().next().value); } return s; };
+  const ctxOf = (input, git = gitApi) => ({ os: process.platform, home: os.homedir(), env: process.env, cwd: input?.cwd || process.cwd(), ...getBase(input), remoteDrives: typeof remoteDrives === 'function' ? remoteDrives() : remoteDrives, remoteDrivesUnknown, dockerRemote, fs: fsFactory(), git, config: getConfig(), remembered: getRemembered(), now });
+  const guardErr = (e, input, ms) => { try { audit.write(auditEntry({ now: now(), sessionId: input?.session_id, tool: input?.tool_name, category: '', decision: 'guard_error', command: String(e && e.message || e), extra: { ms } })); } catch { /* ignore */ } };
+  // The classifier is synchronous, so a timer cannot interrupt it (the old Promise.race only looked like a limit). Everything slow runs async with real abort
+  // signals before it (git) or is never done at all (remote paths); here we only measure, and if an S/Y/I-risky request overran or threw, we ask instead of {}.
+  const withBudget = async (fn, input, risky = false) => {
+    const t0 = Date.now();
+    try {
+      const r = fn();
+      const ms = Date.now() - t0;
+      if (risky && ms > HARD_MS && (!r || !r.hookSpecificOutput)) { guardErr(new Error('overran ' + HARD_MS + ' ms'), input, ms); return askOutput('Security Guard could not finish checking this request in time (it looks like it may send files or secrets off this computer). Allow only if you trust it.'); }
+      if (ms > SOFT_MS) try { audit.write(auditEntry({ now: now(), sessionId: input?.session_id, tool: input?.tool_name, decision: 'slow', extra: { ms } })); } catch { /* ignore */ }
+      return r;
+    } catch (e) { guardErr(e, input, Date.now() - t0); return risky ? askOutput('Security Guard hit an error while checking this request (it looks like it may send files or secrets off this computer). Allow only if you trust it.') : {}; }
+  };
+  const RISKY_RE = /(curl|wget|scp|rsync|sftp|\bnc\b|ncat|socat|git\s+(push|add|send-email|bundle|format-patch|request-pull)|\.env|id_rsa|id_ed25519|credentials|\.aws|\.ssh|upload|\bftp|docker|publish|invoke-(web|rest)|\b(iwr|irm)\b|copy-item|xcopy|robocopy|encodedcommand|base64|python|node|ruby|perl|php|nslookup|\bdig\b|\\\\|\/\/[\w.-]+\/|onedrive|dropbox|sharepoint|gdrive|icloud)/i;
+  const isRisky = input => { try { return isRiskyRaw(input); } catch { return true; } };
+  const isRiskyRaw = input => { const t = String(input?.tool_name || ''); if (t === 'WebFetch' || t.startsWith('mcp__')) return true; const ti = input?.tool_input || {}; return RISKY_RE.test(String(ti.command ?? ti.file_path ?? ti.path ?? '').slice(0, 8000)); };
+  const GIT_CMD = /\bgit\b[^\n]*\b(push|send-email|request-pull|format-patch|bundle)\b|-e(nc|ncodedcommand)?\s+[A-Za-z0-9+/=]{20,}/i;
+  const sleep = (ms, v) => new Promise(res => { const t = setTimeout(() => res(v), ms); t.unref?.(); });
+  // B1: the git payload is fetched asynchronously (bounded) before the synchronous classifier runs.
+  const prefetchGit = async input => {
+    if (!/^(Bash|PowerShell)$/.test(String(input?.tool_name)) || typeof gitApi?.pushPayload !== 'function') return gitApi;
+    const cmd = String(input?.tool_input?.command ?? ''); if (!GIT_CMD.test(cmd)) return gitApi;
+    let pre; try { pre = await Promise.race([gitApi.pushPayload(input?.cwd || process.cwd(), cmd), sleep(prefetchMs, Object.assign([], { timedOut: true }))]); } catch { pre = null; }
+    return { ...gitApi, pushFiles: () => pre };
+  };
+  const api = {
+    meta, sessions, stateOf,
+    pre: async input => { const g = await prefetchGit(input); return api.preSync(input, g); },
+    preSync: (input, g) => withBudget(() => {
+      const ctx = ctxOf(input, g), st = stateOf(input.session_id);
+      const res = classify(input.tool_name, input.tool_input, ctx, st);
+      if (res.error) guardErr(new Error(res.error), input, 0);
+      const entry = category => auditEntry({ now: now(), sessionId: input.session_id, agent: agentOf(input), tool: input.tool_name, category, ruleIds: res.rules, destHost: res.host, paths: res.files.map(f => f.path), fileSha: res.files.map(f => f.sha12 || ''), exact: res.exact, command: input.tool_input?.command ?? input.tool_input?.url ?? input.tool_input?.file_path ?? '', remembered: res.remembered });
+      if (res.remembered) { audit.write({ ...entry(res.cats[0] || ''), decision: 'remembered' }); return {}; }
+      if (res.level === 'none') return {};
+      if (res.level === 'log') { audit.write({ ...entry(res.cats[0] || ''), decision: 'log' }); return {}; }
+      const reason = reasonText(res, ctx);
+      const m = { cats: res.cats, rules: res.rules, files: res.files, host: res.host, exact: res.exact, rememberKey: res.rememberKey, rememberable: res.rememberable, reason, title: 'Security Guard: ' + res.cats.map(c => CAT_NAMES[c]).join('; '), source: res.matches.find(x => x.source)?.source || '', tool: input.tool_name, session: input.session_id };
+      if (input.tool_use_id) { meta.set(input.tool_use_id, m); st.askedIds.set(input.tool_use_id, { cats: res.cats, rememberKey: res.rememberKey }); if (meta.size > 300) meta.delete(meta.keys().next().value); }
+      audit.write({ ...entry(res.cats[0]), decision: 'ask', cats: res.cats });
+      return askOutput(reason);
+    }, input, isRisky(input)),
+    post: input => withBudget(() => {
+      const ctx = { config: getConfig() }, st = stateOf(input.session_id), cfg = ctx.config || {};
+      const asked = st.askedIds.get(input.tool_use_id);
+      if (asked) { st.askedIds.delete(input.tool_use_id); audit.write(auditEntry({ now: now(), sessionId: input.session_id, tool: input.tool_name, category: asked.cats[0], decision: 'ask', userAnswer: 'allowed' })); if (asked.cats.includes('P')) clearTaint(st.taint); }
+      if ((cfg.P || 'ask') !== 'off' && isScanned(input.tool_name)) {
+        const r = applyOutput(st.taint, input.tool_name, input.tool_input, input.tool_response, now());
+        if (r.taint) audit.write(auditEntry({ now: now(), sessionId: input.session_id, tool: input.tool_name, category: 'P', ruleIds: st.taint.rules.map(x => 'P.' + x), decision: 'log', command: st.taint.source, extra: { snippet: maskText(String(st.taint.snippet || '')).slice(0, 160) } }));
+        if (r.context && (cfg.P || 'ask') !== 'log') return contextOutput(r.context);
+      }
+      return {};
+    }, input),
+    prompt: async input => { try { stateOf(input?.session_id).prompts++; } catch { /* ignore */ } return {}; },
+    // a person (not an automatic nudge) typed or approved something: the session is no longer waiting on untrusted instructions
+    humanPrompt(sessionId) { clearTaint(stateOf(sessionId).taint); },
+    trust(sessionId, tool, input) { trustSource(stateOf(sessionId).taint, sourceKey(tool, input)); },
+    status() {
+      let banner = '', at = 0;
+      for (const s of sessions.values()) if (isTainted(s.taint, now()) && s.taint.at > at) { at = s.taint.at; banner = `Untrusted content from ${s.taint.source} contains text aimed at the AI (${s.taint.rules.slice(0, 3).join(', ')}). Actions that send, run or write outside the project will ask first.`; }
+      return { banner, version: GUARD_VERSION };
+    },
+  };
+  return api;
+}
+
+// ---------------------------------------------------------------- terminal command hook (node guard/hook.mjs)
+const stateFile = (dir, id) => path.join(dir, 'sessions', crypto.createHash('sha256').update(String(id || 'default')).digest('hex').slice(0, 24) + '.json');
+function loadSession(dir, id) { try { const j = JSON.parse(fs.readFileSync(stateFile(dir, id), 'utf8')); const s = createState(); Object.assign(s.taint, j.taint, { trusted: new Map(j.trusted || []) }); s.files = new Set(j.files || []); s.dirs = new Set(j.dirs || []); s.firstRead = j.firstRead || 0; s.secretReads = new Set(j.secretReads || []); s.downloaded = new Set(j.downloaded || []); s.sensitiveFiles = new Set(j.sensitiveFiles || []); return s; } catch { return createState(); } }
+function saveSession(dir, id, s) { try { fs.mkdirSync(path.join(dir, 'sessions'), { recursive: true, mode: 0o700 }); const f = stateFile(dir, id); fs.writeFileSync(f, JSON.stringify({ taint: { ...s.taint, trusted: undefined }, trusted: [...s.taint.trusted], files: [...s.files].slice(-400), dirs: [...s.dirs].slice(-100), firstRead: s.firstRead, secretReads: [...s.secretReads], downloaded: [...s.downloaded].slice(-50), sensitiveFiles: [...s.sensitiveFiles].slice(-50) }), { mode: 0o600 }); } catch { /* best effort */ } }
+
+export async function runCommandHook(stdinText, env = process.env, home = os.homedir(), opts = {}) {
+  let input; try { input = JSON.parse(stdinText || '{}'); } catch { return {}; }
+  const base = path.join(home, '.claude', 'agent-office'), dir = path.join(base, 'guard');
+  // an Agent Office session: the SDK hook already ran the Guard. Trusted only when the app registered THIS session id (an env var alone is not enough).
+  if (input.session_id && fs.existsSync(sdkMarkerFile(dir, input.session_id))) return {};
+  const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+  const kiro = readJson(path.join(base, 'kiro.json')) || {}, confirmed = readJson(path.join(dir, 'confirmed.json'));
+  const secret = env.AGENT_OFFICE_GUARD_KEY || null;           // only a terminal started by the app can verify the HMAC; otherwise the strictest settings apply
+  const eff = effectiveConfig(kiro.guard, confirmed, secret);
+  if (eff.config.hooksInTerminals === false && secret) return {};
+  // network drives: use the app's cache; when it is missing or older than 24 h (Windows), run the bounded detection here, else treat non-system drives as possibly remote
+  const drives = { set: loadRemoteDrives(dir), unknown: false };
+  if (process.platform === 'win32' || opts.forceDriveCheck) {
+    const info = readJson(drivesFile(dir));
+    if (!info || !(Date.now() - (info.at || 0) < 24 * 3600e3)) {
+      const l = await (opts.detectDrives || detectRemoteDrives)(1500);
+      if (Array.isArray(l)) { drives.set = new Set(l); saveRemoteDrives(dir, l); } else drives.unknown = true;
+    }
+  }
+  const audit = createAudit({ dir });
+  if (Math.random() < 0.01) { try { audit.prune(); } catch { /* ignore */ } }   // the app prunes every 6 h; terminals do it now and then
+  if (eff.notices.length) audit.write(auditEntry({ sessionId: input.session_id, decision: 'log', category: '', command: 'Guard setting changed outside the app; kept ' + eff.notices.map(n => `${n.what}:${n.kept}`).join(', ') }));
+  const remembered = verifyRemember(readJson(path.join(dir, 'remember.json'))?.entries, secret);   // unsigned entries (or no app key) are ignored
+  const st = loadSession(dir, input.session_id);
+  const hooks = createGuardHooks({ remoteDrives: drives.set, remoteDrivesUnknown: drives.unknown, dockerRemote: () => dockerIsRemote(env, home), getConfig: () => eff.config, getRemembered: () => remembered, getBase: () => ({ home, env, cwd: input.cwd || process.cwd(), os: process.platform, syncRoots: [...(eff.config.syncRoots || []), ...discoverSyncRoots({ home, env })], vaultDir: '' }), audit });
+  hooks.sessions.set(String(input.session_id || 'default'), st);
+  const ev = input.hook_event_name;
+  const out = ev === 'PostToolUse' ? await hooks.post(input) : ev === 'PreToolUse' ? await hooks.pre(input) : {};
+  saveSession(dir, input.session_id, hooks.stateOf(input.session_id));
+  return out;
+}
+const thisFile = (() => { try { return fileURLToPath(import.meta.url); } catch { return ''; } })();
+if (process.argv[1] && thisFile && path.resolve(process.argv[1]) === thisFile) {
+  let buf = ''; process.stdin.setEncoding('utf8');
+  const kill = setTimeout(() => { process.stdout.write('{}'); process.exit(0); }, PREFETCH_MS + 700); kill.unref?.();
+  process.stdin.on('data', d => { buf += d; if (buf.length > 4e6) buf = buf.slice(0, 4e6); });
+  process.stdin.on('end', async () => { let out = {}; try { out = await runCommandHook(buf); } catch { out = {}; } process.stdout.write(JSON.stringify(out)); process.exit(0); });
+}
+void pathToFileURL; void CATS; void SEVERITY; void REMEMBER_TTL_MS; void normalizeGuardConfig; void textOfResponse;

@@ -1,6 +1,6 @@
-# Agent Office user guide (1.2.5)
+# Agent Office user guide (1.2.8)
 
-The latest release is v1.2.5. It ships the Windows installer only for now; the macOS and Linux install script finds no asset until those builds are published.
+The current release is v1.2.8. It ships the Windows installer only for now; the macOS and Linux install script finds no asset until those builds are published.
 
 This guide covers every part of the app. For install, update and uninstall see the [README](../README.md). For a link index see [RESOURCES.md](RESOURCES.md).
 
@@ -13,7 +13,7 @@ Agent Office is a pixel office for your own Claude Code agents. **Tiro** is the 
 ## Starting
 
 - **Installed app:** open Agent Office from the desktop shortcut or Start menu. It starts its local server and shows Tiro on your desktop. Double-click Tiro (or use the tray menu, Open office) to open the dashboard.
-- **From source:** `npm install`, then `npm start` (see [RESOURCES.md](RESOURCES.md)).
+- **From source:** `npm ci`, then `npm start` (see [RESOURCES.md](RESOURCES.md)).
 - The server listens on `127.0.0.1` only. The desktop app signs its windows in with a private cookie; a standalone `node server.mjs` prints a one-time sign-in link (valid once, for 5 minutes) instead. There is no key in the URL. Pages opened without signing in can load but cannot read or change anything.
 
 ## The dashboard
@@ -40,11 +40,15 @@ You can also message any agent directly from its detail pane, interrupt a runnin
 
 There are two kinds, and both show on the dashboard and in the island.
 
-**Hire approvals (strict hiring gate).** Tiro cannot start a specialist by itself. It sends a request with the specialist, the goal and a reason; a card appears with Approve and Deny. One approval buys exactly one hire of that type and expires after 10 minutes. Requests are refused automatically if hiring is switched off, the goal is not open, the reason is too short, 8 specialists are already working, or that specialist is already on the team and idle (Tiro is told to reuse it). Pending cards and unused approvals are cleared when Tiro's session ends or resets or when hiring is switched off. Details: [agents-and-memory.md](agents-and-memory.md).
+**Hire approvals (strict hiring gate).** Starting a specialist with the Agent tool needs your approval. Tiro sends a request with the specialist, the goal and a reason; a card appears with Approve and Deny. One approval buys exactly one hire of that type and expires after 10 minutes. Requests are refused automatically if hiring is switched off, the goal is not open, the reason is too short, 8 specialists are already working, or that specialist is already on the team and idle (Tiro is told to reuse it). Pending cards and unused approvals are cleared when Tiro's session ends or resets or when hiring is switched off. Details: [agents-and-memory.md](agents-and-memory.md).
 
 ![Tiro asking to hire Warden, with the goal, the reason and Approve hire and Deny buttons](images/08-hire-approval-card.png)
 
 **Tool approvals.** Tiro and the agents run on your own Claude Code configuration: your allow, deny and ask rules, permission mode, hooks and settings decide what happens. Only a request Claude Code itself would ask you about shows up (in the dashboard detail pane and the island), with the full tool input and Claude Code's own choices: **Yes**, **Yes, and don't ask again** (offered only when Claude Code suggests a rule; it writes that same rule to the same settings file Claude Code would), and **No**, optionally with a note telling Claude what to do instead. Nothing is edited, auto-approved or timed out into an answer; a prompt waits until you answer. Questions Claude asks (the multiple-choice question tool) appear as a question card in the island. Terminal sessions still ask in their own dialog when no tab is open. See [permissions.md](permissions.md).
+
+## Security Guard
+
+On top of your Claude Code permissions, the Security Guard asks before something risky happens: secrets leaving this computer (a `curl` that uploads a `.env`, a `git push` whose files include a key, a secret written to OneDrive), downloaded scripts or startup entries, credential stores and environment dumps, screen or clipboard capture, and the first action after a web page or mail contained instructions aimed at the AI. It shows the matched rule, the files (values masked), the destination and whether the payload is exact or estimated, and you answer Yes, No, or No with a note. It can only ask; it never allows or blocks anything. Turn categories to ask, log or off in the **Breaker box** (Security Guard) or the island Settings; turning one down needs a confirmation window only the app can open, and an agent that edits `kiro.json` cannot weaken it. The **Audit log** button lists what was asked or noted. Details, limits and the full list of prompts: [security-guard.md](security-guard.md).
 
 ## The team
 
@@ -91,7 +95,7 @@ The world is isometric with five zones: Tiro's glass office (top left), the focu
 
 - **Working** agents sit at their own desk. Thinking agents walk to the garden or park. When the board is empty, idle agents go to the playroom. A rate-limited agent waits at the water cooler. A finished goal sends its agent to Tiro's office to report, then back.
 - **Objects:** Today board, Bookshelf (reports), Corkboard (memory), Filing cabinet (SOPs), Inbox tray, Breaker box, Server rack, Whiteboard (tokens and limits), Coffee machine (espresso: the next hire uses the fast model), Arcade, Jukebox, Server plant, and the Scheduler garage and mailbox.
-- **Breaker box switches:** Tiro (manager) on/off, Autopilot, Hiring, Terminal approvals, and the Subscription guard, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.
+- **Breaker box switches:** Tiro (manager) on/off, Autopilot, Hiring, Terminal approvals, the Subscription guard, and (desktop app only) the Notch, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.
 - **Click outlines.** Objects and people are picked by their drawn shape, not a rough box. Hover shows a gold outline that follows the silhouette; where pieces overlap, the smaller one wins. Characters are depth-sorted so none is hidden behind its own desk.
 
 ![Hovering a desk draws a yellow outline that follows its shape](images/15-click-outline-hover.png)
@@ -128,8 +132,9 @@ The island is a notch-style overlay at the top centre of the screen. Its window 
 
 - **Collapsed:** shows Tiro's eyes (idle, working, waiting for approval, done, offline). While music plays it widens to show the title, artist and a synced lyric line.
 - **Expanded** (hover, click, `Ctrl+Alt+K`, or when an approval arrives): tabs Home, Calendar and Settings, a dock of quick actions (Today, Reports, Usage, Office, Chat, and others you pin), approval buttons (keys `Y` and `N` answer the first request, `Esc` waves it away), and a Now playing card with previous, play-pause and next.
-- **Modes:** Always, Smart (hides when idle or when a fullscreen app is running and peeks back when the cursor touches the top edge) and Off. Choose from the tray.
-- **Settings tab:** theme (Ember, Midnight, Forest, Light, Custom accent), motion preset, pinned actions (up to 8), 12 or 24 hour clock, optional second clock, week start, edge and leave delays, now playing, Tiro face, animation and lyrics. Lyrics are looked up online (title, artist, album and duration only); turn them off if you prefer.
+- **Modes:** Always and Smart (hides when idle or when a fullscreen app is running and peeks back when the cursor touches the top edge). Choose from the tray.
+- **Notch on or off.** The notch is on by default. To remove it, use any of: the tray menu item **Show notch** (a checkbox), the **Notch** switch at the bottom of the dashboard's **Breaker box** (desktop app only), or **Settings, Notch** inside the island itself. Off closes the island window and stops the now-playing and fullscreen watchers; on creates it again on the display you chose. The choice is remembered across restarts and launches at login. If you turn it off from the island, the tray item, the Breaker box or the optional shortcut bring it back. An optional global shortcut (field **Toggle shortcut** in the island's Settings, empty by default, for example `Ctrl+Alt+N`) toggles it; `Ctrl+Alt+K` only expands or pins a notch that exists, and does nothing while the notch is off.
+- **Settings tab:** theme (Ember, Midnight, Forest, Light, Custom accent), motion preset, pinned actions (up to 8), 12 or 24 hour clock, optional second clock, week start, edge and leave delays, now playing, Tiro face, animation and lyrics. Lyrics are **off by default**. If you turn them on, the title, artist, album and duration of the playing track are sent to lrclib.net to find synced lyrics (cached on this PC); nothing else is sent, and now-playing itself never leaves your PC.
 - **Updates:** see [the README](../README.md#update). Set an https feed or a local folder, check, and install with one click. An installer downloaded over the network must come with a SHA-256 that matches; otherwise it is refused.
 
 ![The island expanded from its pill, with Home, Calendar and Settings tabs](images/12-island-pill.png)
@@ -140,7 +145,7 @@ The island is a notch-style overlay at the top centre of the screen. Its window 
 
 ## Tray
 
-The tray menu has: Open office, Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit Agent Office.
+The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit Agent Office.
 
 ## Settings files
 
@@ -149,7 +154,7 @@ All state is under `~/.claude/agent-office/` (your home folder). Nothing here ne
 | File or folder | What it holds |
 |---|---|
 | `bridge.json` | Server port and the terminal bridge key (opens `/bridge/*` only). The UI key is never stored. |
-| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings`, `updateFeed`, `updateAuto`, `hidden`, optional `schedulerMailbox`. |
+| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled` and `notchShortcut`), `updateAuto`, `hidden`, optional `schedulerMailbox`. |
 | `switches.json` | Breaker box switches. |
 | `manager.json` | Tiro auto-approval on or off. |
 | `manager-session.json` | Id of Tiro's current session (one per day). |
@@ -192,7 +197,7 @@ Also: `GET /print/report`, `/print/daily`, `/export/report.xlsx` and `/export/da
 
 - Office objects and desks are focusable with the keyboard and have labels (name, role, status).
 - Camera: `+`, `-`, `0`, mouse wheel, drag.
-- Island: `Ctrl+Alt+K` toggles it; `Y` and `N` answer the first pending request, `Esc` dismisses it.
+- Island: `Ctrl+Alt+K` expands or pins it (not while the notch is off); an optional shortcut you set turns the notch on or off; `Y` and `N` answer the first pending request, `Esc` dismisses it.
 - Reduced motion: the office and island follow the system "reduce motion" setting and the animation preference; characters then appear in place instead of walking.
 
 ## Troubleshooting

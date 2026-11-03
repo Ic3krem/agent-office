@@ -1,6 +1,6 @@
 # Team, hiring gate and per-agent memory
 
-Everything here describes Agent Office 1.2.5. Source files are named so each claim can be checked.
+Everything here describes Agent Office 1.2.8. Source files are named so each claim can be checked.
 
 ## The team
 
@@ -29,13 +29,13 @@ API (all `POST`, key required): `/api/names`, `/api/names/set` (`{key, name}`), 
 
 ## The hiring gate
 
-Tiro cannot start a specialist on its own. The flow, in `server.mjs` and `company.mjs` (`hireGate`):
+Starting a specialist with the Agent tool needs your approval. The flow, in `server.mjs` and `company.mjs` (`hireGate`):
 
 1. Tiro calls the `request_hire` tool with the specialist type, the goal id and a reason.
 2. The request is refused without reaching you if hiring is switched off in the Breaker box, the goal is not an open goal (`todo` or `doing`), the reason is shorter than 25 characters, 8 specialists are already working, that specialist is already on the team and idle (Tiro is told to reuse it), or an identical request is already waiting.
 3. Otherwise an approval card appears for you. Your answer goes through `POST /api/hire/decide` (`{id, approve, note}`).
 4. An approval is one-shot. It lets Tiro start exactly one agent of that type, with exactly the first prompt shown on the card (`request_hire` carries the prompt and the grant is bound to its hash and the goal id), and it expires after 10 minutes if unused.
-5. A hook on the Agent tool blocks any start that has no approval or a different prompt. It only denies or adjusts input; it never approves anything, so your own permission rules for the Agent tool still apply. A second, deny-only hook on Tiro's Bash and PowerShell calls refuses a command that launches `claude` or the Agent SDK, because that would start an agent without `request_hire`.
+5. A hook on the Agent tool blocks any start that has no approval or a different prompt. It only denies or adjusts input; it never approves anything, so your own permission rules for the Agent tool still apply. A second, deny-only hook on Tiro's Bash and PowerShell calls refuses a command that launches `claude` or the Agent SDK, because that would start an agent without `request_hire`. This is a best-effort check, not a sandbox: a command can be written in ways it does not recognise.
 6. All pending cards and unused approvals are cleared when Tiro's session ends, when you reset it (`/api/boss-reset`), when the manager is stopped or switched off, and when the hiring switch is turned off. A stale card cannot create an approval for a later session.
 
 ## Per-agent memory and history
