@@ -10,7 +10,7 @@ import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod';
 import { apply, newAgent, statusOf, toolSummary } from './transcript.mjs';
 import { claudeSessionOptions, makeCanUseTool, describeRequest, launchesClaude } from './permissions.mjs';
-import { createGuardHooks, discoverSyncRoots } from './guard/hook.mjs';
+import { createGuardHooks, discoverSyncRoots, makeReadReg } from './guard/hook.mjs';
 import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
@@ -365,7 +365,7 @@ const guardState = () => {
   guardCache = { at: now, eff, rem: readJsonSafe(path.join(GUARD_DIR, 'remember.json'))?.entries || [] };
   return guardCache;
 };
-let SYNC_ROOTS = []; const refreshSyncRoots = () => { try { SYNC_ROOTS = discoverSyncRoots({ home: HOME }); } catch { SYNC_ROOTS = []; } };
+let SYNC_ROOTS = []; const refreshSyncRoots = () => { try { SYNC_ROOTS = discoverSyncRoots({ home: HOME, readReg: makeReadReg() }); } catch { SYNC_ROOTS = []; } };
 refreshSyncRoots(); setInterval(refreshSyncRoots, 10 * 60e3).unref();
 guardAudit.prune();
 const secGuard = createGuardHooks({

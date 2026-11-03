@@ -21,6 +21,7 @@ New and current in **1.2.7**:
 - **Silhouette click areas.** Furniture and characters are picked by their drawn shape (hover shows an outline), and depth sorting keeps a character from being hidden behind its own desk.
 - **Garden, park, garage and Scheduler station.** The office has a fenced park and a garage. The Scheduler station shows the last result of the scheduler job, which classifies a local inbox feed into task, need and info items. Agent Office has no mail access of its own.
 - **Dynamic island, with an on/off switch.** A notch-style overlay with live agent status, approvals, quick actions, now playing, optional synced lyrics (off until you turn them on), themes and a settings tab. Switch the notch on or off at any time, without restarting: tray menu (Show notch), the dashboard's Breaker box, or the island's own Settings. It is on by default.
+- **Security Guard.** An extra, ask-only layer in every Agent Office session and (through the plugin) in your terminals: it asks before secrets leave the computer (whatever `.gitignore`, `.npmignore` or `.dockerignore` claim), before downloaded scripts run or persistence is added, before credential stores or the environment are read, and after untrusted web or mail text tries to steer the agent. It never allows or blocks anything, cannot be weakened by an agent, and keeps a private audit log. A safety net, not a boundary: see [docs/security-guard.md](docs/security-guard.md).
 - **Your Claude Code, unchanged.** Tiro and every agent it hires load the same settings, permissions, hooks, MCP servers, CLAUDE.md, skills, plugins and environment as a plain `claude` run. Agent Office adds no approval rules of its own. See [docs/permissions.md](docs/permissions.md).
 - **Updater.** Checks an https feed or a local folder and refuses any installer it cannot verify with a SHA-256.
 - **Security.** Local-only server with a key, strict Content-Security-Policy with vendored React, ReactDOM and Babel, hardened Electron windows, and verified installs. See the [security model](#security-model).
@@ -171,6 +172,7 @@ Report a vulnerability by opening a private security advisory on the GitHub repo
 | [docs/GUIDE.md](docs/GUIDE.md) | The full user guide: every panel, the island, tray, settings files, API table, troubleshooting, FAQ |
 | [docs/RESOURCES.md](docs/RESOURCES.md) | Index of links, architecture notes, dev setup, release checklist |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, 1.1.0 to 1.2.7 |
+| [docs/security-guard.md](docs/security-guard.md) | The Security Guard: what it asks about, the prompts you will see, settings, limits |
 | [docs/permissions.md](docs/permissions.md) | Claude Code parity: what is the same, what differs, what reaches you |
 | [docs/agents-and-memory.md](docs/agents-and-memory.md) | Team, hiring gate, per-agent memory and history |
 | [docs/scheduler.md](docs/scheduler.md) | Scheduler station, job and feed file |

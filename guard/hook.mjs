@@ -65,6 +65,17 @@ export function makeGit() {
   };
 }
 
+// Registry values (OneDrive account folders, known-folder redirection): Windows only, a bounded 'reg query', run at start-up and every 10 minutes (never per tool call).
+export function makeReadReg() {
+  if (process.platform !== 'win32') return null;
+  return (key, name) => {
+    try {
+      const out = execFileSync('reg', ['query', key, '/s', '/v', name], { timeout: 400, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      return [...out.matchAll(/^\s*\S+\s+REG_(?:EXPAND_)?SZ\s+(.+)$/gm)].map(m => m[1].trim());
+    } catch { return []; }
+  };
+}
+
 // ---------------------------------------------------------------- cloud-sync roots (resolved at start and every 10 minutes)
 export function discoverSyncRoots({ os: osName = process.platform, home = os.homedir(), env = process.env, fsApi = fs, readReg = null } = {}) {
   const out = new Set(), has = p => { try { return fsApi.existsSync(p); } catch { return false; } };

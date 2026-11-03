@@ -19,6 +19,10 @@ Helpful details: affected version, operating system, what an attacker needs (loc
 
 You can expect an acknowledgement within a few days. Fixes are released as a new version and credited in the advisory unless you prefer to stay anonymous.
 
+## Security Guard
+
+The Security Guard (`docs/security-guard.md`) asks before secrets leave the computer, scripts or startup entries are added, credentials are read, or untrusted text steers an agent. It is a safety net, not a boundary: it is pattern based, it can only ask (never allow or block), and a determined attacker may find a command it does not recognise. Reports of bypasses and false positives are welcome and in scope.
+
 ## What is in scope
 
 - The Electron shell, the local server and its API key handling, the Content-Security-Policy and window hardening.

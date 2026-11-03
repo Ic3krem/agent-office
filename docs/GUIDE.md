@@ -46,6 +46,10 @@ There are two kinds, and both show on the dashboard and in the island.
 
 **Tool approvals.** Tiro and the agents run on your own Claude Code configuration: your allow, deny and ask rules, permission mode, hooks and settings decide what happens. Only a request Claude Code itself would ask you about shows up (in the dashboard detail pane and the island), with the full tool input and Claude Code's own choices: **Yes**, **Yes, and don't ask again** (offered only when Claude Code suggests a rule; it writes that same rule to the same settings file Claude Code would), and **No**, optionally with a note telling Claude what to do instead. Nothing is edited, auto-approved or timed out into an answer; a prompt waits until you answer. Questions Claude asks (the multiple-choice question tool) appear as a question card in the island. Terminal sessions still ask in their own dialog when no tab is open. See [permissions.md](permissions.md).
 
+## Security Guard
+
+On top of your Claude Code permissions, the Security Guard asks before something risky happens: secrets leaving this computer (a `curl` that uploads a `.env`, a `git push` whose files include a key, a secret written to OneDrive), downloaded scripts or startup entries, credential stores and environment dumps, screen or clipboard capture, and the first action after a web page or mail contained instructions aimed at the AI. It shows the matched rule, the files (values masked), the destination and whether the payload is exact or estimated, and you answer Yes, No, or No with a note. It can only ask; it never allows or blocks anything. Turn categories to ask, log or off in the **Breaker box** (Security Guard) or the island Settings; turning one down needs a confirmation window only the app can open, and an agent that edits `kiro.json` cannot weaken it. The **Audit log** button lists what was asked or noted. Details, limits and the full list of prompts: [security-guard.md](security-guard.md).
+
 ## The team
 
 Tiro leads eight specialists:

@@ -1,9 +1,12 @@
 # Tests on every pull request and on pushes to main. Read-only token; no secrets are used.
+# macOS minutes cost ten times Linux on a private repository, so macOS runs only for pushes to main and manual runs (the Security Guard is
+# cross-platform code and is also tested for all three OSes on every host through path.win32 / path.posix).
 name: ci
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 permissions: {}
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

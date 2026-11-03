@@ -1,0 +1,74 @@
+# Security Guard
+
+The Security Guard is an extra layer that watches for the things an AI agent should not do quietly: sending your secrets off the computer, running a script someone else wrote, harvesting credentials, or acting on instructions hidden in a web page or an email. It is a **safety net, not a boundary**: it asks you first; it never decides for you.
+
+## What it is, and what it is not
+
+- **ask-only.** A hook (a small check Claude Code runs before and after each tool call) can only answer "ask the user first" or say nothing. It never approves, never denies, never rewrites what a tool will do. Your own Claude Code permissions (allow, deny, ask rules, permission mode) stay in charge: a deny rule still denies, and the Guard cannot turn an ask into an allow.
+- **Where it runs.** In every Agent Office session (Tiro and every agent it hires; the hooks fire for sub-agents too) and, through the bridge plugin, in your own Claude Code terminals (`bridge/hooks/guard-hooks.json`, a command hook that runs `node guard/hook.mjs`; it works locally, with no calls to the Agent Office server).
+- **Windows, macOS and Linux.** The Guard is plain JavaScript with no native modules and no dependencies. Paths from any system are understood on any other: `C:\Users\<you>\.env`, `/mnt/c/Users/<you>/.env`, `/c/Users/<you>/.env`, `\\?\C:\...`, `\\server\share`, `~/.env`, `%USERPROFILE%\.env` and `$env:USERPROFILE\.env` all mean the same file. Windows-only steps (reading OneDrive registry keys) run only on Windows, inside try/catch.
+- **Not a boundary.** It is pattern based. A determined attacker who controls your agent can write a command it does not recognise. Treat each ask as a useful tripwire, and keep your normal protections (permissions, least privilege, no real secrets in the project).
+
+## What it checks
+
+| Cat | Name | Asks about |
+|---|---|---|
+| **S** | Secrets leaving this computer | A network, publish or upload action whose payload holds a secret file, a secret value, secret environment variables, or an archive of sensitive files: curl, wget, Invoke-RestMethod, scp, rsync, rclone, aws s3, az storage, gsutil, gh gist or release, git push, docker build or push, npm publish, twine, cargo, deploy tools, WebFetch with a token in the URL, a mail or chat MCP tool sending a secret, browser file upload of a credential file, putting a secret on the clipboard, copying a secret to a network share |
+| **Y** | Secrets in a cloud-synced folder | Writing or copying a secret into OneDrive, Dropbox, Google Drive, iCloud, Box, Nextcloud, an Obsidian vault, the Agent Office vault or `~/.claude/**` (a sync job pushes it) |
+| **I** | Ignore rules overridden | `git add -f` or `git add -A` that would stage a secret, editing `.gitignore`/`.dockerignore`/`.npmignore` so a secret is no longer ignored, `--no-verify`, `core.hooksPath`, copying a secret under a harmless name, archiving a tree that holds secrets |
+| **C** | Credential stores and environment | Browser profiles (logins, cookies), Keychain, Credential Manager, `secret-tool`, `pass`, LSASS or SAM dumps, `~/.aws`, `~/.ssh` private keys outside the project, dumping all environment variables |
+| **H** | Bulk harvesting | Recursive searches for passwords or key files over your home folder or a drive, and reading very many files or folders outside the project in a short time |
+| **X** | Screen, clipboard and input capture | Screenshots, reading the clipboard, keystroke capture, remote-debugging ports |
+| **U** | Unwanted script or persistence | `curl | bash`, `iwr | iex`, encoded PowerShell (the decoded text is scanned too), carets or backticks hiding a command, running a file from Downloads or Temp, scheduled tasks, startup entries, cron, launchd, systemd, shell profiles, git hooks, edits to `~/.claude/settings.json`, installs from a URL, `npx` of an unknown package, starting `claude` from a shell |
+| **P** | Untrusted instructions in tool output | After a fetched page, search result, file or mail contained text aimed at the AI (see below), the next action that sends, runs, spawns or writes outside the project |
+
+Each category can be set to **ask** (default), **log** (note it in the audit log, do not interrupt) or **off**.
+
+### Secrets are found by name and by content
+
+A file counts as a secret by its name (`.env`, `.env.*`, `*.pem`, `id_rsa*`, `.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`, `.aws/`, `.azure/`, `gcloud`, `.kube/`, `*.tfstate`, `*.tfvars`, `*.pfx`, `*.p12`, `*.kdbx`, `.docker/config.json`, and more) or, for a renamed file, by its content (key formats, `NAME=value` secrets, high-entropy tokens). Templates such as `.env.example` pass when their content holds only placeholders. The first 256 KB of a file named in an S, Y or I operation is scanned; values are never shown or logged, only `NAME=•••• (len N)`.
+
+### ignore files are not trusted
+
+`.gitignore`, `.npmignore`, `.vercelignore` and similar files, and any text that says "X is ignored", change nothing: the Guard works out what would really be sent (the files a `git push` would send, the `npm pack` list, the deploy folder, the source of an `rsync`). The one exception is `.dockerignore`, because Docker itself honours it; it is applied with Docker's own matching rules. When the payload cannot be listed exactly (for example a path with a variable the Guard cannot expand), the card says **estimated**.
+
+### Untrusted instructions (P)
+
+After a tool result (a fetched page, a search, a file, a mail or document from an MCP tool, the output of `curl` or `gh issue view`) is scored for text aimed at the AI ("ignore previous instructions", fake system tags, hidden characters, instructions to send secrets, markdown images that would leak data), a high score taints the session for 60 minutes. A banner appears, the model is told the text is untrusted data, and the next action that sends data, runs a script, spawns an agent or writes outside the project asks first. Allowing the asked action, or typing a new message yourself, ends the warning. A page that merely mentions the word "deny" does not trigger it.
+
+## Prompts you will newly see
+
+Ordinary work does not trigger the Guard: `git push` asks only if what would be pushed holds a secret, `npm install` of a normal package is silent, `curl` to localhost is silent, and a plain download is only logged. You will see a Security Guard ask, in the same card as other permission requests, showing the category, the matched rule ids with a plain sentence, the command with secrets masked, the files and why each matched, the destination, and whether the payload is exact or estimated:
+
+- sending anything that includes a `.env`, key file, token or secret variable to another computer or service;
+- `git push` or `npm publish` or `docker build` when the real file set includes a secret;
+- writing a secret into a cloud-synced folder, or force-adding a secret to git;
+- `curl ... | bash`, `iwr ... | iex`, encoded commands, running a downloaded program, adding a scheduled task, startup entry or shell-profile line, editing `~/.claude/settings.json` or a git hook, installing a package from a URL;
+- reading browser data, the OS credential store, `~/.aws/credentials`, or dumping the environment;
+- a screenshot, clipboard read or keystroke capture;
+- the first side-effect action after a web page or mail contained instructions aimed at the AI.
+
+Your choices: **Yes** (once), **No**, **No, and tell Claude what to do instead**, and, only where it is safe, **Yes, and remember this exact action** (24 hours for C, H and X; for U as long as the script's hash is unchanged). S, Y, I and P are never remembered. A remembered action is exact: a different command, file, content or destination asks again, and nothing is remembered in a session that read untrusted instructions.
+
+## Settings, and why an agent cannot switch the Guard off
+
+Settings live in `kiro.json` under `guard`: `{ S, Y, I, C, H, X, U, P: 'ask' | 'log' | 'off', syncRoots: [], trustedNpx: [], trustedHosts: [], hooksInTerminals: true }`. Open them in the dashboard (Breaker box, Security Guard) or the island (Settings).
+
+A stricter change applies at once. A **weaker** change (ask to log or off, a trusted host or package, terminals off) takes effect only after a confirmation dialog that only the desktop app can open. The app then saves the confirmed settings in `guard/confirmed.json` with an HMAC keyed by a secret that is encrypted with the operating system (Electron safeStorage). A weaker value written into `kiro.json` by anything else (an agent, a script, a hand edit) is **ignored**: the last confirmed value stays, the change is noted in the audit log, and the dashboard shows "Guard setting changed outside the app; kept ...". A terminal started outside the app cannot verify the HMAC and uses the strictest settings. There is no HTTP route that changes the Guard settings.
+
+## Audit log
+
+`guard/audit.jsonl` (private to you, rotated at 5 MB, three files, entries older than 90 days dropped) records time, session, agent, tool, category, rule ids, decision (ask or log), your answer, destination host, paths (home shown as `~`), a short file hash, exact or estimated, and the command with secrets masked, cut to 300 characters. It never records file contents, environment values, clipboard or screenshots. View it in the dashboard (Breaker box, Audit log).
+
+## Limits you should know
+
+- **bypassPermissions.** Whether a hook's ask still prompts when Claude Code runs with `--dangerously-skip-permissions` is an open check (**M-1**). It could not be tested without a real session; the test is in `guard.test.mjs` and skipped with the instructions. If asks do not prompt in bypass mode, treat the Guard as inactive there.
+- **dontAsk and headless `claude -p`.** In these modes an ask becomes a deny, because nobody can answer.
+- **Failures.** A Guard error or a check that takes more than 400 ms returns nothing (the tool call goes on under your normal permissions) and is written to the audit log as `guard_error`.
+- **Terminals.** The command hook needs `node` on the PATH; if it cannot run, it does nothing and the terminal behaves as before. Weakening cannot be verified there, so terminals always use the strictest settings.
+- **Pattern based.** New obfuscations, unusual interpreters and tools that were not listed can slip through. Report false positives and misses so the lists can improve.
+- **Not verified here.** A real Claude Code session (hook firing for sub-agents, the card text, the M-1 behaviour), the Windows registry reads, and the desktop dialog and `safeStorage` could not be exercised in this repository's tests; the logic around them is covered by tests with fakes.
+
+## For maintainers
+
+`guard/*.mjs` are the source of truth (`normalise`, `rules`, `scan`, `payload`, `taint`, `classify`, `audit`, `config`, `hook`). `bridge/guard/` is a generated copy for the plugin: run `node scripts/sync-guard.mjs` after changing anything (`--check` is part of the tests). `guard.test.mjs` holds the rule matrix S1 to P4 and G1 to G4 for all three operating systems, using `path.win32` and `path.posix` so every case runs on every host; `guard-wiring.test.mjs` checks the wiring.

@@ -436,8 +436,8 @@ test('source invariants: no network, no native modules, no child process except 
     assert.doesNotMatch(src, /\.node['"]|\b(ffi|bindings|node-gyp)\b/i);
   }
   const hook = fs.readFileSync(path.join(dir, 'hook.mjs'), 'utf8');
-  assert.match(hook, /execFileSync\('git'/); assert.doesNotMatch(hook.replace(/execFileSync\('git'/g, ''), /execFileSync\(/, 'only git is ever executed');
-  assert.doesNotMatch(hook, /reg(\.exe)?['"]/, 'registry reads go through the injected readReg only');
+  assert.match(hook, /execFileSync\('git'/); assert.doesNotMatch(hook.replace(/execFileSync\('git'/g, '').replace(/execFileSync\('reg'/g, ''), /execFileSync\(/, 'only git and (on Windows) reg query are ever executed');
+  assert.match(hook, /if \(process\.platform !== 'win32'\) return null;/, 'registry reads exist only behind a Windows check');
   assert.doesNotMatch(fs.readFileSync(path.join(dir, 'classify.mjs'), 'utf8'), /permissionDecision:\s*['"](allow|deny)|updatedInput/);
 });
 test('performance: classify is under 5 ms for typical calls', () => {
