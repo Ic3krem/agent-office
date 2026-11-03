@@ -372,7 +372,7 @@ guardAudit.prune();
 setInterval(() => { try { guardAudit.prune(); } catch { /* ignore */ } }, 6 * 3600e3).unref?.();
 let REMOTE_DRIVES = new Set();
 clearSdkMarkers(GUARD_DIR);   // markers from a previous run are stale
-const refreshDrives = () => detectRemoteDrives().then(l => { REMOTE_DRIVES = new Set(l); saveRemoteDrives(GUARD_DIR, l); }).catch(() => {});
+const refreshDrives = () => detectRemoteDrives().then(l => { if (!Array.isArray(l)) return; REMOTE_DRIVES = new Set(l); saveRemoteDrives(GUARD_DIR, l); }).catch(() => {});
 refreshDrives(); setInterval(refreshDrives, 10 * 60e3).unref?.();
 const secGuard = createGuardHooks({
   remoteDrives: () => REMOTE_DRIVES,

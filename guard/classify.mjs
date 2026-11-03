@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { hasSecret } from '../redact.mjs';
 import { launchesClaude } from '../permissions.mjs';
 import * as R from './rules.mjs';
-import { normText, unshell, decodeEncodedCommands, canon, pathKeys, parseShell, progName, expandVars, hasUnknownVar, within, homeKey, baseName } from './normalise.mjs';
+import { normText, unshell, decodeEncodedCommands, canon, pathKeys, parseShell, progName, expandVars, hasUnknownVar, within, homeKey, baseName, isRemoteKey } from './normalise.mjs';
 import { scanText, classifyFile, secretByName, secretDirKind, maskText, sha256 } from './scan.mjs';
 import { secretsIn, secretsInContents, walkRoot, dockerPayload, npmPackFiles } from './payload.mjs';
 import { isTainted } from './taint.mjs';
@@ -45,6 +45,63 @@ function inspect(orig, ctx, opts = {}) {
   }
   return r;
 }
+// ---- {} placeholders of xargs / find -exec / parallel: substitute literal candidates; when they cannot be worked out the payload is 'estimated'
+const UNRESOLVED = '$GUARD_UNRESOLVED_INPUT';
+const globRe = g => new RegExp('^' + String(g).replace(/[.+^$(){}|\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i');
+function findCandidates(roots, names, ctx) {
+  const out = []; let walked = false;
+  for (const root of roots) {
+    const rk = canon(root, ctx).key, base = String(root).replace(/[\\/]$/, '');
+    const list = safe(() => walkRoot(ctx, rk)); if (list) walked = true;
+    const res = names.map(globRe);
+    for (const rel of (list?.files || [])) { const bn = String(rel).split('/').pop(); if (!res.length || res.some(re => re.test(bn) || re.test(rel))) out.push(base + '/' + rel); }
+    for (const n of names) out.push(base + '/' + String(n).replace(/^\.?\//, ''));   // the pattern itself: .env stays a candidate even when nothing is listed
+  }
+  return { values: out, resolved: walked || names.length > 0 };
+}
+function listLines(file, ctx) { const k = canon(file, ctx).key; if (isRemoteKey(k, ctx)) return null; const t = safe(() => ctx.fs?.sample?.(k, 65536)); return t == null ? null : String(t).split(/\r?\n/).map(x => x.trim()).filter(Boolean); }
+function feederValues(f, ctx) {
+  if (!f) return null;
+  const p = f.prog, args = f.args.map(String), nonFlag = args.filter(x => !x.startsWith('-'));
+  if (/^(ls|dir|gci|get-childitem)$/.test(p)) {
+    const dir = nonFlag[0] || '.', hidden = p !== 'ls' || args.some(x => /^-[a-zA-Z]*[aA]/.test(x)) || args.includes('--all') || args.includes('--almost-all');
+    const names = safe(() => ctx.fs?.list?.(canon(dir, ctx).key)); if (!names) return null;
+    return names.filter(n => hidden || !String(n).startsWith('.')).map(n => (nonFlag[0] ? dir.replace(/[\\/]$/, '') + '/' : '') + n);
+  }
+  if (p === 'find') { const r = []; let i = 0; while (i < args.length && !/^[-(!]/.test(args[i])) r.push(args[i++]); const nm = []; for (let j = i; j < args.length; j++) if (/^-(name|iname|path|ipath|wholename)$/.test(args[j]) && args[j + 1]) nm.push(args[j + 1]); const fc = findCandidates(r.length ? r : ['.'], nm, ctx); return fc.resolved ? fc.values : null; }
+  if (/^(echo|printf|write-output)$/.test(p)) return nonFlag.filter(x => !/^%/.test(x));
+  if (/^(cat|type|get-content|gc)$/.test(p)) { const out = []; for (const x of nonFlag) { const l = listLines(x, ctx); if (!l) return null; out.push(...l); } return out; }
+  return null;
+}
+function templateCandidates(c, ctx) {
+  const t = c.templ;
+  if (t.kind === 'find') return findCandidates(t.roots, t.names, ctx);
+  let values = [...(t.values || [])], ok = true;
+  const files = [...(t.files || []), ...(t.kind === 'xargs' && t.argFile ? [] : [])];
+  if (t.kind === 'xargs' && t.argFile) files.push(t.argFile);
+  for (const f of files) { const l = listLines(f, ctx); if (l) values.push(...l); else ok = false; }
+  if (!files.length && !values.length) {
+    const fv = c.pipeFromCmd ? feederValues(c.pipeFromCmd, ctx) : (c.stdinFiles || []).length ? null : null;
+    if (fv) values = fv; else ok = false;
+  }
+  return { values, resolved: ok };
+}
+function expandTemplates(cmds, ctx) {
+  const out = [];
+  for (const c of cmds) {
+    if (!c.templ) { out.push(c); continue; }
+    let cand; try { cand = templateCandidates(c, ctx); } catch { cand = { values: [], resolved: false }; }
+    let vals = cand.values;
+    if (!cand.resolved) vals = [UNRESOLVED];
+    else if (vals.length > 12) {   // secrets first, then a few ordinary ones (keeps typical cost tiny)
+      const sec = vals.filter(v => secretByName(canon(v, ctx).key).kind === 'secret-name' || /\*/.test(v)), rest = vals.filter(v => !sec.includes(v));
+      vals = [...sec.slice(0, 10), ...rest.slice(0, 3)];
+    }
+    const sub = (s, v) => (c.templ.pat ? String(s).replace(c.templ.pat, () => v) : String(s).split(c.templ.ph).join(v));
+    for (const v of vals.slice(0, 13)) { const args = c.args.map(x => sub(x, v)), argvFull = c.argvFull.map(x => sub(x, v)); out.push({ ...c, args, argvFull, templ: null }); }
+  }
+  return out;
+}
 // A glob such as ./.e* or *.pem: list the folder and test every match by name (no cap before the secret check)
 function globSecret(key, ctx) {
   const base = baseName(key); if (!/[*?\[]/.test(base) || key.startsWith('//')) return null;
@@ -55,6 +112,10 @@ function globSecret(key, ctx) {
   return null;
 }
 // scp/rsync/sftp remote operand: [user@]host:... where host is 2+ characters (so C:/x is a drive, never a host), [v6]:..., or a scheme URL
+const isPodArg = x => { const s = String(x); return /^(?:[\w.-]+\/)?[\w.-]+:/.test(s) && !/^[a-z]:[\\/]/i.test(s) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s) && !/^[./]/.test(s); };
+// 'cp' may follow global options (kubectl -n prod cp ...)
+const isCp = c => /^(kubectl|oc|docker|podman)$/.test(c.prog) && (String(c.args.find(x => !String(x).startsWith('-')) ?? '').toLowerCase() === 'cp' || (/^(kubectl|oc)$/.test(c.prog) && c.args.some(x => String(x).toLowerCase() === 'cp')));
+const dockerRemote = ctx => (typeof ctx.dockerRemote === 'function' ? !!ctx.dockerRemote() : !!ctx.dockerRemote);
 const REMOTE_ARG = /^(?:[^@\s\/]+@)?(?:\[[0-9a-fA-F:.]+\]|[A-Za-z0-9][\w.-]*[A-Za-z0-9]):/;
 export const isRemoteArg = x => { const s = String(x); return (REMOTE_ARG.test(s) && !/^[a-z]:[\\/]/i.test(s)) || /^(rsync|scp|sftp|ssh):\/\//i.test(s); };
 // a tunnel or reverse-forward command that publishes something on this computer to the internet
@@ -98,12 +159,15 @@ const secretEnvRefs = texts => { const hit = new Set(); for (const t of texts) f
 function egressOf(c, ctx) {
   const p = c.prog, a = c.args, low = a.map(x => String(x).toLowerCase()), sub = low.find(x => !x.startsWith('-')) || '';
   { const tl = tunnelLabel(c); if (tl) return tl; }
+  if (isCp(c) && a.some(isPodArg)) return p + ' cp';
+  if (p === 'openssl' && sub === 's_client') return 'openssl s_client';
   if (/^(nslookup|dig|host|resolve-dnsname|ping|ping6|tracert|traceroute)$/.test(p) && (c.subs?.length || a.some(x => /\$\(|`|\$\{?[A-Za-z_]|%[A-Za-z_]+%/.test(String(x))))) return p + ' (DNS lookup carrying data)';
   if (R.NET_PROGS.has(p)) {
     if (p === 'certutil') return /http/.test(low.join(' ')) ? 'certutil download' : null;
     if (p === 'bitsadmin') return /\/transfer|\/addfile/.test(low.join(' ')) ? 'bitsadmin' : null;
     if (p === 'ssh') return c.pipeFromCmd || c.redirIn.length ? 'ssh (stdin piped in)' : null;
-    if (p === 'rsync' || p === 'scp' || p === 'sftp') return a.some(x => isRemoteArg(x)) ? p : null;
+    if (p === 'sftp') return a.some(x => !String(x).startsWith('-') && (isRemoteArg(x) || /@/.test(String(x)) || /^[A-Za-z0-9][\w-]*(\.[\w-]+)+$/.test(String(x)))) ? p : null;
+    if (p === 'rsync' || p === 'scp') return a.some(x => isRemoteArg(x)) ? p : null;
     if (p === 'rclone') return /^(copy|sync|move|copyto|moveto|bisync|mount)$/.test(sub) ? 'rclone ' + sub : null;
     if (p === 'curl' || p === 'wget' || p === 'iwr' || p === 'irm' || p === 'invoke-webrequest' || p === 'invoke-restmethod' || p === 'http' || p === 'https' || p === 'xh' || p === 'httpie') return p;
     return p;
@@ -158,7 +222,7 @@ function analyzeShell(tool, command, ctx, state, out) {
   if (HOOK_BYPASS_TEST(texts)) out.push(M('I', 'hook-bypass', 'Skips git hooks or changes the file-tracking flags (--no-verify, core.hooksPath, update-index).'));
   // ---------- per command
   const archivesOut = new Set();
-  for (const c of cmds) {
+  for (const c of expandTemplates(cmds, ctx)) {
     const p = c.prog; if (!p) continue;
     const args = pathArgs(c), ins = args.map(o => inspect(o, ctx));
     const kids = descendants(c), feeders = feedersOf(c);
@@ -195,7 +259,10 @@ function analyzeShell(tool, command, ctx, state, out) {
       const secretSrc = srcs.slice(0, -1).map(o => inspect(o, ctx)).filter(x => x.secret);
       if (dest && secretSrc.length) {
         const dk = canon(dest, ctx).key;
-        if (!secretByName(dk).kind && !classifyFileNameOnly(dk)) out.push(M('I', 'disguised-copy', `Copies a secret file under a name that does not look secret: ${secretSrc[0].orig} -> ${dest}.`, { files: [{ path: secretSrc[0].orig, why: 'secret file' }] }));
+        const dirDest = /[\\/]$/.test(String(dest)) || !!safe(() => ctx.fs?.stat?.(dk)?.isDir), keepsName = dirDest || baseName(dk) === baseName(secretSrc[0].keys[0]);
+        if (keepsName) out.push(M('I', 'secret-copy-local', `Copies a secret file (${secretSrc[0].orig}) to ${dest}.`, { log: true, files: [{ path: secretSrc[0].orig, why: 'secret file' }] }));
+        if (ctx.remoteDrivesUnknown && /^[a-z]:\//i.test(dk) && dk[0] !== String(ctx.env?.SystemDrive || ctx.env?.SYSTEMDRIVE || 'C:')[0].toLowerCase()) out.push(M('S', 'estimated-drive', `Copies a secret to drive ${dk[0].toUpperCase()}: which may be a network drive (the Guard could not check which drives are remote).`, { exact: false, files: secretSrc.map(x => ({ path: x.orig, why: 'secret file' })) }));
+        if (!keepsName && !secretByName(dk).kind && !classifyFileNameOnly(dk)) out.push(M('I', 'disguised-copy', `Copies a secret file under a name that does not look secret: ${secretSrc[0].orig} -> ${dest}.`, { files: [{ path: secretSrc[0].orig, why: 'secret file' }] }));
         const di = inspect(dest, ctx, { content: false });
         if (di.sync) out.push(M('Y', 'secret-to-sync', `Copies a secret into a cloud-synced folder (${dest}), which uploads it.`, { files: secretSrc.map(x => ({ path: x.orig, why: 'secret file' })), dest: dest }));
         if (di.unc) out.push(M('S', 'unc-copy', `Copies a secret to a network location (${dest}).`, { host: di.host, files: secretSrc.map(x => ({ path: x.orig, why: 'secret file' })) }));
@@ -277,6 +344,7 @@ function egress(c, label, clipboardOnly, k) {
   const srcDirs = [...a, ...c.redirIn].filter(PATHY).map(o => canon(o, ctx).key);
   const sub = a.find(x => !String(x).startsWith('-')) || '';
   const scopeCmd = p === 'git' || p === 'npm' || p === 'pnpm' || p === 'yarn' || p === 'twine' || p === 'cargo' || p === 'gem' || p === 'docker' || p === 'podman' || /^(vercel|netlify|wrangler|firebase|fly|flyctl|heroku|railway|helm)$/.test(p);
+  if (/^(docker|podman) cp$/.test(label) && !dockerRemote(ctx)) { out.push(M('S', 'docker-cp-local', 'Copies files into or out of a container on this computer.', { log: true })); return; }
   let tunnelCase = false;
   if (/ tunnel$/.test(label)) {
     tunnelCase = true; const dirs = [cwd], dm = /(?:--directory|\s-d)\s+("[^"]+"|'[^']+'|\S+)/.exec(texts[0] || ''); if (dm) dirs.push(canon(dm[1].replace(/^["']|["']$/g, ''), ctx).key);
@@ -302,7 +370,7 @@ function egress(c, label, clipboardOnly, k) {
     const w = walkRoot(ctx, cwd); if (w) { addFiles(secretsIn(ctx, cwd, w.files)); exact = false; }
   } else if (p === 'twine' || p === 'cargo' || p === 'gem') {
     const w = walkRoot(ctx, cwd + '/dist'); if (w) addFiles(secretsIn(ctx, cwd + '/dist', w.files));
-  } else if (/^(rsync|scp|rclone|aws|gsutil|az|azcopy|gcloud|sftp)$/.test(p) || /^rclone/.test(label)) {
+  } else if (/^(rsync|scp|rclone|aws|gsutil|az|azcopy|gcloud|sftp)$/.test(p) || /^rclone/.test(label) || isCp(c)) {
     // every non-flag, non-remote operand is a possible local source (scp -r deploy host:/x has no slash in 'deploy')
     const xfer = [...a, ...c.redirIn].map(String).filter(x => x && !x.startsWith('-') && !isRemoteArg(x) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(x)).map(x => canon(x, ctx).key);
     for (const o of [...new Set([...srcDirs, ...xfer])]) { const w = walkRoot(ctx, o); if (w && w.files.length) { addFiles(secretsIn(ctx, o, w.files)); if (w.truncated) { exact = false; found.push({ path: o, why: 'more files than the Guard can check' }); why.push('(estimated: too many files to check)'); } } }
@@ -311,12 +379,22 @@ function egress(c, label, clipboardOnly, k) {
   if (scopeCmd && !found.length && ctx.fs?.list && /^(npm|pnpm|yarn|twine|cargo|gem)$/.test(p) === false && /^(vercel|netlify|wrangler|firebase|fly|flyctl|heroku|railway)$/.test(p)) { /* handled above */ }
   // env, inline secrets, secret-named variables, archives
   if (c.inlineCode) { const names = [...String(c.inlineCode).matchAll(/[\w.\/\\~$%{}-]*?(\.env(?:\.[\w-]+)?|id_rsa|id_ed25519|id_ecdsa|\.npmrc|\.netrc|\.pgpass|\.git-credentials|credentials(?:\.json)?|\.aws|\.ssh|\.kube|[\w-]+\.(?:pem|pfx|p12|key|kdbx))(?![\w])/gi)].map(m => m[0]); if (names.length) addFiles(names.slice(0, 5).map(n => ({ path: n, by: 'name', rules: ['inline-code-names-secret'] }))); }
+  if (/^(ftp|sftp|lftp|tftp)$/.test(p)) {
+    const srcText = [c.heredoc, ...c.redirIn.map(String).filter(x => /\s/.test(x)), ...upstream.map(u => u.args.join(' '))];
+    const scriptFiles = [...c.redirIn.map(String).filter(x => !/\s/.test(x))];
+    for (let i = 0; i < c.args.length; i++) { const t = String(c.args[i]); const m = /^-s:(.+)$/i.exec(t) || (/^-[sbf]$/.test(t) && c.args[i + 1] ? [0, String(c.args[i + 1])] : /^-b(.+)$/.exec(t)); if (t === '-c' && c.args[i + 1]) srcText.push(String(c.args[i + 1])); if (m && m[1] !== '-') scriptFiles.push(m[1]); }
+    for (const f of scriptFiles) { const k = canon(f, ctx).key; if (!isRemoteKey(k, ctx)) { const tx = safe(() => ctx.fs?.sample?.(k, 65536)); if (tx) srcText.push(tx); } }
+    const put = [];
+    for (const tx of srcText) for (const m of String(tx).matchAll(/(?:^|[\s;\n])(?:put|send|mput|reput|append)\s+(?:-\w+\s+)*("[^"]+"|'[^']+'|\S+)/gi)) put.push(m[1].replace(/^["']|["']$/g, ''));
+    for (const n of put.slice(0, 30)) { const x = inspect(n, ctx); if (x.secret) addFiles([{ path: n, by: x.secret.by, rules: x.secret.rules, sha12: x.secret.sha12, preview: x.secret.preview }]); }
+  }
+  if (/^(kubectl|oc) cp$/.test(label) && !found.length) { out.push(M('S', 'kubectl-cp', 'Copies files to or from a Kubernetes pod, which is another computer.', { exact: false })); return; }
   const envRefs = secretEnvRefs([...a, ...c.redirIn, c.heredoc, ...upstream.flatMap(u => u.args)]);
   const feederEnv = upstream.some(u => ENV_DUMP(u.argvFull.join(' ')));
   const inline = scanText(a.join(' ') + ' ' + c.heredoc).hit || hasSecret(a.join(' '));
   const viaArchive = [...(archivesOut || []), ...(state?.sensitiveFiles || [])].some(ar => [...a, ...c.redirIn].some(o => canon(o, ctx).key === ar)) || upstream.some(u => R.ARCHIVERS.has(u.prog) && pathArgs(u).some(o => inspect(o, ctx).secret));
   // unknown variable in a path: the payload cannot be computed
-  const unknownVar = [...a].some(x => PATHY(String(x)) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(String(x).replace(/^@/, '')) && hasUnknownVar(String(x), ctx));
+  const unknownVar = [...a].some(x => String(x).includes(UNRESOLVED) || PATHY(String(x)) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(String(x).replace(/^@/, '')) && hasUnknownVar(String(x), ctx));
   if (envRefs.length) why.push('secret variables: ' + envRefs.slice(0, 3).join(', '));
   if (feederEnv) why.push('the environment variables');
   if (inline) why.push('what looks like a secret typed into the command');

@@ -152,6 +152,7 @@ export function scanShell(str, { ps = false } = {}, depth = 0) {
       end(';'); for (const r of scanShell(restLine + '\n' + tail, { ps }, depth + 1)) cmds.push(r);
       return cmds;
     }
+    if (!ps && c === '<' && n === '<' && S[i + 2] === '<') { flush(); redir = '<'; i += 3; continue; }   // here-string: the next word is stdin text, kept with this command
     if (c === '&' && n === '&') { end('&&'); i += 2; continue; }
     if (c === '|' && n === '|') { end('||'); i += 2; continue; }
     if (c === '|') { end('|'); i += n === '&' ? 2 : 1; continue; }
@@ -171,7 +172,59 @@ export function scanShell(str, { ps = false } = {}, depth = 0) {
   return cmds;
 }
 
-const WRAPPERS = new Set(['sudo', 'doas', 'nohup', 'time', 'command', 'builtin', 'exec', 'nice', 'ionice', 'setsid', 'stdbuf', 'env', 'timeout', 'xargs', 'start', 'call', 'watch', 'unbuffer', 'caffeinate', 'runas', 'busybox', 'proxychains', 'torsocks']);
+const WRAPPERS = new Set(['sudo', 'doas', 'nohup', 'time', 'command', 'builtin', 'exec', 'nice', 'ionice', 'setsid', 'stdbuf', 'env', 'timeout', 'start', 'call', 'unbuffer', 'caffeinate', 'runas', 'busybox', 'proxychains', 'torsocks']);
+// wrapper options that take a separate value (so the value is not mistaken for the program)
+const ARGOPT = { sudo: /^-[ughpCTrtU]$/, doas: /^-[ughpCTrtU]$/, ionice: /^-[cnpPt]$/, time: /^-[fo]$/, timeout: /^(-s|-k|--signal|--kill-after)$/, env: /^-[uCS]$/ };
+const PLACEHOLDER = /\{[^{}\s]*\}/g;
+// Tools that run another command once per input: xargs, find -exec/-execdir/-ok/-okdir, parallel (watch re-runs a shell string).
+// Each inner command is returned as its own segment; templ says where the {} values come from (resolved later, with the file system, by the classifier).
+function unwrapTool(c) {
+  const a = c.args.map(String), p = c.prog;
+  if (p === 'xargs') {
+    let i = 0, repl = null, argFile = null;
+    for (; i < a.length; i++) {
+      const t = a[i]; if (t === '--') { i++; break; } if (!t.startsWith('-') || t === '-') break;
+      if (/^-I./.test(t)) { repl = t.slice(2); continue; } if (t === '-I') { repl = a[++i]; continue; } if (t === '-i') { repl = '{}'; continue; } if (/^-i./.test(t)) { repl = t.slice(2); continue; }
+      if (/^--replace(=.*)?$/.test(t)) { repl = t.includes('=') ? t.split('=')[1] : '{}'; continue; }
+      if (t === '-a' || t === '--arg-file') { argFile = a[++i]; continue; } if (/^--arg-file=/.test(t)) { argFile = t.split('=')[1]; continue; }
+      if (/^-[dEnLPsl]$/.test(t) || /^--(delimiter|eof|max-lines|max-args|max-procs|max-chars)$/.test(t)) i++;
+    }
+    let cmd = a.slice(i); if (!cmd.length) cmd = ['echo'];
+    const ph = repl || '{}';
+    return { inner: [{ argv: repl ? cmd : [...cmd, ph], keepPipe: true, templ: { ph, kind: 'xargs', argFile } }] };
+  }
+  if (p === 'find') {
+    const roots = []; let i = 0; while (i < a.length && !/^[-(!]/.test(a[i])) roots.push(a[i++]);
+    const names = [], inner = [];
+    for (let j = i; j < a.length; j++) {
+      const t = a[j];
+      if (/^-(name|iname|path|ipath|wholename|regex)$/.test(t) && a[j + 1] != null) { names.push(a[j + 1]); j++; continue; }
+      if (/^-(exec|execdir|ok|okdir)$/.test(t)) { const cmd = []; j++; while (j < a.length && a[j] !== ';' && a[j] !== '\\;' && a[j] !== '+') cmd.push(a[j++]); if (cmd.length) inner.push({ argv: cmd, keepPipe: false, templ: { ph: '{}', kind: 'find', roots: roots.length ? roots : ['.'], names } }); }
+    }
+    return { inner };
+  }
+  if (p === 'parallel') {
+    let i = 0, argFile = null;
+    for (; i < a.length; i++) {
+      const t = a[i]; if (t === ':::' || t === '::::' || t === '--' || !t.startsWith('-')) break;
+      if (/^--arg-file=/.test(t)) argFile = t.split('=')[1];
+      if (/^(-j|-n|-N|-P|-S|-a|-d|-L|-X|-I|--jobs|--arg-file|--sshlogin|--delimiter|--colsep|--max-args|--max-lines|--results|--joblog|--retries|--timeout)$/.test(t)) { if (t === '-a' || t === '--arg-file') argFile = a[i + 1]; i++; }
+    }
+    let cmd = []; while (i < a.length && a[i] !== ':::' && a[i] !== '::::') cmd.push(a[i++]);
+    const values = [], files = []; let mode = null;
+    for (; i < a.length; i++) { if (a[i] === ':::') { mode = 'v'; continue; } if (a[i] === '::::') { mode = 'f'; continue; } (mode === 'f' ? files : values).push(a[i]); }
+    if (argFile) files.push(argFile);
+    if (cmd.length === 1 && /\s/.test(cmd[0])) cmd = scanShell(cmd[0])[0]?.argv || cmd;
+    if (!cmd.length) return null;
+    const hasPh = cmd.some(x => /\{[^{}\s]*\}/.test(x));
+    return { inner: [{ argv: hasPh ? cmd : [...cmd, '{}'], keepPipe: true, templ: { ph: '{}', pat: PLACEHOLDER, kind: 'parallel', values, files } }] };
+  }
+  if (p === 'watch') {
+    let i = 0; for (; i < a.length; i++) { const t = a[i]; if (t === '--') { i++; break; } if (!t.startsWith('-')) break; if (/^(-n|--interval)$/.test(t)) i++; }
+    const rest = a.slice(i); return rest.length ? { shell: rest.join(' ') } : null;
+  }
+  return null;
+}
 export const progName = tok => String(tok ?? '').replace(/^.*[\\/]/, '').replace(/\.(exe|cmd|bat|ps1|com|sh|bash)$/i, '').toLowerCase();
 
 // Flatten to every simple command (including $( ), and command strings given to bash -c, sh -c, cmd /c, powershell -c, wsl ..., eval and
@@ -185,9 +238,9 @@ export function parseShell(command, { ps = false } = {}) {
       let g = 0;
       while (argv.length && WRAPPERS.has(progName(argv[0])) && g++ < 4) {
         const w = progName(argv[0]); argv.shift();
-        if (w === 'env') while (argv.length && (/^[A-Za-z_]\w*=/.test(argv[0]) || /^-/.test(argv[0]))) argv.shift();
-        else if (w === 'timeout' || w === 'nice') { while (argv.length && /^-/.test(argv[0])) argv.shift(); if (argv.length && /^[\d.]+[smhd]?$/.test(argv[0])) argv.shift(); }
-        else if (w !== 'start') while (argv.length && /^-[-\w]*$/.test(argv[0])) argv.shift();
+        if (w === 'env') while (argv.length && (/^[A-Za-z_]\w*=/.test(argv[0]) || /^-/.test(argv[0]))) { const o = argv.shift(); if (ARGOPT.env.test(o)) argv.shift(); }
+        else if (w === 'timeout' || w === 'nice') { while (argv.length && /^-/.test(argv[0])) { const o = argv.shift(); if (ARGOPT[w]?.test(o) || (w === 'nice' && o === '-n')) argv.shift(); } if (argv.length && /^[\d.]+[smhd]?$/.test(argv[0])) argv.shift(); }
+        else if (w !== 'start') while (argv.length && /^-[-\w]*$/.test(argv[0])) { const o = argv.shift(); if (ARGOPT[w]?.test(o)) argv.shift(); }
         while (argv.length && /^[A-Za-z_]\w*=/.test(argv[0])) argv.shift();
       }
       c.prog = progName(argv[0]); c.args = argv.slice(1); c.argvFull = argv; c.depth = depth; c.inlineCode = '';
@@ -203,6 +256,9 @@ export function parseShell(command, { ps = false } = {}) {
       else if (p === 'wsl') { const rest = argv.slice(1).filter(a => !/^-(d|u|-distribution|-user|e|-exec|-)$/.test(a)); if (rest.length) inner.push([rest.join(' '), false]); }
       else if (p === 'eval' && argv[1]) inner.push([argv.slice(1).join(' '), ps]);
       else if (/^(python[\d.]*|py|node|nodejs|deno|bun|perl|ruby|php)$/.test(p)) { const k = argv.findIndex((a, j) => j > 0 && /^(-c|-e|--eval|-r|-p)$/.test(a)); c.inlineCode = k > 0 ? argv.slice(k + 1).join(' ') : ''; }
+      const tw = unwrapTool(c);
+      if (tw?.shell) inner.push([tw.shell, false]);
+      if (tw?.inner && depth < 3) for (const w of tw.inner) visit([{ argv: w.argv, redirOut: c.redirOut, redirIn: [], sep: ';', subs: [], heredoc: '', pipeFromCmd: w.keepPipe ? c.pipeFromCmd : null, templ: w.templ }], depth + 1);
       if (depth < 3) for (const [txt, isPs] of inner) visit(scanShell(txt, { ps: isPs }), depth + 1);
     }
   };

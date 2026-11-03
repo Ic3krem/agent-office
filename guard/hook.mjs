@@ -86,9 +86,20 @@ export function detectRemoteDrives(timeoutMs = 4000) {
   return new Promise(resolve => {
     try {
       const ps = "[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Network' } | ForEach-Object { $_.Name.Substring(0,1) }";
-      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: timeoutMs, windowsHide: true, encoding: 'utf8' }, (err, out) => resolve(err ? [] : String(out).split(/\s+/).filter(x => /^[A-Za-z]$/.test(x)).map(x => x.toLowerCase())));
-    } catch { resolve([]); }
+      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: timeoutMs, windowsHide: true, encoding: 'utf8' }, (err, out) => resolve(err ? null : String(out).split(/\s+/).filter(x => /^[A-Za-z]$/.test(x)).map(x => x.toLowerCase())));
+    } catch { resolve(null); }   // null = could not find out (callers then treat non-system drives as possibly remote)
   });
+}
+// Is the docker / podman daemon remote (DOCKER_HOST, DOCKER_CONTEXT or the current docker context points at tcp:// or ssh://)? Unknown counts as remote.
+export function dockerIsRemote(env = process.env, home = os.homedir()) {
+  try {
+    const h = String(env.DOCKER_HOST || env.CONTAINER_HOST || ''); if (h) return !/^(unix|npipe):/i.test(h);
+    let ctxName = String(env.DOCKER_CONTEXT || '');
+    if (!ctxName) { const cfg = JSON.parse(fs.readFileSync(path.join(home, '.docker', 'config.json'), 'utf8')); ctxName = String(cfg.currentContext || ''); }
+    if (!ctxName || ctxName === 'default') return false;
+    const meta = JSON.parse(fs.readFileSync(path.join(home, '.docker', 'contexts', 'meta', crypto.createHash('sha256').update(ctxName).digest('hex'), 'meta.json'), 'utf8'));
+    const host = String(meta?.Endpoints?.docker?.Host || ''); return host ? !/^(unix|npipe):/i.test(host) : true;
+  } catch (e) { return e && e.code === 'ENOENT' && !fs.existsSync(path.join(home, '.docker', 'config.json')) ? false : true; }
 }
 export const drivesFile = guardDir => path.join(guardDir, 'drives.json');
 export function saveRemoteDrives(guardDir, letters) { try { fs.mkdirSync(guardDir, { recursive: true, mode: 0o700 }); fs.writeFileSync(drivesFile(guardDir), JSON.stringify({ at: Date.now(), letters }), { mode: 0o600 }); } catch { /* ignore */ } }
@@ -167,10 +178,10 @@ export function reasonText(res, ctx = {}) {
 
 // opts: getConfig() -> normalised effective config; getRemembered() -> [{ key, at }]; getBase(input) -> { os, home, cwd, env, vaultDir, projectDirs, additionalDirs, syncRoots };
 //       audit: { write }; now; fsFactory/gitApi optional (tests inject virtual ones)
-export function createGuardHooks({ getConfig, getRemembered = () => [], getBase = () => ({}), audit = { write() {} }, now = Date.now, fsFactory = makeFs, gitApi = makeGit(), agentOf = () => '', prefetchMs = PREFETCH_MS, remoteDrives = null } = {}) {
+export function createGuardHooks({ getConfig, getRemembered = () => [], getBase = () => ({}), audit = { write() {} }, now = Date.now, fsFactory = makeFs, gitApi = makeGit(), agentOf = () => '', prefetchMs = PREFETCH_MS, remoteDrives = null, remoteDrivesUnknown = false, dockerRemote = () => dockerIsRemote() } = {}) {
   const sessions = new Map(), meta = new Map();
   const stateOf = id => { const k = String(id || 'default'); let s = sessions.get(k); if (!s) { s = createState(); sessions.set(k, s); if (sessions.size > 50) sessions.delete(sessions.keys().next().value); } return s; };
-  const ctxOf = (input, git = gitApi) => ({ os: process.platform, home: os.homedir(), env: process.env, cwd: input?.cwd || process.cwd(), ...getBase(input), remoteDrives: typeof remoteDrives === 'function' ? remoteDrives() : remoteDrives, fs: fsFactory(), git, config: getConfig(), remembered: getRemembered(), now });
+  const ctxOf = (input, git = gitApi) => ({ os: process.platform, home: os.homedir(), env: process.env, cwd: input?.cwd || process.cwd(), ...getBase(input), remoteDrives: typeof remoteDrives === 'function' ? remoteDrives() : remoteDrives, remoteDrivesUnknown, dockerRemote, fs: fsFactory(), git, config: getConfig(), remembered: getRemembered(), now });
   const guardErr = (e, input, ms) => { try { audit.write(auditEntry({ now: now(), sessionId: input?.session_id, tool: input?.tool_name, category: '', decision: 'guard_error', command: String(e && e.message || e), extra: { ms } })); } catch { /* ignore */ } };
   // The classifier is synchronous, so a timer cannot interrupt it (the old Promise.race only looked like a limit). Everything slow runs async with real abort
   // signals before it (git) or is never done at all (remote paths); here we only measure, and if an S/Y/I-risky request overran or threw, we ask instead of {}.
@@ -242,7 +253,7 @@ const stateFile = (dir, id) => path.join(dir, 'sessions', crypto.createHash('sha
 function loadSession(dir, id) { try { const j = JSON.parse(fs.readFileSync(stateFile(dir, id), 'utf8')); const s = createState(); Object.assign(s.taint, j.taint, { trusted: new Map(j.trusted || []) }); s.files = new Set(j.files || []); s.dirs = new Set(j.dirs || []); s.firstRead = j.firstRead || 0; s.secretReads = new Set(j.secretReads || []); s.downloaded = new Set(j.downloaded || []); s.sensitiveFiles = new Set(j.sensitiveFiles || []); return s; } catch { return createState(); } }
 function saveSession(dir, id, s) { try { fs.mkdirSync(path.join(dir, 'sessions'), { recursive: true, mode: 0o700 }); const f = stateFile(dir, id); fs.writeFileSync(f, JSON.stringify({ taint: { ...s.taint, trusted: undefined }, trusted: [...s.taint.trusted], files: [...s.files].slice(-400), dirs: [...s.dirs].slice(-100), firstRead: s.firstRead, secretReads: [...s.secretReads], downloaded: [...s.downloaded].slice(-50), sensitiveFiles: [...s.sensitiveFiles].slice(-50) }), { mode: 0o600 }); } catch { /* best effort */ } }
 
-export async function runCommandHook(stdinText, env = process.env, home = os.homedir()) {
+export async function runCommandHook(stdinText, env = process.env, home = os.homedir(), opts = {}) {
   let input; try { input = JSON.parse(stdinText || '{}'); } catch { return {}; }
   const base = path.join(home, '.claude', 'agent-office'), dir = path.join(base, 'guard');
   // an Agent Office session: the SDK hook already ran the Guard. Trusted only when the app registered THIS session id (an env var alone is not enough).
@@ -252,12 +263,21 @@ export async function runCommandHook(stdinText, env = process.env, home = os.hom
   const secret = env.AGENT_OFFICE_GUARD_KEY || null;           // only a terminal started by the app can verify the HMAC; otherwise the strictest settings apply
   const eff = effectiveConfig(kiro.guard, confirmed, secret);
   if (eff.config.hooksInTerminals === false && secret) return {};
+  // network drives: use the app's cache; when it is missing or older than 24 h (Windows), run the bounded detection here, else treat non-system drives as possibly remote
+  const drives = { set: loadRemoteDrives(dir), unknown: false };
+  if (process.platform === 'win32' || opts.forceDriveCheck) {
+    const info = readJson(drivesFile(dir));
+    if (!info || !(Date.now() - (info.at || 0) < 24 * 3600e3)) {
+      const l = await (opts.detectDrives || detectRemoteDrives)(1500);
+      if (Array.isArray(l)) { drives.set = new Set(l); saveRemoteDrives(dir, l); } else drives.unknown = true;
+    }
+  }
   const audit = createAudit({ dir });
   if (Math.random() < 0.01) { try { audit.prune(); } catch { /* ignore */ } }   // the app prunes every 6 h; terminals do it now and then
   if (eff.notices.length) audit.write(auditEntry({ sessionId: input.session_id, decision: 'log', category: '', command: 'Guard setting changed outside the app; kept ' + eff.notices.map(n => `${n.what}:${n.kept}`).join(', ') }));
   const remembered = verifyRemember(readJson(path.join(dir, 'remember.json'))?.entries, secret);   // unsigned entries (or no app key) are ignored
   const st = loadSession(dir, input.session_id);
-  const hooks = createGuardHooks({ remoteDrives: loadRemoteDrives(dir), getConfig: () => eff.config, getRemembered: () => remembered, getBase: () => ({ home, env, cwd: input.cwd || process.cwd(), os: process.platform, syncRoots: [...(eff.config.syncRoots || []), ...discoverSyncRoots({ home, env })], vaultDir: '' }), audit });
+  const hooks = createGuardHooks({ remoteDrives: drives.set, remoteDrivesUnknown: drives.unknown, dockerRemote: () => dockerIsRemote(env, home), getConfig: () => eff.config, getRemembered: () => remembered, getBase: () => ({ home, env, cwd: input.cwd || process.cwd(), os: process.platform, syncRoots: [...(eff.config.syncRoots || []), ...discoverSyncRoots({ home, env })], vaultDir: '' }), audit });
   hooks.sessions.set(String(input.session_id || 'default'), st);
   const ev = input.hook_event_name;
   const out = ev === 'PostToolUse' ? await hooks.post(input) : ev === 'PreToolUse' ? await hooks.pre(input) : {};
