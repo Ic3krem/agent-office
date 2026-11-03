@@ -10,6 +10,9 @@ import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod';
 import { apply, newAgent, statusOf, toolSummary } from './transcript.mjs';
 import { claudeSessionOptions, makeCanUseTool, describeRequest, launchesClaude } from './permissions.mjs';
+import { createGuardHooks, discoverSyncRoots } from './guard/hook.mjs';
+import { createAudit } from './guard/audit.mjs';
+import { effectiveConfig } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { goalStore, MANAGER_PROMPT, SPECIALISTS, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
@@ -42,6 +45,9 @@ const { key: BRIDGE_KEY, rotated: KEY_ROTATED } = loadBridgeKey(CFG_FILE, PORT);
 // Electron hands the UI key over in the environment and sets the cookie itself; take it out of the environment so no child process inherits it.
 const ENV_UI_KEY = typeof process.env.AGENT_OFFICE_UI_KEY === 'string' && process.env.AGENT_OFFICE_UI_KEY.length >= 32 ? process.env.AGENT_OFFICE_UI_KEY : '';
 delete process.env.AGENT_OFFICE_UI_KEY;
+// The HMAC key that proves a weaker Security Guard setting was confirmed in the desktop app (never in kiro.json, never in an agent's environment).
+const GUARD_KEY = typeof process.env.AGENT_OFFICE_GUARD_KEY === 'string' && process.env.AGENT_OFFICE_GUARD_KEY.length >= 32 ? process.env.AGENT_OFFICE_GUARD_KEY : '';
+delete process.env.AGENT_OFFICE_GUARD_KEY;
 const AUTH = createAuth({ bridgeKey: BRIDGE_KEY, uiKey: ENV_UI_KEY || rand(24) });
 // Decisions only the real UI may make: UI cookie plus the per-session nonce.
 const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset']);
@@ -243,7 +249,7 @@ function startSession(text, cwd = HOME, extra = {}) {
       ...extra.options,
       // Only what Claude Code itself would prompt for arrives here; allow rules, deny rules, mode and hooks were applied before.
       // A specialist's request shows on its own desk once its transcript is tracked.
-      canUseTool: makeCanUseTool({ ask, agentOf: agentID => (agentID && agents.has('agent-' + agentID) ? 'agent-' + agentID : holder.id) }),
+      canUseTool: makeCanUseTool({ ask: (id, tool, input, d) => ask(id, tool, input, { ...d, guard: secGuard.meta.get(d.toolUseId) }), agentOf: agentID => (agentID && agents.has('agent-' + agentID) ? 'agent-' + agentID : holder.id) }),
     },
   });
   push(msg(text));
@@ -347,6 +353,26 @@ const workDir = () => { try { const w = JSON.parse(fs.readFileSync(path.join(CFG
 // The user may rename the team; types and ids stay the same, so tell the manager what each one is called now.
 const nameNote = () => { const d = dnames(), o = Object.entries(d).filter(([k, n]) => n !== (k === 'tiro' ? 'Tiro' : ROSTER[k].name)); return o.length ? '\n\nDisplay names chosen by the user (still hire by the subagent_type): ' + o.map(([k, n]) => (k === 'tiro' ? 'you are called ' + n : k + ' is called ' + n)).join('; ') + '.' : ''; };
 // Hire gate, command side: a shell command that launches Claude itself would start an agent without request_hire. Deny-only, never approves.
+// ---- Security Guard (ask-only; see docs/security-guard.md). Settings: kiro.json "guard" + guard/confirmed.json (HMAC), audit: guard/audit.jsonl.
+const GUARD_DIR = path.join(CFG_DIR, 'guard');
+const guardAudit = createAudit({ dir: GUARD_DIR });
+const readJsonSafe = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+let guardCache = { at: 0, eff: null, rem: [] }, guardNoticeSeen = '';
+const guardState = () => {
+  const now = Date.now(); if (guardCache.eff && now - guardCache.at < 1500) return guardCache;
+  const kiro = readJsonSafe(path.join(CFG_DIR, 'kiro.json')) || {}, eff = effectiveConfig(kiro.guard, readJsonSafe(path.join(GUARD_DIR, 'confirmed.json')), GUARD_KEY || null);
+  const sig = JSON.stringify(eff.notices); if (eff.notices.length && sig !== guardNoticeSeen) { guardNoticeSeen = sig; guardAudit.write({ ts: now, decision: 'log', category: '', ruleIds: ['guard.setting-ignored'], command: 'Guard setting changed outside the app; kept ' + eff.notices.map(n => n.what + ':' + n.kept).join(', ') }); }
+  guardCache = { at: now, eff, rem: readJsonSafe(path.join(GUARD_DIR, 'remember.json'))?.entries || [] };
+  return guardCache;
+};
+let SYNC_ROOTS = []; const refreshSyncRoots = () => { try { SYNC_ROOTS = discoverSyncRoots({ home: HOME }); } catch { SYNC_ROOTS = []; } };
+refreshSyncRoots(); setInterval(refreshSyncRoots, 10 * 60e3).unref();
+guardAudit.prune();
+const secGuard = createGuardHooks({
+  getConfig: () => guardState().eff.config, getRemembered: () => guardState().rem, audit: guardAudit,
+  getBase: input => ({ home: HOME, env: process.env, os: process.platform, cwd: input?.cwd || workDir(), projectDirs: [workDir()], syncRoots: [...SYNC_ROOTS, ...guardState().eff.config.syncRoots], vaultDir: V.root }),
+  agentOf: input => String(input?.agent_type || input?.agent_id || ''),
+});
 const denyClaudeLaunch = { matcher: 'Bash|PowerShell', hooks: [async input => (launchesClaude(input.tool_input?.command)
   ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Starting Claude from a command skips the hiring approval. Use mcp__office__request_hire and then the Agent tool.' } } : {})] };
 const bossOptions = () => {
@@ -361,7 +387,7 @@ Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).
     mcpServers: { office: officeTools },
     allowedTools: ['request_hire', 'list_goals', 'update_goal', 'propose_goal', 'file_report', 'memory_search', 'memory_read', 'memory_write', 'scheduler_inbox'].map(t => 'mcp__office__' + t),
     hooks: {
-      PreToolUse: [denyClaudeLaunch, { matcher: 'Agent|Task', hooks: [async input => {
+      PreToolUse: [denyClaudeLaunch, { hooks: [secGuard.pre] }, { matcher: 'Agent|Task', hooks: [async input => {
         const no = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
         if (!sw().hiring) return no('Hiring is switched off in the office breaker box. Do the work yourself if it is small, or mark the goal blocked.');
         if (boss.running >= MAX_SPECIALISTS) return no(MAX_SPECIALISTS + ' specialists are already working. Wait for a report, then hire again.');
@@ -375,6 +401,8 @@ Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).
         if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
         return {};
       }] }],
+      PostToolUse: [{ hooks: [secGuard.post] }],
+      UserPromptSubmit: [{ hooks: [secGuard.prompt] }],
       SubagentStop: [{ hooks: [async input => { try { const k = ALIASES[input.agent_type] || input.agent_type; if (ROSTER[k]) AH.end(k, { agentId: input.agent_id, transcript: input.agent_transcript_path, summary: input.last_assistant_message }); } catch {} boss.running = Math.max(0, boss.running - 1); bump(); return {}; }] }],
     },
   };
@@ -419,7 +447,7 @@ function snapshot() {
   const helpers = assignHelpers(list, dn); // one person per specialist; extra same-type agents are labelled helpers
   const shown = list.slice(0, DESKS).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   return {
-    manager, goals: goals.list().map(g => ({ ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - DESKS),
+    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - DESKS),
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => ({
       isManager: !!a.isManager,
       id: a.id, name: a.isManager ? dn.tiro : helpers.get(a.id)?.helper ? helpers.get(a.id).label : dn[a.profile?.key] || a.title || a.name || a.firstPrompt || path.basename(a.cwd || '') || a.id.slice(0, 8),
@@ -504,6 +532,7 @@ async function handle(req, res) {
     switch (url.pathname) {
       case '/api/send': {
         const text = String(b.text || '').trim(); if (!text) return json(res, 400, { error: 'empty' });
+        for (const id of secGuard.sessions.keys()) secGuard.humanPrompt(id);   // a person is typing again: untrusted-content warnings reset
         if (sdk.has(b.id)) sdk.get(b.id).push(text);
         else { const a = agents.get(b.id); if (!a?.bridged) return json(res, 409, { error: 'This session is watch-only. Restart that terminal so the bridge loads.' }); (a.inbox ||= []).push(text); }
         return json(res, 200, { ok: true });
@@ -521,6 +550,7 @@ async function handle(req, res) {
       case '/api/manager': return json(res, 400, { error: 'Tool permissions come from your Claude Code settings; Agent Office has no auto-approve of its own.' });
       case '/api/task': {
         const text = String(b.text || '').trim(); if (!text) return json(res, 400, { error: 'empty' });
+        for (const id of secGuard.sessions.keys()) secGuard.humanPrompt(id);
         const g = goals.add(text, 'you'); bump();
         const started = tellBoss(`New task from the user (goal ${g.id}): ${text}`) !== false;
         return json(res, 200, { ok: true, goal: g, waiting: started ? '' : (boss.paused || 'Tiro is switched off in the breaker box') });
@@ -534,6 +564,8 @@ async function handle(req, res) {
       }
       case '/api/scheduler': return json(res, 200, readScheduler(path.join(CFG_DIR, 'scheduler.json'))); // read-only: the scheduler job writes the file
       case '/api/roster': return json(res, 200, { roster: Object.entries(ROSTER).map(([key, r]) => ({ key, name: dnames()[key], defaultName: r.name, role: r.role, model: r.model, color: r.color, accent: r.accent, desk: r.desk, brief: r.brief, tools: r.tools })), max: MAX_SPECIALISTS }); // read-only
+      case '/api/guard/log': return json(res, 200, { entries: guardAudit.read(Math.min(500, Number(b.limit) || 200)), status: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length } });
+      case '/api/guard/status': return json(res, 200, { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length });
       case '/api/names': return json(res, 200, { names: dnames(), defaults: { tiro: 'Tiro', ...Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])) }, overrides: nameBox.get() });
       case '/api/names/set': { try { nameBox.set(String(b.key), b.name); } catch (e) { return json(res, 400, { error: e.message }); } bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }
       case '/api/names/reset': { if (b.key) nameBox.set(String(b.key), ''); else nameBox.reset(); bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }

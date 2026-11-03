@@ -1,6 +1,8 @@
 // Agent Office desktop app: runs the office server, keeps Tiro on the desktop, and lives in the tray.
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog, session } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog, session, safeStorage } from 'electron';
 import crypto from 'node:crypto';
+import { normalizeGuardConfig, effectiveConfig, weakenings, signConfig } from '../guard/config.mjs';
+import { CAT_NAMES } from '../guard/rules.mjs';
 import { unsafeSwitches, unsafeEnv, unsafeMessage } from './startup-guard.mjs';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -45,7 +47,7 @@ let quitting = false, gaveUp = false, restartTimer = null;
 function spawnServer() {
   // Electron's own Node runs the server, so the app needs no separate Node install.
   const started = Date.now();
-  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY }, stdio: 'ignore', windowsHide: true });
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY }, stdio: 'ignore', windowsHide: true });
   server = child;
   child.on('error', e => logEvent({ event: 'spawn-error' }));
   child.on('exit', (code, signal) => {
@@ -183,6 +185,61 @@ function showIsland() {
 }
 const fromIsland = e => island && e.sender === island.webContents;
 const fromOffice = e => office && !office.isDestroyed() && e.sender === office.webContents;
+// ---------- Security Guard settings: the only place a weaker setting can be confirmed ----------
+// A weaker setting needs a native confirmation dialog that only this process can show; the confirmed settings are saved with an HMAC (guard/confirmed.json)
+// keyed by a secret that is encrypted with the OS (Electron safeStorage). A page, an agent or a hand edit of kiro.json cannot produce that HMAC.
+const GUARD_DIR = path.join(CFG_DIR, 'guard');
+let GUARD_KEY = '';
+function loadGuardKey() {
+  try {
+    fs.mkdirSync(GUARD_DIR, { recursive: true, mode: 0o700 });
+    const enc = path.join(GUARD_DIR, 'hmac.key.enc'), plain = path.join(GUARD_DIR, 'hmac.key');
+    if (safeStorage.isEncryptionAvailable()) {
+      if (fs.existsSync(enc)) { try { return safeStorage.decryptString(fs.readFileSync(enc)); } catch { /* unreadable: make a new one below */ } }
+      const k = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(enc, safeStorage.encryptString(k), { mode: 0o600 }); return k;
+    }
+    if (fs.existsSync(plain)) return fs.readFileSync(plain, 'utf8').trim();            // no OS encryption here: a 0600 file is the best available
+    const k = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(plain, k, { mode: 0o600 }); return k;
+  } catch { return crypto.randomBytes(32).toString('hex'); }
+}
+const readJ = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const guardEffective = () => effectiveConfig(prefs.guard, readJ(path.join(GUARD_DIR, 'confirmed.json')), GUARD_KEY);
+const guardRemembered = () => readJ(path.join(GUARD_DIR, 'remember.json'))?.entries || [];
+function guardSave(cfg) {
+  const next = normalizeGuardConfig(cfg);
+  prefs.guard = next; savePrefs();
+  fs.mkdirSync(GUARD_DIR, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(GUARD_DIR, 'confirmed.json'), JSON.stringify({ config: next, hmac: signConfig(next, GUARD_KEY) }), { mode: 0o600 });
+  return next;
+}
+const guardSender = e => fromOffice(e) || fromIsland(e);
+const guardView = () => ({ config: guardEffective().config, notices: guardEffective().notices, remembered: guardRemembered().map(r => ({ key: r.key, label: r.label || '', at: r.at || 0 })), names: CAT_NAMES });
+ipcMain.handle('guard:get', e => (guardSender(e) ? guardView() : null));
+ipcMain.handle('guard:set', async (e, patch) => {
+  if (!guardSender(e) || !patch || typeof patch !== 'object' || Array.isArray(patch)) return null;
+  const cur = guardEffective().config, next = normalizeGuardConfig({ ...cur, ...patch, trustedHosts: patch.trustedHosts ?? cur.trustedHosts, trustedNpx: patch.trustedNpx ?? cur.trustedNpx, syncRoots: patch.syncRoots ?? cur.syncRoots });
+  const weak = weakenings(cur, next);
+  if (weak.length) {
+    const parent = (fromOffice(e) ? office : island) || undefined;
+    const lines = weak.map(w => '- ' + (CAT_NAMES[w.what] || w.what) + (w.from ? ': ' + w.from + ' -> ' + w.to : ': ' + w.to)).join('\n');
+    const r = await dialog.showMessageBox(parent, { type: 'warning', title: 'Security Guard', message: 'Turn down Security Guard protection?', detail: lines + '\n\nThis makes it less likely that you are asked before secrets leave this computer, scripts run, or credentials are read. Only continue if you started this change yourself.', buttons: ['Keep protection on', 'Turn it down'], defaultId: 0, cancelId: 0, noLink: true });
+    if (r.response !== 1) return guardView();
+  }
+  guardSave(next);
+  return guardView();
+});
+ipcMain.handle('guard:remember', (e, key, label) => {
+  if (!guardSender(e) || typeof key !== 'string' || !/^[0-9a-f]{64}$/.test(key)) return null;
+  const entries = guardRemembered().filter(r => r.key !== key).concat([{ key, at: Date.now(), label: String(label ?? '').replace(/[\u0000-\u001f]/g, ' ').slice(0, 120) }]).slice(-200);
+  try { fs.mkdirSync(GUARD_DIR, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(GUARD_DIR, 'remember.json'), JSON.stringify({ entries }), { mode: 0o600 }); } catch { return null; }
+  return guardView();
+});
+ipcMain.handle('guard:forget', (e, key) => {
+  if (!guardSender(e)) return null;
+  const entries = key === 'all' ? [] : guardRemembered().filter(r => r.key !== key);
+  try { fs.writeFileSync(path.join(GUARD_DIR, 'remember.json'), JSON.stringify({ entries }), { mode: 0o600 }); } catch { return null; }
+  return guardView();
+});
 ipcMain.handle('notch:get', e => (fromOffice(e) ? notchOn() : null));
 ipcMain.handle('notch:set', (e, on) => { if (!fromOffice(e) || typeof on !== 'boolean') return null; setNotch(on); return notchOn(); });
 ipcMain.on('island:interactive', (e, on) => { if (fromIsland(e)) island.setIgnoreMouseEvents(!on, { forward: true }); });
@@ -340,6 +397,8 @@ app.on('before-quit', () => { quitting = true; clearTimeout(restartTimer); serve
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.whenReady().then(async () => {
+  GUARD_KEY = loadGuardKey();
+  { const eff = guardEffective(); if (JSON.stringify(eff.config) !== JSON.stringify(normalizeGuardConfig(prefs.guard))) { prefs.guard = eff.config; savePrefs(); } }   // a Guard setting weakened outside the app is repaired
   syncLogin();
   mgrName = readMgrName();
   buildTray();

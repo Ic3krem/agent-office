@@ -7,6 +7,12 @@ contextBridge.exposeInMainWorld('islandDesk', {
   settings: patch => ipcRenderer.send('island:settings', patch && typeof patch === 'object' ? patch : {}),
   mute: on => ipcRenderer.send('island:mute', !!on),
   media: verb => ipcRenderer.send('island:media', String(verb || '')),
+  guard: {
+    get: () => ipcRenderer.invoke('guard:get'),
+    set: patch => ipcRenderer.invoke('guard:set', patch && typeof patch === 'object' ? patch : {}),
+    remember: (key, label) => ipcRenderer.invoke('guard:remember', String(key || ''), String(label || '')),
+    forget: key => ipcRenderer.invoke('guard:forget', String(key || '')),
+  },
   update: {
     get: () => ipcRenderer.invoke('update:get'),
     check: () => ipcRenderer.invoke('update:check'),
