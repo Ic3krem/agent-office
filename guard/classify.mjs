@@ -13,7 +13,7 @@ import { isTainted } from './taint.mjs';
 const M = (cat, rule, reason, extra = {}) => ({ cat, rule: `${cat}.${rule}`, reason, ...extra });
 const sha = s => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
 const SECRETY_VAR = R.SECRETY_VAR;
-const PATHY = a => /[\\/]/.test(a) || /^~/.test(a) || /^\.{1,2}($|[\\/])/.test(a) || /^\$/.test(a) || /^%/.test(a) || /^[a-z]:/i.test(a) || R.SECRET_NAME_RES.some(re => re.test(String(a).toLowerCase())) || /\.(zip|tgz|gz|tar|7z|json|ya?ml|txt|conf|cfg|ini|sqlite|db)$/i.test(a);
+const PATHY = a => /[\\/]/.test(a) || /^~/.test(a) || /^\.{1,2}($|[\\/])/.test(a) || /^\$/.test(a) || /^%/.test(a) || /^[a-z]:/i.test(a) || R.SECRET_NAME_RES.some(re => re.test(String(a).toLowerCase())) || /\.[\w-]{1,12}$/.test(a) || /[*?\[]/.test(a);   // any file-like name (no extension whitelist: cp .env x.dat then curl -T x.dat), or a glob
 
 export function createState() {
   return { taint: { tainted: false, at: 0, source: '', rules: [], snippet: '', trusted: new Map() }, files: new Set(), dirs: new Set(), firstRead: 0, secretReads: new Set(), downloaded: new Set(), sensitiveFiles: new Set(), prompts: 0, askedIds: new Map() };
@@ -130,7 +130,8 @@ function tunnelLabel(c) {
   if (p === 'ssh' && c.args.some(x => x === '-R' || /^-R\S/.test(String(x)))) return 'ssh -R tunnel';
   return null;
 }
-function pathArgs(c) {
+const stripAt = x => { let t = String(x); const kv = /^(?:--?[\w-]+|[\w.-]+)=@?(.+)$/.exec(t); if (kv) t = kv[1]; const at = /^(?:--?[\w-]+)?@(.+)$/.exec(t); if (at) t = at[1]; return t; };
+function pathArgs(c, ctx) {
   const out = [];
   for (const a0 of [...c.args, ...c.redirIn]) {
     let t = String(a0);
@@ -138,10 +139,17 @@ function pathArgs(c) {
     const kv = /^(?:--?[\w-]+|[\w.-]+)=@?(.+)$/.exec(t); if (kv) t = kv[1];
     const at = /^(?:--?[\w-]+)?@(.+)$/.exec(t); if (at) t = at[1];
     if (isRemoteArg(t) || /^[\w.-]+@[\w.-]+:/.test(t)) continue;      // remote side of scp/rsync
-    if (PATHY(t)) out.push(t);
+    if (PATHY(t) || /^@/.test(String(a0)) || /=@/.test(String(a0)) || (ctx && /^[\w.-]+$/.test(t) && safe(() => ctx.fs?.exists?.(canon(t, ctx).key)))) out.push(t);   // an @file operand or an existing file is a path whatever its name
   }
   return out;
 }
+// the statement(s) a command sits in (split on ; newline && || only, so a PowerShell (Get-Content .env) group or a $(< .env) stays with its sender)
+const segsOf = (c, texts) => { const w = String(c.argvFull?.[0] || ''); if (!w) return []; const re = new RegExp('(^|[\\s(&|{])' + w.replace(/[.*+?^$\{}()|[\]\\]/g, '\\$&') + '(?=[\\s)]|$)', 'i'), out = []; for (const t of texts) for (const sg of String(t).split(/;|\n|&&|\|\||\}/)) if (re.test(sg)) out.push(sg); return out; };
+const segTokens = (c, texts) => { const w = String(c.argvFull?.[0] || '').toLowerCase(), seen = new Set(); for (const sg of segsOf(c, texts)) for (const t of sg.split(/[\s'"`()<>|&;,{}=@]+/)) if (t && !t.startsWith('-') && t.toLowerCase() !== w && !/:\/\//.test(t) && !isPodArg(t) && !isRemoteArg(t) && (/[./\\*?\[~]/.test(t) || R.SECRET_NAME_RES.some(re => re.test(t.toLowerCase())))) seen.add(t); return [...seen].slice(0, 30); };
+const SEG_MEMO = new WeakMap();
+let NET_CACHE = null;
+const NET_RE = () => NET_CACHE ||= (()=>{ return new RegExp('\\b(' + [...R.NET_PROGS, 'iwr', 'irm', 'invoke-webrequest', 'invoke-restmethod'].map(x => x.replace(/[.*+?^$\{}()|[\]\\]/g, '\\$&')).join('|') + ')\\b', 'i'); })();
+const READS_VAR = /(?:get-content|\bgc|\bcat|\btype|readall\w*\(|readfilesync\(|<)\s*['"]?[^\s'")]*(?:\$[A-Za-z_{(]|%[A-Za-z_]\w*%)/i;
 const descendants = c => { const out = []; const rec = x => { for (const s of x.subs || []) { out.push(s); rec(s); } }; rec(c); return out; };
 const feedersOf = c => { const out = []; let x = c, g = 0; while (x?.pipeFromCmd && g++ < 8) { out.push(x.pipeFromCmd); x = x.pipeFromCmd; } return out; };
 const hostOf = texts => {
@@ -185,7 +193,7 @@ function egressOf(c, ctx) {
   }
   if (p === 'gsutil' && low.some(x => /^(cp|rsync|mv)$/.test(x))) return 'gsutil';
   if (p === 'npx' && /^(np|release-it)$/.test(sub)) return 'npx ' + sub;
-  if (/^(python[\d.]*|py|node|nodejs|deno|bun|perl|ruby|php)$/.test(p) && c.inlineCode && /(requests\.\w+|import\s+requests|urllib|urlopen|http\.client|httplib|httpx|aiohttp|fetch\(|https?\.(request|get)|net::http|axios|socket\b|net\.connect|webclient|httpclient|xmlhttprequest|lwp|file_get_contents\s*\(\s*['"]https?|curl_init|open-uri|open\(['"]https?)/i.test(c.inlineCode)) return p + ' inline network code';
+  if (/^(python[\d.]*|py|node|nodejs|deno|bun|perl|ruby|php)$/.test(p) && c.inlineCode && /(requests\.\w+|import\s+requests|urllib|urlopen|http\.client|httplib|httpx|aiohttp|fetch\(|https?\.(request|get)|['"](?:node:)?(?:https?|http2|net|tls|dgram)['"]|net::http|axios|socket\b|net\.connect|webclient|httpclient|xmlhttprequest|lwp|file_get_contents\s*\(\s*['"]https?|curl_init|open-uri|open\(['"]https?)/i.test(c.inlineCode)) return p + ' inline network code';
   const raw = c.argvFull.join(' ');
   if (/\b(invoke-restmethod|invoke-webrequest|iwr|irm)\b[^\n]*(-infile|-body|-form)\b|\[net\.webclient\]|new-object\s+(system\.)?net\.webclient|\.upload(file|string|data)\(|\[system\.net\.http\.httpclient\]|new-object\s+(system\.)?net\.sockets\.tcpclient|invoke-command[^\n]*-computername|copy-item[^\n]*-tosession/i.test(raw)) return 'PowerShell upload';
   if (/\/dev\/(tcp|udp)\//.test(raw) || c.redirOut.some(r => /^\/dev\/(tcp|udp)\//.test(r))) return '/dev/tcp';
@@ -222,12 +230,18 @@ function analyzeShell(tool, command, ctx, state, out) {
   if (HOOK_BYPASS_TEST(texts)) out.push(M('I', 'hook-bypass', 'Skips git hooks or changes the file-tracking flags (--no-verify, core.hooksPath, update-index).'));
   // ---------- per command
   const archivesOut = new Set();
+  // a shell variable, alias or function that carries data to the network cannot be followed: ask (estimated)
+  { const NET = NET_RE();
+    const defs = texts.some(t => /\balias\s+[\w.-]+=|\bfunction\s+[\w-]+|\b[\w-]+\s*\(\s*\)\s*\{|\b(?:set|new)-alias\b|\bsal\s/i.test(t)), net = texts.some(t => NET.test(t) || /\/dev\/(?:tcp|udp)\//.test(t));
+    if (defs && net) out.push(M('S', 'estimated', 'Defines an alias or function and sends data off this computer; the Guard cannot follow what the alias or function does, so it cannot tell what is being sent.', { exact: false })); }
+  let tcpOpen = null;
   for (const c of expandTemplates(cmds, ctx)) {
-    const p = c.prog; if (!p) continue;
-    const args = pathArgs(c), ins = args.map(o => inspect(o, ctx));
+    const p = c.prog; if (!p) { if (c.redirOut.some(r => /^\/dev\/(tcp|udp)\//.test(r))) tcpOpen = c; continue; }
+    if (/^[$%]/.test(String(c.argvFull[0])) && c.args.some(x => /^@|=@|:\/\//.test(String(x)))) out.push(M('S', 'estimated', 'The program that sends data is held in a variable, so the Guard cannot tell what is being sent.', { exact: false }));
+    const args = pathArgs(c, ctx), ins = args.map(o => inspect(o, ctx));
     const kids = descendants(c), feeders = feedersOf(c);
     const upstream = [...kids, ...feeders];
-    const upIns = upstream.flatMap(u => pathArgs(u).map(o => inspect(o, ctx)));
+    const upIns = upstream.flatMap(u => pathArgs(u, ctx).map(o => inspect(o, ctx)));
     const upSecrets = [...ins, ...upIns].filter(x => x.secret);
     flatPaths.push(...args);
     const readLike = !/^(ls|dir|pwd|cd|echo|mkdir|test|true|false|git|npm|node)$/.test(p);
@@ -255,7 +269,7 @@ function analyzeShell(tool, command, ctx, state, out) {
     if (p === 'npx') { const pkg = c.args.find(a => !a.startsWith('-')); if (pkg && !ctx.config?.trustedNpx?.includes(pkg) && !inPackageJson(ctx, pkg)) out.push(M('U', 'npx-unknown', `Runs an npx package that is not in this project: ${pkg}.`)); }
     // I: copies of secrets under a non-secret name, archives of secret trees, ignore-override flags
     if (R.COPIERS.has(p) || (p === 'git' && c.args[0] === 'mv')) {
-      const srcs = (p === 'git' ? c.args.slice(1) : c.args).filter(a => !a.startsWith('-') && PATHY(a)); const dest = srcs.length >= 2 ? srcs[srcs.length - 1] : null;
+      const srcs = (p === 'git' ? c.args.slice(1) : c.args).filter(a => !a.startsWith('-') && (PATHY(a) || /^[\w.-]+$/.test(a))); const dest = srcs.length >= 2 ? srcs[srcs.length - 1] : null;
       const secretSrc = srcs.slice(0, -1).map(o => inspect(o, ctx)).filter(x => x.secret);
       if (dest && secretSrc.length) {
         const dk = canon(dest, ctx).key;
@@ -277,6 +291,8 @@ function analyzeShell(tool, command, ctx, state, out) {
       const o = outputOf(c); if (o) { const oi = inspect(o, ctx, { content: false }); if (oi.sync && (found.length || wholeHome)) out.push(M('Y', 'archive-to-sync', `Writes an archive of sensitive files into a cloud-synced folder (${o}).`)); }
     }
     if (p === 'git' && c.args[0] === 'add') gitAdd(c, ctx, out);
+    // staging: whatever a command writes (redirect, tee, copy, move) from a secret becomes sensitive itself, in this command line and later ones
+    { const fromSecret = upSecrets.length || upstreamEnv(upstream) || (ENV_DUMP(c.argvFull.join(' ')) && writes.length); if (fromSecret) for (const d of writes) { const dk = canon(d, ctx).key; archivesOut.add(dk); state?.sensitiveFiles.add(dk); } }
     // Y: redirect/tee of secret content into a sync root
     for (const d of writes) { const x = inspect(d, ctx, { content: false }); if (x.sync) { const fromSecret = upSecrets.length || upstreamEnv(upstream) || (ENV_DUMP(norm) && c.redirOut.length) || [...(state?.sensitiveFiles || [])].some(s => args.some(o => canon(o, ctx).key === s)); if (fromSecret) out.push(M('Y', 'secret-to-sync', `Writes secrets into a cloud-synced folder (${d}), which uploads them.`, { dest: d, files: upSecrets.slice(0, 4).map(x2 => ({ path: x2.orig, why: 'secret file' })) })); if (x.secret && !fromSecret) out.push(M('Y', 'secret-name-in-sync', `Creates a secret-named file in a cloud-synced folder (${d}).`, { dest: d })); } }
     // S: egress
@@ -284,6 +300,9 @@ function analyzeShell(tool, command, ctx, state, out) {
     const clip = R.CLIPBOARD_SET.test(c.argvFull.join(' '));
     if (eg || clip) egress(c, eg || 'clipboard', clip && !eg, { ctx, state, out, upstream, ins, upIns, texts, norm, archivesOut });
   }
+  // exec 3<>/dev/tcp/host/80 opens a channel; later commands write into it by file descriptor: judge every file the command line touches
+  if (tcpOpen) { const al = cmds.flatMap(x => x.prog ? pathArgs(x, ctx) : []), syn = { prog: 'exec', args: al, argvFull: ['exec', ...al], redirOut: tcpOpen.redirOut, redirIn: [], heredoc: '', inlineCode: '', subs: [], pipeFromCmd: null, templ: null };
+    egress(syn, '/dev/tcp', false, { ctx, state, out, upstream: [], ins: al.map(o => inspect(o, ctx)), upIns: [], texts, norm, archivesOut }); }
   return { flatPaths };
 }
 const ENV_DUMP = t => R.ENV_DUMP_RES.some(re => re.test(t));
@@ -293,8 +312,8 @@ const classifyFileNameOnly = key => R.SECRET_NAME_RES.some(re => re.test(baseNam
 const outputOf = c => { const a = c.args; const i = a.findIndex(x => /^-?-?(destinationpath|dest|o|f|file)$/i.test(x)); if (c.prog === 'tar') { const k = a.findIndex(x => /^-?[a-z]*f$/.test(x)); return a[k + 1]; } if (c.prog === 'compress-archive') { const k = a.findIndex(x => /^-destinationpath$/i.test(x)); return a[k + 1] || a.filter(x => !x.startsWith('-'))[1]; } if (i >= 0 && a[i + 1]) return a[i + 1]; return a.filter(x => !x.startsWith('-') && PATHY(x))[0]; };
 const writeTargets = (c, args) => {
   const w = [...c.redirOut]; const p = c.prog;
-  if (/^(tee|set-content|add-content|out-file|sc|ac|new-item|ni|touch|install|ln|chmod|echo|printf)$/.test(p) && p !== 'echo' && p !== 'printf') w.push(...args);
-  if (R.COPIERS.has(p) && args.length >= 2) w.push(args[args.length - 1]);
+  if (/^(tee|set-content|add-content|out-file|sc|ac|new-item|ni|touch|install|ln|chmod|echo|printf)$/.test(p) && p !== 'echo' && p !== 'printf') w.push(...c.args.filter(x => !String(x).startsWith('-')));   // every plain operand: a name without a dot or slash is still a file
+  if (R.COPIERS.has(p)) { const na = c.args.filter(x => !String(x).startsWith('-')); if (na.length >= 2) w.push(na[na.length - 1]); }
   if (/^(sed|perl)$/.test(p) && c.args.some(a => /^-\w*i/.test(a))) w.push(...args);
   if (p === 'git' && c.args[0] === 'config' && c.args.some(a => /^--(global|system)$/.test(a))) w.push('~/.gitconfig');
   return w;
@@ -333,13 +352,17 @@ function gitAdd(c, ctx, out) {
 function egress(c, label, clipboardOnly, k) {
   const { ctx, state, out, upstream, ins, upIns, texts, norm, archivesOut } = k;
   const cwd = canon(ctx.cwd || '.', ctx).key, p = c.prog, a = c.args;
-  const host = hostOf([...a, ...c.redirOut, ...texts]);
+  const tcpHost = /\/dev\/(?:tcp|udp)\/([^/\s]+)/.exec([...c.redirOut, ...texts].join(' '))?.[1];
+  const host = hostOf([...a, ...c.redirOut, ...texts]) || (tcpHost || '').toLowerCase();
   const local = host && R.LOCAL_HOST.test(host) && !R.TUNNELS.has(p);
   if (local) return;
   const found = [], why = []; let exact = true;
   const addFiles = list => { for (const s of list) if (!found.some(f => f.path === s.path)) found.push({ path: s.path, why: s.by === 'content' ? `secret content (${(s.rules || []).slice(0, 2).join(', ')})` : 'secret file', sha12: s.sha12, preview: s.preview }); };
   // files named in the command, files feeding it, and files inside $( )
   for (const x of [...ins, ...upIns]) if (x.secret) addFiles([{ path: x.orig, by: x.secret.by, rules: x.secret.rules, sha12: x.secret.sha12, preview: x.secret.preview }]);
+  const segKey = String(c.argvFull?.[0] || ''); let segMemo = SEG_MEMO.get(texts); if (!segMemo) SEG_MEMO.set(texts, segMemo = new Map());   // the {} expansion of xargs makes many copies of one statement: inspect its tokens once
+  if (!segMemo.has(segKey)) segMemo.set(segKey, segTokens(c, texts).map(tok => [tok, inspect(tok, ctx)]).filter(([, x]) => x.secret));
+  for (const [tok, x] of segMemo.get(segKey)) { if (x.secret) addFiles([{ path: tok, by: x.secret.by, rules: x.secret.rules, sha12: x.secret.sha12, preview: x.secret.preview }]); }
   // directories named as sources: walk them
   const srcDirs = [...a, ...c.redirIn].filter(PATHY).map(o => canon(o, ctx).key);
   const sub = a.find(x => !String(x).startsWith('-')) || '';
@@ -392,13 +415,14 @@ function egress(c, label, clipboardOnly, k) {
   const envRefs = secretEnvRefs([...a, ...c.redirIn, c.heredoc, ...upstream.flatMap(u => u.args)]);
   const feederEnv = upstream.some(u => ENV_DUMP(u.argvFull.join(' ')));
   const inline = scanText(a.join(' ') + ' ' + c.heredoc).hit || hasSecret(a.join(' '));
-  const viaArchive = [...(archivesOut || []), ...(state?.sensitiveFiles || [])].some(ar => [...a, ...c.redirIn].some(o => canon(o, ctx).key === ar)) || upstream.some(u => R.ARCHIVERS.has(u.prog) && pathArgs(u).some(o => inspect(o, ctx).secret));
+  const viaArchive = [...(archivesOut || []), ...(state?.sensitiveFiles || [])].some(ar => [...a, ...c.redirIn].some(o => canon(stripAt(o), ctx).key === ar)) || upstream.some(u => R.ARCHIVERS.has(u.prog) && pathArgs(u, ctx).some(o => inspect(o, ctx).secret));
   // unknown variable in a path: the payload cannot be computed
-  const unknownVar = [...a].some(x => String(x).includes(UNRESOLVED) || PATHY(String(x)) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(String(x).replace(/^@/, '')) && hasUnknownVar(String(x), ctx));
+  const readsVar = segMemo.has(segKey + "#reads") ? segMemo.get(segKey + "#reads") : (segMemo.set(segKey + "#reads", segsOf(c, texts).some(sg => READS_VAR.test(sg))), segMemo.get(segKey + "#reads"));
+  const unknownVar = readsVar || [...a].some(x => String(x).includes(UNRESOLVED) || (PATHY(stripAt(x)) || /^@|=@/.test(String(x))) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(stripAt(x)) && hasUnknownVar(stripAt(x), ctx));
   if (envRefs.length) why.push('secret variables: ' + envRefs.slice(0, 3).join(', '));
   if (feederEnv) why.push('the environment variables');
   if (inline) why.push('what looks like a secret typed into the command');
-  if (viaArchive) why.push('an archive made from sensitive files');
+  if (viaArchive) why.push('a file or archive made from sensitive files');
   if (tunnelCase && found.length) { out.push(M('S', 'tunnel-exposes', `Exposes the folder to the internet through ${label} (it holds ${found.slice(0, 3).map(f => f.path).join(', ')}).`, { files: found.slice(0, 8), exact })); return; }
   if (found.length) why.unshift('secret files: ' + found.slice(0, 3).map(f => f.path).join(', '));
   const dest = host || (clipboardOnly ? 'the clipboard' : '');
