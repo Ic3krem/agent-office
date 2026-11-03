@@ -11,7 +11,7 @@ import { createNowPlaying } from './nowplaying.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
 import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
 import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
-import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, notchStep } from './island-logic.mjs';
+import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = 4777, BASE = `http://localhost:${PORT}`;
@@ -27,7 +27,7 @@ if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transpare
 app.setAppUserModelId('io.github.ic3krem.agentoffice');
 
 let server, office, kiro, island, tray;
-const prefs = (() => { try { return migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8'))); } catch { return migrateNotchPrefs({}); } })();
+const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')))); } catch { return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
 // agentNames is owned by the server (rename UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
 const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch {} const out = { ...prefs }; if (disk.agentNames) out.agentNames = disk.agentNames; else delete out.agentNames; fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 

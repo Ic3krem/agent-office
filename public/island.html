@@ -153,7 +153,7 @@ let snap = null, prev = null, online = false;
 let pinned = false, hovered = false, chatOn = false, toast = null, toastTimer = 0, leaveTimer = 0;
 let mode = 'always', mute = false, fsApp = false, peek = false;
 let panel = 'home', calOff = 0; // home | calendar | settings; calOff = months away from the current one
-const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, lyrics: true, notchEnabled: true, notchShortcut: '' };
+const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, lyrics: false, notchEnabled: true, notchShortcut: '' };
 let S = { ...DEF };
 let lyr = null, lyrIdx = -2, lyrTimer = 0; // synced lyrics {key, lines:[{t,text}]} pushed from the desktop, last shown line index, fade timer
 let np = null, npEnter = false, wasEx = false; // now-playing session (from SMTC), chip entrance flag, previous expanded state
@@ -227,7 +227,7 @@ function expanded() {
 // Display copy of desktop/lyrics.mjs (lineAt, positionNow); the tested, authoritative one lives there.
 const lineAt = (lines, pos) => { let lo = 0, hi = lines.length - 1, ans = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (lines[m].t <= pos) { ans = m; lo = m + 1; } else hi = m - 1; } return ans; };
 const positionNow = n => { if (!n || !Number.isFinite(n.pos) || !Number.isFinite(n.ts)) return null; const p = n.pos + (n.playing ? Math.max(0, Date.now() - n.ts) : 0); return Number.isFinite(n.dur) && n.dur > 0 ? Math.min(p, n.dur) : p; };
-const lyricsOn = () => !!(S.lyrics !== false && S.nowPlaying && np?.playing && lyr && np.key && lyr.key === np.key && lyr.lines.length && positionNow(np) != null);
+const lyricsOn = () => !!(S.lyrics === true && S.nowPlaying && np?.playing && lyr && np.key && lyr.key === np.key && lyr.lines.length && positionNow(np) != null);
 function pillHTML(ex) {
   const asks = asksOf(snap), w = working(snap), open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
   let txt, tone = 'off', mood = 'idle';
@@ -301,7 +301,7 @@ function settingsHTML() {
     <div class="set"><span>Animations</span>${chips('animate', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Now playing</span>${chips('nowPlaying', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Lyrics</span>${chips('lyrics', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="hint" style="text-align:left">Lyrics are looked up online (lrclib.net). Only the song title, artist, album and length are sent; results are cached on this PC.</div>
+    <div class="hint" style="text-align:left">Lyrics are off until you turn them on. When on, the song title, artist, album and length of the playing track are sent to lrclib.net to look up synced lyrics (results are cached on this PC). Nothing else is sent.</div>
     </div><div class="sect"><span class="label">Clock</span>
     <div class="set"><span>Format</span>${chips('hour12', [[false, '24h'], [true, '12h']])}</div>
     <div class="set"><span>Clock in pill</span>${chips('clockInPill', [[true, 'On'], [false, 'Off']])}</div>

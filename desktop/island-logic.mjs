@@ -57,10 +57,18 @@ export const DEFAULT_SETTINGS = {
   pinned: ['today', 'reports', 'usage', 'chat', 'calendar', 'settings'],
   hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1,
   edgeDelay: 0, leaveDelay: 900,
-  nowPlaying: true, kiroFace: true, animate: true, lyrics: true,
+  nowPlaying: true, kiroFace: true, animate: true, lyrics: false, // lyrics are opt-in: turning them on sends title, artist, album and duration to lrclib.net
   notchEnabled: true,   // the notch (island overlay) exists; off removes the window and everything that serves it
   notchShortcut: '',    // optional global shortcut that toggles the notch; empty = no shortcut (default)
 };
+
+// Lyrics became opt-in. The old default (true) was written into kiro.json by every settings patch, so a stored true cannot be told apart from a
+// choice; it is switched off once (marker lyricsOptInV2), and any later explicit choice is kept. A stored false stays false.
+export function migrateLyricsPrefs(prefs = {}) {
+  if (prefs.lyricsOptInV2 === true) return prefs;
+  const raw = prefs.islandSettings && typeof prefs.islandSettings === 'object' ? prefs.islandSettings : {};
+  return { ...prefs, lyricsOptInV2: true, islandSettings: { ...raw, lyrics: false } };
+}
 
 // ---------- notch on/off ----------
 // A global shortcut must be 2 or 3 modifiers plus one letter, digit or F-key, and may not take the island's own Ctrl+Alt+K.

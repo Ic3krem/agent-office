@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLine, appName, createNowPlaying } from './desktop/nowplaying.mjs';
-import { normalizeSettings, DEFAULT_SETTINGS } from './desktop/island-logic.mjs';
+import { normalizeSettings, DEFAULT_SETTINGS, applyPatch, migrateLyricsPrefs } from './desktop/island-logic.mjs';
 
 test('appName maps known players and falls back to the exe name', () => {
   assert.equal(appName('SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify'), 'Spotify');
@@ -51,9 +51,20 @@ test('parseLine: SMTC timeline (pos/dur/ts) is validated, absent or hostile valu
   assert.deepEqual([bad.pos, bad.dur, bad.ts], [null, null, null]);
 });
 
-test('lyrics pref: defaults on and rejects non-booleans', () => {
-  assert.equal(DEFAULT_SETTINGS.lyrics, true);
-  assert.equal(normalizeSettings({ lyrics: false }).lyrics, false);
-  assert.equal(normalizeSettings({ lyrics: 'no' }).lyrics, true);
-  assert.equal(normalizeSettings({}).lyrics, true);
+test('lyrics pref: opt-in (off by default), rejects non-booleans, and an old stored default is switched off once', () => {
+  assert.equal(DEFAULT_SETTINGS.lyrics, false, 'nothing is sent to lrclib.net until the user turns lyrics on');
+  assert.equal(normalizeSettings({ lyrics: true }).lyrics, true);
+  assert.equal(normalizeSettings({ lyrics: 'yes' }).lyrics, false);
+  assert.equal(normalizeSettings({}).lyrics, false);
+  assert.equal(normalizeSettings(undefined).lyrics, false);
+  // migration: the old default (true) was stored by every settings patch, so it is not a choice; it is reset once
+  const old = { islandMute: true, islandSettings: { theme: 'forest', lyrics: true } };
+  const m = migrateLyricsPrefs(old);
+  assert.equal(m.islandSettings.lyrics, false); assert.equal(m.islandSettings.theme, 'forest'); assert.equal(m.islandMute, true); assert.equal(m.lyricsOptInV2, true);
+  assert.deepEqual(migrateLyricsPrefs(m), m, 'idempotent');
+  const later = { ...m, islandSettings: applyPatch(m.islandSettings, { lyrics: true }) };
+  assert.equal(migrateLyricsPrefs(later).islandSettings.lyrics, true, 'a later explicit opt-in is kept');
+  assert.equal(migrateLyricsPrefs({ islandSettings: { lyrics: false } }).islandSettings.lyrics, false, 'a stored off stays off');
+  assert.equal(migrateLyricsPrefs({}).islandSettings.lyrics, false, 'a fresh install starts with lyrics off');
+  assert.equal(normalizeSettings(migrateLyricsPrefs({ islandSettings: 'junk' }).islandSettings).lyrics, false);
 });
