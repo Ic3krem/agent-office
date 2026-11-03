@@ -2,15 +2,14 @@ import type { EngineInterface, Register } from 'claude-code'
 
 // Talks to the local Agent Office server (server.mjs). When it is not running, every hook passes straight through.
 type Cfg = { port: number; key: string }
+type Res = { ok: boolean; status?: number; text: string }
 
-let sessionToken = '' // issued by /bridge/register; binds this terminal's polls and asks to its own session
-
-function call($: EngineInterface, cfg: Cfg, path: string, body?: unknown) {
+function call($: EngineInterface, cfg: Cfg, path: string, body?: unknown, token = ''): Promise<Res> {
   return $.http.fetch(`http://127.0.0.1:${cfg.port}${path}`, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: { 'x-key': cfg.key, 'content-type': 'application/json', ...(sessionToken ? { 'x-session-token': sessionToken } : {}) },
+    headers: { 'x-key': cfg.key, 'content-type': 'application/json', ...(token ? { 'x-session-token': token } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
-  })
+  }) as Promise<Res>
 }
 
 export const register: Register = on => {
@@ -18,6 +17,31 @@ export const register: Register = on => {
   let session = ''
   let turnId: string | undefined
   let inboundBlocked = false // the user's crossSessionInbound setting is 'refuse' or 'hold': dashboard messages are not delivered
+  // The server binds a registered session to a private token (so another session cannot poll or answer for it). An older server has
+  // no /bridge/register (404): then polling stays unbound, exactly as before.
+  let token = ''
+  let unbound = false
+  let fails = 0
+  let wait = 0 // poll ticks to skip after a failed registration (backoff: 2, 4, 8 ... up to 20 ticks of 1.5 s)
+
+  // true when this terminal may poll now (it has a token, or the server predates tokens)
+  async function ensureToken($: EngineInterface): Promise<boolean> {
+    if (token || unbound) return true
+    if (wait > 0) { wait--; return false }
+    try {
+      const rr = await call($, cfg!, '/bridge/register', { session })
+      if (rr.status === 404) { unbound = true; return true }
+      if (rr.ok) {
+        token = (JSON.parse(rr.text) as { token?: string }).token ?? ''
+        if (token) { fails = 0; return true }
+      }
+    } catch {
+      // server down: try again after the backoff
+    }
+    fails++
+    wait = Math.min(20, 2 ** fails) // 409 (another live terminal holds this session id) lands here too: back off, never crash
+    return false
+  }
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -35,25 +59,18 @@ export const register: Register = on => {
           // that scope has no settings file
         }
       }
-      sessionToken = ''
-      try {
-        const rr = await call($, cfg, '/bridge/register', { session })
-        if (rr.ok) sessionToken = (JSON.parse(rr.text) as { token?: string }).token ?? ''
-      } catch {
-        // server down or older: polls retry the registration below
-      }
+      token = ''; unbound = false; fails = 0; wait = 0
+      await ensureToken($)
     } catch {
       cfg = undefined // dashboard never installed: stay out of the way
       return r
     }
     $.clock.every(1500, async () => {
       try {
-        if (!sessionToken) {
-          const rr = await call($, cfg!, '/bridge/register', { session })
-          if (rr.ok) sessionToken = (JSON.parse(rr.text) as { token?: string }).token ?? ''
-          if (!sessionToken) return
-        }
-        const res = await call($, cfg!, `/bridge/poll?session=${encodeURIComponent(session)}`)
+        if (!(await ensureToken($))) return
+        // blocked by the user's crossSessionInbound: only report that this terminal is alive; the queue is left untouched
+        const res = await call($, cfg!, `/bridge/poll?session=${encodeURIComponent(session)}${inboundBlocked ? '&hold=1' : ''}`, undefined, token)
+        if (res.status === 403) { token = ''; return } // the token no longer matches (another terminal took the session id): register again, with backoff
         if (!res.ok) return
         if (inboundBlocked) return // honour the user's setting: nothing is injected as if the user had typed it
         const { messages, abort } = JSON.parse(res.text) as { messages: string[]; abort: boolean }
@@ -77,7 +94,7 @@ export const register: Register = on => {
     if (r.decision !== 'ask' || !cfg || !e.tool_use_id) return r
     try {
       $.ui.status('Waiting for your answer in Agent Office…')
-      const res = await call($, cfg, '/bridge/ask', { session, agentId: e.agentId, tool: e.tool, input: e.input, reason: r.reason })
+      const res = await call($, cfg, '/bridge/ask', { session, agentId: e.agentId, tool: e.tool, input: e.input, reason: r.reason }, token)
       const { decision } = JSON.parse(res.text) as { decision: string }
       if (decision === 'allow') return { ...r, decision: 'allow', reason: 'Approved in Agent Office' }
       if (decision === 'deny') return { ...r, decision: 'deny', reason: 'Denied by the user in Agent Office' }

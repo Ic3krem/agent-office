@@ -454,6 +454,7 @@ const SECURITY_HEADERS = {
 };
 // Bridge sessions that registered are bound to their token (a session that never registered, e.g. an older plugin, behaves as before).
 const bridgeSessions = new Map();
+const BRIDGE_IDLE_MS = Number(process.env.AGENT_OFFICE_BRIDGE_IDLE_MS) >= 200 ? Number(process.env.AGENT_OFFICE_BRIDGE_IDLE_MS) : 30e3; // how long a terminal must be silent before its session id can be registered afresh (tests shorten it)
 const bridgeBound = (sid, req) => { const cur = bridgeSessions.get(String(sid)); if (!cur) return true; const t = req.headers['x-session-token']; if (typeof t === 'string' && safeEqual(t, cur.token)) { cur.seen = Date.now(); return true; } return false; };
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
@@ -584,7 +585,7 @@ async function handle(req, res) {
         // A terminal registers its session id once and gets a private token; later polls and asks for that session must present it.
         const sid = String(b.session || '').slice(0, 120); if (!sid) return json(res, 400, { error: 'session required' });
         const cur = bridgeSessions.get(sid), presented = req.headers['x-session-token'];
-        if (cur && !(presented && safeEqual(presented, cur.token)) && Date.now() - cur.seen < 30e3) return json(res, 409, { error: 'session already registered' });
+        if (cur && !(presented && safeEqual(presented, cur.token)) && Date.now() - cur.seen < BRIDGE_IDLE_MS) return json(res, 409, { error: 'session already registered' });
         const token = rand(16); bridgeSessions.set(sid, { token, seen: Date.now() });
         return json(res, 200, { token });
       }
@@ -594,6 +595,8 @@ async function handle(req, res) {
         const a = agents.get(id) ?? agents.set(id, newAgent(id)).get(id);
         if (!a.bridged) bump();
         a.bridged = Date.now();
+        // hold=1: the terminal's own crossSessionInbound setting blocks delivery, so it only shows it is alive and nothing is taken from the queue.
+        if (url.searchParams.get('hold') === '1') return json(res, 200, { messages: [], abort: false });
         const out = { messages: a.inbox || [], abort: !!a.abort };
         a.inbox = []; a.abort = false;
         return json(res, 200, out);
