@@ -4,10 +4,10 @@ import fs from 'node:fs';
 const read = f => fs.readFileSync(new URL(f, import.meta.url), 'utf8');
 const pkg = JSON.parse(read('./package.json'));
 
-test('license is consistent: MIT in LICENSE, package.json, README; third-party notice shipped', () => {
-  assert.match(read('./LICENSE'), /^MIT License\s+Copyright \(c\) 20\d\d \S+/);
-  assert.equal(pkg.license, 'MIT');
-  assert.match(read('./README.md'), /MIT/);
+test('license is consistent: proprietary in LICENSE, package.json, README; third-party notice shipped', () => {
+  assert.match(read('./LICENSE'), /^Proprietary License\. All rights reserved\.\s+Copyright \(c\) 20\d\d \S+/);
+  assert.equal(pkg.license, 'UNLICENSED');
+  assert.match(read('./README.md'), /Proprietary, all rights reserved/);
   assert.ok(pkg.build.files.includes('LICENSE') && pkg.build.files.includes('THIRD_PARTY_NOTICES.md'));
   assert.match(read('./THIRD_PARTY_NOTICES.md'), /claude-agent-sdk/);
 });

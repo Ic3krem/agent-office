@@ -15,7 +15,7 @@ Quick links for Agent Office 1.2.5. The latest release is v1.2.5 (Windows instal
 | Office world design and 1.2.x changes | [office-spec.md](office-spec.md) |
 | Island, now playing, lyrics, updates | [island-spec.md](island-spec.md) |
 | Dependency licenses | [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
-| Project license (MIT, Ic3krem) | [LICENSE](../LICENSE) |
+| Project license (proprietary, all rights reserved) | [LICENSE](../LICENSE) |
 
 ## Architecture in one page
 
