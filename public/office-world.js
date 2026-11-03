@@ -12,8 +12,11 @@
   let cv = null, g = null, res = 1, opts = {}, bg = null, bgKey = '';
   let brain = M.createBrain(), walkers = new Map(), ghosts = [], frame = null;
   let live = null, demo = null, extras = {}, selected = null, hover = null, chatter = null, nextChat = 0;
-  let clock = Date.now(), last = 0, acc = 0, running = false, raf = 0, lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
+  let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
+  // Power saver (default on): idle scenes redraw about twice a second, seated animations 8 times, travelling characters 30 times;
+  // a hidden window draws nothing. Off = the old flat 30 fps. Stored in localStorage so the page keeps the choice.
+  function readSaver() { try { return localStorage.getItem('ao.powerSaver') !== '0'; } catch (e) { return true; } }
   const reducedMQ = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   const reduced = () => !!(reducedMQ && reducedMQ.matches) || (typeof document !== 'undefined' && document.documentElement.dataset.anim === 'off');
 
@@ -295,16 +298,44 @@
   }
 
   // ---------- loop ----------
-  function loop(t) {
-    raf = requestAnimationFrame(loop);
-    if (!last) last = t;
-    let dt = Math.min(0.25, (t - last) / 1000); last = t; acc += dt;
-    const step = reduced() ? 0.5 : 1 / 30;
-    if (acc < step) return;
-    const d = Math.min(acc, 0.25); acc = 0;
-    tick(d); render();
+  // One timer-aligned rAF: nextFrameDelay (office-motion.js) decides how long to wait; anything that changes what is on
+  // screen calls wake() so it shows at once. Hidden windows schedule nothing at all.
+  const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  function isMoving() {
+    if (!frame) return false;
+    const ST = F.state;
+    if (ghosts.length || ST.printer > 0 || Object.keys(nudged).length) return true;
+    if (!legend && ST.labels > 0.02 && ST.labels < 1) return true;
+    if (Math.abs(ST.dim - (frame.board.empty ? 1 : 0)) > .01) return true;
+    for (const a of frame.agents) { const w = walkers.get(a.id); if (!w) continue; if (w.moving || w.fadeDir || w.fade < 1 || (w.alpha != null && w.alpha < 1)) return true; if (Math.abs(w.hip - (!w.moving ? HIP(a.spot) : 18)) > .3) return true; }
+    return false;
   }
-  function start() { if (running) return; running = true; last = 0; raf = requestAnimationFrame(loop); }
+  function isActive() {
+    if (!frame) return false;
+    if (chatter || extras.music || extras.pending || frame.reportIcon || demo) return true;
+    const A = ['play', 'sit-play', 'think', 'sit-think', 'hand', 'report', 'cup', 'type', 'celebrate'];
+    return frame.agents.some(a => a.working || a.state === M.S.WINDOW || A.includes(a.pose));
+  }
+  function frameState() {
+    return { hidden: typeof document !== 'undefined' && document.hidden, reduced: reduced(), saver, dirty, interactMs: nowMs() - lastInput, moving: isMoving(), active: isActive(), blurred: typeof document !== 'undefined' && document.hasFocus && !document.hasFocus() };
+  }
+  function schedule() {
+    if (!running) return;
+    clearTimeout(timer); timer = 0; if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    const wait = M.frameWait(frameState(), nowMs() - lastDraw);
+    if (wait < 0) return; // paused until visibilitychange or wake()
+    timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(loop); }, wait);
+  }
+  function wake() { dirty = true; if (running) schedule(); }
+  function loop(t) {
+    raf = 0;
+    const n = nowMs(); if (!last) last = n;
+    const moving = isMoving(), dt = Math.min(moving ? 0.25 : 1, (n - last) / 1000); last = n;
+    tick(dt); render(); dirty = false; lastDraw = n; drawn++;
+    schedule();
+  }
+  function start() { if (running) return; running = true; last = 0; schedule(); }
+  function stop() { running = false; clearTimeout(timer); timer = 0; if (raf) cancelAnimationFrame(raf); raf = 0; }
 
   // ---------- pointer ----------
   function toStage(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * STW, (e.clientY - r.top) / r.height * STH]; }
@@ -320,13 +351,15 @@
     return null;
   }
   function onMove(e) {
+    lastInput = nowMs();
     const [px, py] = toStage(e), h = pick(px, py);
     if (h && h.kind === 'nudge') { cv.style.cursor = 'pointer'; return; }
     const same = (!h && !hover) || (h && hover && h.kind === hover.kind && h.id === hover.id);
-    if (!same) { hover = h; moved = true; if (h && h.kind === 'obj') { const o = OBJ.find(x => x.id === h.id); cv.title = hotspots().find(q => q.id === h.id).label; void o; } else if (h && h.kind === 'agent') { const a = agentById(h.id); cv.title = a ? (a.name + ' · ' + (a.role || '')) : h.id === 'sched-npc' ? 'Scheduler · ' + schedLine() : ''; } else cv.title = ''; if (!running || reduced()) render(); }
+    if (!same) { hover = h; moved = true; if (h && h.kind === 'obj') { const o = OBJ.find(x => x.id === h.id); cv.title = hotspots().find(q => q.id === h.id).label; void o; } else if (h && h.kind === 'agent') { const a = agentById(h.id); cv.title = a ? (a.name + ' · ' + (a.role || '')) : h.id === 'sched-npc' ? 'Scheduler · ' + schedLine() : ''; } else cv.title = ''; wake(); }
     cv.style.cursor = h ? 'pointer' : 'default';
   }
   function onClick(e) {
+    lastInput = nowMs(); wake();
     const [px, py] = toStage(e), h = pick(px, py);
     if (!h) { return; }
     if (h.kind === 'nudge') { opts.onNudge && opts.onNudge(h.id); return; }
@@ -334,19 +367,22 @@
     if (h.kind === 'agent') { opts.onSelect && opts.onSelect(h.id); return; }
     activate(h.id);
   }
-  function onLeave() { if (hover) { hover = null; if (reduced()) render(); } }
+  function onLeave() { if (hover) { hover = null; wake(); } }
 
   // ---------- public API ----------
   function mount(canvas, o) {
     opts = o || {}; cv = canvas; g = cv.getContext('2d'); born = clock;
     cv.addEventListener('mousemove', onMove); cv.addEventListener('click', onClick); cv.addEventListener('mouseleave', onLeave);
     setScale(1); start();
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); running = false; } else start(); });
-    if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => { render(); });
+    cv.addEventListener('wheel', () => { lastInput = nowMs(); wake(); }, { passive: true }); cv.addEventListener('pointerdown', () => { lastInput = nowMs(); wake(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else { running = false; dirty = true; start(); } });
+    root.addEventListener('focus', wake); root.addEventListener('blur', wake);
+    if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => { dirty = true; render(); schedule(); });
   }
   function setScale(s) { // css scale of the stage * device pixel ratio -> internal canvas resolution
     scaleCss = s; const r = Math.max(1, Math.min(3, Math.round(s * (root.devicePixelRatio || 1) * 4) / 4)); if (!cv) return;
     if (r !== res || cv.width !== Math.round(STW * r)) { res = r; cv.width = Math.round(STW * res); cv.height = Math.round(STH * res); bg = null; }
+    wake();
   }
   function advance(sec) { // fast-forward the simulation (used by smoke tests and the demo preview)
     const n = Math.ceil(sec * 30); for (let i = 0; i < n; i++) tick(1 / 30);
@@ -355,15 +391,19 @@
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {
     mount, setScale, advance, hotspots, activate, STW, STH,
-    setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } },
-    setExtras(e) { extras = Object.assign(extras, e); },
-    setSelected(id) { selected = id; },
-    setHover(v) { hover = v; },
-    nudge(id) { nudged[id] = clock + 1800; },
-    setLegend(on) { legend = !!on; F.state.labels = on ? 1 : (F.state.labels > 0 ? F.state.labels : 0); if (on) F.state.labels = 1; born = clock; },
+    setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } wake(); },
+    setExtras(e) { extras = Object.assign(extras, e); wake(); },
+    setSelected(id) { selected = id; wake(); },
+    setHover(v) { hover = v; wake(); },
+    nudge(id) { nudged[id] = clock + 1800; wake(); },
+    powerSaver: () => saver,
+    setPowerSaver(on) { saver = !!on; try { localStorage.setItem('ao.powerSaver', saver ? '1' : '0'); } catch (e) { } wake(); },
+    framesDrawn: () => drawn,
+    setLegend(on) { wake(); legend = !!on; F.state.labels = on ? 1 : (F.state.labels > 0 ? F.state.labels : 0); if (on) F.state.labels = 1; born = clock; },
     legend: () => legend,
-    setHour(h) { hourOverride = h; bg = null; },
+    setHour(h) { hourOverride = h; bg = null; wake(); },
     setDemo(scene) { // scene string, or null to return to live data
+      wake();
       if (!scene) { demo = null; reset(); lastDemoSig = ''; return; }
       if (!demo) reset(); demo = { scene, t0: clock }; lastDemoSig = ''; brain.cfg.idleDelay = 3000;
     },

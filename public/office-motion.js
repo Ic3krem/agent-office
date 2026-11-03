@@ -482,7 +482,31 @@
   // zoom by factor about the point (cx, cy) given relative to the viewport centre; the stage point under the cursor stays put
   const zoomAt = (v, factor, cx, cy) => { const z = Math.min(ZMAX, Math.max(ZMIN, v.z * factor)), k = z / v.z; return { z, x: cx - k * (cx - v.x), y: cy - k * (cy - v.y) }; };
 
-  const api = { clampView, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, TIRO_DESK, OBSTACLES, SPOTS, NODES, EDGES, GARDEN, PLAY, COOLER, HOT, OVER, COLX, ROWY, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
+  // ---------- frame scheduler (pure) ----------
+  // How long to wait before the next canvas frame, in ms; -1 = paused (hidden or minimised window, nothing to draw).
+  // state: { hidden, reduced, saver, dirty, interactMs, moving, active, blurred }
+  //   dirty      something changed (data, hover, click, zoom): draw at once (never faster than MIN_GAP)
+  //   interactMs ms since the last pointer / key input over the stage
+  //   moving     a character, fade, bubble or easing is mid-motion: needs smooth frames
+  //   active     seated animations (typing, playing, thinking, music, pulses) but nothing travelling
+  //   blurred    the window is visible but not focused: everything runs slower
+  // saver off keeps the old behaviour (30 fps flat). Reduced motion never animates, only follows changes.
+  const FRAME = { MIN_GAP: 16, SMOOTH: 33, WORK: 125, IDLE: 500, INTERACT_MS: 1500, BLUR_SMOOTH: 66, BLUR_WORK: 250, BLUR_IDLE: 1000 };
+  function nextFrameDelay(s) {
+    if (s.hidden) return -1;
+    if (s.reduced) return s.dirty ? 0 : 500;
+    if (s.dirty) return 0;
+    if (!s.saver) return FRAME.SMOOTH;
+    const bl = !!s.blurred;
+    if (s.moving) return bl ? FRAME.BLUR_SMOOTH : FRAME.SMOOTH;
+    if (s.interactMs < FRAME.INTERACT_MS) return FRAME.SMOOTH;
+    if (s.active) return bl ? FRAME.BLUR_WORK : FRAME.WORK;
+    return bl ? FRAME.BLUR_IDLE : FRAME.IDLE;
+  }
+
+  // ms to wait before drawing, given the time since the last draw; never faster than MIN_GAP; -1 = paused
+  const frameWait = (st, since) => { const d = nextFrameDelay(st); return d < 0 ? -1 : Math.max(FRAME.MIN_GAP - since, d - since, 0); };
+  const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, TIRO_DESK, OBSTACLES, SPOTS, NODES, EDGES, GARDEN, PLAY, COOLER, HOT, OVER, COLX, ROWY, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
     boardOf, nextState, createBrain, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
   root.OfficeMotion = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
