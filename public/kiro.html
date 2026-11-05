@@ -7,7 +7,9 @@
 <style>
   :root { --bg: #1a1512; --line: #3a2e25; --ink: #f0e4d4; --dim: #a8998a; --accent: #ffcf6b; --orange: #ff6a13; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: var(--ink); user-select: none; }
-  #kiro { position: absolute; right: 8px; bottom: 12px; width: 140px; height: 140px; cursor: grab; touch-action: none; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+  #kiro { position: absolute; right: 8px; bottom: 12px; width: 140px; height: 140px; cursor: grab; touch-action: none; }
+  #kiro::before { content: ''; position: absolute; left: 22px; right: 22px; bottom: 2px; height: 14px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(0,0,0,.38), rgba(0,0,0,0) 70%); pointer-events: none; }
+  #kiro svg { position: relative; }
   #kiro:active { cursor: grabbing; }
   #kiro:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 12px; }
   .badge { position: absolute; right: 12px; bottom: 120px; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: #ffb547; color: #2a1600; font: 700 12px/22px 'Instrument Sans'; text-align: center; box-shadow: 0 0 0 2px #2a1600; display: none; }
@@ -18,7 +20,7 @@
   .mood-work .leg, .mood-build .leg { animation: scuttle .35s ease-in-out infinite alternate; transform-origin: 64px 98px; }
   .mood-work .claw { animation: type .18s ease-in-out infinite alternate; }
   .mood-work .bits text { animation: rise 1.6s linear infinite; }
-  .mood-work .keys { filter: drop-shadow(0 0 6px #3dff8f); }
+  .mood-work .keys { stroke: #3dff8f; stroke-width: .7; stroke-opacity: .7; }
   .mood-think .orb { animation: pulse 1.8s ease-in-out infinite; transform-origin: 64px 104px; }
   .mood-alert .body { animation: hop .7s ease-in-out infinite; }
   .mood-alert .cloth { animation: wave .5s ease-in-out infinite alternate; transform-origin: 115px 15px; }
@@ -27,6 +29,11 @@
   .mood-sleep .body { animation: breathe 3.6s ease-in-out infinite; transform-origin: 64px 100px; }
   .mood-sleep .zzz text { animation: rise 2.4s ease-in-out infinite; }
   .mood-build .tool { animation: swing .5s ease-in-out infinite alternate; transform-origin: 116px 74px; }
+  /* power saver: after a few idle seconds everything holds still, and the eyes blink in short bursts; hover or a mood change wakes it */
+  #kiro.rest, #kiro.rest * { animation-play-state: paused !important; }
+  #kiro.rest .eyes { animation: none !important; }
+  #kiro.rest.blinking .eyes { animation: blinkOnce .24s 1 !important; animation-play-state: running !important; transform-origin: 64px 65px; }
+  @keyframes blinkOnce { 50% { transform: scaleY(.1); } }
   @keyframes bob { 50% { transform: translateY(-3px); } }
   @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
   @keyframes scuttle { to { transform: rotate(4deg); } }
@@ -114,11 +121,24 @@ function pickMood() {
 }
 function render() {
   const m = pickMood();
-  if (m !== mood) { mood = m; $('kiro').innerHTML = kiroSVG(m, 140); }
+  if (m !== mood) { mood = m; $('kiro').innerHTML = kiroSVG(m, 140); rest(); }
   const n = snap ? (snap.agents || []).filter(x => x.perm).length : 0;
   $('badge').style.display = n ? 'block' : 'none'; $('badge').textContent = n;
   if ($('panel').classList.contains('open')) renderPanel();
 }
+
+// ---- power saver: hold still when idle, blink now and then
+const saver = () => { try { return localStorage.getItem('ao.powerSaver') !== '0'; } catch (e) { return true; } };
+let restT = 0, blinkT = 0;
+function rest() {
+  clearTimeout(restT); $('kiro').classList.remove('rest', 'blinking');
+  if (saver() && ['idle', 'cool', 'sleep'].includes(mood)) restT = setTimeout(() => $('kiro').classList.add('rest'), 6000);
+}
+function blinkLater() {
+  blinkT = setTimeout(() => { const k = $('kiro'); if (k.classList.contains('rest') && !document.hidden) { k.classList.add('blinking'); setTimeout(() => k.classList.remove('blinking'), 300); } blinkLater(); }, 4000 + Math.random() * 4000);
+}
+blinkLater();
+window.addEventListener('storage', e => { if (e.key === 'ao.powerSaver') rest(); });
 
 // ---- speech bubble for things worth a glance
 let bubbleTimer;
@@ -201,6 +221,7 @@ $('kiro').addEventListener('pointerup', () => {
   lastClick = now;
   setTimeout(() => { if (lastClick === now) $('panel').classList.contains('open') ? closePanel() : openPanel(); }, 330);
 });
+$('kiro').addEventListener('pointerenter', rest); $('kiro').addEventListener('focus', rest);
 $('kiro').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPanel(); } });
 $('badge').onclick = openPanel;
 

@@ -102,7 +102,7 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 | `islandSettings.notchShortcut` | Optional global shortcut that toggles the notch, for example `Ctrl+Alt+N` (empty = none, the default; 2 or 3 modifiers plus a letter, digit or F-key; `Ctrl+Alt+K` is reserved). |
 | `islandMute` | Silence the approval and done chimes. |
 | `islandDisplay` | `cursor` (default), `primary` or a display id. |
-| `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics` (off by default: turning it on looks songs up at lrclib.net, see the guide), `kiroFace`, `animate`. |
+| `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics` (off by default: turning it on looks songs up at lrclib.net, see the guide), `kiroFace`, `animate`, `powerSaver` (default on: caps redraw rates and pauses idle animations to save GPU; see the guide). |
 | `updateAuto` | Check for updates on start (default on). The update feed itself is fixed in the app and cannot be set here. |
 | `autostart` | Start with Windows (packaged app, default on). |
 | `hidden`, `x`, `y` | Whether the desktop Tiro is hidden, and where it sits. |

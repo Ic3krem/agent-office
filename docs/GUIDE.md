@@ -120,6 +120,12 @@ The **Agent history** button (bottom left) opens a three-pane browser: agents on
 
 ![One past task opened: summary, transcript reference and the final report](images/10-agent-history-task-detail.png)
 
+## Power saver
+
+The animated parts of Agent Office (the office canvas, Tiro's window, the island) can use a surprising share of a GPU if they redraw at full speed all day. **Power saver** (on by default) keeps them calm: the office redraws about 30 times a second only while characters move or you interact with it, about 8 times a second for seated animations, about twice a second when nothing is happening, and not at all while the window is hidden or minimised. Tiro holds still after a few idle seconds and blinks now and then; the island stops its idle breathing while collapsed. Anything that changes (new data, a hover, a click) shows immediately.
+
+Turn it off with the **Power saver** button next to Labels in the office, or in the island's Settings, to get the old constant motion. `prefers-reduced-motion` is always honoured. The setting is stored as `islandSettings.powerSaver` in `kiro.json` and mirrored in the browser as `ao.powerSaver`.
+
 ## Tiro on your desktop
 
 Tiro lives as a small always-on-top character on your desktop. Click to chat, give tasks and approve requests; double-click to open the office. Its mood follows the work: idle, typing, waving a flag when you are needed, confetti when a goal is done, asleep when paused. Hide or show it from the tray.

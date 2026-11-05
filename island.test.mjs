@@ -90,3 +90,11 @@ test('peekReady waits for the edge delay', () => {
   assert.equal(peekReady(1000, 1150, 200), false);
   assert.equal(peekReady(1000, 1200, 200), true);
 });
+
+test('power saver setting: default on, validated like the other booleans', async () => {
+  const { DEFAULT_SETTINGS, normalizeSettings } = await import('./desktop/island-logic.mjs');
+  assert.equal(DEFAULT_SETTINGS.powerSaver, true);
+  assert.equal(normalizeSettings({}).powerSaver, true);
+  assert.equal(normalizeSettings({ powerSaver: false }).powerSaver, false);
+  assert.equal(normalizeSettings({ powerSaver: 'no' }).powerSaver, true, 'junk falls back to the default');
+});

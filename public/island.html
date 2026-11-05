@@ -12,7 +12,7 @@
   #isle { position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: var(--bg); border-radius: 0 0 22px 22px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 -1px 0 rgba(255,255,255,.06); outline: none; }
   #isle { transition: opacity .25s, transform .25s; }
   #isle.away { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(-14px); } /* Smart mode: idle, fullscreen app, or not peeked */
-  #isle::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1px var(--glow, transparent); transition: box-shadow .3s; }
+  #isle::after { content: ''; position: absolute; inset: 0; box-sizing: border-box; border: 1px solid var(--glow, transparent); border-top-color: transparent; border-radius: inherit; pointer-events: none; transition: border-color .3s; }
   #isle[data-tone=work] { --glow: var(--accent); }
   #isle[data-tone=ask] { --glow: rgba(255,181,71,.9); }
   #isle[data-tone=done] { --glow: rgba(95,211,141,.85); }
@@ -76,7 +76,7 @@
   html[data-face=on] .face { display: inline-flex; } html[data-face=on] .dot { display: none; }
   .face .eye { width: var(--ew); height: var(--eh); border-radius: .75em; background: var(--accent); transform: translate(var(--lx), var(--ly)) scaleY(var(--bl)); transition: transform .18s ease-out, height .2s, width .2s, background .2s, border-radius .2s; }
   .face.blink { --bl: .12; } .face.blink .eye { transition-duration: .06s; }
-  .face[data-mood=idle] { animation: breathe 4.2s ease-in-out infinite; }
+  .face[data-mood=idle] { animation: breathe 4.2s ease-in-out infinite; } /* data-anim goes off while idle and collapsed (power saver), which stops this */
   .face[data-mood=work] .eye { animation: scan .9s ease-in-out infinite alternate; }
   .face[data-mood=ask] { animation: nudge .6s ease-in-out infinite; --eh: 2.25em; } .face[data-mood=ask] .eye { background: var(--warn); }
   .face[data-mood=done] { --eh: .75em; --ew: 1.25em; } .face[data-mood=done] .eye { border-radius: 1.25em 1.25em 0 0; background: var(--ok); }
@@ -88,8 +88,6 @@
   @keyframes bob { from { transform: translateY(1px) rotate(-4deg); } to { transform: translateY(-2px) rotate(4deg); } }
   @keyframes sway { from { translate: -.4em 0; } to { translate: .4em 0; } }
   /* Idle breathing of the notch edge glow, and the entrance animations (classes are added by JS only on a state change, never on a plain re-render). */
-  #isle[data-tone=off]::after { animation: glow 4.2s ease-in-out infinite; }
-  @keyframes glow { 0%, 100% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); } 50% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); } }
   .body.enter { animation: bodyin .24s ease-out; } @keyframes bodyin { from { opacity: 0; transform: translateY(-6px); } }
   .np { display: inline-flex; align-items: center; gap: 6px; max-width: 190px; padding: 2px 8px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font-size: 12px; color: var(--dim); overflow: hidden; flex: none; }
   .np.enter { animation: chipin .35s cubic-bezier(.3,1.4,.5,1); } @keyframes chipin { from { opacity: 0; max-width: 0; padding: 2px 0; transform: translateX(14px); } }
@@ -153,7 +151,7 @@ let snap = null, prev = null, online = false;
 let pinned = false, hovered = false, chatOn = false, toast = null, toastTimer = 0, leaveTimer = 0;
 let mode = 'always', mute = false, fsApp = false, peek = false;
 let panel = 'home', calOff = 0; // home | calendar | settings; calOff = months away from the current one
-const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, lyrics: false, notchEnabled: true, notchShortcut: '' };
+const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, powerSaver: true, lyrics: false, notchEnabled: true, notchShortcut: '' };
 let S = { ...DEF };
 let lyr = null, lyrIdx = -2, lyrTimer = 0; // synced lyrics {key, lines:[{t,text}]} pushed from the desktop, last shown line index, fade timer
 let np = null, npEnter = false, wasEx = false; // now-playing session (from SMTC), chip entrance flag, previous expanded state
@@ -169,10 +167,15 @@ const ACT = { today: ['☰', 'Today'], reports: ['▤', 'Reports'], usage: ['◔
 const guardText = g => [g.title, 'Rules: ' + (g.rules || []).join(', '), (g.files && g.files.length) ? 'Files: ' + g.files.map(f => f.path + ' (' + f.why + ((f.preview && f.preview.length) ? '; ' + f.preview.slice(0, 3).join(', ') : '') + ')').join('; ') : '', g.host ? 'Destination: ' + g.host : '', g.exact === false ? 'Payload: estimated' : 'Payload: exact', g.source ? 'Source: ' + g.source : '', g.rememberable ? '' : 'This kind of request cannot be remembered.'].filter(Boolean).join('\n');
 let GV = null; // Security Guard settings as the desktop shell reports them (loaded when the Settings tab opens)
 let shortcutOk = true; // false when the desktop could not register the chosen notch shortcut (another program owns it)
+const saver = () => S.powerSaver !== false;
+let curMood = 'idle';
+// Power saver: animations run only while expanded or something is happening (working, asking, music, a toast); an idle collapsed notch holds still.
+function animOn() { return S.animate && !(saver() && !expanded() && (curMood === 'idle' || curMood === 'off' || curMood === 'done')); }
+function syncAnim() { const v = animOn() ? 'on' : 'off'; if (document.documentElement.dataset.anim !== v) document.documentElement.dataset.anim = v; }
 function applySettings(s) {
-  S = { ...DEF, ...s };
+  S = { ...DEF, ...s }; try { localStorage.setItem('ao.powerSaver', saver() ? '1' : '0'); } catch (e) { } // shared with the office page and Tiro
   const t = S.theme === 'custom' ? { ...THEMES.ember, accent: S.accent } : THEMES[S.theme] || THEMES.ember, st = document.documentElement.style;
-  document.documentElement.dataset.face = S.kiroFace ? 'on' : 'off'; document.documentElement.dataset.anim = S.animate ? 'on' : 'off';
+  document.documentElement.dataset.face = S.kiroFace ? 'on' : 'off'; syncAnim();
   for (const k of ['bg', 'card', 'line', 'ink', 'dim', 'accent', 'tile']) st.setProperty('--' + k, t[k]);
   const [k, c] = PHYS[S.physics] || PHYS.default; for (const p of [W, H, R]) { p.k = k; p.c = c; }
 }
@@ -261,7 +264,7 @@ function tickLyric(instant) {
   if (instant || first || still()) return setAll();
   els.forEach(e => e.classList.add('out')); lyrTimer = setTimeout(setAll, 180);
 }
-setInterval(() => tickLyric(false), 200);
+(function lyricLoop() { if (lyr && !document.hidden) tickLyric(false); setTimeout(lyricLoop, lyr ? 200 : 1000); })();
 function calendarHTML() {
   const now = new Date(), d = new Date(now.getFullYear(), now.getMonth() + calOff, 1), y = d.getFullYear(), m = d.getMonth();
   const lead = (new Date(y, m, 1).getDay() - S.weekStart + 7) % 7, n = new Date(y, m + 1, 0).getDate();
@@ -303,6 +306,7 @@ function settingsHTML() {
     <div class="set"><span>Motion</span>${chips('physics', [['soft', 'Soft'], ['default', 'Default'], ['snappy', 'Snappy'], ['bouncy', 'Bouncy']])}</div>
     <div class="set"><span>Tiro character</span>${chips('kiroFace', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Animations</span>${chips('animate', [[true, 'On'], [false, 'Off']])}</div>
+    <div class="set"><span>Power saver</span>${chips('powerSaver', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Now playing</span>${chips('nowPlaying', [[true, 'On'], [false, 'Off']])}</div>
     <div class="set"><span>Lyrics</span>${chips('lyrics', [[true, 'On'], [false, 'Off']])}</div>
     <div class="hint" style="text-align:left">Lyrics are off until you turn them on. When on, the song title, artist, album and length of the playing track are sent to lrclib.net to look up synced lyrics (results are cached on this PC). Nothing else is sent.</div>
@@ -357,7 +361,7 @@ function render() {
   }
   // Size targets: compact pill grows to fit its text; expanded measures its content.
   const slot = $('faceSlot'); if (slot) slot.replaceWith(faceEl);
-  faceEl.dataset.mood = p.mood; faceEl.classList.toggle('big', !ex); tickLyric(true);
+  faceEl.dataset.mood = p.mood; faceEl.classList.toggle('big', !ex); curMood = p.mood; syncAnim(); tickLyric(true);
   if (ex && !wasEx && !still()) $('in').querySelector('.body')?.classList.add('enter');
   wasEx = ex;
   if (npEnter) { npEnter = false; if (!still()) $('npchip')?.classList.add('enter'); }

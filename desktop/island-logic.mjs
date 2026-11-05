@@ -57,7 +57,7 @@ export const DEFAULT_SETTINGS = {
   pinned: ['today', 'reports', 'usage', 'chat', 'calendar', 'settings'],
   hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1,
   edgeDelay: 0, leaveDelay: 900,
-  nowPlaying: true, kiroFace: true, animate: true, lyrics: false, // lyrics are opt-in: turning them on sends title, artist, album and duration to lrclib.net
+  nowPlaying: true, kiroFace: true, animate: true, powerSaver: true, lyrics: false, // lyrics are opt-in: turning them on sends title, artist, album and duration to lrclib.net
   notchEnabled: true,   // the notch (island overlay) exists; off removes the window and everything that serves it
   notchShortcut: '',    // optional global shortcut that toggles the notch; empty = no shortcut (default)
 };
@@ -139,6 +139,7 @@ export function normalizeSettings(raw) {
     nowPlaying: typeof r.nowPlaying === 'boolean' ? r.nowPlaying : d.nowPlaying,
     kiroFace: typeof r.kiroFace === 'boolean' ? r.kiroFace : d.kiroFace,
     animate: typeof r.animate === 'boolean' ? r.animate : d.animate,
+    powerSaver: typeof r.powerSaver === 'boolean' ? r.powerSaver : d.powerSaver, // caps frame rates and pauses idle animations (default on)
     lyrics: typeof r.lyrics === 'boolean' ? r.lyrics : d.lyrics,
     notchEnabled: typeof r.notchEnabled === 'boolean' ? r.notchEnabled : d.notchEnabled,
     notchShortcut: validAccelerator(r.notchShortcut) ? canonicalAccelerator(r.notchShortcut) : d.notchShortcut,

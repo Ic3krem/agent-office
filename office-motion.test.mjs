@@ -412,3 +412,37 @@ test('Tiro sits behind his desk: desk front over the lower body, chair behind hi
   // a visitor standing at the guest spot in front of the desk is in front of it
   const g = M.SPOTS['office:report'], p2 = { x: g.x, y: g.y, d: g.x + g.y + 3.5 }, o2 = F.layer([p2]); assert.ok(o2.indexOf(p2) > o2.indexOf(desk));
 });
+
+// ---------- frame scheduler (power saver) ----------
+const FS = (o = {}) => ({ hidden: false, reduced: false, saver: true, dirty: false, interactMs: 1e9, moving: false, active: false, blurred: false, ...o });
+test('nextFrameDelay: state table', () => {
+  const D = M.nextFrameDelay, F = M.FRAME;
+  assert.equal(D(FS({ hidden: true, moving: true, dirty: true })), -1, 'hidden or minimised = paused, whatever else is going on');
+  assert.equal(D(FS({ dirty: true })), 0, 'a change shows at once');
+  assert.equal(D(FS({ moving: true })), F.SMOOTH);
+  assert.equal(D(FS({ interactMs: 100 })), F.SMOOTH, 'recent pointer input stays smooth');
+  assert.equal(D(FS({ interactMs: F.INTERACT_MS + 1 })), F.IDLE);
+  assert.equal(D(FS({ active: true })), F.WORK);
+  assert.equal(D(FS()), F.IDLE);
+  assert.equal(D(FS({ saver: false })), F.SMOOTH, 'saver off = the old flat 30 fps');
+  assert.equal(D(FS({ saver: false, hidden: true })), -1, 'hidden is paused even with saver off');
+  assert.equal(D(FS({ reduced: true })), 500); assert.equal(D(FS({ reduced: true, dirty: true })), 0);
+  assert.equal(D(FS({ reduced: true, moving: true })), 500, 'reduced motion never animates');
+  assert.ok(D(FS({ blurred: true, moving: true })) > F.SMOOTH && D(FS({ blurred: true })) > F.IDLE, 'an unfocused window runs slower');
+  assert.ok(F.SMOOTH >= 33 && F.WORK >= 100 && F.IDLE >= 500, 'caps: 30 fps moving, 8 fps seated animations, 2 fps idle');
+});
+test('frame budget on a fake clock: idle, working, moving, hidden', () => {
+  // replays the world's scheduling rule: draw, then wait frameWait(state, since) before the next one
+  const run = (stateAt, ms) => { let t = 0, last = -1e9, n = 0; while (t < ms) { const w = M.frameWait(stateAt(t), t - last); if (w < 0) break; t += Math.max(w, 1); if (t >= ms) break; n++; last = t; } return n; };
+  const perMin = (st, extra) => run(t => ({ ...FS(), ...st(t) }), 60000) + (extra || 0);
+  assert.ok(perMin(() => ({})) <= 125, 'idle: at most ~2 frames a second, got ' + perMin(() => ({})));
+  assert.ok(perMin(() => ({ active: true })) <= 500, 'seated animations: 8 fps');
+  const mv = perMin(() => ({ moving: true })); assert.ok(mv <= 1830 && mv >= 1500, 'moving: about 30 fps, got ' + mv);
+  assert.equal(perMin(() => ({ hidden: true })), 0, 'hidden: no frames at all');
+  assert.ok(perMin(t => ({ hidden: t > 1000 })) <= run(() => FS(), 1000) + 1, 'a window hidden mid-run stops drawing');
+  // a hover storm (dirty every ~8 ms for 10 s) is still capped at 60 fps
+  let t = 0, last = -1e9, n = 0; while (t < 10000) { const w = M.frameWait(FS({ dirty: true }), t - last); t += Math.max(w, 1); n++; last = t; }
+  assert.ok(n <= 10 * 63, 'dirty redraws capped near 60 fps, got ' + n);
+  // idle redraws per minute are at least 12x below the old 30 fps loop
+  assert.ok(perMin(() => ({})) * 12 <= 1800);
+});
