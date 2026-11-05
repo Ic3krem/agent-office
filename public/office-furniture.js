@@ -67,7 +67,7 @@
   // (seated-in pieces whose sitter must stay in front); o.floor = flat floor piece drawn under everyone.
   // While place() builds a piece away from its home, CUR holds the offset: the painter draws through a canvas translate
   // and its depth, footprints and click box shift with it. IT/OB are where add/reg collect (footprints() uses scratch arrays).
-  let CUR = null, IT = items, OB = objects;
+  let CUR = null, IT = items, OB = objects, INST = null; // INST: id of the instance being built (click objects carry it)
   const off = (q, dx, dy) => [q[0] + dx, q[1] + dy, q[2] + dx, q[3] + dy];
   const add = (d, fn, o) => {
     if (CUR && (CUR.dx || CUR.dy)) {
@@ -79,7 +79,7 @@
   };
   const reg = (key, label, b, src, o) => {
     if (CUR && (CUR.dx || CUR.dy)) b = [b[0] + CUR.dx, b[1] + CUR.dy, ...b.slice(2)];
-    const ob = { key, label, box: b, src: src || null }; if (o) Object.assign(ob, o); OB.push(ob); return ob;
+    const ob = { key, label, box: b, src: src || null, inst: INST }; if (o) Object.assign(ob, o); OB.push(ob); return ob;
   };
   // Furniture catalog: def() declares a type whose build(p, x, y) calls add/reg exactly as the hardcoded scene did, drawing at
   // its home (x, y): the type anchor, or p.home for a second copy of a type, or T.home(p) (desks read M.DESKS). put() lists
@@ -189,6 +189,7 @@
       });
     }
   }
+  const zoneColor = type => (ZONE_TEX[type] || { c: '#3d8fd6' }).c; // water has no floor texture: pond blue
   let ZONES = null;
   function setZones(zones) { ZONES = zones || null; }
 
@@ -928,10 +929,10 @@
     try {
       for (const p of instances) {
         const T = CATALOG[p.type]; if (!T) continue; // unknown types are WorldModel.validate's job
-        const [hx, hy] = homeOf(T, p); CUR = { dx: p.x - hx, dy: p.y - hy };
+        const [hx, hy] = homeOf(T, p); CUR = { dx: p.x - hx, dy: p.y - hy }; INST = p.id;
         T.build(p, hx, hy);
       }
-    } finally { CUR = null; IT = items; OB = objects; }
+    } finally { CUR = null; INST = null; IT = items; OB = objects; }
   }
   // Rebuild the painters and click objects from instances (in place: the world holds these arrays).
   function place(instances) {
@@ -968,5 +969,5 @@
   const defaultInstances = () => JSON.parse(JSON.stringify(DEFAULTS));
   place(defaultInstances());
 
-  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
+  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, zoneColor, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

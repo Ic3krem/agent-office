@@ -34,6 +34,19 @@
   const nextId = (list, prefix) => { const ids = new Set(list.map(e => e.id)); let n = 1; while (ids.has(prefix + '-' + n)) n++; return prefix + '-' + n; };
   const fail = reason => ({ ok: false, reason });
 
+  // The piece under ground point (x, y): the front-most (largest far corner x + y) footprint holding it, else a piece
+  // with no footprint (walkable, flat) within 20 units of its x, y. Fixtures never. fps: optional Map id -> rects.
+  function pieceAt(objects, x, y, fps) {
+    let best = null, far = -Infinity, near = null, nd = 20 * 20;
+    for (const o of objects) {
+      if (isFixture(o.type)) continue;
+      const rs = fps && fps.has(o.id) ? fps.get(o.id) : F.footprints([o]);
+      if (!rs.length) { const d = (o.x - x) ** 2 + (o.y - y) ** 2; if (d <= nd) { nd = d; near = o.id; } continue; }
+      for (const r of rs) if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3] && r[2] + r[3] > far) { far = r[2] + r[3]; best = o.id; }
+    }
+    return best || near;
+  }
+
   function createSession(layout) {
     let cur = copy(layout), base = JSON.stringify(cur);
     const past = [], future = [];
@@ -176,5 +189,5 @@
     };
   }
 
-  root.WorldEdit = { toGround, snap, catalog, createSession };
+  root.WorldEdit = { toGround, snap, catalog, createSession, pieceAt, isFixture };
 })(globalThis);

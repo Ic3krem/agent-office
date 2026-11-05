@@ -155,3 +155,11 @@ test('ops are fast', () => {
   const median = times.sort((a, b) => a - b)[25];
   assert.ok(50 * median < 250, `50 moves at the median ${median.toFixed(2)} ms take ${(50 * median).toFixed(1)} ms`);
 });
+
+test('screen point under a placed piece hits it', () => {
+  const L = WM.defaultLayout(), bench = L.objects.find((o) => o.id === 'bench-1');
+  const [r] = J(F.footprints([bench])), cx = (r[0] + r[2]) / 2, cy = (r[1] + r[3]) / 2;
+  const g = E.toGround(...F.P(cx, cy, 0));
+  assert.ok(g.x >= r[0] && g.x <= r[2] && g.y >= r[1] && g.y <= r[3], `${g.x},${g.y} outside ${r}`);
+  assert.equal(E.pieceAt(L.objects, g.x, g.y), 'bench-1');
+});

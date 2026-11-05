@@ -14,6 +14,10 @@
   let live = null, demo = null, extras = {}, selected = null, hover = null, chatter = null, nextChat = 0;
   let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
+  // Build mode: the edit session (WorldEdit) or null, the page's hooks, the zone tool, the selection {kind: 'obj'|'zone', id},
+  // the session's layout as last applied, footprints per object id, the drag in progress and the pointers that are down.
+  let build = null, bhooks = {}, tool = null, sel = null, blayout = null, fps = new Map(), drag = null, noClick = false;
+  const pointers = new Set();
   // Power saver (default on): idle scenes redraw about twice a second, seated animations 8 times, travelling characters 30 times;
   // a hidden window draws nothing. Off = the old flat 30 fps. Stored in localStorage so the page keeps the choice.
   function readSaver() { try { return localStorage.getItem('ao.powerSaver') !== '0'; } catch (e) { return true; } }
@@ -287,6 +291,7 @@
     if (ST.night > .02) { g.fillStyle = 'rgba(10,14,56,' + (.36 * ST.night) + ')'; g.fillRect(0, 0, STW, STH); }
     if (ST.dim > .02) { g.fillStyle = 'rgba(14,8,34,' + (.14 * ST.dim) + ')'; g.fillRect(0, 0, STW, STH); }
     g.globalCompositeOperation = 'source-over';
+    if (build) { drawBuild(); hits.nudge = {}; return; } // Build mode: the edit overlay instead of hover rings and tags
     // hover outline on an object
     if (hover && hover.kind === 'obj') { const o = OBJ.find(x => x.id === hover.id); if (o && o.mask) { const rg = ringOf(o); g.drawImage(rg.c, o.mask.l - rg.pad, o.mask.t - rg.pad); } else if (o) { g.strokeStyle = 'rgba(255,207,107,.9)'; g.lineWidth = 2; g.setLineDash([6, 4]); rr(o.bb.l, o.bb.t, o.bb.w, o.bb.h, 6); g.stroke(); g.setLineDash([]); g.fillStyle = 'rgba(255,207,107,.08)'; g.fill(); } }
     // tags and bubbles on top
@@ -306,7 +311,7 @@
   // screen calls wake() so it shows at once. Hidden windows schedule nothing at all.
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   function isMoving() {
-    if (!frame) return false;
+    if (!frame || build) return false;
     const ST = F.state;
     if (ghosts.length || ST.printer > 0 || Object.keys(nudged).length) return true;
     if (!legend && ST.labels > 0.02 && ST.labels < 1) return true;
@@ -315,7 +320,7 @@
     return false;
   }
   function isActive() {
-    if (!frame) return false;
+    if (!frame || build) return false;
     if (chatter || extras.music || extras.pending || frame.reportIcon || demo) return true;
     const A = ['play', 'sit-play', 'think', 'sit-think', 'hand', 'report', 'cup', 'type', 'celebrate'];
     return frame.agents.some(a => a.working || a.state === M.S.WINDOW || A.includes(a.pose));
@@ -335,7 +340,8 @@
     raf = 0;
     const n = nowMs(); if (!last) last = n;
     const moving = isMoving(), dt = Math.min(moving ? 0.25 : 1, (n - last) / 1000); last = n;
-    tick(dt); render(); dirty = false; lastDraw = n; drawn++;
+    if (!build) tick(dt); // Build mode freezes the agents where they are
+    render(); dirty = false; lastDraw = n; drawn++;
     schedule();
   }
   function start() { if (running) return; running = true; last = 0; schedule(); }
@@ -356,6 +362,7 @@
   }
   function onMove(e) {
     lastInput = nowMs();
+    if (build) { const [px, py] = toStage(e); cv.style.cursor = drag ? 'grabbing' : buildPiece(px, py) ? 'move' : tool ? 'crosshair' : 'default'; cv.title = ''; return; }
     const [px, py] = toStage(e), h = pick(px, py);
     if (h && h.kind === 'nudge') { cv.style.cursor = 'pointer'; return; }
     const same = (!h && !hover) || (h && hover && h.kind === hover.kind && h.id === hover.id);
@@ -364,6 +371,7 @@
   }
   function onClick(e) {
     lastInput = nowMs(); wake();
+    if (build) { if (noClick) { noClick = false; e.stopPropagation(); } return; } // a finished drag is not a click
     const [px, py] = toStage(e), h = pick(px, py);
     if (!h) { return; }
     if (h.kind === 'nudge') { opts.onNudge && opts.onNudge(h.id); return; }
@@ -373,12 +381,146 @@
   }
   function onLeave() { if (hover) { hover = null; wake(); } }
 
+  // ---------- build mode: overlay, pointer and keys over a WorldEdit session ----------
+  const WE = () => root.WorldEdit;
+  const toast = t => bhooks.onToast && bhooks.onToast(t);
+  function setSel(s) { sel = s; bhooks.onSelect && bhooks.onSelect(s ? s.id : null, s ? s.kind : null); wake(); }
+  const fpCache = new Map(); // footprints by instance JSON: one op changes one or two pieces
+  function footprintsOf(o) { const k = JSON.stringify(o); if (!fpCache.has(k)) fpCache.set(k, F.footprints([o])); return fpCache.get(k); }
+  function syncBuild() { blayout = build.layout(); fps = new Map(blayout.objects.map(o => [o.id, footprintsOf(o)])); }
+  // After every op: show the session's layout, drop a selection the op removed, tell the page.
+  function afterOp() {
+    syncBuild(); applyLayout(blayout);
+    if (sel && !(sel.kind === 'zone' ? blayout.zones : blayout.objects).some(q => q.id === sel.id)) setSel(null);
+    bhooks.onChange && bhooks.onChange({ dirty: build.dirty(), canUndo: build.canUndo(), canRedo: build.canRedo(), selected: sel ? sel.id : null, selectedKind: sel ? sel.kind : null });
+  }
+  // The piece under stage point (px, py): ground footprints first, then the click silhouettes of non-fixture pieces.
+  function buildPiece(px, py) {
+    const gp = WE().toGround(px, py), id = WE().pieceAt(blayout.objects, gp.x, gp.y, fps);
+    if (id) return id;
+    const area = o => o.mask ? o.mask.w * o.mask.h : o.bb.w * o.bb.h, mine = new Set(blayout.objects.filter(o => !WE().isFixture(o.type)).map(o => o.id));
+    const o = OBJ.filter(q => mine.has(q.inst) && inObj(q, px, py)).sort((a, b) => area(a) - area(b))[0];
+    return o ? o.inst : null;
+  }
+  const zoneAt = gp => blayout.zones.filter(z => gp.x >= z.rect[0] && gp.x <= z.rect[2] && gp.y >= z.rect[1] && gp.y <= z.rect[3])
+    .sort((a, b) => (a.rect[2] - a.rect[0]) * (a.rect[3] - a.rect[1]) - (b.rect[2] - b.rect[0]) * (b.rect[3] - b.rect[1]))[0] || null;
+  const selZone = () => sel && sel.kind === 'zone' ? blayout.zones.find(z => z.id === sel.id) : null;
+  function cancelDrag() { // put a half-dragged piece back where the session has it
+    const d = drag; drag = null; if (!d) return;
+    if (d.kind === 'piece' && d.x != null) applyLayout(blayout);
+    wake();
+  }
+  function onDown(e) {
+    if (!build) return;
+    noClick = false; pointers.add(e.pointerId);
+    if (pointers.size > 1) { cancelDrag(); return; } // a second finger: pinch and pan belong to the camera
+    if (e.button !== 0) return;
+    const [px, py] = toStage(e), gp = WE().toGround(px, py), z = selZone();
+    let d = null;
+    if (z) { const [hx, hy] = P(z.rect[2], z.rect[3], 0); if (Math.hypot(px - hx, py - hy) <= 10) d = { kind: 'resize', id: z.id, r0: z.rect }; }
+    if (!d) { const id = buildPiece(px, py); if (id) { d = { kind: 'piece', id, o: blayout.objects.find(q => q.id === id) }; setSel({ kind: 'obj', id }); } }
+    if (!d && tool && tool.startsWith('zone:')) d = { kind: 'zone', type: tool.slice(5) };
+    if (!d) { if (sel) setSel(null); return; } // empty ground: let it through so the camera can pan
+    e.stopPropagation();
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ }
+    drag = Object.assign(d, { pid: e.pointerId, cx: e.clientX, cy: e.clientY, g0: gp, moved: false, ok: true });
+  }
+  function onDrag(e) {
+    const d = drag; if (!build || !d || e.pointerId !== d.pid) return;
+    if (!d.moved && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) < 4) return;
+    d.moved = true; lastInput = nowMs();
+    const [px, py] = toStage(e), gp = WE().toGround(px, py), dx = gp.x - d.g0.x, dy = gp.y - d.g0.y, S = WE().snap;
+    if (d.kind === 'piece') {
+      const x = S(d.o.x + dx), y = S(d.o.y + dy);
+      if (x === d.x && y === d.y) return;
+      d.x = x; d.y = y; d.ok = build.check({ op: 'move', id: d.id, x, y }).ok;
+      F.place(blayout.objects.map(q => q.id === d.id ? Object.assign({}, q, { x, y }) : q)); // painters only; re-measured on release
+    } else if (d.kind === 'zone') {
+      d.rect = [Math.min(d.g0.x, gp.x), Math.min(d.g0.y, gp.y), Math.max(d.g0.x, gp.x), Math.max(d.g0.y, gp.y)].map(S);
+      d.ok = build.check({ op: 'addZone', type: d.type, rect: d.rect }).ok;
+    } else {
+      d.rect = [d.r0[0], d.r0[1], S(d.r0[2] + dx), S(d.r0[3] + dy)];
+      d.ok = build.check({ op: 'setZone', id: d.id, rect: d.rect }).ok;
+    }
+    wake();
+  }
+  function onUp(e) {
+    pointers.delete(e.pointerId);
+    const d = drag; if (!build || !d || e.pointerId !== d.pid) return;
+    drag = null;
+    if (e.type === 'pointercancel') { drag = d; cancelDrag(); return; }
+    if (!d.moved) { if (d.kind === 'zone') { const z = zoneAt(d.g0); setSel(z ? { kind: 'zone', id: z.id } : null); } wake(); return; }
+    noClick = true;
+    let r = null;
+    if (d.kind === 'piece') { if (d.x != null && (d.x !== d.o.x || d.y !== d.o.y)) r = build.move(d.id, d.x, d.y); }
+    else if (d.rect && d.kind === 'zone') { r = build.addZone(d.type, d.rect); if (r.ok) setSel({ kind: 'zone', id: r.id }); }
+    else if (d.rect) r = build.setZone(d.id, { rect: d.rect });
+    if (r && !r.ok) toast(r.reason);
+    afterOp(); // also snaps an illegal or unchanged drag back
+  }
+  function onKey(e) {
+    if (!build || e.defaultPrevented) return;
+    const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
+    const k = (e.key || '').length === 1 ? e.key.toLowerCase() : e.key || '', mod = e.ctrlKey || e.metaKey;
+    let r = null;
+    if (mod && k === 'z' && !e.shiftKey) { cancelDrag(); build.undo(); r = { ok: true }; }
+    else if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { cancelDrag(); build.redo(); r = { ok: true }; }
+    else if (mod && k === 'd') { if (sel && sel.kind === 'obj') { cancelDrag(); r = build.duplicate(sel.id); if (r.ok) setSel({ kind: 'obj', id: r.id }); } }
+    else if ((k === 'Delete' || k === 'Backspace') && !mod) { if (sel) { cancelDrag(); r = sel.kind === 'zone' ? build.removeZone(sel.id) : build.remove(sel.id); } }
+    else if (k === 'r' && !mod && !e.altKey) toast('Rotation is coming in a later update');
+    else if (k === 'Escape') { cancelDrag(); setSel(null); }
+    else return;
+    e.preventDefault(); e.stopImmediatePropagation(); // the page's own keys (Escape, zoom) stay out of Build mode
+    if (r) { if (!r.ok) toast(r.reason); afterOp(); }
+  }
+  // The overlay: faint 10-unit grid, zones at 25% in their floor colour with labels, the selection, the drag ghost.
+  function drawBuild() {
+    const { w, h } = blayout.size, d = drag && drag.moved ? drag : null, okCol = ok => ok ? 'rgba(94,240,160,.45)' : 'rgba(255,90,74,.5)';
+    const rectOf = z => d && d.kind === 'resize' && d.id === z.id ? d.rect : z.rect;
+    F.Fg(g, 0, () => {
+      g.lineWidth = .6; g.strokeStyle = 'rgba(255,255,255,.07)'; g.beginPath();
+      for (let x = 0; x <= w; x += 10) { g.moveTo(x, 0); g.lineTo(x, h); }
+      for (let y = 0; y <= h; y += 10) { g.moveTo(0, y); g.lineTo(w, y); }
+      g.stroke();
+      for (const z of blayout.zones) { const [x0, y0, x1, y1] = rectOf(z); g.globalAlpha = .25; g.fillStyle = F.zoneColor(z.type); g.fillRect(x0, y0, x1 - x0, y1 - y0); g.globalAlpha = 1; }
+      const zs = selZone();
+      if (zs) { const [x0, y0, x1, y1] = rectOf(zs); g.strokeStyle = '#ffcf6b'; g.lineWidth = 2; g.strokeRect(x0, y0, x1 - x0, y1 - y0); }
+      if (sel && sel.kind === 'obj' && !(d && d.kind === 'piece')) { g.strokeStyle = '#ffcf6b'; g.lineWidth = 1.5; for (const r of fps.get(sel.id) || []) g.strokeRect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }
+      if (d && d.kind === 'piece' && d.x != null) { g.fillStyle = okCol(d.ok); for (const r of fps.get(d.id) || []) g.fillRect(r[0] + d.x - d.o.x, r[1] + d.y - d.o.y, r[2] - r[0], r[3] - r[1]); }
+      if (d && d.kind !== 'piece' && d.rect) { const [x0, y0, x1, y1] = d.rect; g.fillStyle = okCol(d.ok); g.fillRect(x0, y0, x1 - x0, y1 - y0); }
+    });
+    g.font = '10px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(255,255,255,.75)';
+    for (const z of blayout.zones) { const [x0, y0, x1, y1] = rectOf(z), [sx, sy] = P((x0 + x1) / 2, (y0 + y1) / 2, 0); g.fillText(z.id, sx, sy); }
+    const zs = selZone();
+    if (zs) { const r = rectOf(zs), [hx, hy] = P(r[2], r[3], 0); g.fillStyle = '#ffcf6b'; g.strokeStyle = '#2a1a0c'; g.lineWidth = 1.5; g.fillRect(hx - 5, hy - 5, 10, 10); g.strokeRect(hx - 5, hy - 5, 10, 10); }
+    if (sel && sel.kind === 'obj' && !(d && d.kind === 'piece')) for (const o of OBJ) if (o.inst === sel.id && o.mask) { const rg = ringOf(o); g.drawImage(rg.c, o.mask.l - rg.pad, o.mask.t - rg.pad); }
+  }
+  // session = a WorldEdit session (null leaves Build mode); hooks = {onChange(state), onSelect(id|null, kind), onToast(text)}.
+  function setBuild(session, hooks) {
+    cancelDrag(); build = session || null; bhooks = hooks || {}; sel = null; tool = null; noClick = false; hover = null;
+    if (build) syncBuild(); else blayout = null;
+    if (cv) { cv.style.cursor = ''; cv.title = ''; }
+    wake();
+  }
+  function setTool(t) { tool = t || null; wake(); } // null, or 'zone:<type>'
+  // Add a catalog piece at the snapped ground point under a client point (the drawer's drop, mouse or touch).
+  function dropAt(type, clientX, clientY) {
+    if (!build || !cv) return { ok: false, reason: 'not in build mode' };
+    cancelDrag();
+    const [px, py] = toStage({ clientX, clientY }), gp = WE().toGround(px, py), r = build.add(type, gp.x, gp.y);
+    if (r.ok) { setSel({ kind: 'obj', id: r.id }); afterOp(); }
+    return r;
+  }
+
   // ---------- public API ----------
   function mount(canvas, o) {
     opts = o || {}; cv = canvas; g = cv.getContext('2d'); born = clock;
     cv.addEventListener('mousemove', onMove); cv.addEventListener('click', onClick); cv.addEventListener('mouseleave', onLeave);
     setScale(scaleCss); start(); // keep a scale set before mount (the page may mount after its first fit)
-    cv.addEventListener('wheel', () => { lastInput = nowMs(); wake(); }, { passive: true }); cv.addEventListener('pointerdown', () => { lastInput = nowMs(); wake(); });
+    cv.addEventListener('wheel', () => { lastInput = nowMs(); wake(); }, { passive: true }); cv.addEventListener('pointerdown', e => { lastInput = nowMs(); wake(); onDown(e); });
+    cv.addEventListener('pointermove', onDrag);
+    root.addEventListener('pointerup', onUp); root.addEventListener('pointercancel', onUp); // window: a finger lifted anywhere
+    document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else { running = false; dirty = true; start(); } });
     root.addEventListener('focus', wake); root.addEventListener('blur', wake);
     if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => { dirty = true; render(); schedule(); });
@@ -401,7 +543,7 @@
   }
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {
-    mount, setScale, advance, hotspots, activate, applyLayout, STW, STH,
+    mount, setScale, advance, hotspots, activate, applyLayout, setBuild, setTool, dropAt, STW, STH,
     setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } wake(); },
     setExtras(e) { extras = Object.assign(extras, e); wake(); },
     setSelected(id) { selected = id; wake(); },
