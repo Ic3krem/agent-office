@@ -57,7 +57,7 @@ const GUARD_KEY = typeof process.env.AGENT_OFFICE_GUARD_KEY === 'string' && proc
 delete process.env.AGENT_OFFICE_GUARD_KEY;
 const AUTH = createAuth({ bridgeKey: BRIDGE_KEY, uiKey: ENV_UI_KEY || rand(24) });
 // Decisions only the real UI may make: UI cookie plus the per-session nonce.
-const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset', '/api/world']);
+const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset', '/api/world', '/api/world/templates', '/api/world/template', '/api/world/template/delete']);
 
 const agents = new Map();      // id -> agent (sessionId, or "agent-<id>" for helpers)
 const files = new Map();       // transcript path -> { id, offset, mtime }
@@ -469,6 +469,7 @@ function snapshot() {
   const helpers = assignHelpers(list, dn); // one person per specialist; extra same-type agents are labelled helpers
   const shown = list.slice(0, DESKS).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   return {
+    worldVersion: worldStore.version(),
     guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - DESKS),
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => ({
       isManager: !!a.isManager,
@@ -572,6 +573,13 @@ async function handle(req, res) {
       return json(res, 404, { error: 'not found' });
     }
     if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, worldNow);
+    if (req.method === 'GET' && url.pathname === '/api/world/templates') return json(res, 200, worldStore.listTemplates());
+    if (req.method === 'GET' && url.pathname === '/api/world/template') {
+      const id = url.searchParams.get('id') || '';
+      if (!/^[a-z0-9-]{1,40}$/.test(id)) return json(res, 400, { error: 'bad template id' });
+      const t = worldStore.getTemplate(id);
+      return t ? json(res, 200, t) : json(res, 404, { error: 'no such template' });
+    }
     if (req.method !== 'POST' && url.pathname !== '/bridge/poll') return json(res, 405, { error: 'POST only' });
     const b = req.method === 'POST' ? await readBody(req) : {};
     switch (url.pathname) {
@@ -600,6 +608,11 @@ async function handle(req, res) {
         const started = tellBoss(`New task from the user (goal ${g.id}): ${text}`) !== false;
         return json(res, 200, { ok: true, goal: g, waiting: started ? '' : (boss.paused || 'Tiro is switched off in the breaker box') });
       }
+      case '/api/world/templates': {
+        const r = worldStore.saveTemplate(b.name, b.layout);
+        return r.ok ? json(res, 200, r) : json(res, 400, { errors: r.errors });
+      }
+      case '/api/world/template/delete': return json(res, 200, worldStore.deleteTemplate(b.id));
       case '/api/world': {
         const r = worldStore.save(b.layout);
         if (!r.ok) return json(res, 400, { errors: r.errors });
