@@ -68,14 +68,34 @@
   const num = v => typeof v === 'number' && isFinite(v);
   const MAX = 4000; // ponytail: arbitrary cap so a PUT body cannot ask for a huge grid; today's world is 1240x780
   const rect = r => Array.isArray(r) && r.length === 4 && r.every(num);
+  const LIST_MAX = 2000, ZONE_TYPES = new Set(ZONES.map(q => q.type));
+  const inside = (x, y, l) => num(x) && num(y) && x >= 0 && x <= l.size.w && y >= 0 && y <= l.size.h;
+  const short = v => typeof v === 'string' && v.length <= 64;
+  // Values each param may take (painters loop over w and scale by s, so these bound the work validate does).
+  const PARAM_OK = {
+    w: (v, l) => num(v) && v >= 1 && v <= l.size.w, s: v => num(v) && v >= 0.25 && v <= 4, dd: v => num(v) && Math.abs(v) <= 100,
+    home: (v, l) => Array.isArray(v) && v.length === 2 && inside(v[0], v[1], l), col: v => typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v),
+    spot: short, desk: short,
+  };
   function malformed(l) {
     if (!obj(l.size) || !(l.size.w > 0 && l.size.w <= MAX) || !(l.size.h > 0 && l.size.h <= MAX)) return 'size needs w and h in 1..' + MAX;
-    if (!obj(l.spawn) || !num(l.spawn.x) || !num(l.spawn.y)) return 'spawn needs numeric x and y';
+    if (!obj(l.spawn) || !inside(l.spawn.x, l.spawn.y, l)) return 'spawn needs numeric x and y inside the world';
     for (const k of ['zones', 'objects', 'spots']) {
       if (!Array.isArray(l[k])) return k + ' is not a list';
+      if (l[k].length > LIST_MAX) return k + ' has more than ' + LIST_MAX + ' entries';
       for (const e of l[k]) {
         if (!obj(e) || typeof e.id !== 'string') return k + ' has an entry without a string id';
-        if (k === 'zones' ? !rect(e.rect) : !num(e.x) || !num(e.y)) return k + ' entry ' + e.id + (k === 'zones' ? ' needs a numeric rect' : ' needs numeric x and y');
+        const at = k + ' entry ' + e.id;
+        if (k === 'zones') {
+          if (!rect(e.rect) || !inside(e.rect[0], e.rect[1], l) || !inside(e.rect[2], e.rect[3], l)) return at + ' needs a numeric rect inside the world';
+          if (!ZONE_TYPES.has(e.type)) return at + ' has unknown zone type ' + e.type;
+          continue;
+        }
+        if (!inside(e.x, e.y, l)) return at + ' is outside the world (needs numeric x and y inside size)';
+        if (k === 'objects') { for (const p of Object.keys(PARAM_OK)) if (p in e && !PARAM_OK[p](e[p], l)) return at + ': bad ' + p; continue; }
+        if (!['n', 's', 'e', 'w'].includes(e.face)) return at + ': face must be n, s, e or w';
+        if ('zone' in e && !short(e.zone)) return at + ': bad zone';
+        for (const f of ['seat', 'desk', 'game']) if (f in e && typeof e[f] !== 'boolean') return at + ': ' + f + ' must be true or false';
       }
     }
     return '';
@@ -95,6 +115,7 @@
       objId(o.id);
       if (!Object.prototype.hasOwnProperty.call(F.CATALOG, o.type)) errors.push('object ' + o.id + ': unknown type ' + o.type);
       else extra('object', o, PARAMS[o.type] || new Set(['id', 'type', 'x', 'y', 'home']));
+      if (/^fixture-/.test(o.type) && F.CATALOG[o.type] && (o.x !== F.CATALOG[o.type].anchor[0] || o.y !== F.CATALOG[o.type].anchor[1] || 'home' in o)) errors.push('object ' + o.id + ': fixture cannot move');
       if (o.type === 'dept-desk' && !(root.OfficeMotion && root.OfficeMotion.TEAM.some(t => t.desk === o.desk))) errors.push('object ' + o.id + ': unknown desk ' + o.desk);
     }
     if (errors.length) return { ok: false, errors }; // the checks below draw the objects

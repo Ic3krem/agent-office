@@ -76,3 +76,28 @@ test('validate rejects unknown desks and missing brain spots', () => {
   assert.match(errs((l) => { l.objects = l.objects.filter((o) => o.type !== 'dept-desk' || o.desk !== 'desk-3'); }), /missing spot desk-3/);
   assert.match(errs((l) => { l.spots = l.spots.filter((s) => s.id !== 'queue:1'); }), /missing spot queue:1/);
 });
+
+test('validate checks param values and list sizes, and answers fast', () => {
+  const glass = (l) => l.objects.find((o) => o.type === 'glass-y');
+  const cases = [
+    [(l) => { glass(l).w = 1e20; }, /bad w/],
+    [(l) => { l.objects.find((o) => o.type === 'plant').s = 'x'; }, /bad s/],
+    [(l) => { l.spots[0].face = 'x'; }, /face/],
+    [(l) => { l.spots[0].face = { n: 1 }; }, /face/],
+    [(l) => { l.zones[0].type = 'lava'; }, /unknown zone type/],
+    [(l) => { l.objects = Array.from({ length: 2001 }, (_, i) => ({ id: 'p' + i, type: 'plant', x: 10, y: 10 })); }, /more than 2000/],
+    [(l) => { l.objects[0].x = -5; }, /outside the world/],
+    [(l) => { l.objects.find((o) => o.type === 'beanbag').col = 'red'; }, /bad col/],
+    [(l) => { l.spots[0].seat = 'yes'; }, /seat must be/],
+  ];
+  for (const [mut, re] of cases) {
+    const t0 = Date.now(), msg = errs(mut);
+    assert.match(msg, re);
+    assert.ok(Date.now() - t0 < 1000, re + ' took ' + (Date.now() - t0) + ' ms');
+  }
+});
+
+test('fixtures stay at their anchor', () => {
+  assert.match(errs((l) => { l.objects.find((o) => o.type === 'fixture-pennants').x = 40; }), /fixture cannot move/);
+  assert.match(errs((l) => { l.objects.find((o) => o.type === 'fixture-pennants').home = [10, 10]; }), /fixture cannot move/);
+});

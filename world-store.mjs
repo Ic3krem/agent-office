@@ -13,7 +13,11 @@ export function createWorldStore(dir) {
   return {
     load() {
       let text;
-      try { text = fs.readFileSync(file, 'utf8'); } catch (e) { return e.code === 'ENOENT' ? fallback() : fallback('layout.json unreadable: ' + e.message); }
+      try { text = fs.readFileSync(file, 'utf8'); } catch (e) {
+        if (e.code === 'ENOENT') return fallback();
+        console.error('[world] layout.json unreadable:', e); // the full reason (with path) stays server-side
+        return fallback('layout.json unreadable (' + e.code + '); using the default');
+      }
       let layout;
       try { layout = JSON.parse(text); } catch { return fallback('layout.json is not valid JSON; using the default'); }
       const r = WM.validate(J(layout));
@@ -23,7 +27,8 @@ export function createWorldStore(dir) {
       const r = WM.validate(J(layout ?? null));
       if (!r.ok) return { ok: false, errors: J(r.errors) };
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-      fs.writeFileSync(file + '.tmp', JSON.stringify(layout), { mode: 0o600 });
+      const fd = fs.openSync(file + '.tmp', 'w', 0o600);
+      try { fs.writeFileSync(fd, JSON.stringify(layout)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
       fs.renameSync(file + '.tmp', file);
       return { ok: true };
     },

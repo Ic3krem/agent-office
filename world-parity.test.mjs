@@ -5,11 +5,12 @@ import { recordOffice, recorder } from './world-golden.mjs';
 import { loadWorld } from './world-vm.mjs';
 
 const gold = JSON.parse(fs.readFileSync(new URL('./fixtures/office-golden.json', import.meta.url), 'utf8'));
-const norm = a => a.map(i => ({ d: i.d, fp: i.fp, log: i.log })).sort((a, b) => a.d - b.d || (a.log < b.log ? -1 : a.log > b.log ? 1 : 0));
+const pick = a => a.map(i => ({ d: i.d, fp: i.fp, log: i.log }));
+const norm = a => pick(a).sort((a, b) => a.d - b.d || (a.log < b.log ? -1 : a.log > b.log ? 1 : 0));
 
 test('static office draws exactly as 1.2.9', () => {
   const now = JSON.parse(JSON.stringify(recordOffice()));
-  assert.deepEqual(norm(now.items), norm(gold.items));
+  assert.deepEqual(pick(now.items), pick(gold.items)); // draw order is exact, not just the set of draws
   assert.deepEqual(now.objects, gold.objects);
   assert.deepEqual(now.spots, gold.spots);
 });

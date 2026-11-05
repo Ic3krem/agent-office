@@ -54,3 +54,15 @@ test('save is atomic: no tmp left and reload equals what was saved', () => {
   assert.equal(r.source, 'file');
   assert.deepEqual(r.layout, l);
 });
+
+test('unreadable file: the warning names the error code, not the path', (t) => {
+  const d = tmp();
+  fs.mkdirSync(path.join(d, 'layout.json')); // reading a directory fails with EISDIR
+  const logged = [];
+  t.mock.method(console, 'error', (...a) => logged.push(a));
+  const r = createWorldStore(d).load();
+  assert.equal(r.source, 'default');
+  assert.match(r.warning, /unreadable \(E[A-Z]+\)/);
+  assert.ok(!r.warning.includes(d), 'no absolute path in the toast');
+  assert.equal(logged.length, 1, 'the full reason is logged server-side');
+});

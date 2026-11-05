@@ -111,13 +111,13 @@ function startServer() {
   let out = ''; child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
   return new Promise((resolve, reject) => {
     const t0 = Date.now();
-    const tick = () => { if (/running on/.test(out)) return resolve({ child, port, tmp }); if (Date.now() - t0 > 20000) { child.kill(); return reject(new Error('server did not start: ' + out.slice(0, 300))); } setTimeout(tick, 150); };
+    const tick = () => { if (/running on/.test(out)) return resolve({ child, port, tmp, uiKey }); if (Date.now() - t0 > 20000) { child.kill(); return reject(new Error('server did not start: ' + out.slice(0, 300))); } setTimeout(tick, 150); };
     tick();
   });
 }
 const call = (port, p, { method = 'POST', headers = {}, body } = {}) => new Promise((resolve, reject) => {
   const req = http.request({ host: '127.0.0.1', port, path: p, method, headers: { host: `127.0.0.1:${port}`, 'content-type': 'application/json', ...headers } }, res => {
-    let d = ''; res.on('data', c => { d += c; }); res.on('end', () => resolve({ status: res.statusCode, body: d }));
+    let d = ''; res.on('data', c => { d += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: d }));
   });
   req.on('error', reject); req.end(body === undefined ? (method === 'POST' ? '{}' : undefined) : JSON.stringify(body));
 });
@@ -151,4 +151,25 @@ test('bridge: a registered terminal session is bound to its own token; other ses
   const reg2 = read('./bridge/hooks/register.ts');
   assert.match(reg2, /bridge\/register/); assert.match(reg2, /x-session-token/);
   assert.match(reg2, /\$\{e\.cwd\}\/\.claude\/settings\.local\.json/, 'crossSessionInbound is read from the project and local scopes too');
+});
+
+test('/api/world: UI cookie and nonce required; a bad layout is refused with errors, a good one is saved and served', { timeout: 60000 }, async t => {
+  const s = await startServer();
+  t.after(() => { try { s.child.kill(); } catch {} });
+  const cookie = 'ao_ui=' + s.uiKey;
+  assert.equal((await call(s.port, '/api/world', { method: 'GET' })).status, 401, 'no cookie');
+  assert.equal((await call(s.port, '/api/world', { method: 'GET', headers: { cookie } })).status, 403, 'cookie but no nonce');
+  const page = await call(s.port, '/', { method: 'GET', headers: { cookie } });
+  const nonce = page.headers['set-cookie'].join(';').match(/ao_nonce=([0-9a-f]+)/)[1];
+  const h = { cookie, 'x-nonce': nonce };
+  const first = JSON.parse((await call(s.port, '/api/world', { method: 'GET', headers: h })).body);
+  assert.equal(first.source, 'default');
+  const bad = await call(s.port, '/api/world', { headers: h, body: { layout: { ...first.layout, version: 99 } } });
+  assert.equal(bad.status, 400);
+  assert.match(JSON.parse(bad.body).errors.join('\n'), /newer version/);
+  const layout = { ...first.layout, spawn: { x: 425, y: 250 } };
+  assert.equal((await call(s.port, '/api/world', { headers: h, body: { layout } })).status, 200);
+  const now = JSON.parse((await call(s.port, '/api/world', { method: 'GET', headers: h })).body);
+  assert.equal(now.source, 'file');
+  assert.deepEqual(now.layout, layout);
 });
