@@ -178,15 +178,30 @@ test('OS detection in release.js (run in a stub browser)', async () => {
   assert.match(e['os-note'].textContent, /on your PC/);
 });
 
-test('stats.json is a marked sample, country-level only, and stats pages show it', () => {
-  assert.equal(typeof stats.placeholder, 'boolean');
+test('fetch-stats counts installers only, per platform and release, skipping drafts', async () => {
+  const { summarise } = await import('./tools/fetch-stats.mjs');
+  const s = summarise([
+    { tag_name: 'v1.2.0', published_at: '2026-11-01T00:00:00Z', assets: [{ name: 'Agent-Office-Setup-1.2.0.exe', download_count: 5 }, { name: 'Agent-Office-Setup-1.2.0.exe.blockmap', download_count: 9 }, { name: 'latest.yml', download_count: 40 }, { name: 'Agent-Office-1.2.0-arm64.dmg', download_count: 2 }, { name: 'Agent-Office-1.2.0-arm64.zip', download_count: 7 }, { name: 'Agent-Office-1.2.0-x86_64.AppImage', download_count: 1 }, { name: 'Agent-Office-1.2.0-amd64.deb', download_count: 1 }] },
+    { tag_name: 'v1.3.0', published_at: '2026-11-05T00:00:00Z', assets: [{ name: 'Agent-Office-Setup-1.3.0.exe', download_count: 3 }] },
+    { tag_name: 'v9.9.9', draft: true, assets: [{ name: 'x.exe', download_count: 100 }] },
+  ], '2026-11-05');
+  assert.deepEqual(s.byPlatform, { windows: 8, macos: 2, linux: 2 });
+  assert.equal(s.total, 12);
+  assert.deepEqual(s.byRelease.map(r => [r.version, r.downloads]), [['1.3.0', 3], ['1.2.0', 9]], 'newest first, drafts skipped');
+});
+
+test('stats.json holds GitHub installer counts only (no visitor data), and the stats page shows it', () => {
+  assert.equal(stats.schema, 2); assert.equal(typeof stats.placeholder, 'boolean');
   assert.match(stats.asOf, /^\d{4}-\d{2}-\d{2}$/);
-  for (const k of ['total', 'unique', 'countries', 'other']) assert.ok(Number.isInteger(stats[k]) && stats[k] >= 0, k);
-  for (const [k, v] of Object.entries(stats.byCountry)) { assert.ok(/^[A-Z]{2}$/.test(k) || k === 'Other', 'country key ' + k); assert.ok(k === 'Other' || v >= 10, k + ' below threshold'); }
-  assert.ok(['Europe', 'North America', 'South America', 'Asia', 'Africa', 'Oceania', 'Antarctica'].some(c => c in stats.byContinent));
+  assert.ok(Number.isInteger(stats.total) && stats.total >= 0);
+  assert.deepEqual(Object.keys(stats.byPlatform).sort(), ['linux', 'macos', 'windows']);
+  assert.equal(stats.total, Object.values(stats.byPlatform).reduce((a, b) => a + b, 0));
+  for (const r of stats.byRelease) { assert.match(r.version, /^\d+\.\d+\.\d+/); assert.ok(Number.isInteger(r.downloads) && r.downloads >= 0); }
+  for (const k of ['byCountry', 'byContinent', 'unique', 'countries']) assert.ok(!(k in stats), 'no visitor-derived field ' + k);
   const t = rs('stats.html');
-  if (stats.placeholder) { assert.match(stats.note, /SAMPLE DATA/); assert.match(t, /Sample data/); }
-  assert.match(t, /<table>/); assert.match(t, /at least 10 downloads/); assert.match(t, /Nothing finer than a country/);
+  if (stats.placeholder) assert.match(t, /No snapshot yet/);
+  for (const r of stats.byRelease) assert.ok(t.includes(r.version));
+  assert.match(t, /Only installers count/); assert.match(t, /updates are included/); assert.match(t, /collects none/);
   assert.match(rs('index.html'), /data-stats/); assert.match(rs('assets/common.js'), /stats\.json/);
   assert.doesNotMatch(rs('index.html'), /1,234/, 'landing must not show placeholder numbers');
 });

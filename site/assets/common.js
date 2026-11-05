@@ -24,7 +24,7 @@
   var strips = document.querySelectorAll('[data-stats]');
   if (strips.length) getJson('stats.json').then(function (s) {
     var txt = s.placeholder ? 'Public download statistics start after the first real snapshot.'
-      : Number(s.total).toLocaleString('en-US') + ' downloads · ' + s.countries + ' countries · as of ' + s.asOf;
+      : Number(s.total).toLocaleString('en-US') + ' downloads · as of ' + s.asOf;
     strips.forEach(function (e) { e.textContent = txt; });
   }).catch(function () {});
 

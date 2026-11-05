@@ -86,33 +86,29 @@ export function quickstartPage() {
 export function statsPage() {
   const s = readJson('stats.json');
   const ph = !!s.placeholder;
-  const total = Number(s.total) || 0;
-  const cont = Object.entries(s.byContinent || {}).sort((a, b) => b[1] - a[1]);
-  const country = Object.entries(s.byCountry || {}).filter(([k, v]) => k === 'Other' || v >= 10).sort((a, b) => (a[0] === 'Other') - (b[0] === 'Other') || b[1] - a[1]);
-  const tiles = n => '<span class="tile"></span>'.repeat(Math.max(n > 0 ? 1 : 0, Math.round((n / (total || 1)) * 50)));
+  const n = v => Number(v || 0).toLocaleString('en-US');
+  const plat = s.byPlatform || {}, releases = s.byRelease || [];
+  const max = Math.max(1, ...releases.map(r => Number(r.downloads) || 0));
+  const tiles = v => '<span class="tile"></span>'.repeat(Math.max(v > 0 ? 1 : 0, Math.round((v / max) * 40)));
   const main = `<main id="main">
 <div class="wrap doc narrow">
 <h1>Download statistics</h1>
-${ph ? `<div class="notice"><p><strong>Sample data.</strong> ${esc((s.note || 'The numbers below are placeholders, not real downloads.').replace(/^SAMPLE DATA\.\s*/, ''))}</p></div>` : ''}
-<p class="lead">A static snapshot as of <strong>${esc(s.asOf)}</strong>. No live calls are made from this page.</p>
+${ph ? '<div class="notice"><p><strong>No snapshot yet.</strong> The first scheduled update after the repository goes public replaces this.</p></div>' : ''}
+<p class="lead">Installer downloads as counted by GitHub, as of <strong>${esc(s.asOf || '')}</strong>. Updated every six hours; no live calls are made from this page.</p>
 <ul class="stat-cards">
-<li class="card"><span class="big-num">${total.toLocaleString('en-US')}</span> downloads${ph ? ' (sample)' : ''}</li>
-<li class="card"><span class="big-num">${Number(s.unique || 0).toLocaleString('en-US')}</span> unique${ph ? ' (sample)' : ''}</li>
-<li class="card"><span class="big-num">${Number(s.countries || 0)}</span> countries${ph ? ' (sample)' : ''}</li>
+<li class="card"><span class="big-num">${n(s.total)}</span> downloads</li>
+<li class="card"><span class="big-num">${n(plat.windows)}</span> Windows</li>
+<li class="card"><span class="big-num">${n(plat.macos)}</span> macOS</li>
+<li class="card"><span class="big-num">${n(plat.linux)}</span> Linux</li>
 </ul>
-<h2>By continent</h2>
-<ul class="tile-rows">${cont.map(([k, v]) => `<li><span class="tile-label">${esc(k)}</span><span class="tiles" aria-hidden="true">${tiles(v)}</span><span class="tile-n">${Number(v).toLocaleString('en-US')}</span></li>`).join('')}</ul>
-<p class="meta">Each tile is about 2% of all downloads.</p>
-<h2>By country</h2>
-<div class="table-wrap" role="region" aria-label="Downloads by country" tabindex="0"><table><thead><tr><th scope="col">Country</th><th scope="col">Downloads</th></tr></thead><tbody>${country.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${Number(v).toLocaleString('en-US')}</td></tr>`).join('')}</tbody></table></div>
-<p class="meta">A country is listed only when it has at least 10 downloads. Everything else is grouped as Other. Nothing finer than a country is ever published.</p>
+<h2>By release</h2>
+<ul class="tile-rows">${releases.map(r => `<li><span class="tile-label">${esc(r.version)} <span class="meta">${esc(r.date)}</span></span><span class="tiles" aria-hidden="true">${tiles(Number(r.downloads) || 0)}</span><span class="tile-n">${n(r.downloads)}</span></li>`).join('')}</ul>
 <h2>Method</h2>
-<p>Planned method, not yet running: a download is counted when the Download button is used, not when the page loads. Unique means unique by a hash of the visitor's network, so no IP address is stored. Bots and HEAD requests are excluded. A scheduled job writes <code>stats.json</code>, and this page is rebuilt from it. Until a real snapshot exists the file is marked as sample data.</p>
-<p>As a fallback with no regional data, GitHub shows an installer download count for each release asset on the <a href="download.html">release page</a>, labelled there as GitHub's own count.</p>
-<p>Who is responsible for this data, how to reach them and how long it is kept are on the <a href="privacy.html">privacy page</a>.</p>
+<p>A scheduled job reads GitHub's own download count for each release file and rebuilds this page. Only installers count (<code>.exe</code>, <code>.dmg</code>, <code>.AppImage</code>, <code>.deb</code>); update metadata and block maps do not. The app's built-in updater downloads the same installer, so updates are included, and one person who downloads twice counts twice. GitHub publishes no location or visitor data, and this site collects none.</p>
+<p>Who is responsible for this page and how to reach them are on the <a href="privacy.html">privacy page</a>.</p>
 </div>
 </main>`;
-  return layout({ root: '', title: 'Download statistics - Agent Office', desc: 'Public download totals by region, as a static snapshot.', nav: 'stats', main });
+  return layout({ root: '', title: 'Download statistics - Agent Office', desc: 'Installer downloads per release and platform, from GitHub\'s own counts.', nav: 'stats', main });
 }
 
 export function privacyPage() {
@@ -133,7 +129,7 @@ export function privacyPage() {
 <li>The download link goes to GitHub. GitHub receives your request under its own privacy terms, and shows an installer download count per release.</li>
 </ul>
 <h2>Download statistics</h2>
-<p>The <a href="stats.html">statistics page</a> publishes only a country-level snapshot. No IP addresses are stored. See the method note there.</p>
+<p>The <a href="stats.html">statistics page</a> shows GitHub's own installer download counts per release. Nothing about visitors is collected or stored. See the method note there.</p>
 <h2>Who is responsible</h2>
 <dl class="dl-meta"><dt>Controller</dt><dd>${esc(p.controller || '')}</dd><dt>Contact</dt><dd>${esc(p.contact || '')}</dd><dt>Retention</dt><dd>${esc(p.retention || '')}</dd></dl>
 <h2>The app itself</h2>
