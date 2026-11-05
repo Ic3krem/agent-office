@@ -70,3 +70,9 @@ test('the main routes walk mostly on path zones', () => {
     assert.ok(on / n >= 0.78, `${a} -> ${b}: ${(on / n).toFixed(3)} on paths`);
   }
 });
+
+test('validate rejects unknown desks and missing brain spots', () => {
+  assert.match(errs((l) => { l.objects.find((o) => o.type === 'dept-desk').desk = 'desk-99'; }), /unknown desk/);
+  assert.match(errs((l) => { l.objects = l.objects.filter((o) => o.type !== 'dept-desk' || o.desk !== 'desk-3'); }), /missing spot desk-3/);
+  assert.match(errs((l) => { l.spots = l.spots.filter((s) => s.id !== 'queue:1'); }), /missing spot queue:1/);
+});

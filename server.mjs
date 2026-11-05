@@ -25,6 +25,7 @@ import { candidatePorts, listenFirstFree, MARKER } from './ports.mjs';
 import { createAuth, loadBridgeKey, lockDown, rand, safeLocal, writePrivate, safeEqual } from './auth.mjs';
 import { redact, hasSecret, redactDeep } from './redact.mjs';
 import { prune } from './retention.mjs';
+import { createWorldStore } from './world-store.mjs';
 
 let PORT = 0; // set once bound (see listenFirstFree in ports.mjs)
 const HOME = os.homedir();
@@ -43,6 +44,10 @@ const BRIDGE_WAIT_MS = 90e3;
 
 // Two separate credentials (see auth.mjs). The bridge key in bridge.json opens /bridge/* only; the UI key is never written to disk.
 lockDown(CFG_DIR, [CFG_FILE, ...['kiro.json', 'goals.json', 'switches.json', 'manager.json', 'credits.json', 'manager-session.json', 'scheduler.json'].map(f => path.join(CFG_DIR, f))]);
+const WORLD_DIR = path.join(CFG_DIR, 'world');
+lockDown(WORLD_DIR, [path.join(WORLD_DIR, 'layout.json')]);
+const worldStore = createWorldStore(WORLD_DIR);
+let worldNow = worldStore.load();   // cached for GET /api/world; validated only on load and save
 const { key: BRIDGE_KEY, rotated: KEY_ROTATED } = loadBridgeKey(CFG_FILE); // the port is written once one is bound
 // Electron hands the UI key over in the environment and sets the cookie itself; take it out of the environment so no child process inherits it.
 const ENV_UI_KEY = typeof process.env.AGENT_OFFICE_UI_KEY === 'string' && process.env.AGENT_OFFICE_UI_KEY.length >= 32 ? process.env.AGENT_OFFICE_UI_KEY : '';
@@ -52,7 +57,7 @@ const GUARD_KEY = typeof process.env.AGENT_OFFICE_GUARD_KEY === 'string' && proc
 delete process.env.AGENT_OFFICE_GUARD_KEY;
 const AUTH = createAuth({ bridgeKey: BRIDGE_KEY, uiKey: ENV_UI_KEY || rand(24) });
 // Decisions only the real UI may make: UI cookie plus the per-session nonce.
-const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset']);
+const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset', '/api/world']);
 
 const agents = new Map();      // id -> agent (sessionId, or "agent-<id>" for helpers)
 const files = new Map();       // transcript path -> { id, offset, mtime }
@@ -566,6 +571,7 @@ async function handle(req, res) {
       }
       return json(res, 404, { error: 'not found' });
     }
+    if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, worldNow);
     if (req.method !== 'POST' && url.pathname !== '/bridge/poll') return json(res, 405, { error: 'POST only' });
     const b = req.method === 'POST' ? await readBody(req) : {};
     switch (url.pathname) {
@@ -593,6 +599,12 @@ async function handle(req, res) {
         const g = goals.add(text, 'you'); bump();
         const started = tellBoss(`New task from the user (goal ${g.id}): ${text}`) !== false;
         return json(res, 200, { ok: true, goal: g, waiting: started ? '' : (boss.paused || 'Tiro is switched off in the breaker box') });
+      }
+      case '/api/world': {
+        const r = worldStore.save(b.layout);
+        if (!r.ok) return json(res, 400, { errors: r.errors });
+        worldNow = { layout: b.layout, source: 'file' }; bump();
+        return json(res, 200, { ok: true });
       }
       case '/api/goal': {
         const status = { accept: 'todo', dismiss: 'dismissed', done: 'done', reopen: 'todo' }[b.action];

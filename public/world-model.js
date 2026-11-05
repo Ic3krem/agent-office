@@ -95,6 +95,7 @@
       objId(o.id);
       if (!Object.prototype.hasOwnProperty.call(F.CATALOG, o.type)) errors.push('object ' + o.id + ': unknown type ' + o.type);
       else extra('object', o, PARAMS[o.type] || new Set(['id', 'type', 'x', 'y', 'home']));
+      if (o.type === 'dept-desk' && !(root.OfficeMotion && root.OfficeMotion.TEAM.some(t => t.desk === o.desk))) errors.push('object ' + o.id + ': unknown desk ' + o.desk);
     }
     if (errors.length) return { ok: false, errors }; // the checks below draw the objects
     try { geometry(layout, errors, spotId, extra); } catch (e) { errors.push('malformed: ' + e.message); } // bad params can break a painter
@@ -106,7 +107,11 @@
     layout.spots.forEach(s => { spotId(s.id); extra('spot', s, SPOT_FIELDS); });
 
     const { w, h } = layout.size, grid = gridOf(layout), spots = spotsOf(layout), water = rectsOf(layout, 'water');
-    const sp0 = layout.spawn;
+    const sp0 = layout.spawn, M = root.OfficeMotion;
+    if (M) { // every spot the agent brain reads must exist
+      const need = [...M.TEAM.map(t => t.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER];
+      need.forEach(id => spots[id] || errors.push('missing spot ' + id));
+    }
     if (grid.blocked[W.cellOf(grid, sp0)]) errors.push('spawn (' + sp0.x + ',' + sp0.y + ') is blocked');
     for (const s of Object.values(spots)) {
       if (!(s.x >= 0 && s.x <= w && s.y >= 0 && s.y <= h)) { errors.push('spot ' + s.id + ' is outside the world'); continue; }
