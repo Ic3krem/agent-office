@@ -923,11 +923,13 @@
     }
     return out;
   }
-  // The spots the pieces carry, at their placed positions: {id: {id, x, y, face, zone, seat?, desk?, game?}}.
+  // The spots the pieces carry, at their placed positions: {id: {id, x, y, face, zone, seat?, desk?, game?}}. A spot id
+  // already taken by an earlier piece gets the suffix @<objectId>.
   function spotsOf(instances) {
     const out = {};
     for (const p of instances) for (const sp of (CATALOG[p.type] || {}).spots || []) {
-      const { id, dx, dy, ...rest } = sp, sid = typeof id === 'function' ? id(p) : id;
+      const { id, dx, dy, ...rest } = sp, base = typeof id === 'function' ? id(p) : id;
+      const sid = base in out ? base + '@' + p.id : base; // a second copy of a piece keeps its spot ids unique
       out[sid] = Object.assign({ id: sid, x: p.x + dx, y: p.y + dy }, rest);
     }
     return out;

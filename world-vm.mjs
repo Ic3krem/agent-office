@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 // Canonical page order; a script that does not exist yet is skipped.
-const ORDER = ['world-path.js', 'office-motion.js', 'office-furniture.js', 'world-model.js'];
+const ORDER = ['world-path.js', 'office-motion.js', 'office-furniture.js', 'world-model.js', 'world-edit.js'];
 
 // Load the classic browser scripts into one vm context. ctxFactory() supplies the 2D context
 // returned by any document.createElement('canvas').getContext('2d'). `extra` names more public scripts to run after them.

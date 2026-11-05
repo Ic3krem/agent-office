@@ -1,0 +1,174 @@
+// Build-mode editing engine: screen-to-ground mapping, the catalog the editor offers, and an edit session that applies
+// legal ops to a private copy of a layout with undo/redo. No drawing here. Classic script after world-model: root.WorldEdit.
+(function (root) {
+  'use strict';
+  const F = root.OfficeFurniture, WM = root.WorldModel, W = root.WorldPath;
+  const SNAP = 10, HISTORY = 100, MIN_ZONE = 20;
+
+  // Inverse of F.P at z = 0.
+  function toGround(sx, sy) {
+    const a = (sx - F.OXS) / F.K, b = (sy - F.OYS) / F.K2;
+    return { x: (a + b) / 2, y: (b - a) / 2 };
+  }
+  const snap = v => Math.round(v / SNAP) * SNAP;
+
+  const GROUP = {
+    'dept-desk': 'desk', 'tiro-desk': 'desk', 'tiro-chair': 'desk', 'guest-chair': 'desk', 'hot-desk': 'desk', 'hot-chair': 'desk', inbox: 'desk',
+    plant: 'nature', tree: 'nature', hedge: 'nature', pond: 'nature', 'pond-east': 'nature', 'server-plant': 'nature',
+    'trophy-shelf': 'decor', 'bird-feeder': 'decor', 'lamp-post': 'decor', tires: 'decor', 'toy-bin': 'decor', dartboard: 'decor',
+  };
+  const isFixture = type => /^fixture-/.test(type);
+  const catalog = () => Object.keys(F.CATALOG).filter(t => !isFixture(t)).map(type => ({
+    type, label: F.CATALOG[type].label || type, group: GROUP[type] || 'furniture', addable: type !== 'dept-desk', deletable: type !== 'dept-desk',
+  }));
+
+  // A new piece of a type copies the params of the type's first default piece (bench seat id, plant scale, ...).
+  const TEMPLATE = {};
+  for (const o of F.defaultInstances()) if (!TEMPLATE[o.type]) { const { id, x, y, home, ...params } = o; TEMPLATE[o.type] = params; }
+
+  const copy = v => JSON.parse(JSON.stringify(v));
+  const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+  const nextId = (list, prefix) => { const ids = new Set(list.map(e => e.id)); let n = 1; while (ids.has(prefix + '-' + n)) n++; return prefix + '-' + n; };
+  const fail = reason => ({ ok: false, reason });
+
+  function createSession(layout) {
+    let cur = copy(layout), base = JSON.stringify(cur);
+    const past = [], future = [];
+    // Footprints painted once per type + params: place() draws a moved piece through a translate, so its footprint is
+    // the painted one shifted by the move (exact by construction in office-furniture's add()).
+    const fpCache = new Map();
+    const fp = o => {
+      const k = JSON.stringify(Object.assign({}, o, { id: 0, x: 0, y: 0 }));
+      if (!fpCache.has(k)) fpCache.set(k, { x: o.x, y: o.y, rects: F.footprints([o]) });
+      const c = fpCache.get(k), dx = o.x - c.x, dy = o.y - c.y;
+      return dx || dy ? c.rects.map(r => [r[0] + dx, r[1] + dy, r[2] + dx, r[3] + dy]) : c.rects;
+    };
+    const water = l => l.zones.filter(q => q.type === 'water').map(q => q.rect);
+
+    // Checks 1-3 for piece o standing in layout l (o is not in l.objects, or is skipped by id).
+    function legalPiece(l, o) {
+      const { w, h } = l.size, mine = fp(o);
+      if (!(o.x >= 0 && o.x <= w && o.y >= 0 && o.y <= h) || mine.some(r => !(r[0] >= 0 && r[1] >= 0 && r[2] <= w && r[3] <= h))) return 'outside the world'; // NaN-safe
+      const wet = water(l);
+      if (mine.some(m => wet.some(r => overlaps(m, r)))) return 'in the water';
+      const others = [];
+      for (const p of l.objects) if (p.id !== o.id) for (const r of fp(p)) {
+        if (mine.some(m => overlaps(m, r))) return 'overlaps ' + p.id;
+        others.push(r);
+      }
+      const dims = { cols: Math.ceil(w / SNAP), rows: Math.ceil(h / SNAP), cell: SNAP }, blocks = others.concat(wet);
+      for (const s of Object.values(F.spotsOf([o]))) {
+        if (!(s.x >= 0 && s.x <= w && s.y >= 0 && s.y <= h)) return 'spot ' + s.id + ' is outside the world';
+        // Is the spot's cell blocked in the full grid? Same answer from a one-cell grid with the blocks shifted onto it,
+        // without paying for the whole world's grid on every op.
+        const i = W.cellOf(dims, s), cx = (i % dims.cols) * SNAP, cy = Math.floor(i / dims.cols) * SNAP;
+        const one = W.buildGrid({ w: SNAP, h: SNAP, cell: SNAP, blocks: blocks.map(r => [r[0] - cx, r[1] - cy, r[2] - cx, r[3] - cy]) });
+        if (one.blocked[0]) return 'spot ' + s.id + ' is blocked';
+      }
+      return '';
+    }
+    function legalZone(l, z) {
+      const [x0, y0, x1, y1] = z.rect;
+      if (!WM.ZONE_TYPES.includes(z.type)) return 'unknown zone type ' + z.type;
+      if (!(x0 >= 0 && y0 >= 0 && x1 <= l.size.w && y1 <= l.size.h)) return 'zone is outside the world';
+      if (x1 - x0 < MIN_ZONE || y1 - y0 < MIN_ZONE) return 'zone needs at least ' + MIN_ZONE + ' x ' + MIN_ZONE;
+      return '';
+    }
+    const findObj = (l, id) => l.objects.find(o => o.id === id);
+    const findZone = (l, id) => l.zones.find(q => q.id === id);
+
+    // An op as data -> {ok, reason} or {ok, next, id}; nothing is changed here.
+    function plan(op) {
+      const l = copy(cur);
+      switch (op.op) {
+        case 'move': {
+          const o = findObj(l, op.id);
+          if (!o) return fail('no object ' + op.id);
+          if (isFixture(o.type)) return fail('fixtures cannot move');
+          o.x = snap(op.x); o.y = snap(op.y);
+          return done(l, legalPiece(l, o));
+        }
+        case 'add': case 'duplicate': {
+          const src = op.op === 'add' ? Object.assign({ type: op.type }, TEMPLATE[op.type]) : findObj(l, op.id);
+          if (!src || !F.CATALOG[src.type]) return fail(op.op === 'add' ? 'unknown type ' + op.type : 'no object ' + op.id);
+          if (isFixture(src.type) || src.type === 'dept-desk') return fail('cannot add ' + src.type);
+          const o = Object.assign({}, copy(src), { id: nextId(l.objects, src.type) });
+          const tries = op.op === 'add' ? [[snap(op.x), snap(op.y)]] : spiral(src.x, src.y);
+          let why = '';
+          for (const [x, y] of tries) {
+            Object.assign(o, { x, y });
+            if (!(why = legalPiece(l, o))) { l.objects.push(o); return done(l, '', o.id); }
+          }
+          return fail(op.op === 'add' ? why : 'no free space nearby');
+        }
+        case 'remove': {
+          const o = findObj(l, op.id);
+          if (!o) return fail('no object ' + op.id);
+          if (o.type === 'dept-desk') return fail('cannot delete department desks yet');
+          if (isFixture(o.type)) return fail('fixtures cannot be deleted');
+          const had = WM.spotsOf(l);
+          l.objects = l.objects.filter(p => p !== o);
+          const now = WM.spotsOf(l), lost = WM.requiredSpots().filter(id => had[id] && !now[id]);
+          return done(l, lost.length ? 'needed by agents: ' + lost.join(', ') : '');
+        }
+        case 'addZone': {
+          const z = { id: nextId(l.zones, op.type), type: op.type, rect: (op.rect || []).map(snap) };
+          l.zones.push(z);
+          return done(l, legalZone(l, z), z.id);
+        }
+        case 'setZone': {
+          const z = findZone(l, op.id);
+          if (!z) return fail('no zone ' + op.id);
+          if (op.rect) z.rect = op.rect.map(snap);
+          if (op.type) z.type = op.type;
+          return done(l, legalZone(l, z));
+        }
+        case 'removeZone': {
+          if (!findZone(l, op.id)) return fail('no zone ' + op.id);
+          l.zones = l.zones.filter(q => q.id !== op.id);
+          return done(l, '');
+        }
+      }
+      return fail('unknown op ' + op.op);
+    }
+    function done(next, reason, id) {
+      if (reason) return fail(reason);
+      const r = { ok: true, next }; if (id) r.id = id; return r;
+    }
+    // Where a copy may land: rings of snapped offsets round the source, nearest first.
+    function spiral(x, y) {
+      const out = [];
+      for (let d = 2 * SNAP; d <= 200; d += 2 * SNAP) for (const [i, j] of [[1, 1], [1, 0], [0, 1], [-1, 0], [0, -1], [-1, -1], [1, -1], [-1, 1]]) out.push([snap(x + i * d), snap(y + j * d)]);
+      return out;
+    }
+
+    function apply(op) {
+      const r = plan(op);
+      if (!r.ok) return r;
+      past.push(JSON.stringify(cur)); if (past.length >= HISTORY) past.shift(); // HISTORY snapshots in all, counting the current one
+      future.length = 0; cur = r.next;
+      return r.id ? { ok: true, id: r.id } : { ok: true };
+    }
+    const check = op => { const r = plan(op); return r.ok ? (r.id ? { ok: true, id: r.id } : { ok: true }) : r; };
+
+    return {
+      layout: () => copy(cur),
+      dirty: () => JSON.stringify(cur) !== base,
+      markSaved: () => { base = JSON.stringify(cur); },
+      canUndo: () => past.length > 0,
+      canRedo: () => future.length > 0,
+      undo: () => { if (past.length) { future.push(JSON.stringify(cur)); cur = JSON.parse(past.pop()); } },
+      redo: () => { if (future.length) { past.push(JSON.stringify(cur)); cur = JSON.parse(future.pop()); } },
+      move: (id, x, y) => apply({ op: 'move', id, x, y }),
+      add: (type, x, y) => apply({ op: 'add', type, x, y }),
+      duplicate: id => apply({ op: 'duplicate', id }),
+      remove: id => apply({ op: 'remove', id }),
+      addZone: (type, rect) => apply({ op: 'addZone', type, rect }),
+      setZone: (id, { rect, type } = {}) => apply({ op: 'setZone', id, rect, type }),
+      removeZone: id => apply({ op: 'removeZone', id }),
+      check,
+    };
+  }
+
+  root.WorldEdit = { toGround, snap, catalog, createSession };
+})(globalThis);

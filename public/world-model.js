@@ -68,7 +68,7 @@
   const num = v => typeof v === 'number' && isFinite(v);
   const MAX = 4000; // ponytail: arbitrary cap so a PUT body cannot ask for a huge grid; today's world is 1240x780
   const rect = r => Array.isArray(r) && r.length === 4 && r.every(num);
-  const LIST_MAX = 2000, ZONE_TYPES = new Set(ZONES.map(q => q.type));
+  const LIST_MAX = 2000, ZONE_TYPES = new Set([...ZONES.map(q => q.type), 'lounge']);
   const inside = (x, y, l) => num(x) && num(y) && x >= 0 && x <= l.size.w && y >= 0 && y <= l.size.h;
   const short = v => typeof v === 'string' && v.length <= 64;
   // Values each param may take (painters loop over w and scale by s, so these bound the work validate does).
@@ -101,6 +101,8 @@
     return '';
   }
 
+  const requiredSpots = () => { const M = root.OfficeMotion; return M ? [...M.TEAM.map(t => t.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
+
   function validate(layout) {
     const errors = [];
     if (!obj(layout) || !num(layout.version)) return { ok: false, errors: ['layout has no version'] };
@@ -128,11 +130,8 @@
     layout.spots.forEach(s => { spotId(s.id); extra('spot', s, SPOT_FIELDS); });
 
     const { w, h } = layout.size, grid = gridOf(layout), spots = spotsOf(layout), water = rectsOf(layout, 'water');
-    const sp0 = layout.spawn, M = root.OfficeMotion;
-    if (M) { // every spot the agent brain reads must exist
-      const need = [...M.TEAM.map(t => t.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER];
-      need.forEach(id => spots[id] || errors.push('missing spot ' + id));
-    }
+    const sp0 = layout.spawn;
+    requiredSpots().forEach(id => spots[id] || errors.push('missing spot ' + id)); // every spot the agent brain reads must exist
     if (grid.blocked[W.cellOf(grid, sp0)]) errors.push('spawn (' + sp0.x + ',' + sp0.y + ') is blocked');
     for (const s of Object.values(spots)) {
       if (!(s.x >= 0 && s.x <= w && s.y >= 0 && s.y <= h)) { errors.push('spot ' + s.id + ' is outside the world'); continue; }
@@ -141,6 +140,6 @@
     }
   }
 
-  root.WorldModel = { VERSION, defaultLayout, validate, spotsOf, gridOf };
+  root.WorldModel = { VERSION, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, validate, spotsOf, gridOf, requiredSpots };
   if (root.OfficeMotion && typeof root.OfficeMotion.useLayout === 'function') root.OfficeMotion.useLayout(defaultLayout());
 })(globalThis);
