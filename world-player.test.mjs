@@ -99,3 +99,11 @@ test('unstick moves out of a blocked cell', () => {
   P.unstick(p, g);
   assert.ok(free(p.x, p.y));
 });
+
+test('large dt cannot jump a one-cell wall', () => {
+  const wc = 60, blocked = new Uint8Array(g.blocked.length); // custom grid: free except a one-cell-thick wall at column wc
+  for (let r = 0; r < g.rows; r++) blocked[r * g.cols + wc] = 1;
+  const wall = { ...g, blocked }, p = P.create(wc * g.cell - 60, 300);
+  for (let i = 0; i < 6; i++) P.step(p, 0.5, { dx: 1, dy: 1 }, wall); // pure +x, 85 units per step
+  assert.ok(p.x < wc * g.cell, `crossed the wall: x=${p.x}`);
+});
