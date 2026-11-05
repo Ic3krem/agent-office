@@ -29,8 +29,10 @@ export function recorder(calls) {
 const FIXED = Date.UTC(2026, 0, 5, 10, 10, 0);
 const FixedDate = class extends Date { constructor(...a) { super(...(a.length ? a : [FIXED])); } static now() { return FIXED; } };
 
-export function recordOffice() {
-  const w = loadWorld({ ctxFactory: () => recorder([]), globals: { Date: FixedDate } });
+// `extra` loads more page scripts; `prep(world)` runs before recording (e.g. applying a layout).
+export function recordOffice({ extra = [], prep = () => {} } = {}) {
+  const w = loadWorld({ ctxFactory: () => recorder([]), globals: { Date: FixedDate }, extra });
+  prep(w);
   const M = w.OfficeMotion, F = w.OfficeFurniture;
   F.state.T = 0; F.state.night = 0;
   const items = F.items.map(it => {

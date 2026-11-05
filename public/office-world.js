@@ -29,8 +29,12 @@
   }
   // Click areas, hover outlines and focus rings use the pixel-tight box measured from each painter's opaque pixels
   // (OfficeFurniture.measure); the loose isometric box is only the fallback when a painter could not be measured.
-  try { if (typeof document !== 'undefined') F.measure(document); } catch (e) { /* keep the loose boxes */ }
-  const OBJ = F.objects.map((o, i) => { const lb = bboxOf(o.box), t = o.tight; return { ...o, id: o.desk || o.key, bb: o.mask ? { l: o.mask.l, t: o.mask.t, w: o.mask.w, h: o.mask.h } : t ? { l: t.l, t: t.t, w: t.w, h: t.h } : lb, loose: lb, i }; });
+  let OBJ = [];
+  function rebuildObjects() { // after OfficeFurniture.place(): re-measure and rebuild the click/hover objects
+    try { if (typeof document !== 'undefined') F.measure(document); } catch (e) { /* keep the loose boxes */ }
+    OBJ = F.objects.map((o, i) => { const lb = bboxOf(o.box), t = o.tight; return { ...o, id: o.desk || o.key, bb: o.mask ? { l: o.mask.l, t: o.mask.t, w: o.mask.w, h: o.mask.h } : t ? { l: t.l, t: t.t, w: t.w, h: t.h } : lb, loose: lb, i }; });
+  }
+  rebuildObjects();
   const inObj = (o, px, py) => o.mask ? F.maskHit(o.mask, px, py) : (px >= o.bb.l && px <= o.bb.l + o.bb.w && py >= o.bb.t && py <= o.bb.t + o.bb.h);
   // gold outline ring + faint fill that follows the silhouette, built once per object on first hover
   function ringOf(o) {
@@ -388,9 +392,14 @@
     const n = Math.ceil(sec * 30); for (let i = 0; i < n; i++) tick(1 / 30);
     render();
   }
+  // Swap in a layout (WorldModel format): motion spots and grid, furniture, click objects, then repaint the baked floor.
+  function applyLayout(layout) {
+    M.useLayout(layout); F.place(layout.objects); rebuildObjects();
+    hover = null; NPC.w = null; bg = null; bgKey = ''; wake();
+  }
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {
-    mount, setScale, advance, hotspots, activate, STW, STH,
+    mount, setScale, advance, hotspots, activate, applyLayout, STW, STH,
     setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } wake(); },
     setExtras(e) { extras = Object.assign(extras, e); wake(); },
     setSelected(id) { selected = id; wake(); },

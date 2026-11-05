@@ -5,9 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 <script src="./office-objects.js"></script>
+<script src="./world-path.js"></script>
 <script src="./office-motion.js"></script>
 <script src="./office-sprites.js"></script>
 <script src="./office-furniture.js"></script>
+<script src="./world-model.js"></script>
 <script src="./office-world.js"></script>
 <script src="./agent-history.js" defer></script>
 </head>
@@ -384,6 +386,8 @@ class Component extends DCLogic {
       onObject:k=>window.OfficeObjects&&OfficeObjects.open(k),onUi:k=>this.setState(k==='usage'?{usageOpen:true}:{todayOpen:true}),
       onEmptyDesk:d=>this.setState({deskInfo:d,selectedId:null,rosterOpen:false}),onDemoSnap:d=>this.applyDemo(d)});
     this.ro=new ResizeObserver(fit); if(this.wrapRef.current){this.ro.observe(this.wrapRef.current);this.camEvents(this.wrapRef.current);} fit();
+    // The world starts on the built-in default layout; the stored one replaces it when it arrives (a failed fetch keeps the default).
+    fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.layout||!window.OfficeWorld)return;OfficeWorld.applyLayout(j.layout);if(j.warning)this.showToast(j.warning);}).catch(()=>{});
     api('/api/roster').then(j=>this.setState({roster:j.roster})).catch(()=>{});
     window.__demo=sc=>this.setDemo(sc||'');
     if(qd)this.setDemo(qd);

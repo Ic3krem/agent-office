@@ -14,6 +14,29 @@ test('static office draws exactly as 1.2.9', () => {
   assert.deepEqual(now.spots, gold.spots);
 });
 
+// office-world.js runs OfficeFurniture.measure, which fills derived footprints the fixture (recorded without it) lacks:
+// draw logs and depths must equal the fixture, footprints must equal a fresh boot of the same scripts.
+test('applyLayout(defaultLayout()) keeps the golden scene', () => {
+  const rec = prep => JSON.parse(JSON.stringify(recordOffice({ extra: ['office-world.js'], prep })));
+  const boot = rec(), now = rec(w => w.OfficeWorld.applyLayout(w.WorldModel.defaultLayout()));
+  const drawn = a => norm(a).map(i => ({ d: i.d, log: i.log }));
+  assert.deepEqual(drawn(now.items), drawn(gold.items));
+  assert.deepEqual(norm(now.items), norm(boot.items));
+  assert.deepEqual(now.objects, gold.objects);
+  assert.deepEqual(now.spots, gold.spots);
+});
+
+test('applyLayout moves desks in furniture, motion and click areas', () => {
+  const w = loadWorld({ extra: ['office-world.js'] }), OW = w.OfficeWorld, L = w.WorldModel.defaultLayout();
+  const hot = () => OW.hotspots().find(h => h.id === 'desk-1');
+  const l0 = hot().l, d0 = w.OfficeFurniture.items.map(i => i.d).sort((a, b) => a - b);
+  L.objects.find(o => o.id === 'desk-1').x += 40;
+  OW.applyLayout(L);
+  assert.equal(w.OfficeMotion.SPOTS['desk-1'].x, 195);
+  assert.ok(hot().l > l0, 'click area follows the desk');
+  assert.notDeepEqual(w.OfficeFurniture.items.map(i => i.d).sort((a, b) => a - b), d0);
+});
+
 test('a piece placed 40 units east draws translated and shifts its footprint', () => {
   const calls = [];
   const w = loadWorld({ ctxFactory: () => ({}) }), F = w.OfficeFurniture;
