@@ -62,6 +62,26 @@
       ...desks.filter(d => d.agentId).map(d => ({ kind: 'desk', id: d.agentId, desk: d.id, x: d.x, y: d.y }))];
   }
 
+  // Player keys (screen directions) and the key name they are tracked under.
+  const DIRS = { w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  const keyOf = e => (e.key || '').length === 1 ? e.key.toLowerCase() : e.key || '';
+  // Does a keydown belong to the CEO? 'move' | 'interact' | null. state = {build, shown, dialog, canvas}.
+  // Never in Build mode, with a modal dialog open, or while typing; arrows and E only when nothing else has focus
+  // (body or the stage canvas), so a focused button, link or menu keeps its own keys; Enter only on the body.
+  function takesKey(e, s) {
+    if (s.build || !s.shown || s.dialog || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return null;
+    const t = e.target || {}, k = keyOf(e);
+    if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '')) return null;
+    const free = t.tagName === 'BODY' || t.tagName === 'HTML' || (!!s.canvas && t === s.canvas);
+    if (/^[wasd]$/.test(k)) return 'move';
+    if (DIRS[k]) return free ? 'move' : null;
+    if (k === 'e') return free && !e.repeat ? 'interact' : null;
+    if (k === 'Enter') return t.tagName === 'BODY' ? 'interact' : null;
+    return null;
+  }
+  // Is the player still going somewhere (so the render loop must run at walking rate)? A finished path is not.
+  const ceoActive = (p, keysSize, joy) => !!p && (p.moving || p.pi < p.path.length || keysSize > 0 || !!(joy && (joy.dx || joy.dy)));
+
   function unstick(p, grid) {
     const { cols, rows, cell, blocked } = grid, start = root.WorldPath.cellOf(grid, p);
     if (!blocked[start]) return p;
@@ -78,5 +98,5 @@
     return p;
   }
 
-  root.WorldPlayer = { create, step, walkTo, nearest, candidatesFrom, unstick, SPEED, REACH };
+  root.WorldPlayer = { create, step, walkTo, nearest, candidatesFrom, takesKey, ceoActive, keyOf, DIRS, unstick, SPEED, REACH };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

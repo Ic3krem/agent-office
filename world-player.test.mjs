@@ -119,3 +119,39 @@ test('ceo candidates include Tiro and seated agents', () => {
   ]);
   assert.equal(P.nearest(P.create(150, 350), c).kind, 'desk');
 });
+
+test('a stale one-point path is not active; a live path, keys or the stick are', () => {
+  const p = P.create(420, 250);
+  assert.equal(P.ceoActive(p, 0, { dx: 0, dy: 0 }), false);
+  p.path = [{ x: 420, y: 250 }]; p.pi = 1; // finished or deduped-to-one-point route
+  assert.equal(P.ceoActive(p, 0, { dx: 0, dy: 0 }), false);
+  p.path = [{ x: 420, y: 250 }, { x: 500, y: 250 }];
+  assert.equal(P.ceoActive(p, 0, { dx: 0, dy: 0 }), true);
+  p.path = []; p.pi = 0;
+  assert.equal(P.ceoActive(p, 1, { dx: 0, dy: 0 }), true);
+  assert.equal(P.ceoActive(p, 0, { dx: 0.3, dy: 0 }), true);
+  assert.equal(P.ceoActive(null, 0, { dx: 0, dy: 0 }), false);
+});
+
+test('takesKey: player keys only outside Build, dialogs and text fields; arrows and E only with nothing focused', () => {
+  const body = { tagName: 'BODY' }, canvas = { tagName: 'CANVAS' }, btn = { tagName: 'BUTTON' }, input = { tagName: 'INPUT' };
+  const s = { build: false, shown: true, dialog: false, canvas };
+  const k = (key, target, extra) => P.takesKey({ key, target, ...extra }, s);
+  assert.equal(k('w', body), 'move');
+  assert.equal(k('D', canvas), 'move');
+  assert.equal(k('ArrowUp', body), 'move');
+  assert.equal(k('ArrowUp', canvas), 'move');
+  assert.equal(k('ArrowUp', btn), null);
+  assert.equal(k('e', body), 'interact');
+  assert.equal(k('e', btn), null);
+  assert.equal(k('e', body, { repeat: true }), null);
+  assert.equal(k('Enter', body), 'interact');
+  assert.equal(k('Enter', canvas), null);
+  for (const key of ['w', 'ArrowLeft', 'e', 'Enter']) assert.equal(k(key, input), null);
+  assert.equal(k('a', { tagName: 'DIV', isContentEditable: true }), null);
+  for (const key of ['+', '-', '0', 'Escape', 'y', 'n']) assert.equal(k(key, body), null);
+  assert.equal(k('w', body, { ctrlKey: true }), null);
+  assert.equal(P.takesKey({ key: 'w', target: body }, { ...s, build: true }), null);
+  assert.equal(P.takesKey({ key: 'w', target: body }, { ...s, dialog: true }), null);
+  assert.equal(P.takesKey({ key: 'w', target: body }, { ...s, shown: false }), null);
+});

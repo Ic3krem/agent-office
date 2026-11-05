@@ -118,7 +118,6 @@
   // ---------- the CEO: you, walking the office (never part of the golden recording: added here at runtime) ----------
   const CEO_AGENT = { id: 'ceo', name: 'You', look: 'ceo', pose: 'stand' }; // pose: drawPerson's standing pose
   const WPL = () => root.WorldPlayer;
-  const DIRS = { w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
   const coarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   let ceoP = null, ceoShown = true, keys = new Set(), joy = { dx: 0, dy: 0 }, near = null, nearKey = '', cands = [], promptBox = null;
   function ceoPlayer() {
@@ -130,7 +129,7 @@
   function stepCeo(dt) {
     if (!ceoOn()) { clearNear(); return; }
     const p = ceoPlayer(); let dx = joy.dx, dy = joy.dy;
-    for (const k of keys) { dx += DIRS[k][0]; dy += DIRS[k][1]; }
+    for (const k of keys) { const v = WPL().DIRS[k]; dx += v[0]; dy += v[1]; }
     WPL().step(p, dt, { dx, dy }, M.grid());
     if (p.moving && opts.onFollow) { const [sx, sy] = P(p.x, p.y, 30); opts.onFollow(sx, sy); }
     const ws = frame.agents.map(a => { const w = walkers.get(a.id); return w && { id: a.id, x: w.x, y: w.y, isManager: !!a.isManager }; }).filter(Boolean);
@@ -145,6 +144,7 @@
     const gr = M.grid(), p = ceoPlayer();
     if (!(gp.x >= 0 && gp.y >= 0 && gp.x <= gr.cols * gr.cell && gp.y <= gr.rows * gr.cell) || !WPL().walkTo(p, gp)) return false;
     if (gr.blocked[root.WorldPath.cellOf(gr, gp)] && p.path.length > 1) p.path.pop();
+    if (p.pi >= p.path.length) { p.path = []; p.pi = 0; return false; } // already there: nothing to walk
     lastInput = nowMs(); wake(); return true;
   }
   // E / Enter / tap on the prompt: the page handles it through opts.onInteract(target) when it has a menu; otherwise select the agent
@@ -154,14 +154,11 @@
     if (opts.onInteract) opts.onInteract(n); else opts.onSelect && opts.onSelect(n.id);
     return n;
   }
-  const keyOf = e => (e.key || '').length === 1 ? e.key.toLowerCase() : e.key || '';
   function onPlayerKey(e) {
-    const k = keyOf(e);
-    if (e.type === 'keyup') { if (keys.delete(k)) wake(); return; } // always release, whatever has focus now
-    if (build || !ceoOn() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('[role=dialog][aria-modal=true]')) return;
-    const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
-    if (DIRS[k]) { keys.add(k); lastInput = nowMs(); wake(); e.preventDefault(); }
-    else if ((k === 'e' && !e.repeat) || (k === 'Enter' && t === document.body)) { if (interact()) e.preventDefault(); }
+    if (e.type === 'keyup') { if (keys.delete(WPL().keyOf(e))) wake(); return; } // always release, whatever has focus now
+    const act = WPL().takesKey(e, { build: !!build, shown: ceoOn(), dialog: !!document.querySelector('[role=dialog][aria-modal=true]'), canvas: cv });
+    if (act === 'move') { keys.add(WPL().keyOf(e)); lastInput = nowMs(); wake(); e.preventDefault(); }
+    else if (act === 'interact' && interact()) e.preventDefault();
   }
   // the floating "E" (or "Tap") over the nearest thing; its box is clickable
   function drawPrompt(posOf) {
@@ -382,7 +379,7 @@
   function isMoving() {
     if (!frame || build) return false;
     const ST = F.state;
-    if (ceoOn() && ceoP && (ceoP.moving || ceoP.path.length || keys.size || joy.dx || joy.dy)) return true;
+    if (ceoOn() && WPL().ceoActive(ceoP, keys.size, joy)) return true;
     if (ghosts.length || ST.printer > 0 || Object.keys(nudged).length) return true;
     if (!legend && ST.labels > 0.02 && ST.labels < 1) return true;
     if (Math.abs(ST.dim - (frame.board.empty ? 1 : 0)) > .01) return true;
@@ -659,7 +656,7 @@
     document.addEventListener('keydown', onKey);
     document.addEventListener('keydown', onPlayerKey); document.addEventListener('keyup', onPlayerKey);
     root.addEventListener('blur', () => keys.clear()); // a key released while the window was unfocused never sends keyup
-    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else { running = false; dirty = true; start(); } });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { keys.clear(); joy = { dx: 0, dy: 0 }; stop(); } else { running = false; dirty = true; start(); } });
     root.addEventListener('focus', wake); root.addEventListener('blur', wake);
     if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => { dirty = true; render(); schedule(); });
   }
