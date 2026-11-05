@@ -53,6 +53,7 @@
       "desktop/**",
       "package.json",
       "LICENSE",
+      "NOTICE",
       "THIRD_PARTY_NOTICES.md",
       "node_modules/**",
       "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
@@ -116,7 +117,7 @@
     "type": "git",
     "url": "https://github.com/Ic3krem/agent-office.git"
   },
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0",
   "keywords": [
     "claude",
     "claude-code",

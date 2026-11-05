@@ -15,7 +15,7 @@ Quick links for Agent Office 1.2.8 (Windows installer only for now). The install
 | Office world design and 1.2.x changes | [office-spec.md](office-spec.md) |
 | Island, now playing, lyrics, updates | [island-spec.md](island-spec.md) |
 | Dependency licenses | [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
-| Project licence (proprietary, all rights reserved, Ic3krem; draft pending legal review) | [LICENSE](../LICENSE) |
+| Project licence (Apache-2.0, Copyright 2026 Ic3krem) | [LICENSE](../LICENSE), [NOTICE](../NOTICE) |
 
 ## Architecture in one page
 
@@ -79,5 +79,5 @@ npm run dist                   # build an installer for this OS
 ## Open to-dos for the docs
 
 - **Old screenshots.** `docs/screenshot-*.png`, `docs/kiro-desktop.png` and `docs/kiro-moods.png` come from 1.1.x and some show the removed "Tiro approves" auto-approve wording in the header. They are not used by the README any more except `kiro-moods.png`; retake or delete them when the UI is next photographed. The `docs/images/` set was taken on 1.2.5.
-- **Repo description (GitHub, set by the owner; not edited by this repository).** Suggested text: "Agent Office: a pixel office and desktop notch for your own Claude Code agents. Private, all rights reserved."
-- **Public distribution host.** Until the owner chooses one, installs and updates are by invitation (see the README). The install scripts and the updater expect release assets at a public URL.
+- **Repo description (GitHub, set by the owner; not edited by this repository).** Suggested text: "Agent Office: a pixel office and desktop notch for your own Claude Code agents. Open source, Apache-2.0."
+- **Distribution host.** GitHub Releases of Ic3krem/agent-office; the product site (GitHub Pages) links to them. The install scripts and the updater read release assets from there.

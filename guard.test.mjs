@@ -64,8 +64,8 @@ test('normalisation: every spelling of the same file resolves to one canonical p
 test('normalisation: case folds on Windows and macOS, not on Linux; 8.3 names and junctions resolve', () => {
   assert.equal(canon('/Users/Me/.ENV', { os: 'darwin', home: '/Users/Me' }).key, '/users/me/.env');
   assert.equal(canon('/home/Me/.ENV', { os: 'linux', home: '/home/Me' }).key, '/home/Me/.ENV');
-  const c = { os: 'win32', home: 'C:\\Users\\ASUS', cwd: 'C:\\Users\\ASUS' };
-  assert.equal(canon('C:\\Users\\USER~1\\.env', c).key, 'c:/users/user/.env');
+  const c = { os: 'win32', home: 'C:\\Users\\Sam', cwd: 'C:\\Users\\Sam' };
+  assert.equal(canon('C:\\Users\\Sam~1\\.env', c).key, 'c:/users/sam/.env');
   assert.equal(canon('C:\\PROGRA~1\\x', c).wild, true, 'an unknown short name is treated as a wildcard');
   const link = canon('C:\\Users\\Me\\link', { ...c, home: 'C:\\Users\\Me' }).key;
   const pk = pathKeys('C:\\Users\\Me\\link', { os: 'win32', home: 'C:\\Users\\Me', fs: { realpath: k => (k === link ? 'C:\\Users\\Me\\.ssh' : null) } });

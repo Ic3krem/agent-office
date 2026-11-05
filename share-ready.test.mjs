@@ -3,14 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { privateTerms } from './private-terms.mjs';
 
 const read = f => fs.readFileSync(new URL(f, import.meta.url), 'utf8');
 
-test('no company or business names in any tracked text file (repo.test.mjs holds the patterns themselves)', () => {
+const bad = privateTerms();
+test('no private names (employer, clients, machines) in any tracked text file', { skip: !bad && 'no private terms file (see private-terms.mjs)' }, () => {
   const root = fileURLToPathSafe();
   const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
-    .filter(f => !/^(node_modules|docs\/images|public\/vendor|public\/fonts|package-lock\.json|repo\.test\.mjs|share-ready\.test\.mjs)/.test(f) && !/\.(png|woff2|ico|jpg)$/i.test(f));
-  const bad = /Example|Example|Example|Example|Example|Example|Example|Example|Example|Example|Example/i;
+    .filter(f => !/^(node_modules|docs\/images|public\/vendor|public\/fonts|package-lock\.json)/.test(f) && !/\.(png|woff2|ico|jpg)$/i.test(f));
   for (const f of files) {
     const t = fs.readFileSync(path.join(root, f), 'utf8');
     const m = t.match(bad);
@@ -19,23 +20,21 @@ test('no company or business names in any tracked text file (repo.test.mjs holds
 });
 function fileURLToPathSafe() { return decodeURIComponent(new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')).replace(/\/$/, ''); }
 
-test('README does not advertise install commands that cannot work on a private repository', () => {
+test('README points to the public releases, how to verify them, and building from source', () => {
   const r = read('./README.md');
-  assert.doesNotMatch(r, /irm https:\/\/raw\.githubusercontent\.com/); assert.doesNotMatch(r, /curl -fsSL https:\/\/raw\.githubusercontent\.com/);
-  assert.match(r, /installed and updated by invitation/); assert.match(r, /build it from source/i);
+  assert.match(r, /github\.com\/Ic3krem\/agent-office\/releases\/latest/); assert.match(r, /build it from source/i);
   assert.match(r, /AGENT_OFFICE_VERIFY_ONLY/);
-  assert.doesNotMatch(r, /img\.shields\.io\/github\/(v\/release|downloads)/, 'release badges do not render for a private repository');
-  assert.match(r, /updater cannot reach any release/);
+  assert.doesNotMatch(r, /by invitation|repository is private/i);
   assert.doesNotMatch(r, /Tiro cannot hire/); assert.match(r, /best-effort/); assert.match(r, /not a sandbox/);
   assert.doesNotMatch(read('./docs/GUIDE.md') + read('./docs/agents-and-memory.md'), /Tiro cannot start a specialist/);
 });
 
-test('install scripts say plainly when the release page is private or missing, without a stack trace', () => {
+test('install scripts say plainly when the release page is missing or unreachable, without a stack trace', () => {
   const ps = read('./install.ps1'), sh = read('./install.sh');
-  assert.match(ps, /distributed by invitation/); assert.match(ps, /\$code -eq 401 -or \$code -eq 403 -or \$code -eq 404/);
+  for (const s of [ps, sh]) { assert.match(s, /may not exist, or GitHub is not reachable/); assert.match(s, /agent-office\/releases/); assert.doesNotMatch(s, /by invitation/); } assert.match(ps, /\$code -eq 401 -or \$code -eq 403 -or \$code -eq 404/);
   assert.match(ps, /\$failed = \$true; Write-Host "Install stopped:/); assert.match(ps, /if \(\$failed\) \{ return \}/, 'stops cleanly (return, not exit) so a piped run does not close the shell');
   assert.ok(ps.indexOf('if ($failed) { return }') < ps.indexOf('Start-Process $exe.FullName'), 'a failed install never reports success');
-  assert.match(sh, /401\|403\|404\) fail "GitHub answered \$code/); assert.match(sh, /distributed by invitation/);
+  assert.match(sh, /401\|403\|404\) fail "GitHub answered \$code/);
   assert.match(sh, /-w '%\{http_code\}'/);
 });
 
@@ -63,5 +62,5 @@ test('lyrics are opt-in end to end: default off in the logic, the page and the d
 
 test('docs keep an open to-do list for the old screenshots, the repo description and the public host', () => {
   const r = read('./docs/RESOURCES.md');
-  assert.match(r, /Open to-dos for the docs/); assert.match(r, /Old screenshots/); assert.match(r, /Repo description/); assert.match(r, /Public distribution host/);
+  assert.match(r, /Open to-dos for the docs/); assert.match(r, /Old screenshots/); assert.match(r, /Repo description/); assert.match(r, /Distribution host/);
 });

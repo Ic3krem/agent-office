@@ -1,6 +1,6 @@
 # Agent Office
 
-![Licence: all rights reserved](https://img.shields.io/badge/licence-all%20rights%20reserved-lightgrey) ![Windows, macOS, Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange)
+![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue) ![Windows, macOS, Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange)
 
 **A pixel office for your own Claude Code agents.** Tiro, a little orange cube-crab, is the office manager. Give Tiro a task and it plans the work, asks you before it hires any of eight specialist agents, shows you the permission prompts Claude Code would show you, files reports and remembers what it learned in a vault of plain Markdown notes. The office itself spends **no tokens**: every piece of furniture reads files, switches and system data directly, and models only run while an agent works, through your own Claude Code install and plan.
 
@@ -67,17 +67,15 @@ All screenshots use demo data. The [user guide](docs/GUIDE.md) has the rest.
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later, macOS, or Linux.
 
-> **Distribution status:** this repository is private and there is no public download host yet, so Agent Office is **installed and updated by invitation**: build it from source (below) or use the installer the owner sends you. The install scripts and the in-app updater expect release files at a public URL, so they cannot reach a private repository and will say so. The notes below describe how a published release is installed once a public host exists.
+**Download.** Get `Agent-Office-Setup-<version>.exe` from the [latest release](https://github.com/Ic3krem/agent-office/releases/latest) and run it (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). Or build it from source (below).
 
-**With an installer you were given.** Run `Agent-Office-Setup-<version>.exe` (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). If you also received the release folder (`latest.json`, `latest.json.sig` and the installer), you can check it before installing: set `AGENT_OFFICE_VERIFY_ONLY` to the folder's path and run `install.ps1` or `install.sh` from this repository. The check verifies the **Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)) and the installer's **SHA-256**, and installs nothing.
+**Check before installing.** Download the release's `latest.json` and `latest.json.sig` next to the installer, set `AGENT_OFFICE_VERIFY_ONLY` to that folder's path and run `install.ps1` or `install.sh` from this repository. The check verifies the **Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)) and the installer's **SHA-256**, and installs nothing.
 
-**Install scripts (for a published release).** `install.ps1` and `install.sh` take the release tag from the script itself, download `latest.json` and `latest.json.sig` from that tag's release page, verify the signature and the SHA-256, and only then install. They stop with a plain message if the release page is not reachable (for example HTTP 401, 403 or 404 because the repository is private) or if any check fails.
+**Install scripts.** `install.ps1` and `install.sh` take the release tag from the script itself, download `latest.json` and `latest.json.sig` from that tag's release page, verify the signature and the SHA-256, and only then install. They stop with a plain message if the release page is not reachable (HTTP 401, 403 or 404) or if any check fails.
 
 The builds are **not code-signed**. Windows SmartScreen may ask you to confirm with "More info", then "Run anyway". The macOS script clears Gatekeeper's quarantine flag for you.
 
 ## Update
-
-While the repository is private the updater cannot reach any release, so it reports that it could not check; updates are installed by hand from an installer the owner sends. The rest of this section describes how updates work once releases are published on a public host.
 
 Open the island's Settings tab and use **Updates**. The app checks the signed release manifest published with the newest GitHub release of Ic3krem/agent-office. The feed address is fixed in the app; nothing in the page or in `kiro.json` can change it. A release is offered only when its `latest.json` carries a valid **Ed25519 signature** from the release key pinned in the app and a SHA-256 for the installer, and only when it is **newer** than the running version (a downgrade is never offered).
 
@@ -183,4 +181,4 @@ Report a vulnerability by opening a private security advisory on the GitHub repo
 
 ## Licence
 
-Agent Office is proprietary software. **Copyright (c) 2026 Ic3krem. All rights reserved.** Nobody else may use, copy, modify, publish or distribute it unless the owner gives permission in writing; contributions are not accepted without a signed written agreement. Versions published earlier under the MIT licence (v1.1.0 to v1.1.4 and v1.2.5) remain available under the MIT terms they were released with. The full text is in [LICENSE](LICENSE), which is a **draft that still needs a lawyer's review**. Third-party components stay under their own licences, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); `@anthropic-ai/claude-agent-sdk` is Anthropic's proprietary software under its own terms. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install.
+Agent Office is open source under the **[Apache License 2.0](LICENSE)**, Copyright 2026 Ic3krem (see [NOTICE](NOTICE)). Contributions are welcome under the same licence: see [CONTRIBUTING.md](CONTRIBUTING.md). Versions v1.1.0 to v1.1.4 and v1.2.5 were released under MIT and stay available under those terms. Third-party components stay under their own licences, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); `@anthropic-ai/claude-agent-sdk` is Anthropic's proprietary software, a dependency used under Anthropic's own terms and not covered by this project's licence. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install.

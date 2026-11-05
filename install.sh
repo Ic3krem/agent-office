@@ -59,7 +59,7 @@ for f in latest.json latest.json.sig; do
   code="$(curl -sSL --proto '=https' --tlsv1.2 -o "$TMP/$f" -w '%{http_code}' "$BASE$f" 2>/dev/null || true)"
   case "$code" in
     200) ;;
-    401|403|404) fail "GitHub answered $code for $f. This repository is private (or release $TAG does not exist), so Agent Office is distributed by invitation: ask the owner for the installer, or build it from source." ;;
+    401|403|404) fail "GitHub answered $code for $f. Release $TAG may not exist, or GitHub is not reachable. Download the installer from https://github.com/Ic3krem/agent-office/releases, or build it from source." ;;
     *) fail "Could not download $f for release $TAG (HTTP ${code:-none}). Releases from before signed manifests cannot be installed by this script." ;;
   esac
 done

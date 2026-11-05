@@ -4,24 +4,18 @@ import fs from 'node:fs';
 const read = f => fs.readFileSync(new URL(f, import.meta.url), 'utf8');
 const pkg = JSON.parse(read('./package.json'));
 
-test('licence is consistent: proprietary, all rights reserved, Ic3krem, in LICENSE, LICENSE.txt, package.json, README; third-party notice shipped', () => {
+test('licence is consistent: Apache-2.0 in LICENSE, LICENSE.txt, NOTICE, package.json, README, CONTRIBUTING; third-party notice shipped', () => {
   const lic = read('./LICENSE');
-  assert.match(lic, /Copyright \(c\) 2026 Ic3krem\. All rights reserved\./);
-  assert.match(lic, /DRAFT/); assert.match(lic, /lawyer/i);
-  assert.match(lic, /Only the copyright holder may use, copy, modify, merge, publish, distribute, sublicense or sell/);
-  assert.match(lic, /signed a written agreement/); assert.match(lic, /THIRD_PARTY_NOTICES\.md/); assert.match(lic, /Anthropic/);
-  assert.match(lic, /v1\.1\.0 to v1\.1\.4 and v1\.2\.5/); assert.match(lic, /MIT terms they were released with/);
-  assert.match(lic, /No trademark grant/); assert.match(lic, /as is/);
-  assert.doesNotMatch(lic, /Permission is hereby granted, free of charge/);
+  assert.match(lic, /Apache License\s+Version 2\.0, January 2004/); assert.match(lic, /TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION/);
   assert.equal(read('./LICENSE.txt'), lic, 'the installer licence page file is a copy of LICENSE');
-  assert.equal(pkg.license, 'SEE LICENSE IN LICENSE'); assert.equal(pkg.private, true);
+  const notice = read('./NOTICE');
+  assert.match(notice, /Copyright 2026 Ic3krem/); assert.match(notice, /claude-agent-sdk/); assert.match(notice, /not covered by the Apache License/);
+  assert.equal(pkg.license, 'Apache-2.0'); assert.equal(pkg.private, true, 'not an npm package; keeps it from being published to npm');
   assert.equal(pkg.build.nsis.license, 'LICENSE.txt');
-  const readme = read('./README.md');
-  assert.match(readme, /all rights reserved/i); assert.doesNotMatch(readme, /\[MIT\]\(LICENSE\)|license-MIT/);
-  assert.match(read('./CONTRIBUTING.md'), /External contributions are not accepted/); assert.match(read('./CONTRIBUTING.md'), /SECURITY\.md/);
-  assert.doesNotMatch(read('./CONTRIBUTING.md') + read('./SECURITY.md'), /MIT licensed|open source/i);
-  assert.match(read('./THIRD_PARTY_NOTICES.md'), /proprietary, all rights reserved/);
-  assert.ok(pkg.build.files.includes('LICENSE') && pkg.build.files.includes('THIRD_PARTY_NOTICES.md'));
+  for (const f of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md']) assert.ok(pkg.build.files.includes(f), f + ' ships in the installer');
+  const docs = read('./README.md') + read('./CONTRIBUTING.md') + read('./SECURITY.md') + read('./THIRD_PARTY_NOTICES.md') + read('./docs/RESOURCES.md');
+  assert.match(read('./README.md'), /Apache License 2\.0/); assert.match(read('./CONTRIBUTING.md'), /Apache-2\.0, section 5/);
+  assert.doesNotMatch(docs, /all rights reserved(?! *; use is subject to Anthropic)|proprietary software\.|by invitation|External contributions are not accepted/i);
   assert.match(read('./THIRD_PARTY_NOTICES.md'), /claude-agent-sdk/);
 });
 
@@ -92,8 +86,7 @@ test('React, ReactDOM and Babel are vendored and match the SRI hashes in support
 
 test('SVG path data never builds a double minus, and company metadata names the owner', () => {
   assert.doesNotMatch(read('./public/kiro-art.js'), /[qQ ]-\$\{[^}]*\}\s*\d|\s-\$\{s \*/, 'negating a possibly negative number glues two minus signs');
-  assert.equal(JSON.parse(read('./.claude-plugin/marketplace.json')).owner.name, 'Ic3krem');
-  assert.doesNotMatch(read('./README.md') + read('./package.json') + read('./LICENSE'), /Example/i);
+  assert.equal(JSON.parse(read('./.claude-plugin/marketplace.json')).owner.name, 'Ic3krem'); // private names: share-ready.test.mjs
 });
 
 test('documentation: relative links and images resolve, images stay small, no personal data in docs', async () => {
@@ -106,7 +99,7 @@ test('documentation: relative links and images resolve, images stay small, no pe
       if (!u || /^(https?:|mailto:)/.test(u)) continue;
       assert.ok(fs.existsSync(new URL(path.posix.join(path.posix.dirname(f), u), new URL('./', import.meta.url))), f + ' links to missing ' + u);
     }
-    assert.doesNotMatch(t, /Example|Example|C:\\Users\\[A-Za-z]+\\/i, f + ' has company or personal data');
+    assert.doesNotMatch(t, /C:\\Users\\[A-Za-z]+\\/i, f + ' has a personal path');
   }
   const dir = new URL('./docs/images/', import.meta.url), imgs = fs.readdirSync(dir).filter(f => f.endsWith('.png'));
   assert.ok(imgs.length >= 4);
@@ -128,7 +121,7 @@ test('open-source files exist and have the right content', () => {
   assert.match(read('./.github/dependabot.yml'), /package-ecosystem: npm/); assert.match(read('./.github/dependabot.yml'), /package-ecosystem: github-actions/);
   assert.match(read('./.github/dependabot.yml'), /interval: weekly/);
   for (const f of ['SECURITY.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'docs/RELEASING.md', '.github/PULL_REQUEST_TEMPLATE.md']) {
-    assert.doesNotMatch(read('./' + f), /Example|Example|C:\\Users\\[A-Za-z]+\\|@[a-z0-9-]+\.(com|org|net)\b/i, f + ' has company, personal or contact data');
+    assert.doesNotMatch(read('./' + f), /C:\\Users\\[A-Za-z]+\\|@[a-z0-9-]+\.(com|org|net)\b/i, f + ' has personal or contact data');
   }
 });
 

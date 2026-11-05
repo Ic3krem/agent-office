@@ -1,6 +1,6 @@
 # Security policy
 
-Agent Office is a local desktop app maintained by [Ic3krem](https://github.com/Ic3krem). It is proprietary software (see [LICENSE](LICENSE)); security reports from anyone are welcome and are not a contribution of code. It runs a server bound to `127.0.0.1`, starts your own Claude Code agents and can update itself, so security reports are taken seriously.
+Agent Office is a local desktop app maintained by [Ic3krem](https://github.com/Ic3krem). It is open source under the Apache License 2.0 (see [LICENSE](LICENSE)); security reports from anyone are welcome. It runs a server bound to `127.0.0.1`, starts your own Claude Code agents and can update itself, so security reports are taken seriously.
 
 ## Supported versions
 

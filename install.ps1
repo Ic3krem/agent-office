@@ -97,7 +97,7 @@ try {
     try { Invoke-WebRequest -Uri ($base + $f) -OutFile (Join-Path $work $f) -UseBasicParsing -MaximumRedirection 5 }
     catch {
       $code = 0; try { $code = [int]$_.Exception.Response.StatusCode } catch { }
-      if ($code -eq 401 -or $code -eq 403 -or $code -eq 404) { throw "GitHub answered $code for $f. This repository is private (or release $tag does not exist), so Agent Office is distributed by invitation: ask the owner for the installer, or build it from source." }
+      if ($code -eq 401 -or $code -eq 403 -or $code -eq 404) { throw "GitHub answered $code for $f. Release $tag may not exist, or GitHub is not reachable. Download the installer from https://github.com/Ic3krem/agent-office/releases, or build it from source." }
       throw "Release $tag has no $f ($($_.Exception.Message)). Releases from before signed manifests cannot be installed by this script; download the installer from the release page instead."
     }
   }
