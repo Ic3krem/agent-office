@@ -161,3 +161,10 @@ test('restart log lines carry no secrets, only event data; main wires the policy
   const m = mainSrc();
   assert.match(m, /createRestartPolicy/); assert.match(m, /child\.on\('exit'/); assert.match(m, /quitting = true/);
 });
+test('spawn errors name their code, sanitised; packaged server never runs with a cwd inside app.asar', () => {
+  assert.equal(restartLogLine(0, { event: 'spawn-error', error: 'ENOENT' }), '1970-01-01T00:00:00.000Z server spawn-error error=ENOENT');
+  assert.equal(restartLogLine(0, { event: 'spawn-error', error: 'E/../x y' }), '1970-01-01T00:00:00.000Z server spawn-error error=Exy');
+  const m = mainSrc();
+  assert.doesNotMatch(m, /cwd: ROOT[,\s}]/, 'ROOT is inside app.asar when packaged; the OS cannot chdir into it');
+  assert.match(m, /cwd: app\.isPackaged \? process\.resourcesPath : ROOT/);
+});

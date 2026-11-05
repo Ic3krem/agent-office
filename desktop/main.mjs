@@ -46,10 +46,12 @@ const restart = createRestartPolicy();
 let quitting = false, gaveUp = false, restartTimer = null;
 function spawnServer() {
   // Electron's own Node runs the server, so the app needs no separate Node install.
+  // Packaged, ROOT is inside app.asar, which the OS sees as a file: a cwd there fails the spawn with ENOENT. Electron still
+  // reads server.mjs from the archive, so only the working directory has to be a real folder.
   const started = Date.now();
-  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY }, stdio: 'ignore', windowsHide: true });
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: app.isPackaged ? process.resourcesPath : ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY }, stdio: 'ignore', windowsHide: true });
   server = child;
-  child.on('error', e => logEvent({ event: 'spawn-error' }));
+  child.on('error', e => logEvent({ event: 'spawn-error', error: e?.code }));
   child.on('exit', (code, signal) => {
     if (server === child) server = null;
     if (quitting) return;

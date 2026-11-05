@@ -19,4 +19,4 @@ export function createRestartPolicy(opts = {}) {
   };
 }
 // A log line that never contains environment, arguments or keys: just the event, exit code/signal and attempt.
-export const restartLogLine = (when, ev) => `${new Date(when).toISOString()} server ${ev.event}${ev.code != null ? ' code=' + Number(ev.code) : ''}${ev.signal ? ' signal=' + String(ev.signal).replace(/[^A-Z0-9]/gi, '') : ''}${ev.attempt != null ? ' attempt=' + Number(ev.attempt) : ''}${ev.delayMs != null ? ' retryInMs=' + Number(ev.delayMs) : ''}`;
+export const restartLogLine = (when, ev) => `${new Date(when).toISOString()} server ${ev.event}${ev.error ? ' error=' + String(ev.error).replace(/[^A-Z0-9_]/gi, '') : ''}${ev.code != null ? ' code=' + Number(ev.code) : ''}${ev.signal ? ' signal=' + String(ev.signal).replace(/[^A-Z0-9]/gi, '') : ''}${ev.attempt != null ? ' attempt=' + Number(ev.attempt) : ''}${ev.delayMs != null ? ' retryInMs=' + Number(ev.delayMs) : ''}`;
