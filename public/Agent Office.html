@@ -118,6 +118,7 @@ button:disabled{opacity:.45;cursor:default}
           <div style="font-size:12.5px; color:#ffd28a; font-weight:600;">{{ h.title }}</div>
           <div style="font-size:12px; color:#cdbda9; word-break:break-word;">For: {{ h.goal }}</div>
           <div style="font-size:12px; color:#a8998a; word-break:break-word;">Why: {{ h.why }}</div>
+          <sc-if value="{{ h.paceLine }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px; color:#ffcf6b;">{{ h.paceLine }}</div></sc-if>
           <div style="font-size:11.5px; color:#8f8070; word-break:break-word; max-height:110px; overflow:auto; white-space:pre-wrap;">Prompt it will send: {{ h.prompt }}</div>
           <div style="display:flex; gap:6px;">
             <button onClick="{{ h.onApprove }}" style="padding:4px 10px; border-radius:5px; border:none; background:#5fd38d; color:#0c2416; font:inherit; font-size:12px; font-weight:600; cursor:pointer;">Approve hire</button>
@@ -131,6 +132,7 @@ button:disabled{opacity:.45;cursor:default}
             <div style="display:flex; flex-direction:column; gap:4px; padding:8px 9px; border-radius:7px; background:#120e0c; border:1px solid {{ g.border }};">
               <div style="display:flex; align-items:flex-start; gap:8px;">
                 <span style="flex-shrink:0; margin-top:1px; padding:1px 6px; border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.04em; background:{{ g.chipBg }}; color:{{ g.chipFg }};">{{ g.label }}</span>
+                <sc-if value="{{ g.badge }}" hint-placeholder-val="{{ false }}"><span data-badge="goal" title="{{ g.badgeTitle }}" aria-label="{{ g.badgeTitle }}" style="flex-shrink:0; font-size:12px; color:#ffcf6b;">{{ g.badge }}</span></sc-if>
                 <span style="flex:1; min-width:0; font-size:13px; line-height:1.35; color:{{ g.fg }}; text-decoration:{{ g.strike }}; word-break:break-word;">{{ g.text }}</span>
               </div>
               <sc-if value="{{ g.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px; line-height:1.35; color:#a8998a; word-break:break-word;">{{ g.note }}</div></sc-if>
@@ -171,6 +173,7 @@ button:disabled{opacity:.45;cursor:default}
         <button class="pill sm" onClick="{{ zoomReset }}" title="Reset the view. Wheel to zoom, drag to pan." style="min-width:54px; justify-content:center; border-color:{{ zoomBorder }};">{{ zoomLabel }}</button>
         <button class="pill sm" onClick="{{ zoomIn }}" aria-label="Zoom in" title="Zoom in (mouse wheel)" style="padding:0; width:30px; justify-content:center; font-size:15px;">+</button>
       </div>
+      <button class="pill sm" onClick="{{ toggleFollow }}" aria-pressed="{{ followOn }}" title="Zoomed in, the camera follows you as you walk" style="border-color:{{ followBorder }};">Follow me</button>
       <button class="pill sm" onClick="{{ toggleRoster }}" title="The team: one specialist per desk" style="border-color:{{ rosterBorder }};"><span>Team {{ rosterCount }}/{{ deskCount }}</span></button>
       <button class="pill sm" onClick="{{ toggleLegend }}" title="Show or hide the zone labels" style="border-color:{{ legendBorder }};">Labels</button>
       <button class="pill sm" onClick="{{ toggleSaver }}" title="Power saver: the office redraws slowly while nothing moves and not at all when hidden. Turn off for a constant 30 fps." aria-pressed="{{ saverOn }}" style="border-color:{{ saverBorder }};">Power saver</button>
@@ -216,6 +219,36 @@ button:disabled{opacity:.45;cursor:default}
         <div style="font-size:12px; color:#ffb547;">Empty desk. {{ deskInfo.note }}</div>
       </div>
     </sc-if>
+
+    <sc-if value="{{ hasRadial }}" hint-placeholder-val="{{ false }}">
+      <div role="menu" aria-label="{{ mgrMenu }}" style="position:fixed; left:{{ menuX }}px; top:{{ menuY }}px; width:0; height:0; z-index:3100;">
+        <sc-for list="{{ radialBtns }}" as="b" hint-placeholder-count="4"><button class="pill sm" role="menuitem" onClick="{{ b.onClick }}" style="position:absolute; left:{{ b.l }}px; top:{{ b.t }}px; transform:translate(-50%,-50%); white-space:nowrap; box-shadow:0 6px 18px rgba(0,0,0,.45); animation:pop .15s ease-out;">{{ b.label }}</button></sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasPick }}" hint-placeholder-val="{{ false }}">
+      <div role="menu" aria-label="{{ pickTitle }}" style="position:fixed; left:{{ panelX }}px; top:{{ panelY }}px; z-index:3100; width:280px; max-height:232px; display:flex; flex-direction:column; gap:5px; padding:10px; box-sizing:border-box; border-radius:10px; background:#1d1714; border:1px solid var(--line2); box-shadow:0 12px 30px rgba(0,0,0,.5); animation:pop .15s ease-out;">
+        <div style="display:flex; align-items:center; gap:6px;"><span class="sect" style="flex:1;">{{ pickTitle }}</span><button class="xbtn" onClick="{{ closeMenu }}" aria-label="Close" style="width:24px; height:24px;">×</button></div>
+        <div style="overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+          <sc-for list="{{ pickGoals }}" as="g" hint-placeholder-count="3"><button class="sbtn" role="menuitem" onClick="{{ g.onClick }}" style="text-align:left; word-break:break-word;">{{ g.label }}</button></sc-for>
+        </div>
+        <sc-if value="{{ noPick }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px; color:var(--dim);">No open goals. Add one on the Today board.</div></sc-if>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ false }}">
+      <div role="group" data-card="1" aria-label="{{ card.name }}" style="position:fixed; left:{{ panelX }}px; top:{{ panelY }}px; z-index:3100; width:280px; display:flex; flex-direction:column; gap:6px; padding:10px 12px; box-sizing:border-box; border-radius:10px; background:var(--panel); border:1px solid var(--line2); box-shadow:0 12px 30px rgba(0,0,0,.5); animation:pop .15s ease-out;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-family:'Pixelify Sans',sans-serif; font-size:15px; color:#ffdca0;">{{ card.name }}</span>
+          <span style="flex:1; min-width:0; font-size:12px; color:#a8998a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ card.role }}</span>
+          <button class="xbtn" onClick="{{ closeMenu }}" aria-label="Close" style="width:24px; height:24px;">×</button>
+        </div>
+        <div style="font-size:12px; color:{{ card.statusColor }};">● {{ card.status }}</div>
+        <div style="font-size:12.5px; line-height:1.4; color:#e8d9c4; word-break:break-word;">{{ card.task }}</div>
+        <button class="pill sm cta" onClick="{{ card.chat }}" style="align-self:flex-start;">Chat</button>
+      </div>
+    </sc-if>
+    <div onPointerDown="{{ joyDown }}" onPointerMove="{{ joyMove }}" onPointerUp="{{ joyUp }}" onPointerCancel="{{ joyUp }}" onLostPointerCapture="{{ joyUp }}" data-joystick="1" aria-hidden="true" style="position:absolute; left:16px; bottom:{{ joyBottom }}; z-index:2950; width:96px; height:96px; border-radius:50%; display:{{ joyDisp }}; touch-action:none; background:rgba(26,20,17,.55); border:2px solid #4a3a2c;">
+      <div style="position:absolute; left:28px; top:28px; width:40px; height:40px; border-radius:50%; background:#ffcf6b; opacity:.85; pointer-events:none;"></div>
+    </div>
 
     <sc-if value="{{ usageOpen }}" hint-placeholder-val="{{ false }}">
       <div onClick="{{ closeUsage }}" style="position:fixed; inset:0; z-index:4500; background:rgba(8,5,4,.6);"></div>
@@ -462,9 +495,13 @@ const SP=window.OfficeSprites,PORT={};
 const portrait=a=>{const pr=a.profile||{};const look=SP.lookOf({id:a.id,name:a.name,isManager:a.isManager,key:pr.key,color:pr.color,accent:pr.accent});return PORT[look.sig]||(PORT[look.sig]=SP.get(look,'f','stand',0,0).cv.toDataURL());};
 const TOOLK={tool:'\u{1F527}',think:'\u{1F4AD}',out:'\u{1F4AC}',err:'\u26A0',hitl:'\u270B',sys:'\u24D8',user:'\u203A',agent:'\u21E2'};
 const DEMOS=['','work','think','blocked','report','empty','tour'];
+const OPEN_GOAL=g=>g.status==='todo'||g.status==='doing'||g.status==='blocked'; // the server's goalError rule
+const cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;
+const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v;}catch(e){return d;}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
 
 class Component extends DCLogic {
-  state={catGroup:'furniture',off:{x:0,y:0},nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null};
+  state={catGroup:'furniture',off:{x:0,y:0},nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null,menu:null,follow:lsGet('ao.follow','1')!=='0'};
   wrapRef=React.createRef(); termRef=React.createRef(); canvasRef=React.createRef();
   componentDidMount(){
     const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect(),i=this.insets();const sc=Math.min((r.width-i.l)/1480,(r.height-40-i.t-i.b)/920);this.fitSc=sc;this.vp={w:r.width-i.l,h:r.height-i.t-i.b};this.off={x:i.l/2,y:(i.t-i.b)/2};this.setView(this.state.view,sc);this.setState({scale:sc,off:this.off});};
@@ -477,7 +514,9 @@ class Component extends DCLogic {
       onSelect:id=>this.setState({selectedId:id,modifyOpen:false,deskInfo:null}),onNudge:id=>{OfficeWorld.nudge(id);this.nudge(id);},
       onObject:k=>window.OfficeObjects&&OfficeObjects.open(k),onUi:k=>this.setState(k==='usage'?{usageOpen:true}:{todayOpen:true}),
       onEmptyDesk:d=>this.setState({deskInfo:d,selectedId:null,rosterOpen:false}),onDemoSnap:d=>this.applyDemo(d),
-      onLayout:()=>this.applyNames(this.state.names)});}; // a layout rebuilds OfficeMotion.TEAM with default names
+      onLayout:()=>this.applyNames(this.state.names),
+      onFollow:(sx,sy)=>this.followCeo(sx,sy),onToast:t=>this.showToast(t),onInteract:n=>this.openNear(n),
+      onNear:n=>{const m=this.state.menu;if(m&&(!n||n.id!==m.id))this.setState({menu:null});}});}; // a layout rebuilds OfficeMotion.TEAM with default names
     fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout)this.layout=j.layout;if(j&&j.layout&&j.source!=='default'&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(j&&j.warning)this.showToast(j.warning);mountWorld();});
     setTimeout(mountWorld,400);
     this.ro=new ResizeObserver(fit); if(this.wrapRef.current){this.ro.observe(this.wrapRef.current);this.camEvents(this.wrapRef.current);} fit();
@@ -493,6 +532,7 @@ class Component extends DCLogic {
     this.onKey=e=>{
       if(this.state.ask){if(e.key==='Escape'){e.preventDefault();this.setState({ask:null});}else if(e.key==='Tab'){const bs=[...document.querySelectorAll('[role=dialog] button')],i=bs.indexOf(document.activeElement);if(bs.length){e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}}return;}
       const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;
+      if(this.state.menu&&e.key==='Escape'){e.preventDefault();this.setState({menu:null});return;}
       const a=this.sel();
       if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&!document.querySelector('.oo-win')){if(e.key==='+'||e.key==='=')this.zoomBy(1.25);else if(e.key==='-'||e.key==='_')this.zoomBy(0.8);else if(e.key==='0')this.setView({z:1,x:0,y:0});}
       if(e.key==='Escape'&&!document.querySelector('.oo-win'))this.setState(this.state.usageOpen?{usageOpen:false}:(this.state.rosterOpen||this.state.deskInfo)?{rosterOpen:false,deskInfo:null}:{selectedId:null,popout:false});
@@ -505,12 +545,57 @@ class Component extends DCLogic {
     window.addEventListener('hashchange',this.onHash);this.onHash();
   }
   componentWillUnmount(){this.camOff&&this.camOff();this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
-  componentDidUpdate(){if(this.state.ask&&this.state.ask!==this._askShown){this._askShown=this.state.ask;const d=document.querySelector('[role=dialog]'),b=d&&(d.querySelector('button.cta')||(d.querySelector('button.danger')&&[...d.querySelectorAll('button')].find(x=>x.textContent.trim()==='Cancel'))||d.querySelector('button'));b&&b.focus();}if(this.state.selectedId!==this._selSent){this._selSent=this.state.selectedId;api('/api/select',{id:this.state.selectedId||null}).catch(()=>{});}this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
+  componentDidUpdate(){if(this.state.menu!==this._menuShown){this._menuShown=this.state.menu;const b=this.state.menu&&document.querySelector('[role=menu] [role=menuitem], [data-card] .cta');b&&b.focus({preventScroll:true});}if(this.state.ask&&this.state.ask!==this._askShown){this._askShown=this.state.ask;const d=document.querySelector('[role=dialog]'),b=d&&(d.querySelector('button.cta')||(d.querySelector('button.danger')&&[...d.querySelectorAll('button')].find(x=>x.textContent.trim()==='Cancel'))||d.querySelector('button'));b&&b.focus();}if(this.state.selectedId!==this._selSent){this._selSent=this.state.selectedId;api('/api/select',{id:this.state.selectedId||null}).catch(()=>{});}this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
   // Camera: wheel zooms about the cursor, drag pans, keys + - 0, buttons in the corner. Pure maths lives in OfficeMotion.
   setView(v,sc){const M=window.OfficeMotion,vp=this.vp||{w:1280,h:800},f=sc||this.fitSc||1;const c=M.clampView(v,vp.w,vp.h,f,1480,920);this.view=c;this.setState({view:c});window.OfficeWorld&&OfficeWorld.setScale(f*c.z);}
   zoomBy(k,cx,cy){this.setView(OfficeMotion.zoomAt(this.view||this.state.view,k,cx||0,cy||0));}
+  // Zoomed in, keep the walking CEO inside the middle 60% of the office view; at z=1 the camera stays put.
+  followCeo(sx,sy){
+    const v=this.view||this.state.view,el=this.wrapRef.current;if(!this.state.follow||v.z<=1.001||!el||!this.origin)return;
+    const r=el.getBoundingClientRect(),o=this.origin(),k=(this.fitSc||1)*v.z;
+    const into=(p,lo,hi)=>p<lo?lo-p:p>hi?hi-p:0;
+    const dx=into(o.x+v.x+(sx-740)*k,r.left+r.width*.2,r.right-r.width*.2),dy=into(o.y+v.y+(sy-460)*k,r.top+r.height*.2,r.bottom-r.height*.2);
+    if(dx||dy)this.setView({z:v.z,x:v.x+dx,y:v.y+dy});
+  }
+  // E / tap near someone: Tiro gets the radial menu, a specialist a desk card. Again on the same target closes it.
+  openNear(n){
+    const m=this.state.menu;if(m&&m.id===n.id)return this.setState({menu:null});
+    const kind=n.kind==='tiro'?'radial':'card';
+    if(kind==='card'&&!this.state.agents.some(a=>a.id===n.id))return;
+    const p=(window.OfficeWorld&&OfficeWorld.pointOf(n.id))||{x:innerWidth/2,y:innerHeight/2};
+    this.setState({menu:{kind,id:n.id,x:p.x,y:p.y}});
+  }
+  // Prioritize / Boost / Speed on one open goal picked from the radial menu.
+  goalAct(mode,g){
+    this.setState({menu:null});const t=cut(g.text,60),fail=e=>this.showToast(e.message);
+    if(mode==='prio'){const hi=g.priority!=='high';return api('/api/goal/priority',{id:g.id,priority:hi?'high':'normal'}).then(()=>this.showToast((hi?'High priority: ':'Normal priority: ')+t)).catch(fail);}
+    const pace=mode==='boost'?'boost':'speed',set=v=>api('/api/goal/pace',{id:g.id,pace:v}).then(r=>this.showToast(r.warning||(v?(v==='boost'?'Boost on: ':'Speed on: ')+t:(pace==='boost'?'Boost off: ':'Speed off: ')+t))).catch(fail);
+    if(g.pace===pace)return set(null);
+    if(pace==='boost')return this.askUser('Boost '+t+'? '+MGR()+' will hire on the strongest model (Opus, high effort) for this goal — it uses your plan faster.',[['Boost',()=>set('boost'),true],['Cancel']]);
+    set('speed');
+  }
+  ceoVals(){
+    const s=this.state,m=s.menu,vw=s.vw,vh=window.innerHeight,cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+    const coarse=typeof matchMedia==='function'&&matchMedia('(pointer: coarse)').matches;
+    const ax=m?cl(m.x,110,vw-110):0,ay=m?cl(m.y,90,vh-90):0,pick=mode=>()=>this.setState({menu:{...m,kind:'pick',mode}});
+    const a=m&&m.kind==='card'&&s.agents.find(x=>x.id===m.id),st=a&&(STATUS[a.status]||STATUS.idle);
+    const joy=e=>{const el=e.currentTarget,r=el.getBoundingClientRect(),R=r.width/2;let dx=(e.clientX-r.left-R)/R,dy=(e.clientY-r.top-R)/R;const n=Math.hypot(dx,dy);if(n>1){dx/=n;dy/=n;}el.firstElementChild.style.transform='translate('+dx*R*.6+'px,'+dy*R*.6+'px)';window.OfficeWorld&&OfficeWorld.setJoystick(dx,dy);};
+    const joyEnd=e=>{e.currentTarget.firstElementChild.style.transform='';window.OfficeWorld&&OfficeWorld.setJoystick(0,0);};
+    return {
+      followOn:s.follow?'true':'false',followBorder:s.follow?'#8a5a1c':'#3a2e25',toggleFollow:()=>{lsSet('ao.follow',s.follow?'0':'1');this.setState({follow:!s.follow});},
+      hasRadial:!!m&&m.kind==='radial',hasPick:!!m&&m.kind==='pick',hasCard:!!a,menuX:ax,menuY:ay,panelX:cl(ax-140,8,vw-288),panelY:cl(ay+24,8,vh-240),mgrMenu:MGR(),
+      radialBtns:m?[['Chat',0,-62,()=>this.setState({menu:null,selectedId:m.id})],['Prioritize',84,0,pick('prio')],['Boost',0,62,pick('boost')],['Speed',-84,0,pick('speed')]].map(([label,dx,dy,onClick])=>({label,l:dx,t:dy,onClick})):[],
+      pickTitle:m&&m.kind==='pick'?{prio:'Prioritize a goal',boost:'Boost a goal (Opus)',speed:'Speed up a goal (Haiku)'}[m.mode]:'',
+      pickGoals:m&&m.kind==='pick'?s.goals.filter(OPEN_GOAL).map(g=>{const on=m.mode==='prio'?g.priority==='high':g.pace===m.mode;return {label:(on?(m.mode==='prio'?'★ ':m.mode==='boost'?'Stop boost · ':'Stop speed · '):'')+cut(g.text,80),onClick:()=>this.goalAct(m.mode,g)};}):[],
+      noPick:!!m&&m.kind==='pick'&&!s.goals.some(OPEN_GOAL),closeMenu:()=>this.setState({menu:null}),
+      card:a?{name:a.name,role:a.profile&&!a.isManager?a.profile.role:a.role||'',status:st[0],statusColor:st[1],task:cut(a.task||'No task right now',140),chat:()=>this.setState({menu:null,selectedId:a.id})}:{name:'',role:'',status:'',statusColor:'#fff',task:'',chat:()=>{}},
+      joyDisp:coarse&&!s.building&&!s.demo?'block':'none',joyBottom:vw<700?'76px':'56px', // above the Agent history button (and the narrow Today bar)
+      joyDown:e=>{e.currentTarget.setPointerCapture(e.pointerId);joy(e);},joyMove:e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))joy(e);},joyUp:joyEnd,
+    };
+  }
   camEvents(el){
     const origin=()=>{const r=el.getBoundingClientRect(),o=this.off||{x:0,y:0};return {x:r.left+r.width/2+o.x,y:r.top+r.height*0.52+o.y};};
+    this.origin=origin;
     const onCanvas=e=>e.target===el||(e.target.tagName==='CANVAS');
     this.onWheel=e=>{if(!onCanvas(e))return;e.preventDefault();const o=origin();this.zoomBy(Math.exp(-e.deltaY*0.0016),e.clientX-o.x,e.clientY-o.y);};
     let drag=null;
@@ -644,9 +729,9 @@ class Component extends DCLogic {
       tidyOffice:()=>api('/api/tidy').then(r=>this.showToast('Tidied: '+r.desks+' idle desk'+(r.desks===1?'':'s')+' hidden, '+r.goals+' finished goal'+(r.goals===1?'':'s')+' cleared. Reports are kept.')).catch(e=>this.showToast(e.message)),
       resetBoss:()=>{if(!confirm('Start '+MGR()+' with a clean memory? Goals and reports stay.'))return;api('/api/boss-reset').then(()=>this.showToast(''+MGR()+' will start fresh next time')).catch(e=>this.showToast(e.message));},
       startBoss:()=>api('/api/boss').then(()=>this.showToast(''+MGR()+' is checking the board')).catch(e=>this.showToast(e.message)),
-      guardBannerOn:!!((s.guard&&s.guard.banner)||(s.guard&&s.guard.notices&&s.guard.notices.length)),guardBanner:((s.guard&&s.guard.banner)||'')+((s.guard&&s.guard.notices&&s.guard.notices.length)?(((s.guard&&s.guard.banner)?' ':'')+'Guard setting changed outside the app; kept '+s.guard.notices.map(n=>n.what+':'+n.kept).join(', ')+'.'):''),mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,prompt:h.prompt||'',onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
+      guardBannerOn:!!((s.guard&&s.guard.banner)||(s.guard&&s.guard.notices&&s.guard.notices.length)),guardBanner:((s.guard&&s.guard.banner)||'')+((s.guard&&s.guard.notices&&s.guard.notices.length)?(((s.guard&&s.guard.banner)?' ':'')+'Guard setting changed outside the app; kept '+s.guard.notices.map(n=>n.what+':'+n.kept).join(', ')+'.'):''),mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,prompt:h.prompt||'',paceLine:h.pace?(h.model?(h.pace==='boost'?'Boost':'Speed')+': runs on '+cap(h.model):h.paceSkip?'Boost skipped: '+h.paceSkip:''):'',onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
       goalText:s.goalText,onGoalInput:e=>this.setState({goalText:e.target.value}),onGoalKey:e=>{if(e.key==='Enter')addGoal();},addGoal,
-      goalsV:live.map(g=>{const c=GOAL[g.status]||GOAL.todo,done=g.status==='done',cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;return {text:done?cut(g.text,70):g.text,note:done?cut(g.note||'',110):(g.note||''),hasNote:!!g.note,label:c[0],chipBg:c[1],chipFg:c[2],
+      goalsV:live.map(g=>{const c=GOAL[g.status]||GOAL.todo,done=g.status==='done';return {badge:(g.priority==='high'?'★':'')+(g.pace==='boost'?'⚡':g.pace==='speed'?'⏩':''),badgeTitle:[g.priority==='high'?'High priority':'',g.pace==='boost'?'Boost: strongest model':g.pace==='speed'?'Speed: fastest model':''].filter(Boolean).join(' · '),text:done?cut(g.text,70):g.text,note:done?cut(g.note||'',110):(g.note||''),hasNote:!!g.note,label:c[0],chipBg:c[1],chipFg:c[2],
         border:g.status==='blocked'?'#8a5a1c':g.status==='proposed'?'#4a3f6b':'#2a211b',fg:g.status==='done'?'#8c8278':'#f0e4d4',strike:g.status==='done'?'line-through':'none',
         proposed:g.status==='proposed',blocked:g.status==='blocked',
         hasReport:!!g.report,onReport:()=>this.openReports(g.report),
@@ -796,7 +881,7 @@ class Component extends DCLogic {
       ...this.panel(!!a),hasSel:!!a,sel,selLogs,noLogs:!!a&&!selLogs.length,feed:logs.slice(-6).map(l=>({icon:TOOLK[l.k]||'\u2022',color:(KIND[l.k]||KIND.sys)[2],text:String(l.text||'').split('\n')[0]})),
       closeDrawer:()=>this.setState({selectedId:null,popout:false}),
       togglePop:()=>this.setState({popout:!s.popout}),popIcon:s.popout?'▭':'⤢',popTitle:s.popout?'Dock the panel':'Pop out into a window',
-      ...this.today(),...this.usageVals(),...this.officeVals(),...this.buildVals(),
+      ...this.today(),...this.usageVals(),...this.officeVals(),...this.buildVals(),...this.ceoVals(),
       nudgeSel:()=>a&&this.nudge(a.id),
       approveSel:()=>a&&this.decide(a,'allow'),approveAlways:()=>a&&this.decide(a,'allow',null,true),alwaysDisp:a&&a.perm&&a.perm.canAlways&&!a.perm.guard?'inline-block':'none',guardDisp:a&&a.perm&&a.perm.guard?'block':'none',rememberDisp:a&&a.perm&&a.perm.guard&&a.perm.guard.rememberable&&window.agentOfficeDesktop&&window.agentOfficeDesktop.guard?'inline-block':'none',approveRemember:()=>{if(!a||!a.perm||!a.perm.guard)return;const g=a.perm.guard;try{window.agentOfficeDesktop.guard.remember(g.rememberKey,(g.title||'')+' '+(a.perm.cmd||'').slice(0,60));}catch(e){}this.decide(a,'allow');},yesDisp:a&&a.perm&&a.perm.questions?'none':'inline-block',questionDisp:a&&a.perm&&a.perm.questions?'block':'none',denySel:()=>a&&this.decide(a,'deny',s.modifyOpen?s.modifyText:null),terminalSel:()=>a&&this.decide(a,'terminal'),
       approveLabel:'Yes (Y)',modifyLabel:s.modifyOpen?'Cancel':'No, and tell Claude what to do',
