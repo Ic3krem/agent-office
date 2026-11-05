@@ -98,6 +98,14 @@ test('bake with default zones is unchanged', () => {
   assert.ok(!w.WorldModel.isDefaultZones(z));
 });
 
+test('bake draws the 1.2.9 floor, before and after default zones', () => {
+  const pin = JSON.parse(fs.readFileSync(new URL('./fixtures/office-bake-golden.json', import.meta.url), 'utf8')).hash;
+  const w = loadWorld();
+  assert.equal(hashLog(bakeLog(w)), pin);
+  w.OfficeFurniture.setZones(w.WorldModel.defaultLayout().zones);
+  assert.equal(hashLog(bakeLog(w)), pin);
+});
+
 test('bake paints custom zones', () => {
   const w = loadWorld(), F = w.OfficeFurniture, strokes = c => c.filter(a => a[0] === 'stroke').length;
   const before = bakeLog(w);
@@ -105,6 +113,6 @@ test('bake paints custom zones', () => {
   const now = bakeLog(w), P = F.P;
   const want = [P(0, 0, 0), P(400, 0, 0), P(400, 400, 0), P(0, 400, 0)].map(p => p.map(v => Math.round(v * 100) / 100));
   const i = now.findIndex((a, k) => a[0] === 'moveTo' && now[k + 4] && now[k + 4][0] === 'closePath' && want.every((p, j) => now[k + j][1] === p[0] && now[k + j][2] === p[1]));
-  assert.ok(i >= 0 && now.slice(i).some(a => a[0] === 'fill'), 'zone rect polygon is filled');
+  assert.ok(i >= 0 && now.slice(i + 5, i + 8).some(a => a[0] === 'fill'), 'zone rect polygon is filled');
   assert.ok(strokes(now) < strokes(before), 'no 1.2.9 office planks');
 });
