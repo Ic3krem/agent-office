@@ -14,6 +14,8 @@
 
   // Look for an agent: profile gives shirt and accent; everything else comes from the id.
   function lookOf(a) {
+    // the CEO (you): dark suit, accent = suit so the lanyard disappears; tie and crown pin are drawn as the 'ceo' prop
+    if (a.look === 'ceo') return { key: 'ceo', shirt: '#2b2f3e', accent: '#2b2f3e', hair: '#2a1c14', skin: '#e6b48c', pants: '#1f2230', style: 0, sig: 'ceo' };
     const h = hash(a.id || a.name || 'x');
     const isTiro = !!a.isManager;
     return { key: isTiro ? 'tiro' : (a.key || null), shirt: a.color || VISITOR[h % VISITOR.length], accent: a.accent || '#d8d2c4',
@@ -135,6 +137,12 @@
     } else if (key2 === 'tiro') { // tie and collar
       if (front) { rc(6, 11, 4, 1, '#fff'); px(7, 12, '#b3261e'); px(8, 12, '#b3261e'); rc(7, 13, 2, 4, '#b3261e'); px(7, 16, '#7a1810'); rc(5, 12, 2, 1, '#fff'); rc(9, 12, 2, 1, '#fff'); }
       else rc(5, 11, 6, 1, '#fff');
+    } else if (key2 === 'ceo') { // white shirt, dark red tie, small gold crown pin on the lapel
+      if (front) {
+        rc(6, 15, 4, 2, C); rc(6, 11, 4, 1, '#fff'); rc(6, 12, 4, 3, '#f3ede2');
+        px(7, 12, '#8a1c2b'); px(8, 12, '#8a1c2b'); rc(7, 13, 2, 4, '#8a1c2b'); px(7, 16, '#5a0f1a');
+        px(3, 13, '#ffd23f'); px(5, 13, '#ffd23f'); rc(3, 14, 3, 1, '#ffd23f'); px(4, 14, '#b8860b');
+      } else rc(5, 11, 6, 1, '#fff');
     }
 
     // ---- outline pass ----

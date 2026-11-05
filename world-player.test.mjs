@@ -107,3 +107,15 @@ test('large dt cannot jump a one-cell wall', () => {
   for (let i = 0; i < 6; i++) P.step(p, 0.5, { dx: 1, dy: 1 }, wall); // pure +x, 85 units per step
   assert.ok(p.x < wc * g.cell, `crossed the wall: x=${p.x}`);
 });
+
+test('ceo candidates include Tiro and seated agents', () => {
+  const walkers = [{ id: 'boss', x: 10, y: 10, isManager: true }, { id: 'a1', x: 50, y: 60 }];
+  const desks = [{ id: 'desk-1', x: 155, y: 352, agentId: 'a1' }, { id: 'desk-2', x: 255, y: 352, agentId: null }];
+  const c = JSON.parse(JSON.stringify(P.candidatesFrom(walkers, desks)));
+  assert.deepEqual(c, [
+    { kind: 'tiro', id: 'boss', x: 10, y: 10 },
+    { kind: 'agent', id: 'a1', x: 50, y: 60 },
+    { kind: 'desk', id: 'a1', desk: 'desk-1', x: 155, y: 352 },
+  ]);
+  assert.equal(P.nearest(P.create(150, 350), c).kind, 'desk');
+});

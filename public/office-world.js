@@ -115,6 +115,70 @@
     ghosts = ghosts.filter(x => (x.a -= dt * 2.5) > 0);
   }
 
+  // ---------- the CEO: you, walking the office (never part of the golden recording: added here at runtime) ----------
+  const CEO_AGENT = { id: 'ceo', name: 'You', look: 'ceo', pose: 'stand' }; // pose: drawPerson's standing pose
+  const WPL = () => root.WorldPlayer;
+  const DIRS = { w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  const coarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  let ceoP = null, ceoShown = true, keys = new Set(), joy = { dx: 0, dy: 0 }, near = null, nearKey = '', cands = [], promptBox = null;
+  function ceoPlayer() {
+    if (!ceoP) { ceoP = Object.assign(WPL().create(M.SPAWN.x, M.SPAWN.y), { id: 'ceo', hip: 18, alpha: 1, fade: 1, look: SP && SP.lookOf(CEO_AGENT) }); WPL().unstick(ceoP, M.grid()); }
+    return ceoP;
+  }
+  const ceoOn = () => ceoShown && !build && !demo;
+  function clearNear() { if (nearKey) { nearKey = ''; near = null; opts.onNear && opts.onNear(null); } }
+  function stepCeo(dt) {
+    if (!ceoOn()) { clearNear(); return; }
+    const p = ceoPlayer(); let dx = joy.dx, dy = joy.dy;
+    for (const k of keys) { dx += DIRS[k][0]; dy += DIRS[k][1]; }
+    WPL().step(p, dt, { dx, dy }, M.grid());
+    if (p.moving && opts.onFollow) { const [sx, sy] = P(p.x, p.y, 30); opts.onFollow(sx, sy); }
+    const ws = frame.agents.map(a => { const w = walkers.get(a.id); return w && { id: a.id, x: w.x, y: w.y, isManager: !!a.isManager }; }).filter(Boolean);
+    const ds = M.DESKS.map(d => { const a = deskAgent(d.id), s = M.SPOTS[d.id]; return { id: d.id, x: s.x, y: s.y, agentId: a ? a.id : null }; });
+    cands = WPL().candidatesFrom(ws, ds);
+    const n = WPL().nearest(p, cands), k = n ? n.kind + ':' + n.id : '';
+    near = n; if (k !== nearKey) { nearKey = k; opts.onNear && opts.onNear(n); }
+  }
+  // Click-to-walk to a ground point. Off the floor -> false. findPath ends on the exact point even inside furniture or
+  // water (so seats work); a clicked spot inside a blocked cell stops at the nearest free cell instead.
+  function walkCeo(gp) {
+    const gr = M.grid(), p = ceoPlayer();
+    if (!(gp.x >= 0 && gp.y >= 0 && gp.x <= gr.cols * gr.cell && gp.y <= gr.rows * gr.cell) || !WPL().walkTo(p, gp)) return false;
+    if (gr.blocked[root.WorldPath.cellOf(gr, gp)] && p.path.length > 1) p.path.pop();
+    lastInput = nowMs(); wake(); return true;
+  }
+  // E / Enter / tap on the prompt: the page handles it through opts.onInteract(target) when it has a menu; otherwise select the agent
+  function interact() {
+    const n = near; if (!n || !ceoOn()) return null;
+    lastInput = nowMs(); wake();
+    if (opts.onInteract) opts.onInteract(n); else opts.onSelect && opts.onSelect(n.id);
+    return n;
+  }
+  const keyOf = e => (e.key || '').length === 1 ? e.key.toLowerCase() : e.key || '';
+  function onPlayerKey(e) {
+    const k = keyOf(e);
+    if (e.type === 'keyup') { if (keys.delete(k)) wake(); return; } // always release, whatever has focus now
+    if (build || !ceoOn() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('[role=dialog][aria-modal=true]')) return;
+    const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
+    if (DIRS[k]) { keys.add(k); lastInput = nowMs(); wake(); e.preventDefault(); }
+    else if ((k === 'e' && !e.repeat) || (k === 'Enter' && t === document.body)) { if (interact()) e.preventDefault(); }
+  }
+  // the floating "E" (or "Tap") over the nearest thing; its box is clickable
+  function drawPrompt(posOf) {
+    promptBox = null; if (!near || !ceoOn()) return;
+    const pp = near.kind !== 'desk' && posOf.get(near.id), c = cands.find(q => q.kind === near.kind && q.id === near.id);
+    if (!pp && !c) return;
+    // beside an agent's name tag (the bubble above it stays readable); over the seat for a desk
+    const label = coarse() ? 'Tap' : 'E';
+    g.font = '11px ' + FONT; const w = Math.ceil(g.measureText(label).width) + 12, h = 17;
+    const [sx, sy] = pp ? [pp.sx + (pp.tagW || 40) / 2 + 4 + w / 2, pp.tagY != null ? pp.tagY - 1 : pp.top - 18] : P(c.x, c.y, 62);
+    const x = Math.round(sx - w / 2), y = Math.round(pp ? sy : sy - h);
+    g.fillStyle = 'rgba(0,0,0,.3)'; rr(x, y + 2, w, h, 4); g.fill();
+    g.fillStyle = '#ffcf6b'; g.strokeStyle = '#2a1a0c'; g.lineWidth = 1.5; rr(x, y, w, h, 4); g.fill(); g.stroke();
+    g.fillStyle = '#2a1a0c'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, sx, y + h / 2 + .5);
+    promptBox = { x, y, w, h };
+  }
+
   // ---------- simulation tick ----------
   function currentSnap() {
     if (demo) return M.demoSnapshot(demo.scene, (clock - demo.t0) / 1000);
@@ -128,6 +192,7 @@
     if (demo && opts.onDemoSnap) { const sig = JSON.stringify([s.agents.map(a => a.id + a.status + (a.perm ? 1 : 0)), s.goals.map(x => x.id + x.status)]); if (sig !== lastDemoSig) { lastDemoSig = sig; opts.onDemoSnap(s); } }
     frame = brain.update(s || { agents: [], goals: [], boss: {} }, clock, { arrived: (id, spot) => { const w = walkers.get(id); return !!w && M.arrivedAt(w, spot); } });
     syncWalkers(dt);
+    stepCeo(dt);
     // shared state for the painters
     ST.board = frame.board; ST.reportIcon = frame.reportIcon; ST.ex = extras;
     ST.dim += ((frame.board.empty ? 1 : 0) - ST.dim) * Math.min(1, dt * 1.5);
@@ -274,14 +339,16 @@
     const people = [];
     for (const a of frame.agents) { const w = walkers.get(a.id); if (!w) continue; people.push({ d: w.x + w.y + 3 + (w.moving ? 0 : 0.5), x: w.x, y: w.y, a, w }); }
     { const nw = npcWalker(); people.push({ d: nw.x + nw.y + 3.5, x: nw.x, y: nw.y, npc: true }); }
+    if (ceoOn()) { const p = ceoPlayer(); people.push({ d: p.x + p.y + 3, x: p.x, y: p.y, a: CEO_AGENT, w: p }); }
     for (const gh of ghosts) people.push({ d: gh.w.x + gh.w.y + 3, x: gh.w.x, y: gh.w.y, ghost: gh });
     const all = F.layer(people); // furniture and walkers, ordered by each piece's tight ground footprint
-    hits = []; let npcPos = null;
+    hits = []; let npcPos = null, ceoPos = null;
     const posOf = new Map();
     for (const it of all) {
       if (it.fn) { it.fn(g); continue; }
       if (it.npc) { const nw = npcWalker(), p = drawPerson(NPC.a, nw); hits.push({ id: 'sched-npc', l: p.hit.l, r: p.hit.r, t: p.hit.t, b: p.hit.b }); npcPos = p; continue; }
       if (it.ghost) { const gh = it.ghost; const fake = { id: gh.w.id, name: gh.name, pose: 'stand' }; g.save(); g.globalAlpha = gh.a; gh.w.alpha = 1; const p0 = drawPerson({ ...fake, accent: null }, gh.w); void p0; g.restore(); continue; }
+      if (it.a === CEO_AGENT) { ceoPos = drawPerson(it.a, it.w); continue; } // not clickable: a click near you walks
       const p = drawPerson(it.a, it.w); posOf.set(it.a.id, p);
       hits.push({ id: it.a.id, l: p.hit.l, r: p.hit.r, t: p.hit.t, b: p.hit.b });
     }
@@ -291,7 +358,7 @@
     if (ST.night > .02) { g.fillStyle = 'rgba(10,14,56,' + (.36 * ST.night) + ')'; g.fillRect(0, 0, STW, STH); }
     if (ST.dim > .02) { g.fillStyle = 'rgba(14,8,34,' + (.14 * ST.dim) + ')'; g.fillRect(0, 0, STW, STH); }
     g.globalCompositeOperation = 'source-over';
-    if (build) { drawBuild(); hits.nudge = {}; return; } // Build mode: the edit overlay instead of hover rings and tags
+    if (build) { drawBuild(); hits.nudge = {}; promptBox = null; return; } // Build mode: the edit overlay instead of hover rings and tags
     // hover outline on an object
     if (hover && hover.kind === 'obj') { const o = OBJ.find(x => x.id === hover.id); if (o && o.mask) { const rg = ringOf(o); g.drawImage(rg.c, o.mask.l - rg.pad, o.mask.t - rg.pad); } else if (o) { g.strokeStyle = 'rgba(255,207,107,.9)'; g.lineWidth = 2; g.setLineDash([6, 4]); rr(o.bb.l, o.bb.t, o.bb.w, o.bb.h, 6); g.stroke(); g.setLineDash([]); g.fillStyle = 'rgba(255,207,107,.08)'; g.fill(); } }
     // tags and bubbles on top
@@ -300,9 +367,11 @@
     taskBubbles = frame.agents.filter(a => a.working).length <= 4;
     const placed = [], order = frame.agents.filter(a => posOf.get(a.id)).sort((p, q) => posOf.get(q.id).sy - posOf.get(p.id).sy);
     g.font = '11px ' + FONT;
-    for (const a of order) { const p = posOf.get(a.id), nw = Math.ceil(g.measureText(clip(a.name || 'Helper', 14)).width), mb = MODEL[a.model] ? 17 : 0, w = nw + 21 + mb; const x = Math.round(p.sx - w / 2); let y = Math.round(p.top - 17); for (let k = 0; k < 4 && placed.some(b => x < b.x + b.w && x + w > b.x && y < b.y + 17 && y + 15 > b.y - 2); k++) y -= 17; placed.push({ x, y, w }); p.tagY = y; }
+    for (const a of order) { const p = posOf.get(a.id), nw = Math.ceil(g.measureText(clip(a.name || 'Helper', 14)).width), mb = MODEL[a.model] ? 17 : 0, w = nw + 21 + mb; const x = Math.round(p.sx - w / 2); let y = Math.round(p.top - 17); for (let k = 0; k < 4 && placed.some(b => x < b.x + b.w && x + w > b.x && y < b.y + 17 && y + 15 > b.y - 2); k++) y -= 17; placed.push({ x, y, w }); p.tagY = y; p.tagW = w; }
     for (const a of frame.agents) { const p = posOf.get(a.id); if (!p) continue; const w = walkers.get(a.id); g.save(); g.globalAlpha = Math.max(0, Math.min(1, (w.alpha == null ? 1 : w.alpha)) * (w.fadeDir || w.fade < 1 ? w.fade : 1)); const r = drawTag(a, p, hover && hover.kind === 'agent' && hover.id === a.id); g.restore(); if (r.nudge) nudgeBoxes[a.id] = r.nudge; }
     if (npcPos) { g.save(); g.font = '11px ' + FONT; bubble(npcPos.sx, Math.round(npcPos.top - 6), schedLine(), '#f4efe4', '#2a2420', '#4a86c9'); g.restore(); }
+    if (ceoPos) { ceoPos.tagY = Math.round(ceoPos.top - 17); drawTag(CEO_AGENT, ceoPos, false); }
+    drawPrompt(posOf);
     hits.nudge = nudgeBoxes;
   }
 
@@ -313,6 +382,7 @@
   function isMoving() {
     if (!frame || build) return false;
     const ST = F.state;
+    if (ceoOn() && ceoP && (ceoP.moving || ceoP.path.length || keys.size || joy.dx || joy.dy)) return true;
     if (ghosts.length || ST.printer > 0 || Object.keys(nudged).length) return true;
     if (!legend && ST.labels > 0.02 && ST.labels < 1) return true;
     if (Math.abs(ST.dim - (frame.board.empty ? 1 : 0)) > .01) return true;
@@ -372,8 +442,13 @@
   function onClick(e) {
     lastInput = nowMs(); wake();
     if (build) { if (noClick) { noClick = false; e.stopPropagation(); } return; } // a finished drag is not a click
-    const [px, py] = toStage(e), h = pick(px, py);
-    if (!h) { return; }
+    const [px, py] = toStage(e), b = promptBox;
+    if (b && px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h && interact()) return;
+    const h = pick(px, py);
+    if (!h) { // empty ground: walk there
+      if (ceoOn() && root.WorldEdit && !walkCeo(root.WorldEdit.toGround(px, py))) opts.onToast && opts.onToast("Can't walk there");
+      return;
+    }
     if (h.kind === 'nudge') { opts.onNudge && opts.onNudge(h.id); return; }
     if (h.kind === 'agent' && h.id === 'sched-npc') { activate('scheduler'); return; }
     if (h.kind === 'agent') { opts.onSelect && opts.onSelect(h.id); return; }
@@ -533,6 +608,7 @@
   // session = a WorldEdit session (null leaves Build mode); hooks = {onChange(state), onSelect(id|null, kind), onToast(text), onRetire(desk, confirm)}.
   function setBuild(session, hooks) {
     cancelDrag(); build = session || null; bhooks = hooks || {}; sel = null; tool = null; noClick = false; hover = null; tap = null; pointers.clear();
+    keys.clear(); if (build) clearNear();
     if (build) syncBuild(); else blayout = null;
     if (cv) { cv.style.cursor = ''; cv.title = ''; }
     wake();
@@ -581,6 +657,8 @@
     cv.addEventListener('lostpointercapture', e => { if (drag && e.pointerId === drag.pid) { pointers.delete(e.pointerId); cancelDrag(); } }); // capture taken away: same as a cancel
     root.addEventListener('pointerup', onUp); root.addEventListener('pointercancel', onUp); // window: a finger lifted anywhere
     document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onPlayerKey); document.addEventListener('keyup', onPlayerKey);
+    root.addEventListener('blur', () => keys.clear()); // a key released while the window was unfocused never sends keyup
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else { running = false; dirty = true; start(); } });
     root.addEventListener('focus', wake); root.addEventListener('blur', wake);
     if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => { dirty = true; render(); schedule(); });
@@ -597,6 +675,7 @@
   // Swap in a layout (WorldModel format): motion spots and grid, furniture, click objects, then repaint the baked floor.
   function applyLayout(layout) {
     M.useLayout(layout); F.place(layout.objects); rebuildObjects(); F.setZones(layout.zones);
+    if (ceoP) { ceoP.path = []; ceoP.pi = 0; WPL().unstick(ceoP, M.grid()); } // the old route may cross the new furniture
     // seated characters snap to their spot's new place; walking ones re-route on the new grid
     for (const w of walkers.values()) if (w.target && M.SPOTS[w.target]) M.setTarget(w, w.target, { instant: !w.moving });
     hover = null; NPC.w = null; bg = null; bgKey = ''; opts.onLayout && opts.onLayout(); wake();
@@ -609,6 +688,10 @@
     setSelected(id) { selected = id; wake(); },
     setHover(v) { hover = v; wake(); },
     nudge(id) { nudged[id] = clock + 1800; wake(); },
+    setJoystick(dx, dy) { joy = { dx: +dx || 0, dy: +dy || 0 }; lastInput = nowMs(); wake(); },
+    interact,
+    ceo() { const p = ceoPlayer(); return { x: p.x, y: p.y }; },
+    setCeoVisible(on) { ceoShown = !!on; if (!ceoShown) { keys.clear(); clearNear(); } wake(); },
     powerSaver: () => saver,
     setPowerSaver(on) { saver = !!on; try { localStorage.setItem('ao.powerSaver', saver ? '1' : '0'); } catch (e) { } wake(); },
     framesDrawn: () => drawn,

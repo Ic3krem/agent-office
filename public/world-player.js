@@ -54,6 +54,14 @@
     return best;
   }
 
+  // What the CEO can interact with: Tiro and every agent where they stand, plus each desk seat that has an agent
+  // (id = that agent, so walking up to the desk of a specialist who is away still reaches them).
+  // walkers: [{id, x, y, isManager}], desks: [{id, x, y, agentId}] (agentId null = an empty desk).
+  function candidatesFrom(walkers, desks) {
+    return [...walkers.map(w => ({ kind: w.isManager ? 'tiro' : 'agent', id: w.id, x: w.x, y: w.y })),
+      ...desks.filter(d => d.agentId).map(d => ({ kind: 'desk', id: d.agentId, desk: d.id, x: d.x, y: d.y }))];
+  }
+
   function unstick(p, grid) {
     const { cols, rows, cell, blocked } = grid, start = root.WorldPath.cellOf(grid, p);
     if (!blocked[start]) return p;
@@ -70,5 +78,5 @@
     return p;
   }
 
-  root.WorldPlayer = { create, step, walkTo, nearest, unstick, SPEED, REACH };
+  root.WorldPlayer = { create, step, walkTo, nearest, candidatesFrom, unstick, SPEED, REACH };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
