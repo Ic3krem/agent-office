@@ -59,35 +59,39 @@
   }
   const lineClear = (g, a, b) => walk(g, a, b, Infinity) >= 0;
 
-  // A blocked endpoint cell is left/entered through the nearest ring of free cells, cheapest first.
-  function freeCellFor(g, start) {
-    if (!g.blocked[start]) return start;
+  // A free endpoint cell is itself; a blocked one is left/entered through any free cell of the nearest ring (A* picks the side).
+  function freeCellsFor(g, start) {
+    if (!g.blocked[start]) return [start];
     const seen = new Set([start]);
     let ring = [start];
     while (ring.length) {
-      let best = -1; const next = [];
+      const found = []; const next = [];
       for (const i of ring) {
         const r = (i / g.cols) | 0, c = i % g.cols;
         for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
           const rr = r + dr, cc = c + dc, j = rr * g.cols + cc;
           if (rr < 0 || rr >= g.rows || cc < 0 || cc >= g.cols || seen.has(j)) continue;
           seen.add(j);
-          if (!g.blocked[j]) { if (best < 0 || g.cost[j] < g.cost[best]) best = j; }
+          if (!g.blocked[j]) found.push(j);
           else next.push(j);
         }
       }
-      if (best >= 0) return best;
+      if (found.length) return found;
       ring = next;
     }
-    return -1;
+    return [];
   }
 
   function findPath(g, from, to) {
-    const s = freeCellFor(g, cellOf(g, from)), t = freeCellFor(g, cellOf(g, to));
-    if (s < 0 || t < 0) return [];
+    const S = freeCellsFor(g, cellOf(g, from)), T = freeCellsFor(g, cellOf(g, to));
+    if (!S.length || !T.length) return [];
     const { cols, rows, cell, cost, minCost } = g, n = cols * rows;
-    const tc = t % cols, tr = (t / cols) | 0;
+    const isGoal = new Uint8Array(cols * rows);
+    for (const c of T) isGoal[c] = 1;
+    const exact = T.length === 1 && !g.blocked[cellOf(g, to)]; // goal cell is free: octile heuristic; else plain Dijkstra
+    const tc = T[0] % cols, tr = (T[0] / cols) | 0;
     const heur = (i) => {
+      if (!exact) return 0;
       const dx = abs(i % cols - tc), dy = abs(((i / cols) | 0) - tr);
       return (max(dx, dy) + (SQ2 - 1) * min(dx, dy)) * minCost;
     };
@@ -113,12 +117,13 @@
       }
       return top;
     };
-    gs[s] = 0; push(heur(s), s);
+    for (const c of S) { gs[c] = 0; push(heur(c), c); }
+    let goalEnd = -1;
     while (hI.length) {
       const i = pop();
       if (done[i]) continue;
       done[i] = 1;
-      if (i === t) break;
+      if (isGoal[i]) { goalEnd = i; break; }
       const r = (i / cols) | 0, c = i % cols;
       for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
         if (!dr && !dc) continue;
@@ -131,9 +136,9 @@
         if (ng < gs[j]) { gs[j] = ng; prev[j] = i; push(ng + heur(j), j); }
       }
     }
-    if (!done[t]) return [];
+    if (goalEnd < 0) return [];
     const mid = [];
-    for (let i = t; i >= 0; i = prev[i]) mid.push({ x: (i % cols + 0.5) * cell, y: (((i / cols) | 0) + 0.5) * cell });
+    for (let i = goalEnd; i >= 0; i = prev[i]) mid.push({ x: (i % cols + 0.5) * cell, y: (((i / cols) | 0) + 0.5) * cell });
     mid.reverse();
     const pts = [{ x: from.x, y: from.y }, ...mid, { x: to.x, y: to.y }];
     // string-pull: a hop must stay on cells no costlier than its endpoints' and not cost more than the route it replaces
