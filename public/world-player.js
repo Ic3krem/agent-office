@@ -11,13 +11,14 @@
     const ox = p.x, oy = p.y;
     if (dx || dy) {
       p.path = []; p.pi = 0;
-      // screen right = (+x,-y), screen down = (+x,+y)
-      let gx = dx + dy, gy = dy - dx;
-      const m = Math.hypot(gx, gy) || 1, d = SPEED * dt;
-      gx = gx / m * d; gy = gy / m * d;
-      const nx = clampTo(grid, p.x + gx, grid.cols), ny = clampTo(grid, p.y + gy, grid.rows);
-      if (!blockedAt(grid, nx, p.y)) p.x = nx;
-      if (!blockedAt(grid, p.x, ny)) p.y = ny;
+      // screen right = (+x,-y), screen down = (+x,+y); analog magnitude below 1 slows the walk
+      const gx = dx + dy, gy = dy - dx, m = Math.hypot(gx, gy) || 1, d = SPEED * dt * Math.min(1, Math.hypot(dx, dy));
+      const n = Math.max(1, Math.ceil(d / (grid.cell / 2))); // sub-step so a large dt cannot jump a thin wall
+      for (let i = 0; i < n; i++) {
+        const nx = clampTo(grid, p.x + gx / m * d / n, grid.cols), ny = clampTo(grid, p.y + gy / m * d / n, grid.rows);
+        if (!blockedAt(grid, nx, p.y)) p.x = nx;
+        if (!blockedAt(grid, p.x, ny)) p.y = ny;
+      }
     } else if (p.pi < p.path.length) {
       let left = SPEED * dt;
       while (left > 0 && p.pi < p.path.length) {
@@ -33,13 +34,15 @@
     return p;
   }
 
-  function walkTo(p, target, pathTo) {
-    const pts = pathTo({ x: p.x, y: p.y }, target);
-    p.path = pts; p.pi = 1;
-    const g = root.OfficeMotion.grid();
-    // only the straight-line fallback (2 points) can cross blocked cells
-    // ponytail: a real 2-point path ending in a blocked seat cell reads as unreachable; refine if click-to-seat needs it.
-    return pts.length > 1 && (pts.length > 2 || !g || root.WorldPath.lineClear(g, pts[0], pts[1]));
+  // The 3rd parameter is ignored (kept so callers passing OfficeMotion.pathTo still work): the route comes from findPath,
+  // which returns [] when unreachable instead of pathTo's straight-line fallback.
+  function walkTo(p, target, _pathTo) {
+    const OM = root.OfficeMotion, B = typeof target === 'string' ? OM.SPOTS[target] : target;
+    const pts = B ? root.WorldPath.findPath(OM.grid(), { x: p.x, y: p.y }, { x: B.x, y: B.y }) : [];
+    if (!pts.length) { p.path = []; p.pi = 0; return false; }
+    p.path = pts.filter((q, i) => i === 0 || Math.hypot(q.x - pts[i - 1].x, q.y - pts[i - 1].y) > 0.5);
+    p.pi = 1;
+    return true;
   }
 
   function nearest(p, candidates) {

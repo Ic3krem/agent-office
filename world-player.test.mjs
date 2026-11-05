@@ -55,10 +55,33 @@ test('input cancels a click path', () => {
   assert.equal(p.path.length, 0);
 });
 
-test('unreachable target returns false', () => {
-  const p = P.create(420, 250);
-  const d = layout.objects.find((o) => o.id === 'desk-1');
-  assert.equal(P.walkTo(p, { x: d.x, y: d.y }, (a, b) => [a, b]), false); // straight line ending inside the desk
+test('unreachable target returns false and leaves no path', () => {
+  const p = P.create(420, 250), c = WP.cellOf(g, { x: 1000, y: 700 }), saved = new Uint8Array(g.blocked);
+  for (const dr of [-1, 0, 1]) for (const dc of [-1, 0, 1]) if (dr || dc) g.blocked[c + dr * g.cols + dc] = 1;
+  try { assert.equal(P.walkTo(p, { x: 1000, y: 700 }, OM.pathTo), false); } finally { g.blocked.set(saved); }
+  assert.equal(p.path.length, 0);
+});
+
+test('a seat inside a blocked cell is still reachable', () => {
+  const s = OM.SPOTS['desk-1'], p = P.create(420, 250);
+  assert.equal(P.walkTo(p, { x: s.x - 30, y: s.y }, OM.pathTo), true);
+  assert.ok(p.path.length > 1);
+});
+
+test('large dt never tunnels into a desk or the pond', () => {
+  const d = layout.objects.find((o) => o.id === 'desk-1'), pond = layout.objects.find((o) => o.type === 'pond');
+  for (const [sx, sy] of [[d.x - 200, d.y + 60], [d.x + 200, d.y - 60], [pond.x + 120, pond.y + 120], [pond.x - 120, pond.y - 120]]) {
+    for (const input of [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }]) {
+      const p = P.create(sx, sy); P.unstick(p, g);
+      for (let i = 0; i < 20; i++) { P.step(p, 0.5, input, g); assert.ok(free(p.x, p.y), `${p.x},${p.y}`); }
+    }
+  }
+});
+
+test('half-tilt stick walks at half speed', () => {
+  const a = P.create(420, 250), b = P.create(420, 250);
+  P.step(a, 0.1, { dx: 1, dy: 0 }, g); P.step(b, 0.1, { dx: 0.5, dy: 0 }, g);
+  assert.ok(Math.abs(Math.hypot(b.x - 420, b.y - 250) * 2 - Math.hypot(a.x - 420, a.y - 250)) < 0.01);
 });
 
 test('nearest picks Tiro within REACH and nothing beyond', () => {
