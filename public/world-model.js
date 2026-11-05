@@ -50,6 +50,9 @@
     zones: ZONES, objects: F.defaultInstances(), spots: FREE_SPOTS,
   }));
 
+  // True when zones equal the default layout's (id, type, rect): bake then keeps the hand-painted floor.
+  const isDefaultZones = zones => { const d = ZONES; return Array.isArray(zones) && zones.length === d.length && d.every((q, i) => zones[i] && zones[i].id === q.id && zones[i].type === q.type && Array.isArray(zones[i].rect) && q.rect.every((v, k) => zones[i].rect[k] === v)); };
+
   function spotsOf(layout) {
     const out = F.spotsOf(layout.objects);
     for (const s of layout.spots) out[s.id] = Object.assign({}, s);
@@ -140,6 +143,6 @@
     }
   }
 
-  root.WorldModel = { VERSION, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, validate, spotsOf, gridOf, requiredSpots };
+  root.WorldModel = { VERSION, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots };
   if (root.OfficeMotion && typeof root.OfficeMotion.useLayout === 'function') root.OfficeMotion.useLayout(defaultLayout());
 })(globalThis);

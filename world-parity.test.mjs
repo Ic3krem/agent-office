@@ -84,3 +84,27 @@ test('default footprints block whole pieces but keep the gate, door and hedge ga
   const pit = gold.spots['play:pit'];
   assert.ok(!fps.some(q => q[0] < pit.x && pit.x < q[2] && q[1] < pit.y && pit.y < q[3]), 'play:pit');
 });
+
+// ---- floors follow layout zones ----
+import { hashLog } from './world-golden.mjs';
+const bakeLog = (w) => { const calls = []; w.OfficeFurniture.state.night = 0; w.OfficeFurniture.bake(recorder(calls)); return calls; };
+
+test('bake with default zones is unchanged', () => {
+  const w = loadWorld(), before = hashLog(bakeLog(w));
+  w.OfficeFurniture.setZones(w.WorldModel.defaultLayout().zones);
+  assert.equal(hashLog(bakeLog(w)), before);
+  assert.ok(w.WorldModel.isDefaultZones(w.WorldModel.defaultLayout().zones));
+  const z = w.WorldModel.defaultLayout().zones; z[0].rect[2] += 10;
+  assert.ok(!w.WorldModel.isDefaultZones(z));
+});
+
+test('bake paints custom zones', () => {
+  const w = loadWorld(), F = w.OfficeFurniture, strokes = c => c.filter(a => a[0] === 'stroke').length;
+  const before = bakeLog(w);
+  F.setZones([{ id: 'a', type: 'focus', rect: [0, 0, 400, 400] }]);
+  const now = bakeLog(w), P = F.P;
+  const want = [P(0, 0, 0), P(400, 0, 0), P(400, 400, 0), P(0, 400, 0)].map(p => p.map(v => Math.round(v * 100) / 100));
+  const i = now.findIndex((a, k) => a[0] === 'moveTo' && now[k + 4] && now[k + 4][0] === 'closePath' && want.every((p, j) => now[k + j][1] === p[0] && now[k + j][2] === p[1]));
+  assert.ok(i >= 0 && now.slice(i).some(a => a[0] === 'fill'), 'zone rect polygon is filled');
+  assert.ok(strokes(now) < strokes(before), 'no 1.2.9 office planks');
+});

@@ -99,13 +99,8 @@
   const dstate = id => ST.desk[id] || { present: false, working: false, led: '#666' };
 
   // ---------- baked background: floors, walls, slab ----------
-  function bake(g) {
-    const nt = ST.night, SK0 = mix('#5d9be0', '#0b1230', nt), SK1 = mix('#cfe6ff', '#233466', nt), CLOUD = 'rgba(255,255,255,' + (.7 - .55 * nt) + ')';
-    const stars = (w, h) => { if (nt < .35) return; const q = rnd(5); g.fillStyle = 'rgba(255,255,255,' + Math.min(1, nt) + ')'; for (let i = 0; i < 14; i++) g.fillRect(q() * w, q() * h * .6, 1.4, 1.4); };
-    // floor slab (front edges)
-    poly(g, [P(0, WYm(), 0), P(WXm(), WYm(), 0), P(WXm(), WYm(), -16), P(0, WYm(), -16)], '#4a3020', null);
-    poly(g, [P(WXm(), 0, 0), P(WXm(), WYm(), 0), P(WXm(), WYm(), -16), P(WXm(), 0, -16)], '#33200f', null);
-    // zones
+  // The hand-painted 1.2.9 floor (the default layout's zones).
+  function bakeDefaultFloor(g) {
     const zone = (x0, y0, x1, y1, c) => flat(g, x0, y0, x1 - x0, y1 - y0, c);
     zone(0, 0, 470, 230, '#7a5236');                    // manager's office: dark wood
     zone(470, 0, 1240, 230, '#4f8a47');                  // garden, running on into the east park
@@ -168,6 +163,42 @@
       g.fillStyle = 'rgba(0,0,0,.12)'; for (let i = 0; i < 40; i++) g.fillRect(1010 + (i * 53 % 220), 556 + (i * 37 % 140), 3, 2);
       g.fillStyle = '#c9a24a'; g.fillRect(996, 556, 5, 224);
     });
+
+  }
+
+  // Floor painted from layout zones (custom layouts): base fill, a texture for the type clipped to the rect, a 2-unit trim.
+  // ponytail: rugs, beds and stepping stones of the 1.2.9 floor are not drawn here; they return as pieces in a later phase.
+  const ZONE_TEX = {
+    office: { c: '#7a5236', t(g, x0, y0, x1, y1) { g.strokeStyle = 'rgba(30,14,4,.22)'; g.lineWidth = 1; g.beginPath(); for (let y = y0 + 10; y < y1; y += 14) { g.moveTo(x0, y); g.lineTo(x1, y); } const r = rnd(7); for (let y = y0; y < y1; y += 14) for (let x = x0 + ((y - y0) / 14 % 2) * 40; x < x1; x += 80) { g.moveTo(x + r() * 20, y); g.lineTo(x + r() * 20, y + 14); } g.stroke(); } },
+    garden: { c: '#4f8a47', t(g, x0, y0, x1, y1) { for (let i = 0, x = x0; x < x1; i++, x += 48) { g.fillStyle = i % 2 ? 'rgba(255,255,255,.045)' : 'rgba(0,30,0,.06)'; g.fillRect(x, y0, 48, y1 - y0); } const q = rnd(3), n = Math.round((x1 - x0) * (y1 - y0) / 700); for (let i = 0; i < n; i++) { g.fillStyle = q() > .5 ? 'rgba(20,70,20,.45)' : 'rgba(150,200,110,.35)'; g.fillRect(x0 + q() * (x1 - x0), y0 + q() * (y1 - y0), 1.6, 3); } } },
+    focus: { c: '#59607a', t(g, x0, y0, x1, y1) { for (let y = y0; y < y1; y += 40) for (let x = x0; x < x1; x += 40) { g.fillStyle = ((x - x0 + y - y0) / 40) % 2 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,20,.05)'; g.fillRect(x, y, 40, 40); } } },
+    utility: { c: '#d9d2c3', t(g, x0, y0, x1, y1) { for (let y = y0; y < y1; y += 38) for (let x = x0; x < x1; x += 38) { g.fillStyle = ((x - x0 + y - y0) / 38) % 2 ? 'rgba(80,60,30,.1)' : 'rgba(255,255,255,.18)'; g.fillRect(x, y, 38, 38); } } },
+    play: { c: '#5b3f7a', t(g, x0, y0, x1, y1) { const c = rnd(11), cols = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0'], n = Math.round((x1 - x0) * (y1 - y0) / 950); g.globalAlpha = .55; for (let i = 0; i < n; i++) { g.fillStyle = cols[i % 5]; g.fillRect(x0 + c() * (x1 - x0), y0 + c() * (y1 - y0), 3, 2); } g.globalAlpha = 1; } },
+    garage: { c: '#8e949e', t() { } },
+    path: { c: '#6c7390', t(g, x0, y0, x1, y1) { g.fillStyle = 'rgba(255,255,255,.1)'; g.fillRect(x0, y0, x1 - x0, y1 - y0); } },
+    lounge: { c: '#a8805a', t(g, x0, y0, x1, y1) { for (let y = y0; y < y1; y += 30) for (let x = x0; x < x1; x += 30) { g.fillStyle = ((x - x0 + y - y0) / 30) % 2 ? 'rgba(255,235,200,.1)' : 'rgba(60,30,10,.08)'; g.fillRect(x, y, 30, 30); } } },
+  };
+  function bakeZoneFloor(g, zones) {
+    for (const q of zones) {
+      const T = ZONE_TEX[q.type]; if (!T) continue; // water: the pond pieces draw it
+      const [x0, y0, x1, y1] = q.rect;
+      flat(g, x0, y0, x1 - x0, y1 - y0, T.c);
+      Fg(g, 0, () => {
+        g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip(); T.t(g, x0, y0, x1, y1); g.restore();
+        g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x0, y0, x1 - x0, 2); g.fillRect(x0, y1 - 2, x1 - x0, 2); g.fillRect(x0, y0, 2, y1 - y0); g.fillRect(x1 - 2, y0, 2, y1 - y0);
+      });
+    }
+  }
+  let ZONES = null;
+  function setZones(zones) { ZONES = zones || null; }
+
+  function bake(g) {
+    const nt = ST.night, SK0 = mix('#5d9be0', '#0b1230', nt), SK1 = mix('#cfe6ff', '#233466', nt), CLOUD = 'rgba(255,255,255,' + (.7 - .55 * nt) + ')';
+    const stars = (w, h) => { if (nt < .35) return; const q = rnd(5); g.fillStyle = 'rgba(255,255,255,' + Math.min(1, nt) + ')'; for (let i = 0; i < 14; i++) g.fillRect(q() * w, q() * h * .6, 1.4, 1.4); };
+    // floor slab (front edges)
+    poly(g, [P(0, WYm(), 0), P(WXm(), WYm(), 0), P(WXm(), WYm(), -16), P(0, WYm(), -16)], '#4a3020', null);
+    poly(g, [P(WXm(), 0, 0), P(WXm(), WYm(), 0), P(WXm(), WYm(), -16), P(WXm(), 0, -16)], '#33200f', null);
+    if (!ZONES || !root.WorldModel || root.WorldModel.isDefaultZones(ZONES)) bakeDefaultFloor(g); else bakeZoneFloor(g, ZONES);
 
     // ---- left wall (plane x=0) and right wall (plane y=0) ----
     const WYv = WYm(), WXv = WXm();
@@ -937,5 +968,5 @@
   const defaultInstances = () => JSON.parse(JSON.stringify(DEFAULTS));
   place(defaultInstances());
 
-  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
+  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -394,7 +394,7 @@
   }
   // Swap in a layout (WorldModel format): motion spots and grid, furniture, click objects, then repaint the baked floor.
   function applyLayout(layout) {
-    M.useLayout(layout); F.place(layout.objects); rebuildObjects();
+    M.useLayout(layout); F.place(layout.objects); rebuildObjects(); F.setZones(layout.zones);
     // seated characters snap to their spot's new place; walking ones re-route on the new grid
     for (const w of walkers.values()) if (w.target && M.SPOTS[w.target]) M.setTarget(w, w.target, { instant: !w.moving });
     hover = null; NPC.w = null; bg = null; bgKey = ''; wake();
