@@ -33,12 +33,14 @@ export function writePrivate(file, text) { fs.writeFileSync(file, text, { mode: 
 
 // bridge.json holds only { port, key, v: 2 }. A file without v:2 predates key separation (its key may have been logged or
 // used as the UI key), so it is replaced.
+// Without a port (before the server has bound one) the port already in the file is kept, so a copy that then finds the office
+// already running leaves the terminals pointed at it.
 export function loadBridgeKey(file, port) {
-  let key;
-  try { const j = JSON.parse(fs.readFileSync(file, 'utf8')); if (j.v === 2 && typeof j.key === 'string' && j.key.length >= 32) key = j.key; } catch {}
+  let key, j;
+  try { j = JSON.parse(fs.readFileSync(file, 'utf8')); if (j.v === 2 && typeof j.key === 'string' && j.key.length >= 32) key = j.key; } catch {}
   const fresh = !key;
   key ||= rand(24);
-  writePrivate(file, JSON.stringify({ port, key, v: 2 }));
+  writePrivate(file, JSON.stringify({ port: port ?? j?.port, key, v: 2 }));
   return { key, rotated: fresh };
 }
 

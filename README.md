@@ -116,7 +116,7 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 
 | Variable | Effect |
 |---|---|
-| `AGENT_OFFICE_PORT` | Port for `node server.mjs`. The desktop app always uses 4777, so use this for dev servers on a spare port. |
+| `AGENT_OFFICE_PORT` | Pins the server to one port (dev servers next to an installed copy). Unset, the server uses 4777, or the next free port up to 4796 when another program holds it, and writes the port it bound to `bridge.json`; the desktop app and the terminal bridge follow it. |
 | `AGENT_OFFICE_TEAM_ONLY=1` | Presentation mode: show only Tiro and its specialists. |
 | `AGENT_OFFICE_SHOW_ALL=1` | Show the logs and prompts of your other Claude sessions on their desks (hidden by default). |
 | `AGENT_OFFICE_MAILBOX` | The one mailbox the scheduler job reports on (overrides `schedulerMailbox`). |

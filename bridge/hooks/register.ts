@@ -78,8 +78,9 @@ export const register: Register = on => {
           try {
             const rq = req(cfg!, '/bridge/register', { session })
             registered((await $.http.fetch(rq.url, rq.init)) as Res)
-          } catch {
+          } catch (err) {
             registerFailed()
+            throw err // unreachable server: the handler below re-reads bridge.json
           }
         }
         if (!token && !unbound) return
@@ -93,7 +94,14 @@ export const register: Register = on => {
         if (abort && turnId) await $.turn.abort({ turnId })
         for (const text of messages) await $.prompt.submit({ text, asUser: true })
       } catch {
-        // server down; try again next tick
+        // server down; try again next tick. It may have come back on another port (4777 taken): pick up the one it published.
+        try {
+          const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
+          const fresh = JSON.parse(await $.fs.read(`${home}/.claude/agent-office/bridge.json`)) as Cfg
+          if (fresh.port !== cfg!.port || fresh.key !== cfg!.key) { cfg = fresh; token = ''; unbound = false; fails = 0; wait = 0 }
+        } catch {
+          // no bridge.json: keep the last known server
+        }
       }
     })
     return r

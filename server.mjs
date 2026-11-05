@@ -21,11 +21,12 @@ import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
 import { readScheduler, fenceSubjects } from './scheduler.mjs';
 import { switchBox, rack, findClaude } from './office.mjs';
+import { candidatePorts, listenFirstFree, MARKER } from './ports.mjs';
 import { createAuth, loadBridgeKey, lockDown, rand, safeLocal, writePrivate, safeEqual } from './auth.mjs';
 import { redact, hasSecret, redactDeep } from './redact.mjs';
 import { prune } from './retention.mjs';
 
-const PORT = Number(process.env.AGENT_OFFICE_PORT) || 4777;
+let PORT = 0; // set once bound (see listenFirstFree in ports.mjs)
 const HOME = os.homedir();
 const PROJECTS = path.join(HOME, '.claude', 'projects');
 const CFG_DIR = path.join(HOME, '.claude', 'agent-office');
@@ -42,7 +43,7 @@ const BRIDGE_WAIT_MS = 90e3;
 
 // Two separate credentials (see auth.mjs). The bridge key in bridge.json opens /bridge/* only; the UI key is never written to disk.
 lockDown(CFG_DIR, [CFG_FILE, ...['kiro.json', 'goals.json', 'switches.json', 'manager.json', 'credits.json', 'manager-session.json', 'scheduler.json'].map(f => path.join(CFG_DIR, f))]);
-const { key: BRIDGE_KEY, rotated: KEY_ROTATED } = loadBridgeKey(CFG_FILE, PORT);
+const { key: BRIDGE_KEY, rotated: KEY_ROTATED } = loadBridgeKey(CFG_FILE); // the port is written once one is bound
 // Electron hands the UI key over in the environment and sets the cookie itself; take it out of the environment so no child process inherits it.
 const ENV_UI_KEY = typeof process.env.AGENT_OFFICE_UI_KEY === 'string' && process.env.AGENT_OFFICE_UI_KEY.length >= 32 ? process.env.AGENT_OFFICE_UI_KEY : '';
 delete process.env.AGENT_OFFICE_UI_KEY;
@@ -701,18 +702,24 @@ async function handle(req, res) {
   }
 }
 const server = http.createServer((req, res) => {
+  res.setHeader(MARKER, '1');
   handle(req, res).catch(e => {
     console.error('request failed:', e?.status === 400 ? 'bad request' : e);
     try { if (!res.headersSent) json(res, e?.status === 400 ? 400 : 500, { error: e?.status === 400 ? 'bad request' : publicMessage(e) }); else res.end(); } catch {}
   });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+listenFirstFree(server, candidatePorts()).then(port => {
+  PORT = port;
+  loadBridgeKey(CFG_FILE, PORT); // publish the bound port: the bridge and the desktop app read it from bridge.json
   scan(); ledger.refreshAsync().then(bump); setTimeout(maybeProbe, 5000).unref(); scheduleDaily(); // the probe waits 5 s so the desktop app can report that no window is open
   if (KEY_ROTATED) host.note('Bridge key replaced (key separation). Restart open Claude terminals so their bridge picks up the new key.');
   if (SEEDED) host.note(`Memory seeded from Claude Code notes: ${SEEDED.copied} note(s) copied, ${SEEDED.scrubbed} had secret-like text removed.`);
   if (ENV_UI_KEY) console.log(`Agent Office is running on http://localhost:${PORT}/`);
   else console.log(`Agent Office: open once (expires in 5 minutes): http://localhost:${PORT}/__boot?t=${AUTH.bootToken}&to=/`);
+}, e => {
+  console.error(e.message);
+  process.exit(e.code === 'AO_RUNNING' ? 3 : 1); // 3: another office already serves the terminals (the desktop app does not retry it)
 });
 
 // Log and keep running; the desktop app restarts the server if it ever exits.

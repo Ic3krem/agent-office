@@ -48,7 +48,7 @@ test('electron windows are hardened and the server sends a CSP and binds loopbac
   const m = read('./desktop/main.mjs'), s = read('./server.mjs');
   assert.equal((m.match(/contextIsolation: true, sandbox: true, nodeIntegration: false/g) || []).length, 3);
   assert.match(m, /will-navigate/); assert.match(m, /setWindowOpenHandler/);
-  assert.match(s, /content-security-policy/); assert.match(s, /object-src 'none'/); assert.match(s, /listen\(PORT, '127\.0\.0\.1'/);
+  assert.match(s, /content-security-policy/); assert.match(s, /object-src 'none'/); assert.match(s, /listenFirstFree\(server, candidatePorts\(\)\)/); assert.match(fs.readFileSync(new URL('./ports.mjs', import.meta.url), 'utf8'), /host = '127\.0\.0\.1'/); assert.doesNotMatch(s, /\.listen\(/);
   assert.match(read('./auth.mjs'), /timingSafeEqual/); assert.match(s, /createAuth/);
 });
 

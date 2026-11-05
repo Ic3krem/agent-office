@@ -13,11 +13,15 @@ import { createNowPlaying } from './nowplaying.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
 import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
 import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
+import { DEFAULT_PORT, publishedPort, isAgentOffice } from '../ports.mjs';
 import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const PORT = 4777, BASE = `http://localhost:${PORT}`;
 const CFG_DIR = path.join(os.homedir(), '.claude', 'agent-office');
+// The server binds 4777 or, when another program holds it, the next free port, and publishes the port in bridge.json.
+const BRIDGE_FILE = path.join(CFG_DIR, 'bridge.json');
+let BASE = `http://localhost:${DEFAULT_PORT}`;
+const followPort = () => { const p = publishedPort(BRIDGE_FILE), prev = BASE; if (p) BASE = `http://localhost:${p}`; return BASE !== prev; };
 const KIRO_FILE = path.join(CFG_DIR, 'kiro.json');
 const ICON = nativeImage.createFromPath(path.join(ROOT, 'desktop', 'icon.png'));
 const KIRO_W = 380, KIRO_H = 600;
@@ -34,7 +38,6 @@ const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(JSON.pa
 const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch {} const out = { ...prefs }; if (disk.agentNames) out.agentNames = disk.agentNames; else delete out.agentNames; fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
-const up = () => fetch(BASE + '/', { signal: AbortSignal.timeout(1500) }).then(r => r.ok, () => false);
 // The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly
 // SameSite=Strict cookie; it is never in a URL, a file or a log. Agents can read bridge.json but this key is not in it.
 const UI_KEY = crypto.randomBytes(24).toString('hex');
@@ -58,14 +61,32 @@ function spawnServer() {
     const r = restart.onExit(Date.now() - started);
     logEvent({ event: 'exited', code, signal, attempt: r.attempt, delayMs: r.retry ? r.delayMs : undefined });
     if (!r.retry) { gaveUp = true; logEvent({ event: 'gave-up', attempt: r.attempt }); try { tray?.displayBalloon?.({ title: 'Agent Office', content: 'The office server stopped and could not be restarted. Quit and reopen Agent Office.' }); } catch {} return; }
-    restartTimer = setTimeout(async () => { restartTimer = null; if (!quitting && !(await up())) spawnServer(); }, r.delayMs);
+    restartTimer = setTimeout(async () => {
+      restartTimer = null; if (quitting || (await signedIn())) return;
+      const before = BASE;
+      spawnServer();
+      if (await waitForServer() && BASE !== before) relocateWindows(); // it came back on another port: windows follow
+    }, r.delayMs);
   });
 }
+// Our own server answers the UI key; anything else on the published port does not.
+async function waitForServer() {
+  for (let i = 0; i < 60; i++) { followPort(); if (await signedIn()) return true; if (gaveUp) return false; await new Promise(r => setTimeout(r, 500)); }
+  return false;
+}
 async function ensureServer() {
-  if (await up()) { if (await signedIn()) return; throw new Error('Agent Office is already running on port ' + PORT + ' (started by another program). Quit it, then start the app again.'); }
+  followPort();
+  if (await signedIn()) return;
+  if (await isAgentOffice(new URL(BASE).port)) throw new Error('Agent Office is already running on ' + BASE + ' (started by another program). Quit it, then start the app again.');
   spawnServer();
-  for (let i = 0; i < 60; i++) { if (await up()) return; if (gaveUp) break; await new Promise(r => setTimeout(r, 500)); }
-  throw new Error('The Agent Office server did not start on port ' + PORT);
+  if (!(await waitForServer())) throw new Error('The Agent Office server did not start. Details: ' + LOG_FILE);
+}
+function relocateWindows() {
+  signInWindows();
+  for (const w of [office, kiro, island]) {
+    if (!w || w.isDestroyed()) continue;
+    try { const u = new URL(w.webContents.getURL()); w.loadURL(url(u.pathname + u.search + u.hash)); } catch {}
+  }
 }
 const url = p => `${BASE}${p}`;
 const signInWindows = () => session.defaultSession.cookies.set({ url: BASE, name: 'ao_ui', value: UI_KEY, httpOnly: true, sameSite: 'strict', path: '/' });

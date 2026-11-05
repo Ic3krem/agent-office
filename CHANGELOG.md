@@ -3,6 +3,13 @@
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
 
+## Unreleased (release/1.2.9)
+
+- **Fix: the installed app could not start its server.** Since asar packaging, the server was spawned with its working folder inside `app.asar`, which the OS cannot enter (ENOENT, logged only as `server spawn-error`). It now runs from the resources folder; `desktop.log` names the error code.
+- **Port fallback.** When another program holds 4777, the server takes the next free port (up to 4796) and writes it to `bridge.json`. The desktop app follows it (and reloads its windows if a restarted server lands elsewhere); terminal bridges re-read `bridge.json` when the server stops answering. If the port belongs to another Agent Office the new copy stops with "already running" (exit code 3) instead of splitting the terminals between two offices. Every response carries an `x-agent-office` header so this check sends no credential. `AGENT_OFFICE_PORT` still pins one port.
+- **Performance work merged** from `perf/render` (Power saver) and `perf/server` (gated scans, trimmed pushes, idle Tiro); see their entries under 1.2.8.
+- `start.ps1` follows the published port and no longer opens a `?key=` URL (refused since key separation); sign in with the one-time link the server window prints.
+
 ## 1.2.8 (2026-11-04)
 
 Licence, privacy and Security Guard release. It includes the notch on/off setting and the Tiro desk fix from 1.2.7 and builds on 1.2.6, the security patch (signed updater, Claude Code permission parity, hardened install scripts); see those entries below, including the 1.2.6 upgrade notes.

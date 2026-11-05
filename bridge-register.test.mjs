@@ -79,6 +79,21 @@ const setup = async (t, env) => {
   return s;
 };
 
+test('a terminal follows the server to the port it published in bridge.json', { timeout: 60000 }, async t => {
+  const s = await setup(t);
+  const dead = await new Promise(r => { const x = http.createServer(); x.listen(0, '127.0.0.1', () => { const p = x.address().port; x.close(() => r(p)); }); });
+  const bridgeJson = { ...s.bridgeJson, port: dead };
+  const term = makeTerminal({ home: s.tmp, bridgeJson, sessionId: 'mover' });
+  await term.start(); // registration fails: nothing listens on the old port
+  bridgeJson.port = s.port; // the server came back elsewhere and published it
+  // the next attempt after the backoff still goes to the old port, fails, and re-reads bridge.json; the one after registers there
+  for (let i = 0; i < 25 && !term.reqs('/bridge/poll').length; i++) await term.tick();
+  assert.ok(term.reqs('/bridge/poll').length >= 1, 'polling resumed on the new port');
+  assert.equal((await uiSend(s, 'mover', 'found you')).status, 200);
+  await term.tick();
+  assert.deepEqual(term.submitted, ['found you']);
+});
+
 test('register -> token -> poll with the token; a poll without it is refused; asks carry the token', { timeout: 60000 }, async t => {
   const s = await setup(t);
   const term = makeTerminal({ home: s.tmp, bridgeJson: s.bridgeJson, sessionId: 'term-A' });
