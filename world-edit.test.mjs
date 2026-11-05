@@ -87,6 +87,37 @@ test('catalog skips fixtures and pins desks', () => {
   assert.ok(!c.some((t) => /^fixture-/.test(t.type)));
   assert.deepEqual(c.find((t) => t.type === 'dept-desk'), { type: 'dept-desk', label: 'dept-desk', group: 'desk', addable: false, deletable: false });
   assert.ok(c.every((t) => ['furniture', 'decor', 'nature', 'desk'].includes(t.group)));
+  const s = E.createSession(WM.defaultLayout());
+  for (const type of ['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond']) {
+    const t = c.find((q) => q.type === type);
+    assert.equal(t.addable, false, type);
+    assert.equal(t.deletable, type !== 'dept-desk', type);
+    assert.equal(s.add(type, 1100, 520).ok, false, 'add ' + type);
+    const id = J(s.layout()).objects.find((o) => o.type === type).id;
+    assert.equal(s.duplicate(id).ok, false, 'duplicate ' + type);
+  }
+  assert.equal(s.canUndo(), false);
+  assert.equal(c.find((q) => q.type === 'bench').addable, true);
+});
+
+test('a move keeps overlaps the piece already had, and fails on new ones', () => {
+  const s = E.createSession(WM.defaultLayout());
+  assert.deepEqual(J(s.move('tree-8', 1080, 330)), { ok: true }); // starts in pond-east's water square
+  assert.deepEqual(J(s.move('dartboard', 522, 676)), { ok: true }); // starts on the toy bin
+  const r = J(s.move('tires-1', 1060, 640)); // starts on tires-2; the garage is new
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /garage/);
+  assert.equal(J(s.add('tires', 1022, 760)).ok, false, 'add stays strict');
+});
+
+test('every default piece can be nudged by 10', () => {
+  const l = WM.defaultLayout(), s = E.createSession(l), stuck = [];
+  for (const o of J(l).objects) {
+    if (/^fixture-/.test(o.type)) continue;
+    const tries = [[10, 0], [-10, 0], [0, 10], [0, -10]].map(([dx, dy]) => J(s.check({ op: 'move', id: o.id, x: o.x + dx, y: o.y + dy })));
+    if (!tries.some((r) => r.ok)) stuck.push(o.id + ': ' + tries.map((r) => r.reason).join(' / '));
+  }
+  assert.deepEqual(stuck, []);
 });
 
 test('dirty and markSaved', () => {

@@ -18,8 +18,11 @@
     'trophy-shelf': 'decor', 'bird-feeder': 'decor', 'lamp-post': 'decor', tires: 'decor', 'toy-bin': 'decor', dartboard: 'decor',
   };
   const isFixture = type => /^fixture-/.test(type);
+  // One-of-a-kind pieces: desks wait for Phase 3; the others register fixed click keys (or, the pond, a water zone that
+  // would not follow a copy).
+  const NOT_ADDABLE = new Set(['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond']);
   const catalog = () => Object.keys(F.CATALOG).filter(t => !isFixture(t)).map(type => ({
-    type, label: F.CATALOG[type].label || type, group: GROUP[type] || 'furniture', addable: type !== 'dept-desk', deletable: type !== 'dept-desk',
+    type, label: F.CATALOG[type].label || type, group: GROUP[type] || 'furniture', addable: !NOT_ADDABLE.has(type), deletable: type !== 'dept-desk',
   }));
 
   // A new piece of a type copies the params of the type's first default piece (bench seat id, plant scale, ...).
@@ -45,28 +48,30 @@
     };
     const water = l => l.zones.filter(q => q.type === 'water').map(q => q.rect);
 
-    // Checks 1-3 for piece o standing in layout l (o is not in l.objects, or is skipped by id).
-    function legalPiece(l, o) {
-      const { w, h } = l.size, mine = fp(o);
-      if (!(o.x >= 0 && o.x <= w && o.y >= 0 && o.y <= h) || mine.some(r => !(r[0] >= 0 && r[1] >= 0 && r[2] <= w && r[3] <= h))) return 'outside the world'; // NaN-safe
+    // Checks 1-3 for piece o standing in layout l (o is not in l.objects, or is skipped by id): every problem as
+    // [key, reason]. A move passes the problems the piece already had where it stood, so it only fails on new ones.
+    function problems(l, o) {
+      const { w, h } = l.size, mine = fp(o), out = [];
+      if (!(o.x >= 0 && o.x <= w && o.y >= 0 && o.y <= h) || mine.some(r => !(r[0] >= 0 && r[1] >= 0 && r[2] <= w && r[3] <= h))) out.push(['out', 'outside the world']); // NaN-safe
       const wet = water(l);
-      if (mine.some(m => wet.some(r => overlaps(m, r)))) return 'in the water';
+      wet.forEach((r, i) => { if (mine.some(m => overlaps(m, r))) out.push(['water:' + i, 'in the water']); });
       const others = [];
       for (const p of l.objects) if (p.id !== o.id) for (const r of fp(p)) {
-        if (mine.some(m => overlaps(m, r))) return 'overlaps ' + p.id;
+        if (mine.some(m => overlaps(m, r))) out.push(['obj:' + p.id, 'overlaps ' + p.id]);
         others.push(r);
       }
       const dims = { cols: Math.ceil(w / SNAP), rows: Math.ceil(h / SNAP), cell: SNAP }, blocks = others.concat(wet);
       for (const s of Object.values(F.spotsOf([o]))) {
-        if (!(s.x >= 0 && s.x <= w && s.y >= 0 && s.y <= h)) return 'spot ' + s.id + ' is outside the world';
+        if (!(s.x >= 0 && s.x <= w && s.y >= 0 && s.y <= h)) { out.push(['spot-out:' + s.id, 'spot ' + s.id + ' is outside the world']); continue; }
         // Is the spot's cell blocked in the full grid? Same answer from a one-cell grid with the blocks shifted onto it,
         // without paying for the whole world's grid on every op.
         const i = W.cellOf(dims, s), cx = (i % dims.cols) * SNAP, cy = Math.floor(i / dims.cols) * SNAP;
         const one = W.buildGrid({ w: SNAP, h: SNAP, cell: SNAP, blocks: blocks.map(r => [r[0] - cx, r[1] - cy, r[2] - cx, r[3] - cy]) });
-        if (one.blocked[0]) return 'spot ' + s.id + ' is blocked';
+        if (one.blocked[0]) out.push(['spot:' + s.id, 'spot ' + s.id + ' is blocked']);
       }
-      return '';
+      return out;
     }
+    const legalPiece = (l, o, had = new Set()) => { const p = problems(l, o).find(([k]) => !had.has(k)); return p ? p[1] : ''; };
     function legalZone(l, z) {
       const [x0, y0, x1, y1] = z.rect;
       if (!WM.ZONE_TYPES.includes(z.type)) return 'unknown zone type ' + z.type;
@@ -85,13 +90,14 @@
           const o = findObj(l, op.id);
           if (!o) return fail('no object ' + op.id);
           if (isFixture(o.type)) return fail('fixtures cannot move');
+          const had = new Set(problems(l, o).map(([k]) => k));
           o.x = snap(op.x); o.y = snap(op.y);
-          return done(l, legalPiece(l, o));
+          return done(l, legalPiece(l, o, had));
         }
         case 'add': case 'duplicate': {
           const src = op.op === 'add' ? Object.assign({ type: op.type }, TEMPLATE[op.type]) : findObj(l, op.id);
           if (!src || !F.CATALOG[src.type]) return fail(op.op === 'add' ? 'unknown type ' + op.type : 'no object ' + op.id);
-          if (isFixture(src.type) || src.type === 'dept-desk') return fail('cannot add ' + src.type);
+          if (isFixture(src.type) || NOT_ADDABLE.has(src.type)) return fail('cannot add ' + src.type);
           const o = Object.assign({}, copy(src), { id: nextId(l.objects, src.type) });
           const tries = op.op === 'add' ? [[snap(op.x), snap(op.y)]] : spiral(src.x, src.y);
           let why = '';
