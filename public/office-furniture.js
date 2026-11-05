@@ -682,7 +682,7 @@
   // low fence along the focus band's east edge, with a gate gap at the aisle (y 380..412)
   def('fence', [999, 236], (p, x, y) => add(1000 + y + 12, g => { box(g, 999, y, 0, 3, 22, 14, '#d8d2c6', { t: '#efe9dc' }); box(g, 999, y, 8, 3, 22, 3, '#c9c2b4'); }));
   let fenceN = 0; [[236, 380], [412, 548]].forEach(([y0, y1]) => { for (let y = y0; y < y1; y += 24) put('fence-' + ++fenceN, 'fence', 999, y); });
-  def('gate', [997, 379], () => add(1000 + 396, g => { [380, 410].forEach(y => box(g, 997, y - 1, 0, 7, 4, 26, '#7a5230', { t: '#9a6a3c' })); }, { fp: [997, 379, 1004, 413] }));
+  def('gate', [997, 379], () => add(1000 + 396, g => { [380, 410].forEach(y => box(g, 997, y - 1, 0, 7, 4, 26, '#7a5230', { t: '#9a6a3c' })); }, { fp: [997, 379, 1004, 413] }), { gaps: true });
   put('gate', 'gate', 997, 379);
   def('pond-east', [1120, 290], () => add(1120 + 290 + 2, g => { // east pond, a little bigger than the garden one
     const c = P(1120, 290, 0); g.fillStyle = '#9a8f7a'; g.beginPath(); g.ellipse(c[0], c[1], 66, 33, 0, 0, 6.2832); g.fill();
@@ -907,11 +907,20 @@
     items.length = 0; objects.length = 0; build(instances, items, objects);
     items.sort((a, b) => a.d - b.d); measured = false;
   }
-  // Ground rects of every box and cylinder the pieces stand on (an item that draws none, like a glass pane, gives its fp).
+  // Blocking rects, one per painter as measure() sees it: its explicit fp, else the union of the boxes and cylinders it
+  // stands on. Walkable types give none; a type with `gaps` (the gate posts) keeps one rect per box so its opening stays open.
   const NUL = new Proxy(function () {}, { get: () => NUL, apply: () => NUL, set: () => true }); // a 2D context that does nothing
+  const union = rs => rs.reduce((a, q) => [Math.min(a[0], q[0]), Math.min(a[1], q[1]), Math.max(a[2], q[2]), Math.max(a[3], q[3])], [1e9, 1e9, -1e9, -1e9]);
   function footprints(instances) {
-    const its = [], out = []; build(instances, its, []);
-    for (const it of its) { const { rec } = scanTight(NUL, it.fn, null, true); if (rec.length) out.push(...rec); else if (it.fp) out.push(it.fp); }
+    const out = [];
+    for (const p of instances) {
+      const T = CATALOG[p.type]; if (!T || T.walkable) continue;
+      const its = []; build([p], its, []);
+      for (const it of its) {
+        const { rec } = scanTight(NUL, it.fn, null, true);
+        if (T.gaps && rec.length) out.push(...rec); else if (it.fp) out.push(it.fp); else if (rec.length) out.push(union(rec));
+      }
+    }
     return out;
   }
   // The spots the pieces carry, at their placed positions: {id: {id, x, y, face, zone, seat?, desk?, game?}}.

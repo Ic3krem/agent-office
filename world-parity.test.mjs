@@ -36,3 +36,16 @@ test('catalog spots reproduce the 1.2.9 spots they own', () => {
   assert.ok(Object.keys(own).length > 0);
   for (const id of Object.keys(own)) assert.deepEqual(own[id], gold.spots[id], id);
 });
+
+test('default footprints block whole pieces but keep the gate, door and hedge gaps open', () => {
+  const F = loadWorld({ ctxFactory: () => ({}) }).OfficeFurniture, inst = F.defaultInstances();
+  const fps = JSON.parse(JSON.stringify(F.footprints(inst)));
+  const covers = (q, r) => q[0] <= r[0] && q[1] <= r[1] && q[2] >= r[2] && q[3] >= r[3];
+  assert.ok(fps.some(q => covers(q, [1068, 704, 1140, 730])), 'mail bench');
+  for (const [x, y] of [[1000, 396], [420, 230], [500, 230]]) assert.ok(!fps.some(q => q[0] < x && x < q[2] && q[1] < y && y < q[3]), x + ',' + y);
+  const walk = inst.filter(p => F.CATALOG[p.type].walkable);
+  assert.ok(walk.some(p => p.type === 'ball-pit'));
+  assert.equal(F.footprints(walk).length, 0);
+  const pit = gold.spots['play:pit'];
+  assert.ok(!fps.some(q => q[0] < pit.x && pit.x < q[2] && q[1] < pit.y && pit.y < q[3]), 'play:pit');
+});
