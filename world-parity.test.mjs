@@ -125,3 +125,26 @@ test('bake with a zone removed still paints a base floor under every zone', () =
   const i = now.findIndex((a, k) => a[0] === 'moveTo' && corners.every((p, j) => now[k + j] && now[k + j][1] === p[0] && now[k + j][2] === p[1]));
   assert.ok(i >= 0 && now.slice(i + 5, i + 8).some(a => a[0] === 'fill'), 'whole-world floor is filled');
 });
+
+test('drawing a desk for every new role does not throw', () => {
+  const w = loadWorld({ ctxFactory: () => recorder([]) }), F = w.OfficeFurniture, M = w.OfficeMotion;
+  const roles = ['it', 'accounting', 'marketing', 'auditor', 'notetaker'];
+  const L = w.WorldModel.defaultLayout();
+  roles.forEach((role, i) => L.objects.push({ id: 'desk-' + (9 + i), type: 'dept-desk', desk: 'desk-' + (9 + i), role, x: 100 + i * 180, y: 700 }));
+  M.useLayout(L);
+  F.place(L.objects);
+  for (const it of F.items) it.fn(recorder([]));
+  const labels = F.objects.filter(o => o.key === 'desk').map(o => o.label);
+  for (const n of ['Byte', 'Ledger', 'Spark', 'Vera', 'Memo']) assert.ok(labels.includes(n + "'s desk"), n);
+});
+
+test('a role without its own painter gets the generic laptop desk', () => {
+  const w = loadWorld({ ctxFactory: () => recorder([]) }), F = w.OfficeFurniture, M = w.OfficeMotion;
+  w.RoleCatalog.ROLES.push({ key: 'chef', name: 'Chef', role: 'Cook', kind: 'ops', model: 'haiku', color: '#aa5533', accent: '#ffccaa', props: 'chef' });
+  const L = w.WorldModel.defaultLayout();
+  L.objects.push({ id: 'desk-9', type: 'dept-desk', desk: 'desk-9', role: 'chef', x: 1120, y: 500 });
+  M.useLayout(L);
+  F.place(L.objects);
+  for (const it of F.items) it.fn(recorder([]));
+  assert.ok(F.objects.some(o => o.label === "Chef's desk"));
+});

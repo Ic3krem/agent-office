@@ -9,6 +9,7 @@
   // to any copy drawn away from the type anchor).
   const PARAMS = {};
   for (const p of F.defaultInstances()) for (const k of Object.keys(p)) (PARAMS[p.type] = PARAMS[p.type] || new Set(['id', 'type', 'x', 'y', 'home'])).add(k);
+  PARAMS['dept-desk'].add('role'); // a desk added in build mode names its role; a built-in desk implies it
   const SPOT_FIELDS = new Set(['id', 'x', 'y', 'face', 'zone', 'seat', 'desk', 'game']);
 
   // Spots no catalog piece owns (values from office-motion.js).
@@ -78,7 +79,7 @@
   const PARAM_OK = {
     w: (v, l) => num(v) && v >= 1 && v <= l.size.w, s: v => num(v) && v >= 0.25 && v <= 4, dd: v => num(v) && Math.abs(v) <= 100,
     home: (v, l) => Array.isArray(v) && v.length === 2 && inside(v[0], v[1], l), col: v => typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v),
-    spot: short, desk: short,
+    spot: short, desk: short, role: short,
   };
   function malformed(l) {
     if (!obj(l.size) || !(l.size.w > 0 && l.size.w <= MAX) || !(l.size.h > 0 && l.size.h <= MAX)) return 'size needs w and h in 1..' + MAX;
@@ -104,7 +105,11 @@
     return '';
   }
 
-  const requiredSpots = () => { const M = root.OfficeMotion; return M ? [...M.TEAM.map(t => t.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
+  // A department desk's role: its role param, else the built-in desk's (layouts saved before roles existed).
+  const deskRole = o => o.role || root.RoleCatalog.BUILTIN_DESKS[o.desk];
+  const MAX_DESKS = 12;
+  const desksOf = layout => layout.objects.filter(o => o.type === 'dept-desk');
+  const requiredSpots = layout => { const M = root.OfficeMotion; return M ? [...desksOf(layout).map(o => o.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
 
   function validate(layout) {
     const errors = [];
@@ -114,15 +119,25 @@
     if (bad) return { ok: false, errors: ['malformed: ' + bad] };
     const ids = name => { const seen = new Set(); return id => { if (seen.has(id)) errors.push('duplicate id ' + name + ' ' + id); seen.add(id); }; };
     const extra = (what, o, allowed) => Object.keys(o).forEach(k => allowed.has(k) || errors.push(what + ' ' + o.id + ': unknown field ' + k));
-    const zoneId = ids('zone'), objId = ids('object'), spotId = ids('spot');
+    const zoneId = ids('zone'), objId = ids('object'), spotId = ids('spot'), deskId = ids('desk'), roles = new Set();
     layout.zones.forEach(q => zoneId(q.id));
     for (const o of layout.objects) {
       objId(o.id);
       if (!Object.prototype.hasOwnProperty.call(F.CATALOG, o.type)) errors.push('object ' + o.id + ': unknown type ' + o.type);
       else extra('object', o, PARAMS[o.type] || new Set(['id', 'type', 'x', 'y', 'home']));
       if (/^fixture-/.test(o.type) && F.CATALOG[o.type] && (o.x !== F.CATALOG[o.type].anchor[0] || o.y !== F.CATALOG[o.type].anchor[1] || 'home' in o)) errors.push('object ' + o.id + ': fixture cannot move');
-      if (o.type === 'dept-desk' && !(root.OfficeMotion && root.OfficeMotion.TEAM.some(t => t.desk === o.desk))) errors.push('object ' + o.id + ': unknown desk ' + o.desk);
+      if (o.type !== 'dept-desk') continue;
+      if (!/^desk-\d{1,2}$/.test(o.desk)) { errors.push('object ' + o.id + ': unknown desk ' + o.desk); continue; }
+      deskId(o.desk);
+      const role = deskRole(o);
+      if (!role) errors.push('object ' + o.id + ': desk ' + o.desk + ' needs a role');
+      else if (!root.RoleCatalog.get(role)) errors.push('object ' + o.id + ': unknown role ' + role);
+      else if (roles.has(role)) errors.push('two desks for ' + role);
+      roles.add(role);
     }
+    const nDesks = desksOf(layout).length;
+    if (!nDesks) errors.push('no desks');
+    if (nDesks > MAX_DESKS) errors.push('too many desks');
     if (errors.length) return { ok: false, errors }; // the checks below draw the objects
     try { geometry(layout, errors, spotId, extra); } catch (e) { errors.push('malformed: ' + e.message); } // bad params can break a painter
     return { ok: !errors.length, errors };
@@ -134,7 +149,7 @@
 
     const { w, h } = layout.size, grid = gridOf(layout), spots = spotsOf(layout), water = rectsOf(layout, 'water');
     const sp0 = layout.spawn;
-    requiredSpots().forEach(id => spots[id] || errors.push('missing spot ' + id)); // every spot the agent brain reads must exist
+    requiredSpots(layout).forEach(id => spots[id] || errors.push('missing spot ' + id)); // every spot the agent brain reads must exist
     if (grid.blocked[W.cellOf(grid, sp0)]) errors.push('spawn (' + sp0.x + ',' + sp0.y + ') is blocked');
     for (const s of Object.values(spots)) {
       if (!(s.x >= 0 && s.x <= w && s.y >= 0 && s.y <= h)) { errors.push('spot ' + s.id + ' is outside the world'); continue; }
@@ -143,6 +158,6 @@
     }
   }
 
-  root.WorldModel = { VERSION, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots };
+  root.WorldModel = { VERSION, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS };
   if (root.OfficeMotion && typeof root.OfficeMotion.useLayout === 'function') root.OfficeMotion.useLayout(defaultLayout());
 })(globalThis);

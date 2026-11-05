@@ -19,9 +19,8 @@
   };
   // Locked pieces: fixtures, and the ponds (each owns a water zone that would not follow a move or copy).
   const isFixture = type => /^fixture-|^pond(-|$)/.test(type);
-  // One-of-a-kind pieces: desks wait for Phase 3; the others register fixed click keys (or, the pond, a water zone that
-  // would not follow a copy).
-  const NOT_ADDABLE = new Set(['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond', 'pond-east']);
+  // One-of-a-kind pieces: they register fixed click keys (or, the pond, a water zone that would not follow a copy).
+  const NOT_ADDABLE = new Set(['arcade', 'jukebox', 'server-plant', 'pond', 'pond-east']);
   // What the drawer and messages call each piece.
   const LABELS = {
     'dept-desk': 'Department desk', 'tiro-desk': "Manager's desk", inbox: 'Inbox tray', 'tiro-chair': "Manager's chair", 'guest-chair': 'Guest chair',
@@ -35,8 +34,12 @@
   };
   const labelOf = type => LABELS[type] || (F.CATALOG[type] && F.CATALOG[type].label) || type;
   const catalog = () => Object.keys(F.CATALOG).filter(t => !isFixture(t)).map(type => ({
-    type, label: labelOf(type), group: GROUP[type] || 'furniture', addable: !NOT_ADDABLE.has(type), deletable: type !== 'dept-desk',
+    type, label: labelOf(type), group: GROUP[type] || 'furniture', addable: !NOT_ADDABLE.has(type), deletable: true,
+    ...(type === 'dept-desk' ? { roles: root.RoleCatalog.ROLES } : {}),
   }));
+  const desksOf = l => l.objects.filter(o => o.type === 'dept-desk');
+  // Roles that have no desk in layout l yet (what the add-desk picker offers).
+  const availableRoles = l => { const taken = new Set(desksOf(l).map(WM.deskRole)); return root.RoleCatalog.ROLES.filter(r => !taken.has(r.key)); };
 
   // A new piece of a type copies the params of the type's first default piece (bench seat id, plant scale, ...).
   const TEMPLATE = {};
@@ -125,6 +128,13 @@
           if (!src || !F.CATALOG[src.type]) return fail(op.op === 'add' ? 'unknown type ' + op.type : 'no object ' + op.id);
           if (isFixture(src.type) || NOT_ADDABLE.has(src.type)) return fail('cannot add ' + src.type);
           const o = Object.assign({}, copy(src), { id: nextId(l.objects, src.type) });
+          if (o.type === 'dept-desk') { // one desk per role, desk ids desk-1.., at most MAX_DESKS
+            const role = root.RoleCatalog.get(op.op === 'add' ? (op.params || {}).role : WM.deskRole(src));
+            if (!role) return fail('pick a role');
+            if (!availableRoles(l).includes(role)) return fail(role.name + ' already has a desk');
+            if (desksOf(l).length >= WM.MAX_DESKS) return fail(WM.MAX_DESKS + ' desks is the limit');
+            o.id = o.desk = nextId(desksOf(l).map(p => ({ id: p.desk })), 'desk'); o.role = role.key;
+          }
           const tries = op.op === 'add' ? [[snap(op.x), snap(op.y)]] : spiral(src.x, src.y);
           let why = '';
           for (const [x, y] of tries) {
@@ -136,11 +146,11 @@
         case 'remove': {
           const o = findObj(l, op.id);
           if (!o) return fail('no object ' + op.id);
-          if (o.type === 'dept-desk') return fail('cannot delete department desks yet');
+          if (o.type === 'dept-desk' && desksOf(l).length === 1) return fail('keep at least one desk');
           if (isFixture(o.type)) return fail('fixtures cannot be deleted');
           const had = WM.spotsOf(l);
           l.objects = l.objects.filter(p => p !== o);
-          const now = WM.spotsOf(l), lost = WM.requiredSpots().filter(id => had[id] && !now[id]);
+          const now = WM.spotsOf(l), lost = WM.requiredSpots(l).filter(id => had[id] && !now[id]);
           return done(l, lost.length ? 'needed by agents: ' + lost.join(', ') : '');
         }
         case 'addZone': {
@@ -199,7 +209,7 @@
       undo: () => { if (past.length) { future.push(JSON.stringify(cur)); cur = JSON.parse(past.pop()); } },
       redo: () => { if (future.length) { past.push(JSON.stringify(cur)); cur = JSON.parse(future.pop()); } },
       move: (id, x, y) => apply({ op: 'move', id, x, y }),
-      add: (type, x, y) => apply({ op: 'add', type, x, y }),
+      add: (type, x, y, params) => apply({ op: 'add', type, x, y, params }),
       duplicate: id => apply({ op: 'duplicate', id }),
       remove: id => apply({ op: 'remove', id }),
       addZone: (type, rect) => apply({ op: 'addZone', type, rect }),
@@ -210,5 +220,5 @@
     };
   }
 
-  root.WorldEdit = { toGround, snap, catalog, labelOf, createSession, pieceAt, isFixture };
+  root.WorldEdit = { toGround, snap, catalog, availableRoles, labelOf, createSession, pieceAt, isFixture };
 })(globalThis);

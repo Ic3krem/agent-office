@@ -95,7 +95,8 @@
   const fixture = (name, build) => { def('fixture-' + name, [0, 0], build); put(name, 'fixture-' + name, 0, 0); };
 
   const COL = { wood: '#b98a57', dwood: '#7a5230', ink: '#1b1220', metal: '#8a909c', dmetal: '#4a4f5c', paper: '#f3ede2', glass: 'rgba(170,215,240,.22)', wallL: '#2e3058', wallR: '#25274a' };
-  const teamOf = key => M.TEAM.find(t => t.key === key);
+  // A desk's role card: the live team's entry, else the catalog's (a layout being checked before it is applied).
+  const teamOf = key => M.TEAM.find(t => t.key === key) || (root.RoleCatalog && root.RoleCatalog.get(key));
   const dstate = id => ST.desk[id] || { present: false, working: false, led: '#666' };
 
   // ---------- baked background: floors, walls, slab ----------
@@ -122,10 +123,10 @@
       for (let y = 230; y < 550; y += 40) for (let x = 0; x < 1000; x += 40) { g.fillStyle = ((x + y) / 40) % 2 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,20,.05)'; g.fillRect(x, y, 40, 40); }
       // north corridor walkway
       g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(0, 238, 1000, 26); g.strokeStyle = 'rgba(255,255,255,.12)'; g.strokeRect(0, 238, 1000, 26);
-      // aisle runner rug
+      // aisle runner rug (room for eight accent pairs)
       g.fillStyle = '#34406a'; g.fillRect(36, 366, 928, 60); g.strokeStyle = '#c9a24a'; g.lineWidth = 3; g.strokeRect(40, 370, 920, 52);
       g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,.22)'; g.setLineDash([10, 8]); g.beginPath(); g.moveTo(52, 396); g.lineTo(948, 396); g.stroke(); g.setLineDash([]);
-      M.TEAM.forEach((t, i) => { g.fillStyle = t.accent; g.fillRect(70 + i * 112, 374, 30, 3); g.fillRect(70 + i * 112, 415, 30, 3); });
+      M.TEAM.slice(0, 8).forEach((t, i) => { g.fillStyle = t.accent; g.fillRect(70 + i * 112, 374, 30, 3); g.fillRect(70 + i * 112, 415, 30, 3); });
       // utility checker
       for (let y = 550; y < 780; y += 38) for (let x = 0; x < 470; x += 38) { g.fillStyle = ((x + y) / 38) % 2 ? 'rgba(80,60,30,.1)' : 'rgba(255,255,255,.18)'; g.fillRect(x, y, 38, 38); }
       // playroom: confetti and a big rug
@@ -454,15 +455,68 @@
       [0, 1, 2, 3].forEach(i => box(g, cx + 18 + (i % 2), y0 + 28, 35 + i * 1.4, 18, 14, 1.4, '#f3ede2'));
       cyl(g, cx + 44, y0 + 14, 35, 4.2, 8, '#8a5a2a'); [[-2, '#e8b99f'], [0, '#fff'], [2, '#c9b0f0']].forEach(([dx, c]) => { const q = P(cx + 44 + dx, y0 + 14, 43); g.strokeStyle = c; g.lineWidth = 1.2; g.beginPath(); g.moveTo(q[0], q[1]); g.quadraticCurveTo(q[0] + dx * 2, q[1] - 10, q[0] + dx * 3.5, q[1] - 16); g.stroke(); });
     },
+    it(g, d, t, st) {
+      const { cx, rect: r } = d, y0 = r.y0, on = st.working;
+      monitor(g, cx - 46, y0 + 8, 35, 36, 30, 'term', on, '#9fd0f7'); monitor(g, cx - 6, y0 + 8, 35, 36, 30, 'chart', on, t.accent);
+      keyboard(g, cx - 24, y0 + 30, 35, 28);
+      // cable tidy: a spine down the side panel with coloured leads looping into it
+      box(g, cx + 46, y0 + 8, 0, 4, 4, 31, '#2b2f3a');
+      Fg(g, 35.4, () => { ['#5ef0a0', '#7cc4ff', '#ffb547'].forEach((c, i) => { g.strokeStyle = c; g.lineWidth = 1; g.beginPath(); g.moveTo(cx - 10 + i * 12, y0 + 4); g.quadraticCurveTo(cx + 30, y0 + 2 + i * 3, cx + 47, y0 + 10); g.stroke(); }); });
+    },
+    accounting(g, d, t, st) {
+      const { cx, rect: r } = d, y0 = r.y0, on = st.working;
+      monitor(g, cx - 36, y0 + 8, 35, 40, 30, 'chart', on, t.accent); keyboard(g, cx - 28, y0 + 31, 35, 28);
+      // adding machine with a paper roll, and an open ledger
+      box(g, cx + 14, y0 + 26, 35, 20, 16, 5, '#cfd3dc'); box(g, cx + 18, y0 + 24, 40, 12, 4, 4, '#f3ede2');
+      Fg(g, 40.1, () => { for (let i = 0; i < 9; i++) { g.fillStyle = i === 8 ? '#d35a4a' : '#4a4f5c'; g.fillRect(cx + 16 + (i % 3) * 5.5, y0 + 30 + Math.floor(i / 3) * 4, 4, 3); } });
+      box(g, cx - 50, y0 + 40, 35, 26, 12, 1.6, '#2f5a2a'); box(g, cx - 49, y0 + 41, 36.6, 24, 10, 1, '#f3ede2');
+      Fg(g, 37.7, () => { g.fillStyle = '#9aa'; for (let i = 0; i < 4; i++) { g.fillRect(cx - 47, y0 + 43 + i * 2, 9, .6); g.fillRect(cx - 35, y0 + 43 + i * 2, 9, .6); } });
+    },
+    marketing(g, d, t, st) {
+      const { cx, rect: r } = d, y0 = r.y0, on = st.working;
+      monitor(g, cx - 36, y0 + 8, 35, 40, 30, 'wire', on, t.accent); keyboard(g, cx - 28, y0 + 31, 35, 28);
+      // mood board on the back partition: pinned swatches and photos
+      Fy(g, y0 - 9, 58, () => { g.translate(cx + 22, 0); g.fillStyle = '#c99a6a'; g.fillRect(0, 0, 40, 30); [['#e0503f', 3, 3, 12, 10], ['#ffd23f', 18, 4, 9, 9], ['#3dd6ff', 29, 3, 8, 12], ['#7cf29a', 4, 16, 10, 11], ['#ffa99c', 17, 16, 18, 10]].forEach(([c, x, y, w, h]) => { g.fillStyle = c; g.fillRect(x, y, w, h); g.fillStyle = '#d35a4a'; g.fillRect(x + w / 2 - 1, y, 2, 2); }); });
+      // megaphone lying on the desk
+      const m = P(cx + 22, y0 + 34, 37); g.fillStyle = t.color; g.beginPath(); g.moveTo(m[0], m[1] - 2); g.lineTo(m[0] + 14, m[1] - 7); g.lineTo(m[0] + 14, m[1] + 5); g.lineTo(m[0], m[1] + 1); g.closePath(); g.fill();
+      g.fillStyle = '#f3ede2'; g.beginPath(); g.ellipse(m[0] + 14, m[1] - 1, 2, 6, 0, 0, 6.2832); g.fill(); g.fillStyle = '#2b2f3a'; g.fillRect(m[0] - 4, m[1] - 2, 5, 3);
+    },
+    auditor(g, d, t, st) {
+      const { cx, rect: r } = d, y0 = r.y0, on = st.working;
+      monitor(g, cx - 36, y0 + 8, 35, 40, 30, 'shield', on, t.accent); keyboard(g, cx - 28, y0 + 31, 35, 28);
+      // row of binders on the desk end
+      ['#4a4f8c', '#8f3b2e', '#3f6b4a', '#c99a3c', t.accent].forEach((c, i) => { box(g, cx + 30, y0 + 4 + i * 5, 35, 16, 4.4, 20, c); Fx(g, cx + 46, y0 + 8.4 + i * 5, 55, () => { g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(1, 4, 2.4, 6); }); });
+      // magnifier over a report page
+      box(g, cx + 6, y0 + 32, 35, 16, 13, 1, '#f3ede2');
+      const mc = P(cx + 14, y0 + 38, 37); g.strokeStyle = '#d6b13a'; g.lineWidth = 1.6; g.beginPath(); g.arc(mc[0], mc[1] - 4, 4.5, 0, 6.2832); g.stroke(); g.beginPath(); g.moveTo(mc[0] + 3.5, mc[1] - 1); g.lineTo(mc[0] + 9, mc[1] + 3); g.stroke();
+    },
+    notetaker(g, d, t, st) {
+      const { cx, rect: r } = d, y0 = r.y0, on = st.working;
+      monitor(g, cx - 36, y0 + 8, 35, 40, 30, 'term', on, t.accent); keyboard(g, cx - 28, y0 + 31, 35, 28);
+      // spiral notepad with lines
+      box(g, cx + 10, y0 + 28, 35, 18, 15, 1.4, '#f3ede2');
+      Fg(g, 36.5, () => { g.fillStyle = '#4a4f5c'; for (let i = 0; i < 5; i++) g.fillRect(cx + 12 + i * 3.4, y0 + 28.5, 1.4, 1.4); g.fillStyle = '#9aa'; for (let i = 0; i < 4; i++) g.fillRect(cx + 12, y0 + 32 + i * 2.8, 13, .6); });
+      // desk mic on a stand; the tip glows while recording
+      cyl(g, cx + 38, y0 + 18, 35, 4, 1.4, '#2b2f3a'); cyl(g, cx + 38, y0 + 18, 36.4, .9, 10, '#4a4f5c'); ball(g, cx + 38, y0 + 18, 45.4, 3, on ? '#ff5a4a' : '#6a6f7c');
+    },
+    laptop(g, d, t, st) { // any role without its own props
+      const { cx, rect: r } = d, y0 = r.y0, on = st.working;
+      box(g, cx - 20, y0 + 22, 35, 32, 22, 1.5, '#cfd3dc'); box(g, cx - 20, y0 + 20, 35, 32, 2, 22, '#cfd3dc', { noT: true });
+      Fy(g, y0 + 22, 35 + 22, () => { g.translate(cx - 20, 0); g.fillStyle = on ? '#112a3a' : '#10163a'; g.fillRect(1.5, 1.5, 29, 19); g.fillStyle = t.accent; g.fillRect(4, 5, 16, 1.6); g.fillRect(4, 9, 22, 1.6); });
+    },
   };
   function drawDesk(g, d) {
     const t = teamOf(d.key), st = dstate(d.id);
     g.save(); if (!st.present) g.globalAlpha = .55;
-    deskBase(g, d, t, st); PROPS[d.key](g, d, t, st);
+    deskBase(g, d, t, st); (PROPS[d.key] || PROPS.laptop)(g, d, t, st);
     g.restore();
     if (!st.present) { const c = P(d.cx, d.rect.y0 + 20, 36); g.save(); g.fillStyle = 'rgba(20,16,40,.28)'; poly(g, [P(d.block.x0, d.block.y0, 0), P(d.block.x1, d.block.y0, 0), P(d.block.x1, d.block.y1, 0), P(d.block.x0, d.block.y1, 0)], 'rgba(20,16,40,.22)'); g.restore(); void c; }
   }
-  const deskOf = p => M.DESKS.find(d => d.id === p.desk);
+  // The desk a dept-desk piece draws: the live one when it holds the same role, else built from the piece itself.
+  const deskOf = p => {
+    const d = M.DESKS.find(q => q.id === p.desk), RC = root.RoleCatalog, key = p.role || (RC ? RC.BUILTIN_DESKS[p.desk] : d && d.key);
+    return d && d.key === key ? d : M.deskAt(p.desk, key, p.x, p.y);
+  };
   def('dept-desk', [155, 352], p => { // a department desk with its chair; anchored at the seat
     const d = deskOf(p);
     const deskItem = add(d.cx + d.rect.y0 + 30 + (d.top ? 0 : 0), g => drawDesk(g, d));

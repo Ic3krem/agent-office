@@ -38,8 +38,6 @@ test('cannot delete pieces agents need', () => {
   const sofa = J(s.remove('sofa3'));
   assert.equal(sofa.ok, false);
   assert.match(sofa.reason, /play:sofa1/);
-  const desk = J(s.remove(J(s.layout()).objects.find((o) => o.type === 'dept-desk').id));
-  assert.deepEqual(desk, { ok: false, reason: 'cannot delete department desks yet' });
   assert.equal(s.remove('bird-feeder').ok, true);
   assert.equal(s.canUndo(), true);
 });
@@ -55,7 +53,7 @@ test('duplicate gets fresh ids and stays valid', () => {
   assert.equal(spots['garden:b1'].x, 700, 'original keeps its spot id');
   assert.deepEqual(J(WM.validate(l).errors), []);
   assert.equal(J(s.add('plant', 1100, 560)).id, 'plant-6');
-  assert.equal(J(s.add('dept-desk', 1100, 600)).ok, false);
+  assert.deepEqual(J(s.add('dept-desk', 1100, 600)), { ok: false, reason: 'pick a role' });
 });
 
 test('zones', () => {
@@ -82,16 +80,18 @@ test('check does not apply', () => {
   assert.equal(s.canUndo(), false);
 });
 
-test('catalog skips fixtures and pins desks', () => {
+test('catalog skips fixtures and offers desks with their roles', () => {
   const c = J(E.catalog());
   assert.ok(!c.some((t) => /^fixture-/.test(t.type)));
-  assert.deepEqual(c.find((t) => t.type === 'dept-desk'), { type: 'dept-desk', label: 'Department desk', group: 'desk', addable: false, deletable: false });
+  const desk = c.find((t) => t.type === 'dept-desk');
+  assert.deepEqual({ ...desk, roles: desk.roles.length }, { type: 'dept-desk', label: 'Department desk', group: 'desk', addable: true, deletable: true, roles: 13 });
+  assert.equal(desk.roles.find((r) => r.key === 'auditor').name, 'Vera');
   assert.ok(c.every((t) => ['furniture', 'decor', 'nature', 'desk'].includes(t.group)));
   const s = E.createSession(WM.defaultLayout());
   for (const type of ['dept-desk', 'arcade', 'jukebox', 'server-plant']) {
     const t = c.find((q) => q.type === type);
-    assert.equal(t.addable, false, type);
-    assert.equal(t.deletable, type !== 'dept-desk', type);
+    assert.equal(t.addable, type === 'dept-desk', type);
+    assert.equal(t.deletable, true, type);
     assert.equal(s.add(type, 1100, 520).ok, false, 'add ' + type);
     const id = J(s.layout()).objects.find((o) => o.type === type).id;
     assert.equal(s.duplicate(id).ok, false, 'duplicate ' + type);
@@ -214,4 +214,32 @@ test('water zones follow their pond: no retype, resize, delete, or painting over
   }
   assert.equal(s.canUndo(), false);
   assert.equal(J(s.setZone(w.id, { type: 'water' })).ok, true, 'a no-op keeps working');
+});
+
+// ---- department desks ----
+test('add a desk for a role: next free desk id, one desk per role, 12 at most', () => {
+  const s = E.createSession(WM.defaultLayout());
+  assert.deepEqual(J(E.availableRoles(s.layout())).map((r) => r.key), ['it', 'accounting', 'marketing', 'auditor', 'notetaker']);
+  assert.deepEqual(J(s.add('dept-desk', 880, 720, { role: 'chef' })), { ok: false, reason: 'pick a role' });
+  assert.deepEqual(J(s.add('dept-desk', 880, 720, { role: 'warden' })), { ok: false, reason: 'Warden already has a desk' });
+  assert.deepEqual(J(s.add('dept-desk', 880, 720, { role: 'it' })), { ok: true, id: 'desk-9' });
+  assert.deepEqual(obj(s, 'desk-9'), { id: 'desk-9', type: 'dept-desk', desk: 'desk-9', role: 'it', x: 880, y: 720 });
+  assert.deepEqual(J(WM.validate(s.layout()).errors), []);
+  assert.ok(!J(E.availableRoles(s.layout())).some((r) => r.key === 'it'));
+  assert.deepEqual(J(s.add('dept-desk', 1120, 500, { role: 'it' })), { ok: false, reason: 'Byte already has a desk' });
+  assert.equal(s.duplicate('desk-9').ok, false, 'a copy would be a second desk for the role');
+  // the limit, on a layout that already holds 12 desks
+  const l = J(s.layout());
+  ['accounting', 'marketing', 'auditor'].forEach((role, i) => l.objects.push({ id: 'desk-' + (10 + i), type: 'dept-desk', desk: 'desk-' + (10 + i), role, x: 0, y: 0 }));
+  assert.deepEqual(J(E.createSession(l).add('dept-desk', 1120, 500, { role: 'notetaker' })), { ok: false, reason: '12 desks is the limit' });
+});
+
+test('desks can be removed, but not the last one; a freed desk id is reused', () => {
+  const s = E.createSession(WM.defaultLayout());
+  assert.deepEqual(J(s.remove('desk-3')), { ok: true });
+  assert.deepEqual(J(WM.validate(s.layout()).errors), []);
+  assert.equal(J(E.availableRoles(s.layout()))[0].key, 'warden');
+  for (const n of [1, 2, 4, 5, 6, 7]) assert.equal(s.remove('desk-' + n).ok, true, 'desk-' + n);
+  assert.deepEqual(J(s.remove('desk-8')), { ok: false, reason: 'keep at least one desk' });
+  assert.deepEqual(J(s.add('dept-desk', 155, 352, { role: 'auditor' })), { ok: true, id: 'desk-1' });
 });

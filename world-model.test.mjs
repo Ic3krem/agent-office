@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { loadWorld } from './world-vm.mjs';
 
-const { WorldModel: WM, WorldPath: W } = loadWorld();
+const { WorldModel: WM, WorldPath: W, OfficeMotion: M } = loadWorld();
 const J = (v) => JSON.parse(JSON.stringify(v)); // vm results have a foreign realm prototype
 const gold = JSON.parse(fs.readFileSync(new URL('./fixtures/office-golden.json', import.meta.url), 'utf8'));
 const errs = (mut) => { const l = J(WM.defaultLayout()); mut(l); return WM.validate(l).errors.join('\n'); };
@@ -72,8 +72,8 @@ test('the main routes walk mostly on path zones', () => {
 });
 
 test('validate rejects unknown desks and missing brain spots', () => {
-  assert.match(errs((l) => { l.objects.find((o) => o.type === 'dept-desk').desk = 'desk-99'; }), /unknown desk/);
-  assert.match(errs((l) => { l.objects = l.objects.filter((o) => o.type !== 'dept-desk' || o.desk !== 'desk-3'); }), /missing spot desk-3/);
+  assert.match(errs((l) => { l.objects.find((o) => o.type === 'dept-desk').desk = 'desk-99'; }), /desk-99 needs a role/);
+  assert.match(errs((l) => { l.objects.find((o) => o.type === 'dept-desk').desk = 'desk-x'; }), /unknown desk desk-x/);
   assert.match(errs((l) => { l.spots = l.spots.filter((s) => s.id !== 'queue:1'); }), /missing spot queue:1/);
 });
 
@@ -100,4 +100,51 @@ test('validate checks param values and list sizes, and answers fast', () => {
 test('fixtures stay at their anchor', () => {
   assert.match(errs((l) => { l.objects.find((o) => o.type === 'fixture-pennants').x = 40; }), /fixture cannot move/);
   assert.match(errs((l) => { l.objects.find((o) => o.type === 'fixture-pennants').home = [10, 10]; }), /fixture cannot move/);
+});
+
+// ---- department desks: any set of 1..12 roles ----
+const BUILTIN = ['pixel', 'forge', 'warden', 'probe', 'atlas', 'cabalan', 'tally', 'scribe'];
+const FREE = [1120, 500]; // an auditor desk fits here (east park, south of the pond)
+const withDesk = (l, extra) => { l.objects.push({ id: extra.desk, type: 'dept-desk', x: FREE[0], y: FREE[1], ...extra }); return l; };
+
+test('old layouts without role still validate and give the 8 built-in TEAM', () => {
+  const l = J(WM.defaultLayout());
+  for (const o of l.objects) delete o.role;
+  assert.deepEqual(J(WM.validate(l).errors), []);
+  assert.deepEqual(J(WM.spotsOf(l)), gold.spots);
+  M.useLayout(l);
+  assert.deepEqual(J(M.TEAM).map((t) => [t.key, t.desk]), BUILTIN.map((k, i) => [k, 'desk-' + (i + 1)]));
+});
+
+test('a layout with an auditor desk at a free spot validates; TEAM includes Vera at that desk', () => {
+  const l = withDesk(J(WM.defaultLayout()), { desk: 'desk-9', role: 'auditor' }), team = M.TEAM;
+  assert.deepEqual(J(WM.validate(l).errors), []);
+  assert.ok(WM.requiredSpots(l).includes('desk-9'));
+  M.useLayout(l);
+  assert.equal(M.TEAM, team, 'TEAM keeps its identity');
+  const vera = J(M.TEAM).find((t) => t.desk === 'desk-9');
+  assert.deepEqual(vera, { key: 'auditor', name: 'Vera', role: 'Auditor and compliance reviewer', model: 'opus', color: '#4a4f8c', accent: '#a6aae0', desk: 'desk-9' });
+  assert.equal(M.TEAM.length, 9);
+  assert.deepEqual(J(M.SPOTS['desk-9']), { id: 'desk-9', x: FREE[0], y: FREE[1], face: 'n', zone: 'focus', seat: true, desk: true });
+  M.useLayout(WM.defaultLayout());
+  assert.equal(M.TEAM.length, 8);
+});
+
+test('unknown role, duplicate role, 13 desks, zero desks are rejected', () => {
+  assert.match(errs((l) => withDesk(l, { desk: 'desk-9', role: 'chef' })), /unknown role chef/);
+  assert.match(errs((l) => withDesk(l, { desk: 'desk-9', role: 'warden' })), /two desks for warden/);
+  assert.match(errs((l) => { l.objects.find((o) => o.desk === 'desk-2').role = 'pixel'; }), /two desks for pixel/);
+  assert.match(errs((l) => withDesk(l, { id: 'dd', desk: 'desk-1', role: 'it' })), /duplicate id desk desk-1/);
+  assert.match(errs((l) => {
+    ['it', 'accounting', 'marketing', 'auditor', 'notetaker'].forEach((role, i) => withDesk(l, { desk: 'desk-' + (9 + i), role }));
+  }), /too many desks/);
+  assert.match(errs((l) => { l.objects = l.objects.filter((o) => o.type !== 'dept-desk'); }), /no desks/);
+});
+
+test("removing desk-3 is allowed; desk-3's spot is no longer required", () => {
+  const l = J(WM.defaultLayout());
+  l.objects = l.objects.filter((o) => o.desk !== 'desk-3');
+  assert.deepEqual(J(WM.validate(l).errors), []);
+  assert.ok(!WM.requiredSpots(l).includes('desk-3'));
+  assert.ok(WM.requiredSpots(l).includes('desk-4') && WM.requiredSpots(l).includes('tiro:seat'));
 });

@@ -81,7 +81,7 @@
   function hotspots() {
     return OBJ.map(o => {
       let label = o.label;
-      if (o.desk) { const t = o.desk === 'office' ? M.TIRO : M.TEAM.find(x => x.desk === o.desk), a = deskAgent(o.desk); label = t.name + ', ' + t.role + (a ? ', ' + (STATUS_WORD[a.status] || a.status) : ', not hired yet'); }
+      if (o.desk) { const t = o.desk === 'office' ? M.TIRO : M.TEAM.find(x => x.desk === o.desk), a = deskAgent(o.desk); label = (t ? t.name + ', ' + t.role : 'Desk') + (a ? ', ' + (STATUS_WORD[a.status] || a.status) : ', not hired yet'); }
       return { id: o.id, key: o.key, desk: o.desk || null, label, l: o.bb.l, t: o.bb.t, w: o.bb.w, h: o.bb.h };
     });
   }

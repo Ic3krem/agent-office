@@ -5,17 +5,11 @@
   'use strict';
   const WX = 1240, WY = 780; // world size in ground units (isometric 2:1, x runs right-down, y runs left-down)
 
-  // ---------- the team (display copy of ROSTER in company.mjs; company.test.mjs-style drift test in office-motion.test.mjs) ----------
-  const TEAM = [
-    { key: 'pixel', name: 'Pixel', role: 'Frontend engineer', model: 'sonnet', color: '#e0679a', accent: '#ffb3d1', desk: 'desk-1' },
-    { key: 'forge', name: 'Forge', role: 'Backend engineer', model: 'sonnet', color: '#e08a3a', accent: '#ffc78a', desk: 'desk-2' },
-    { key: 'warden', name: 'Warden', role: 'Security reviewer', model: 'opus', color: '#5b7fd1', accent: '#a9c1f5', desk: 'desk-3' },
-    { key: 'probe', name: 'Probe', role: 'QA and test engineer', model: 'sonnet', color: '#4fb286', accent: '#a5e6c6', desk: 'desk-4' },
-    { key: 'atlas', name: 'Atlas', role: 'Deep researcher', model: 'opus', color: '#8a63c9', accent: '#c9b0f0', desk: 'desk-5' },
-    { key: 'cabalan', name: 'Cabalan', role: 'Researcher', model: 'haiku', color: '#3fb0b8', accent: '#9de4e8', desk: 'desk-6' },
-    { key: 'tally', name: 'Tally', role: 'Task checker and organizer', model: 'haiku', color: '#d6b13a', accent: '#f5e08f', desk: 'desk-7' },
-    { key: 'scribe', name: 'Scribe', role: 'SOP and document writer', model: 'sonnet', color: '#b8785a', accent: '#e8b99f', desk: 'desk-8' },
-  ];
+  // ---------- the team: one entry per department desk, from RoleCatalog (drift test against ROSTER in office-motion.test.mjs) ----------
+  const RC = root.RoleCatalog;
+  const member = (r, desk) => ({ key: r.key, name: r.name, role: r.role, model: r.model, color: r.color, accent: r.accent, desk });
+  // Built-in desks until useLayout() applies a layout; useLayout refills it in place (other modules hold this array).
+  const TEAM = Object.keys(RC.BUILTIN_DESKS).map(desk => member(RC.get(RC.BUILTIN_DESKS[desk]), desk));
   const TIRO = { key: 'tiro', name: 'Tiro', role: 'Office manager', model: 'sonnet', color: '#e8793a', accent: '#ffcf6b', desk: 'office' };
 
   // ---------- layout ----------
@@ -89,14 +83,12 @@
 
   // ---------- paths ----------
   let GRID = null; // walk grid of the current layout, built once per useLayout()
-  // Apply a layout (WorldModel format). Refills SPOTS, DESKS, OBSTACLES and SPAWN in place so held references stay valid.
+  // Apply a layout (WorldModel format). Refills TEAM, SPOTS, DESKS, OBSTACLES and SPAWN in place so held references stay valid.
   function useLayout(layout) {
     const WM = root.WorldModel;
-    const desks = layout.objects.filter(o => o.type === 'dept-desk').map(o => {
-      const t = TEAM.find(m => m.desk === o.desk);
-      return t && deskAt(o.desk, t.key, o.x, o.y);
-    }).filter(Boolean);
-    DESKS.splice(0, DESKS.length, ...desks);
+    const desks = layout.objects.filter(o => o.type === 'dept-desk').map(o => [o, RC.get(WM.deskRole(o))]).filter(([, r]) => r);
+    TEAM.splice(0, TEAM.length, ...desks.map(([o, r]) => member(r, o.desk)));
+    DESKS.splice(0, DESKS.length, ...desks.map(([o, r]) => deskAt(o.desk, r.key, o.x, o.y)));
     OBSTACLES.splice(0, OBSTACLES.length, ...DESKS.map(d => d.rect), TIRO_DESK);
     for (const k of Object.keys(SPOTS)) delete SPOTS[k];
     Object.assign(SPOTS, WM.spotsOf(layout));
@@ -447,7 +439,7 @@
 
   // ms to wait before drawing, given the time since the last draw; never faster than MIN_GAP; -1 = paused
   const frameWait = (st, since) => { const d = nextFrameDelay(st); return d < 0 ? -1 : Math.max(FRAME.MIN_GAP - since, d - since, 0); };
-  const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, TIRO_DESK, OBSTACLES, SPOTS, SPAWN, GARDEN, PLAY, COOLER, HOT, OVER, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
+  const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, deskAt, TIRO_DESK, OBSTACLES, SPOTS, SPAWN, GARDEN, PLAY, COOLER, HOT, OVER, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
     boardOf, nextState, createBrain, useLayout, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
   root.OfficeMotion = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
