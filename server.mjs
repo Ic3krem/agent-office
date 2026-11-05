@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError } from './company.mjs';
+import { goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -425,12 +425,14 @@ const hireHook = async input => {
   if (currentKeys().includes(k)) { try { AH.start(k, { goalId: hireGoal[k], title: input.tool_input?.description, brief: input.tool_input?.prompt }); } catch {} delete hireGoal[k]; }
   starting.set(input.tool_use_id, currentKeys().includes(k) ? k : '');
   boss.running++; boss.progress = true; bump();
-  // A goal's pace wins over espresso (the cup stays for a later hire). A skipped Boost: the hire runs on its own model.
+  // A goal's pace wins over espresso (the cup stays for a later hire). Fork hires ignore model (SDK), so pace has no effect there.
   if (pace?.model) return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: pace.model, effort: pace.effort } } };
-  if (pace?.skip) { host.note('Boost skipped: ' + pace.skip); return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'Boost skipped: ' + pace.skip + '.' } }; }
+  // A skipped Boost: the hire runs on its own model, or espresso's; Tiro and the user are told.
+  const out = { hookEventName: 'PreToolUse' };
+  if (pace?.skip) { host.note('Boost skipped: ' + pace.skip); out.additionalContext = 'Boost skipped: ' + pace.skip + '.'; }
   // Espresso: this hire runs on the fast model; the cup is used up.
-  if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
-  return {};
+  if (sw().espresso) { switches.set('espresso', false); out.updatedInput = { ...input.tool_input, model: 'haiku' }; }
+  return Object.keys(out).length > 1 ? { hookSpecificOutput: out } : {};
 };
 const hireStarted = async input => { const k = ALIASES[input.agent_type] || input.agent_type; for (const [id, x] of starting) if (x === k) { starting.delete(id); break; } return {}; };
 const hireUndone = async input => {
@@ -509,7 +511,7 @@ function snapshot() {
   const shown = list.slice(0, deskCap).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   return {
     worldVersion: worldStore.version(),
-    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
+    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit()) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => ({
       isManager: !!a.isManager,
       id: a.id, name: a.isManager ? dn.tiro : helpers.get(a.id)?.helper ? helpers.get(a.id).label : dn[a.profile?.key] || a.title || a.name || a.firstPrompt || path.basename(a.cwd || '') || a.id.slice(0, 8),
@@ -668,14 +670,16 @@ async function handle(req, res) {
         return json(res, 200, { ok: true });
       }
       case '/api/goal/priority': {
-        if (!['high', 'normal'].includes(b.priority)) return json(res, 400, { error: 'priority must be high or normal' });
-        if (!goals.list().some(x => x.id === String(b.id))) return json(res, 404, { error: 'no such goal' });
-        const g = goals.update(String(b.id), { priority: b.priority }); bump();
+        const cur = goals.list().find(x => x.id === String(b.id));
+        if (!cur) return json(res, 404, { error: 'no such goal' });
+        const bad = priorityError(cur, b.priority); if (bad) return json(res, bad.status, { error: bad.error });
+        const g = goals.update(cur.id, { priority: b.priority }); bump();
         tellBoss(b.priority === 'high' ? `The user marked goal ${g.id} as high priority: work on it first.` : `The user put goal ${g.id} back to normal priority.`);
         return json(res, 200, { ok: true, priority: g.priority });
       }
       case '/api/goal/pace': {
-        const pace = b.pace ?? null, cur = goals.list().find(x => x.id === String(b.id));
+        if (!('pace' in b)) return json(res, 400, { error: 'pace is required (boost, speed or null to clear)' });
+        const pace = b.pace, cur = goals.list().find(x => x.id === String(b.id));
         if (!cur) return json(res, 404, { error: 'no such goal' });
         const bad = paceError(cur, pace); if (bad) return json(res, bad.status, { error: bad.error });
         const g = goals.update(cur.id, { pace }); bump();

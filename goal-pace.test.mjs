@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { goalStore, paceFor, paceError, hireGate, promptHash, ALIASES, ROSTER, MAX_SPECIALISTS, hireKey } from './company.mjs';
+import { goalStore, paceFor, paceError, priorityError, hirePace, hireGate, promptHash, ALIASES, ROSTER, MAX_SPECIALISTS, hireKey } from './company.mjs';
 
 const ON = { hiring: true, guard: true };
 const boost = { pace: 'boost' };
@@ -42,8 +42,32 @@ test('pace route rejects a done goal with 409 and bad values with 400', () => {
   assert.equal(paceError({ status: 'dismissed' }, null).status, 409);
   assert.equal(paceError({ status: 'doing' }, 'turbo').status, 400);
   for (const st of ['todo', 'doing', 'blocked']) assert.equal(paceError({ status: st }, 'speed'), null);
+  for (const k of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    assert.equal(paceError({ status: 'doing' }, k).status, 400, 'prototype key ' + k + ' is not a pace');
+    assert.equal(priorityError({ status: 'doing' }, k).status, 400, 'prototype key ' + k + ' is not a priority');
+    assert.equal(paceFor({ pace: k }, ON, null, false), null);
+  }
   const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
   assert.match(src, /const DECISIONS = new Set\(\[[^\]]*'\/api\/goal\/priority', '\/api\/goal\/pace'/);
+});
+
+test('priority route rejects a done goal with 409 and bad values with 400', () => {
+  assert.equal(priorityError({ status: 'done' }, 'high').status, 409);
+  assert.equal(priorityError({ status: 'dismissed' }, 'normal').status, 409);
+  assert.equal(priorityError({ status: 'doing' }, 'urgent').status, 400);
+  for (const st of ['todo', 'doing', 'blocked']) assert.equal(priorityError({ status: st }, 'high'), null);
+  const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  assert.match(src, /if \(!\('pace' in b\)\) return json\(res, 400/, 'a missing pace key is a 400; explicit null clears');
+});
+
+test('a hire request for a boosted goal exposes its pace and model on the approval card', () => {
+  assert.deepEqual(hirePace({ pace: 'boost' }, ON, null, false), { pace: 'boost', model: 'opus' });
+  assert.deepEqual(hirePace({ pace: 'speed' }, ON, null, false), { pace: 'speed', model: 'haiku' });
+  assert.equal(hirePace({ pace: 'boost' }, ON, null, true).pace, 'boost');
+  assert.match(hirePace({ pace: 'boost' }, ON, null, true).paceSkip, /plan limit/);
+  assert.deepEqual(hirePace(undefined, ON, null, false), { pace: null });
+  const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  assert.match(src, /hires: hires\.pending\(\)\.map\(h => \(\{ \.\.\.h, \.\.\.hirePace\(goals\.list\(\)\.find\(g => g\.id === h\.goalId\), sw\(\), limits, overLimit\(\)\) \}\)\)/);
 });
 
 test('hireHook applies pace to updatedInput for that goal only', async () => {
@@ -72,7 +96,6 @@ test('hireHook applies pace to updatedInput for that goal only', async () => {
   const r3 = await hire(b.id, 'Plain work again, please.');
   assert.deepEqual(r3, {}, 'no pace and no espresso: unchanged');
   // Boost while over the Opus window: the hire proceeds on its own model and Tiro and the user are told.
-  env.limits = null;
   const { hireHook: h2 } = new Function(...Object.keys(env), code + '\nreturn { hireHook };')(...Object.values({ ...env, limits: { models: [{ name: 'Opus', pct: 100 }] } }));
   const P = 'Boosted work, second hire.';
   { const { id, promise } = env.hires.request({ key: 'general-purpose', goalId: a.id, promptHash: promptHash(P) }); env.hires.decide(id, true); await promise; }
@@ -80,4 +103,12 @@ test('hireHook applies pace to updatedInput for that goal only', async () => {
   assert.equal(r4.hookSpecificOutput.updatedInput, undefined);
   assert.match(r4.hookSpecificOutput.additionalContext, /^Boost skipped: /);
   assert.match(notes.at(-1), /^Boost skipped: /);
+  // A skipped Boost with espresso on: espresso still applies, in the same hook output as the note.
+  espresso = true;
+  const P2 = 'Boosted work, third hire.';
+  { const { id, promise } = env.hires.request({ key: 'general-purpose', goalId: a.id, promptHash: promptHash(P2) }); env.hires.decide(id, true); await promise; }
+  const r5 = await h2({ tool_use_id: 'y', tool_input: { subagent_type: 'general-purpose', prompt: P2 } });
+  assert.equal(r5.hookSpecificOutput.updatedInput.model, 'haiku');
+  assert.match(r5.hookSpecificOutput.additionalContext, /^Boost skipped: /);
+  assert.equal(espresso, false, 'the cup is used up');
 });

@@ -45,22 +45,34 @@ export function goalStore(file, today = () => new Date().toLocaleDateString('en-
 
 // ---------- goal pace: the model the goal's next hires run on ----------
 export const PACES = { boost: { model: 'opus', effort: 'high' }, speed: { model: 'haiku', effort: 'low' } };
-// Why /api/goal/pace refuses a change: { status, error } or null.
+export const PRIORITIES = ['high', 'normal'];
+// Priority and pace only change on an open goal: { status, error } or null.
+export const goalError = goal => (['todo', 'doing', 'blocked'].includes(goal.status) ? null : { status: 409, error: 'Only an open goal (todo, doing or blocked) can change priority or pace.' });
+// Why /api/goal/pace refuses a change: { status, error } or null. hasOwn: prototype keys like 'constructor' are not paces.
 export function paceError(goal, pace) {
-  if (pace !== null && !PACES[pace]) return { status: 400, error: 'pace must be boost, speed or null' };
-  if (!['todo', 'doing', 'blocked'].includes(goal.status)) return { status: 409, error: 'Pace can only be set on an open goal.' };
-  return null;
+  if (pace !== null && !Object.hasOwn(PACES, pace)) return { status: 400, error: 'pace must be boost, speed or null' };
+  return goalError(goal);
+}
+export function priorityError(goal, priority) {
+  if (!PRIORITIES.includes(priority)) return { status: 400, error: 'priority must be high or normal' };
+  return goalError(goal);
 }
 // Boost never forces a hire through a breaker: it gives way to the hiring switch, the subscription guard and a full Opus window.
 export function paceFor(goal, sw, limits, overLimit) {
-  const p = PACES[goal?.pace];
-  if (!p) return null;
+  if (!goal || !Object.hasOwn(PACES, goal.pace)) return null;
+  const p = PACES[goal.pace];
   if (goal.pace === 'boost') {
     if (!sw.hiring) return { skip: 'Hiring is switched off: Boost will apply when hiring is back on' };
     if (sw.guard && overLimit) return { skip: 'Over the plan limit: Boost will apply when limits reset' };
     if ((limits?.models || []).some(m => /opus/i.test(m.name) && m.pct >= 100)) return { skip: 'The Opus limit is used up: Boost will apply when it resets' };
   }
   return { ...p };
+}
+
+// What a pending hire shows on its approval card: the goal's pace and, live, the model it would run on (or why Boost is skipped).
+export function hirePace(goal, sw, limits, overLimit) {
+  const r = paceFor(goal, sw, limits, overLimit);
+  return { pace: r ? goal.pace : null, ...(r?.model ? { model: r.model } : r?.skip ? { paceSkip: r.skip } : {}) };
 }
 
 // ---------- the manager ----------
