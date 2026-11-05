@@ -111,6 +111,12 @@ The **Agent history** button (bottom left) opens a three-pane browser: agents on
 
 
 
+## Power saver
+
+The animated parts of Agent Office (the office canvas, Tiro's window, the island) can use a surprising share of a GPU if they redraw at full speed all day. **Power saver** (on by default) keeps them calm: the office redraws about 30 times a second only while characters move or you interact with it, about 8 times a second for seated animations, about twice a second when nothing is happening, and not at all while the window is hidden or minimised. Tiro holds still after a few idle seconds and blinks now and then; the island stops its idle breathing while collapsed. Anything that changes (new data, a hover, a click) shows immediately.
+
+Turn it off with the **Power saver** button next to Labels in the office, or in the island's Settings, to get the old constant motion. `prefers-reduced-motion` is always honoured. The setting is stored as `islandSettings.powerSaver` in `kiro.json` and mirrored in the browser as `ao.powerSaver`.
+
 ## Tiro on your desktop
 
 Tiro lives as a small always-on-top character on your desktop. Click to chat, give tasks and approve requests; double-click to open the office. Its mood follows the work: idle, typing, waving a flag when you are needed, confetti when a goal is done, asleep when paused. Hide or show it from the tray.
@@ -141,7 +147,7 @@ All state is under `~/.claude/agent-office/` (your home folder). Nothing here ne
 | File or folder | What it holds |
 |---|---|
 | `bridge.json` | Server port and the terminal bridge key (opens `/bridge/*` only). The UI key is never stored. |
-| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled` and `notchShortcut`), `updateAuto`, `hidden`, optional `schedulerMailbox`. |
+| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled` and `notchShortcut`), `updateAuto`, `tiroIdleMinutes`, `limitsProbeMinutes`, `hidden`, optional `schedulerMailbox`. |
 | `switches.json` | Breaker box switches. |
 | `manager.json` | Tiro auto-approval on or off. |
 | `manager-session.json` | Id of Tiro's current session (one per day). |
@@ -219,3 +225,12 @@ Also: `GET /print/report`, `/print/daily`, `/export/report.xlsx` and `/export/da
 
 The server is local only, requires a random key, checks the `Host` header and sends a strict Content-Security-Policy. Electron windows are sandboxed with context isolation and no Node integration. Installs and updates are https only and SHA-256 verified. Windows and macOS builds are unsigned. Full list in the README.
 
+
+### Background work and memory
+
+Agent Office keeps its background work small. Two settings in `kiro.json` tune it:
+
+- `tiroIdleMinutes` (default 15, `0` = never): Tiro's own `claude` process holds a few hundred MB while idle, so it is closed after this many idle minutes and resumed with the same session id when the next goal arrives. It is never closed while an approval is pending, a specialist is running, a goal is being worked on or Tiro is working.
+- `limitsProbeMinutes` (default 15, at least 5): how often the plan limits are checked. The check starts a `claude` process, so it only runs while a window is visible or Tiro is working.
+
+What you may notice: an old Claude Code session that you resume can take up to a minute to show up on a desk; the live view updates once every 3 seconds while all windows are hidden; the first message after a long break starts Tiro a moment later because its session is resumed. To re-measure on your own machine see `tools/perf/README.md`.

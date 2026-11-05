@@ -127,7 +127,7 @@ ${panels.map(([img, t, d, href, linkText, alt], i) => `<div class="panel${i % 2 
 <section class="block" id="licence">
 <div class="wrap">
 <div class="section-head"><h2>Licence</h2></div>
-<p>Agent Office is proprietary software. All rights reserved. Nobody else may use, copy, modify, publish or distribute it unless the owner gives permission in writing. The installer shows the licence text before installing. The text is a plain-English draft that has not yet been reviewed by a lawyer. Earlier versions published under the MIT licence (1.1.0 to 1.1.4 and 1.2.5) stay available under the terms they were released with. Third-party components keep their own licences, listed in the notices that ship with the installer.</p>
+<p>Agent Office is open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Use it, change it and share it; pull requests are welcome (see the <a href="https://github.com/Ic3krem/agent-office/blob/main/CONTRIBUTING.md">contributing guide</a>). Versions 1.1.0 to 1.1.4 and 1.2.5 were released under MIT. Third-party components keep their own licences, listed in the notices that ship with the installer; the Claude Agent SDK is Anthropic's own software under Anthropic's terms.</p>
 <p>Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan.</p>
 </div>
 </section>

@@ -1,6 +1,6 @@
 # Agent Office product site
 
-Static site: plain HTML, CSS and JavaScript. No build step to host it, no CDN, no remote fonts, no trackers, no cookies. Fonts are local (`assets/fonts`, OFL texts included). Every page carries a strict Content-Security-Policy meta tag. Intended host: GitHub Pages, once the repository and its release downloads are public (the proprietary licence stays).
+Static site: plain HTML, CSS and JavaScript. No build step to host it, no CDN, no remote fonts, no trackers, no cookies. Fonts are local (`assets/fonts`, OFL texts included). Every page carries a strict Content-Security-Policy meta tag. Intended host: GitHub Pages, deployed by .github/workflows/pages.yml, which also refreshes the download counts every six hours.
 
 Preview over http (the pages `fetch` JSON files, which browsers block on `file://`): `python -m http.server -d site`, then open http://localhost:8000/.
 

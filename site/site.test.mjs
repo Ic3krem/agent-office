@@ -46,7 +46,7 @@ test('remote hosts: only claude.com and the public release URLs appear in pages;
   const okHref = new Set([release.url, release.releaseUrl]);
   for (const f of html) {
     const t = rd(f);
-    for (const m of t.matchAll(/\s(?:href|src)="(https?:\/\/[^"]*)"/g)) assert.ok(/^https:\/\/claude\.com\//.test(m[1]) || okHref.has(m[1].replace(/&amp;/g, '&')) || /^https:\/\/github\.com\/Ic3krem\/agent-office\/releases\/download\//.test(m[1]), `${rel(f)} links to ${m[1]}`);
+    for (const m of t.matchAll(/\s(?:href|src)="(https?:\/\/[^"]*)"/g)) assert.ok(/^https:\/\/claude\.com\//.test(m[1]) || okHref.has(m[1].replace(/&amp;/g, '&')) || /^https:\/\/github\.com\/Ic3krem\/agent-office(\/|$)/.test(m[1]), `${rel(f)} links to ${m[1]}`); // the project's own repository (open source)
     assert.doesNotMatch(t, /<link[^>]+href="https?:/i);
     assert.doesNotMatch(t, /<script(?![^>]*\ssrc=")[^>]*>/i, rel(f) + ' inline script');
     assert.doesNotMatch(t, /<style[\s>]/i); assert.doesNotMatch(t, /\sstyle="/i); assert.doesNotMatch(t, /\son[a-z]+="/i);
@@ -252,7 +252,7 @@ test('performance budget: landing HTML, CSS and JS are small', () => {
 test('honest claims: Windows only, unsigned, licence, no fake numbers', () => {
   const d = rs('download.html'), h = rs('index.html');
   assert.match(d, /macOS and Linux builds are not published yet/);
-  assert.match(h, /not code-signed/); assert.match(h, /id="licence"/); assert.match(h, /All rights reserved/);
+  assert.match(h, /not code-signed/); assert.match(h, /id="licence"/); assert.match(h, /Apache License 2\.0/); assert.doesNotMatch(h, /All rights reserved|proprietary software/i);
   assert.match(rs('privacy.html'), /Content Security Policy/);
   assert.doesNotMatch(h + d, /Windows, macOS(,| and) Linux/);
   assert.match(rs('quickstart.html'), /Approve the hire/);

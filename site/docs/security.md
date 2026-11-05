@@ -22,3 +22,12 @@ Report a vulnerability by opening a private security advisory on the GitHub repo
 
 The server is local only, requires a random key, checks the `Host` header and sends a strict Content-Security-Policy. Electron windows are sandboxed with context isolation and no Node integration. Installs and updates are https only and SHA-256 verified. Windows and macOS builds are unsigned. Full list in the README.
 
+
+### Background work and memory
+
+Agent Office keeps its background work small. Two settings in `kiro.json` tune it:
+
+- `tiroIdleMinutes` (default 15, `0` = never): Tiro's own `claude` process holds a few hundred MB while idle, so it is closed after this many idle minutes and resumed with the same session id when the next goal arrives. It is never closed while an approval is pending, a specialist is running, a goal is being worked on or Tiro is working.
+- `limitsProbeMinutes` (default 15, at least 5): how often the plan limits are checked. The check starts a `claude` process, so it only runs while a window is visible or Tiro is working.
+
+What you may notice: an old Claude Code session that you resume can take up to a minute to show up on a desk; the live view updates once every 3 seconds while all windows are hidden; the first message after a long break starts Tiro a moment later because its session is resumed. To re-measure on your own machine see `tools/perf/README.md`.

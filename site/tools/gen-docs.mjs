@@ -204,7 +204,7 @@ write('search-index.json', JSON.stringify(searchIndex));
   const b = config.baseUrl.replace(/\/?$/, '/');
   write('llms.txt', `# Agent Office
 
-> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v${release.version}); macOS and Linux are not published yet. Builds are not code-signed. Proprietary licence, all rights reserved.
+> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v${release.version}); macOS and Linux are not published yet. Builds are not code-signed. Open source, Apache-2.0.
 
 ## Start
 

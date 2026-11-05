@@ -15,8 +15,10 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 | `islandSettings.notchShortcut` | Optional global shortcut that toggles the notch, for example `Ctrl+Alt+N` (empty = none, the default; 2 or 3 modifiers plus a letter, digit or F-key; `Ctrl+Alt+K` is reserved). |
 | `islandMute` | Silence the approval and done chimes. |
 | `islandDisplay` | `cursor` (default), `primary` or a display id. |
-| `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics` (off by default: turning it on looks songs up at lrclib.net, see the guide), `kiroFace`, `animate`. |
+| `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics` (off by default: turning it on looks songs up at lrclib.net, see the guide), `kiroFace`, `animate`, `powerSaver` (default on: caps redraw rates and pauses idle animations to save GPU; see the guide). |
 | `updateAuto` | Check for updates on start (default on). The update feed itself is fixed in the app and cannot be set here. |
+| `tiroIdleMinutes` | Close Tiro's idle `claude` session after this many minutes and resume it with the next goal (default 15, `0` = never). |
+| `limitsProbeMinutes` | Minimum minutes between plan-limit checks (default 15, at least 5). The check only runs while a window is visible or Tiro is working. |
 | `autostart` | Start with Windows (packaged app, default on). |
 | `hidden`, `x`, `y` | Whether the desktop Tiro is hidden, and where it sits. |
 | `workDir` | Folder Tiro runs in, so Claude Code resolves project settings and CLAUDE.md as it would from there (default: your home folder). |
@@ -27,7 +29,7 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 
 | Variable | Effect |
 |---|---|
-| `AGENT_OFFICE_PORT` | Port for `node server.mjs`. The desktop app always uses 4777, so use this for dev servers on a spare port. |
+| `AGENT_OFFICE_PORT` | Pins the server to one port (dev servers next to an installed copy). Unset, the server uses 4777, or the next free port up to 4796 when another program holds it, and writes the port it bound to `bridge.json`; the desktop app and the terminal bridge follow it. |
 | `AGENT_OFFICE_TEAM_ONLY=1` | Presentation mode: show only Tiro and its specialists. |
 | `AGENT_OFFICE_SHOW_ALL=1` | Show the logs and prompts of your other Claude sessions on their desks (hidden by default). |
 | `AGENT_OFFICE_MAILBOX` | The one mailbox the scheduler job reports on (overrides `schedulerMailbox`). |
@@ -52,7 +54,7 @@ All state is under `~/.claude/agent-office/` (your home folder). Nothing here ne
 | File or folder | What it holds |
 |---|---|
 | `bridge.json` | Server port and the terminal bridge key (opens `/bridge/*` only). The UI key is never stored. |
-| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled` and `notchShortcut`), `updateAuto`, `hidden`, optional `schedulerMailbox`. |
+| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled` and `notchShortcut`), `updateAuto`, `tiroIdleMinutes`, `limitsProbeMinutes`, `hidden`, optional `schedulerMailbox`. |
 | `switches.json` | Breaker box switches. |
 | `manager.json` | Tiro auto-approval on or off. |
 | `manager-session.json` | Id of Tiro's current session (one per day). |

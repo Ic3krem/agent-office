@@ -90,9 +90,9 @@ ${main}
 <div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
 <div><h2>Get it</h2><ul><li><a href="${root}download.html">Download for Windows</a></li><li><a href="${root}quickstart.html">Quickstart</a></li><li><a href="${root}changelog.html">Changelog</a></li><li><a href="${root}releases.xml">Releases feed (Atom)</a></li></ul></div>
 <div><h2>Learn</h2><ul><li><a href="${root}docs/index.html">Documentation</a></li><li><a href="${root}docs/security.html">Security</a></li><li><a href="${root}docs/troubleshooting.html">Troubleshooting</a></li><li><a href="${root}llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="${root}index.html#licence">Licence: proprietary</a></li><li><a href="${root}privacy.html">Privacy</a></li><li><a href="${root}stats.html">Download statistics</a></li></ul></div>
+<div><h2>Legal</h2><ul><li><a href="${root}index.html#licence">Licence: Apache-2.0</a></li><li><a href="${root}privacy.html">Privacy</a></li><li><a href="${root}stats.html">Download statistics</a></li></ul></div>
 </div>
-<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
 </div>
 </footer>
 ${allScripts.map(s => `<script src="${root}assets/${s}" defer></script>`).join('\n')}
