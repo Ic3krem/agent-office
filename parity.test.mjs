@@ -138,7 +138,7 @@ test('hooks, MCP servers and env of the user are not replaced: only our hire gat
   const boss = s.slice(s.indexOf('const bossOptions = () =>'), s.indexOf('function tellBoss'));
   assert.match(boss, /PreToolUse: \[denyClaudeLaunch, \{ hooks: \[secGuard\.pre\] \}, \{ matcher: 'Agent\|Task'/);
   assert.match(boss, /PostToolUse: \[\{ hooks: \[secGuard\.post\] \}\]/); assert.match(boss, /UserPromptSubmit: \[\{ hooks: \[secGuard\.prompt\] \}\]/);
-  assert.match(boss, /mcpServers: \{ office: officeTools \}/);
+  assert.match(boss, /mcpServers: \{ office: officeTools\(\) \}/);
   assert.doesNotMatch(boss, /USER_ENV|\benv:/);
   const roster = read('./company.mjs');
   assert.doesNotMatch(roster, /permissionMode/, 'no agent definition sets a permission mode');

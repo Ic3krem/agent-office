@@ -121,13 +121,38 @@ const BUILTIN = Object.values(RoleCatalog.BUILTIN_DESKS);
 const BUILTIN_DESK = Object.fromEntries(Object.entries(RoleCatalog.BUILTIN_DESKS).map(([d, k]) => [k, d]));
 // Every catalog role, key = subagent_type. desk is set only for the eight built-ins (their desk in the default layout).
 export const ROSTER = Object.fromEntries(RoleCatalog.ROLES.map(({ key, ...r }) => [key, { ...r, ...SPECS[key], ...(BUILTIN_DESK[key] && { desk: BUILTIN_DESK[key] }) }]));
-// Role keys of the layout's department desks in desk order; a desk without a role param holds its built-in role. No layout: the eight.
-export function activeKeys(layout) {
-  if (!layout) return [...BUILTIN];
+// {key, desk} of the layout's department desks in desk order; a desk without a role param holds its built-in role. No layout: the eight.
+export function activeDesks(layout) {
+  if (!layout) return BUILTIN.map(key => ({ key, desk: BUILTIN_DESK[key] }));
   const n = o => Number(String(o.desk).replace(/\D/g, '')) || 0;
   return (layout.objects || []).filter(o => o.type === 'dept-desk').sort((a, b) => n(a) - n(b))
-    .map(o => o.role || RoleCatalog.BUILTIN_DESKS[o.desk]).filter(k => ROSTER[k]);
+    .map(o => ({ key: o.role || RoleCatalog.BUILTIN_DESKS[o.desk], desk: o.desk })).filter(d => ROSTER[d.key]);
 }
+// Role keys of the layout's department desks in desk order.
+export const activeKeys = layout => activeDesks(layout).map(d => d.key);
+// The team the office has now, kept in step with the saved layout (store = createWorldStore). at() changes whenever the roles do,
+// so the manager's session can tell its team is out of date.
+export function liveRoster(store) {
+  let desks = activeDesks(store.load().layout), at = 0;
+  const keys = () => desks.map(d => d.key);
+  return {
+    keys, desks: () => desks, at: () => at,
+    deskOf: k => desks.find(d => d.key === k)?.desk,
+    // Saves the layout, unless it retires a role whose specialist is working (busy(key)): then 409 and nothing is written.
+    save(layout, busy = () => false, nameOf = k => ROSTER[k].name) {
+      const next = Array.isArray(layout?.objects) ? activeDesks(layout) : null;
+      const gone = next && keys().find(k => !next.some(d => d.key === k) && busy(k));
+      if (gone) return { ok: false, status: 409, error: nameOf(gone) + ' is working; wait or stop them first' };
+      const r = store.save(layout);
+      if (!r.ok) return { ...r, status: 400 };
+      if (next.map(d => d.key).join() !== keys().join()) at++;
+      desks = next;
+      return { ok: true };
+    },
+  };
+}
+// request_hire: the roster key for a subagent_type (old names resolve), or why it cannot be hired.
+export const hireKey = (type, keys) => { const k = ALIASES[type] || type; return keys.includes(k) ? { key: k } : { error: 'No desk for ' + k + '. Available: ' + keys.join(', ') }; };
 // The parts of the manager's brief that name the team.
 const andList = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join('');
 const WORDS = ['no', 'one', 'two', 'three', 'four'];
@@ -258,8 +283,8 @@ export function assignHelpers(agents, names = {}) {
 // Look and desk for a subagent_type (old names resolve through ALIASES); null for anything else.
 // deskOf(key) gives the desk id in the active layout.
 export const profileOf = (type, deskOf = k => ROSTER[k].desk) => { const k = ALIASES[type] || type; const r = ROSTER[k]; return r ? { key: k, name: r.name, role: r.role, color: r.color, accent: r.accent, desk: deskOf(k) } : null; };
-// Everything the SDK may hire: the eight, plus the old names as aliases of the same definitions.
-export const withAliases = team => ({ ...team, ...Object.fromEntries(Object.entries(ALIASES).map(([o, k]) => [o, team[k]])) });
+// Everything the SDK may hire: the team, plus the old names as aliases of the same definitions.
+export const withAliases = team => ({ ...team, ...Object.fromEntries(Object.entries(ALIASES).filter(([, k]) => team[k]).map(([o, k]) => [o, team[k]])) });
 
 // The filing cabinet can rewrite any of the eight specialists: a note named specialist-<key>.md replaces its instructions
 // (old names such as specialist-researcher are ignored; other names do not add a ninth specialist). Frontmatter can set:

@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { goalStore, MANAGER_PROMPT, SPECIALISTS, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
+import { goalStore, MANAGER_PROMPT, managerPrompt, specialists, liveRoster, hireKey, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -37,7 +37,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEAM_ONLY = !!process.env.AGENT_OFFICE_TEAM_ONLY;
 // Other Claude sessions on this PC show on a desk, but their logs and task text stay private unless AGENT_OFFICE_SHOW_ALL=1.
 const SHOW_ALL = process.env.AGENT_OFFICE_SHOW_ALL === '1';
-const RECENT_MS = 45 * 60e3, TAIL_BYTES = 512 * 1024, DESKS = 8;
+const RECENT_MS = 45 * 60e3, TAIL_BYTES = 512 * 1024;
 // How long a request waits once it is on screen. Office sessions have no terminal to fall back to, so they wait longer;
 // bridged terminals fall back to their own dialog.
 const BRIDGE_WAIT_MS = 90e3;
@@ -48,6 +48,8 @@ const WORLD_DIR = path.join(CFG_DIR, 'world');
 lockDown(WORLD_DIR, [path.join(WORLD_DIR, 'layout.json')]);
 const worldStore = createWorldStore(WORLD_DIR);
 let worldNow = worldStore.load();   // cached for GET /api/world; validated only on load and save
+// The team follows the department desks in the saved layout: Tiro hires only roles that have a desk.
+const roster = liveRoster(worldStore), currentKeys = roster.keys;
 const { key: BRIDGE_KEY, rotated: KEY_ROTATED } = loadBridgeKey(CFG_FILE); // the port is written once one is bound
 // Electron hands the UI key over in the environment and sets the cookie itself; take it out of the environment so no child process inherits it.
 const ENV_UI_KEY = typeof process.env.AGENT_OFFICE_UI_KEY === 'string' && process.env.AGENT_OFFICE_UI_KEY.length >= 32 ? process.env.AGENT_OFFICE_UI_KEY : '';
@@ -94,7 +96,6 @@ V.sop('kiro-brief', MANAGER_PROMPT);
 // An unedited brief from before the Tiro rename (old name and 5-role roster) is replaced; an edited one is kept.
 if (/^\s*# You are Kiro, the office manager/.test(V.sop('kiro-brief', MANAGER_PROMPT))) { V.saveSop('kiro-brief', MANAGER_PROMPT); delete PINS['kiro-brief']; }
 { const mb = migrateBrief(V.sop('kiro-brief', MANAGER_PROMPT)); if (mb) { V.saveSop('kiro-brief', mb); delete PINS['kiro-brief']; } }
-for (const [k, d] of Object.entries(SPECIALISTS)) V.sop('specialist-' + k, d.prompt);
 // SOP notes steer every agent, so a note edited outside Agent Office (a file write, a synced folder) is not trusted: it is ignored
 // until you save it in the app. Hashes of the notes you last saved are pinned in sop-pins.json; first run pins what is there.
 const PIN_FILE = path.join(CFG_DIR, 'sop-pins.json');
@@ -102,6 +103,9 @@ let PINS = {}; try { PINS = JSON.parse(fs.readFileSync(PIN_FILE, 'utf8')); } cat
 const sopHash = t => crypto.createHash('sha256').update(String(t).replace(/\r\n/g, '\n'), 'utf8').digest('hex');
 const savePins = () => writePrivate(PIN_FILE, JSON.stringify(PINS));
 const pinSop = name => { const x = V.sops().find(y => y.name === name); if (x) { PINS[name] = sopHash(x.text); savePins(); } };
+// A role's SOP note is written from the built-in text the first time it has a desk, and pinned: it is our own text.
+const seedSops = () => { for (const [k, d] of Object.entries(specialists(currentKeys()))) if (!V.sops().some(x => x.name === 'specialist-' + k)) { V.sop('specialist-' + k, d.prompt); pinSop('specialist-' + k); } };
+seedSops();
 for (const x of V.sops()) if (!PINS[x.name]) PINS[x.name] = sopHash(x.text);
 savePins();
 const sopTrusted = x => PINS[x.name] === sopHash(x.text);
@@ -109,9 +113,10 @@ const trustedSops = () => V.sops().filter(sopTrusted);
 const warnedSops = new Set();
 const briefText = () => {
   const t = V.sop('kiro-brief', MANAGER_PROMPT);
+  if (t.replace(/\r\n/g, '\n').trim() === MANAGER_PROMPT.trim()) return managerPrompt(currentKeys()); // unedited: name today's team
   if (PINS['kiro-brief'] === sopHash(t)) return t;
   if (!warnedSops.has('kiro-brief' + sopHash(t))) { warnedSops.add('kiro-brief' + sopHash(t)); console.error('SOP kiro-brief changed outside Agent Office; using the built-in brief until you save it in the app.'); }
-  return MANAGER_PROMPT;
+  return managerPrompt(currentKeys());
 };
 const switches = switchBox(path.join(CFG_DIR, 'switches.json'));
 const sw = () => switches.get();
@@ -217,7 +222,7 @@ const scanner = createScanner({
   projects: PROJECTS, fs,
   onFile: (file, id, extra, st) => { try { track(file, id, extra, st); } catch {} },
   isKnown: id => agents.has(id),
-  subExtra: (meta, parent) => ({ role: 'Helper \u00b7 ' + (meta.agentType || 'agent'), profile: profileOf(meta.agentType), name: meta.description || 'Helper', parent, helper: true }),
+  subExtra: (meta, parent) => ({ role: 'Helper \u00b7 ' + (meta.agentType || 'agent'), profile: profileOf(meta.agentType, roster.deskOf), name: meta.description || 'Helper', parent, helper: true }),
 });
 const scan = () => scanner.tick();
 
@@ -294,7 +299,8 @@ function startSession(text, cwd = HOME, extra = {}) {
 // ---------- the manager: one long-running session that plans, hires specialists and works the goal board ----------
 const today = () => new Date().toLocaleDateString('en-CA');
 const say = t => { const a = boss.id && agents.get(boss.id); if (a) { a.logs.push({ t: new Date().toTimeString().slice(0, 8), k: 'sys', text: t }); bump(); } };
-const officeTools = createSdkMcpServer({
+// Built per manager session, so request_hire's description names the roles that have a desk now.
+const officeTools = () => createSdkMcpServer({
   name: 'office',
   tools: [
     tool('list_goals', "List today's goals with id, status (proposed, todo, doing, blocked, done, dismissed) and note.", {}, async () =>
@@ -328,14 +334,15 @@ const officeTools = createSdkMcpServer({
       try { V.write(name, { description, body }); say('Memory saved: ' + name); return { content: [{ type: 'text', text: 'saved' }] }; } catch (e) { return { content: [{ type: 'text', text: e.message }], isError: true }; }
     }),
     tool('request_hire', 'Ask the user for approval to hire ONE specialist sub-agent. Required before every Agent call; it waits for the answer. Only for work you cannot do yourself or by reusing a specialist already on the team.', {
-      specialist: z.string().describe('subagent_type: pixel, forge, warden, probe, atlas, cabalan, tally or scribe'),
+      specialist: z.string().describe('subagent_type: ' + currentKeys().join(', ')),
       goal_id: z.string().describe('the open goal this hire serves'),
       why: z.string().describe('Concrete reason this needs a separate sub-agent (what, and why you cannot do it yourself)'),
       prompt: z.string().describe('The exact first prompt you will pass to the Agent tool for this hire. The user approves this text, and the Agent call must use it unchanged.'),
     }, async ({ specialist, goal_id, why, prompt }) => {
       const deny = text => ({ content: [{ type: 'text', text }], isError: true });
-      const key = ALIASES[specialist] || specialist, r = ROSTER[key];
-      if (!r) return deny('Unknown specialist. Choose one of: ' + Object.keys(ROSTER).join(', '));
+      const hk = hireKey(specialist, currentKeys());
+      if (hk.error) return deny(hk.error);
+      const key = hk.key, r = ROSTER[key];
       if (!sw().hiring) return deny('Hiring is switched off in the office breaker box. Do the work yourself or mark the goal blocked.');
       const g = goals.list().find(x => x.id === goal_id);
       if (!g || !['todo', 'doing'].includes(g.status)) return deny('goal_id must be an open goal (todo or doing) on the board.');
@@ -366,7 +373,7 @@ const LIMITS_OPTS = { settingSources: [], strictMcpConfig: true, env: { ...proce
 // Same project resolution as `claude` run from a folder: the folder is HOME unless "workDir" in kiro.json names another existing one.
 const workDir = () => { try { const w = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')).workDir; if (typeof w === 'string' && path.isAbsolute(w) && fs.statSync(w).isDirectory()) return w; } catch {} return HOME; };
 // The user may rename the team; types and ids stay the same, so tell the manager what each one is called now.
-const nameNote = () => { const d = dnames(), o = Object.entries(d).filter(([k, n]) => n !== (k === 'tiro' ? 'Tiro' : ROSTER[k].name)); return o.length ? '\n\nDisplay names chosen by the user (still hire by the subagent_type): ' + o.map(([k, n]) => (k === 'tiro' ? 'you are called ' + n : k + ' is called ' + n)).join('; ') + '.' : ''; };
+const nameNote = () => { const d = dnames(), on = currentKeys(), o = Object.entries(d).filter(([k, n]) => (k === 'tiro' || on.includes(k)) && n !== (k === 'tiro' ? 'Tiro' : ROSTER[k].name)); return o.length ? '\n\nDisplay names chosen by the user (still hire by the subagent_type): ' + o.map(([k, n]) => (k === 'tiro' ? 'you are called ' + n : k + ' is called ' + n)).join('; ') + '.' : ''; };
 // Hire gate, command side: a shell command that launches Claude itself would start an agent without request_hire. Deny-only, never approves.
 // ---- Security Guard (ask-only; see docs/security-guard.md). Settings: kiro.json "guard" + guard/confirmed.json (HMAC), audit: guard/audit.jsonl.
 const GUARD_DIR = path.join(CFG_DIR, 'guard');
@@ -403,20 +410,21 @@ const bossOptions = () => {
     // No model, effort, tools or settings overrides: Tiro uses your Claude Code defaults, like a plain `claude` in this folder.
     resume: saved.date === today() ? saved.id : undefined, // the same manager all day, a fresh one each morning
     systemPrompt: { type: 'preset', preset: 'claude_code', append: briefText() + nameNote() + AH.note('tiro') + `\nEach hire starts a fresh context: put what the specialist must know in the Agent prompt. Specialist memory folders are under ${AH.dir('tiro')}.\n\nThe vault's agent folder is ${V.base} (Memory/, Reports/, Daily/).` },
-    agents: Object.fromEntries(Object.entries(withAliases(teamFromSops(trustedSops()))).map(([k, d]) => [k, { ...d, prompt: d.prompt + `
+    agents: Object.fromEntries(Object.entries(withAliases(teamFromSops(trustedSops(), currentKeys()))).map(([k, d]) => [k, { ...d, prompt: d.prompt + `
 Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).` + AH.note(ALIASES[k] || k) }])),
-    mcpServers: { office: officeTools },
+    mcpServers: { office: officeTools() },
     allowedTools: ['request_hire', 'list_goals', 'update_goal', 'propose_goal', 'file_report', 'memory_search', 'memory_read', 'memory_write', 'scheduler_inbox'].map(t => 'mcp__office__' + t),
     hooks: {
       PreToolUse: [denyClaudeLaunch, { hooks: [secGuard.pre] }, { matcher: 'Agent|Task', hooks: [async input => {
         const no = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
         if (!sw().hiring) return no('Hiring is switched off in the office breaker box. Do the work yourself if it is small, or mark the goal blocked.');
         if (boss.running >= MAX_SPECIALISTS) return no(MAX_SPECIALISTS + ' specialists are already working. Wait for a report, then hire again.');
+        { const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type; if (ROSTER[k] && !currentKeys().includes(k)) return no(hireKey(k, currentKeys()).error); }
         { const chk = hires.check(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt);
           if (!chk.ok) return no(chk.why === 'prompt differs from the approved one' ? 'The Agent prompt must be exactly the prompt approved in request_hire. Call request_hire again with the prompt you really want to send.' : 'Hiring needs user approval first: call mcp__office__request_hire (specialist, goal_id, why, prompt) and wait for "approved". Do small work yourself and reuse idle specialists.');
           hires.consume(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt); hireGoal[ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type] = chk.goalId; }
         { const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type;
-          if (ROSTER[k]) { try { AH.start(k, { goalId: hireGoal[k], title: input.tool_input?.description, brief: input.tool_input?.prompt }); } catch {} delete hireGoal[k]; } }
+          if (currentKeys().includes(k)) { try { AH.start(k, { goalId: hireGoal[k], title: input.tool_input?.description, brief: input.tool_input?.prompt }); } catch {} delete hireGoal[k]; } }
         boss.running++; boss.progress = true; bump();
         // Espresso: this hire runs on the fast model; the cup is used up.
         if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
@@ -431,15 +439,17 @@ Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).
 function tellBoss(text) {
   if (!sw().kiro || (sw().guard && overLimit())) return false; // switched off, or paused at a plan limit: the goal waits on the board
   boss.startedAt = Date.now(); // activity marker for the idle-session timer
+  // The desks changed since this session started and Tiro is between turns with nobody out working: restart with the new team, then send the text.
+  if (boss.push && boss.id && !bossActive() && roster.at() !== boss.rosterAt) { boss.reload = text; stopBoss(); return true; }
   if (boss.push) return boss.push(text);
   boss.push = () => {}; // claimed while starting so a second click can't start a second manager
   startSession(text, workDir(), {
     options: bossOptions(),
     agent: { role: 'Manager', isManager: true, title: MANAGER.name },
-    onInit: (id, push) => { boss.sopAt = V.sopStamp(); boss.id = id; boss.push = push; fs.writeFileSync(BOSS_FILE, JSON.stringify({ id, date: today() })); },
+    onInit: (id, push) => { boss.sopAt = V.sopStamp(); boss.rosterAt = roster.at(); boss.id = id; boss.push = push; fs.writeFileSync(BOSS_FILE, JSON.stringify({ id, date: today() })); },
     onResult: () => {
       // SOP notes changed since this session started: end it between turns so the next turn resumes with them.
-      if (V.sopStamp() > boss.sopAt && !boss.running) { host.note('SOPs changed; Tiro reloads them on its next turn'); boss.reload = true; stopBoss(); }
+      if ((V.sopStamp() > boss.sopAt || roster.at() !== boss.rosterAt) && !boss.running) { host.note('SOPs or desks changed; Tiro reloads them on its next turn'); boss.reload = true; stopBoss(); }
       // Keep working while the last turn moved something and goals are open; a turn with no progress waits for the user.
       // Busy specialists wake Tiro when they report, so only nudge when nobody is out working.
       if (sw().autopilot && boss.progress && !boss.running && goals.open().length && boss.autoRuns < 30) {
@@ -452,7 +462,8 @@ function tellBoss(text) {
       hires.clear();
       if (!boss.id) fs.rmSync(BOSS_FILE, { force: true });
       const reload = boss.reload; Object.assign(boss, { id: null, push: null, running: 0, reload: false }); bump();
-      if (reload && sw().autopilot && goals.open().length) tellBoss("Your SOPs were updated. Continue with today's goals using them.");
+      if (typeof reload === 'string') tellBoss(reload);
+      else if (reload && sw().autopilot && goals.open().length) tellBoss("Your SOPs or team were updated. Continue with today's goals using them.");
     },
   });
 }
@@ -467,10 +478,11 @@ function snapshot() {
   const allReports = reports.list(), reportOf = Object.fromEntries(allReports.filter(r => r.goalId).reverse().map(r => [r.goalId, r.file]));
   const dn = dnames(), withName = p => p && { ...p, name: dn[p.key] || p.name };
   const helpers = assignHelpers(list, dn); // one person per specialist; extra same-type agents are labelled helpers
-  const shown = list.slice(0, DESKS).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
+  const deskCap = roster.keys().length; // one desk per role in the layout (at most 12); the hire cap stays MAX_SPECIALISTS
+  const shown = list.slice(0, deskCap).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   return {
     worldVersion: worldStore.version(),
-    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - DESKS),
+    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => ({
       isManager: !!a.isManager,
       id: a.id, name: a.isManager ? dn.tiro : helpers.get(a.id)?.helper ? helpers.get(a.id).label : dn[a.profile?.key] || a.title || a.name || a.firstPrompt || path.basename(a.cwd || '') || a.id.slice(0, 8),
@@ -614,9 +626,10 @@ async function handle(req, res) {
       }
       case '/api/world/template/delete': return json(res, 200, worldStore.deleteTemplate(b.id));
       case '/api/world': {
-        const r = worldStore.save(b.layout);
-        if (!r.ok) return json(res, 400, { errors: r.errors });
-        worldNow = { layout: b.layout, source: 'file' }; bump();
+        // A role whose specialist is out working cannot lose its desk (409, nothing saved).
+        const r = roster.save(b.layout, k => boss.running > 0 && AH.openCount(k) > 0, k => dnames()[k]);
+        if (!r.ok) return json(res, r.status, r.status === 409 ? { error: r.error } : { errors: r.errors });
+        worldNow = { layout: b.layout, source: 'file' }; seedSops(); bump();
         return json(res, 200, { ok: true });
       }
       case '/api/goal': {
@@ -637,7 +650,10 @@ async function handle(req, res) {
         if (id !== uiState.sel) { uiState.sel = id === null ? undefined : id; bump(); }
         return json(res, 200, { ok: true });
       }
-      case '/api/roster': return json(res, 200, { roster: Object.entries(ROSTER).map(([key, r]) => ({ key, name: dnames()[key], defaultName: r.name, role: r.role, model: r.model, color: r.color, accent: r.accent, desk: r.desk, brief: r.brief, tools: r.tools })), max: MAX_SPECIALISTS }); // read-only
+      case '/api/roster': { // read-only: the roles with a desk, and the catalog roles without one
+        const card = key => { const r = ROSTER[key]; return { key, name: dnames()[key], defaultName: r.name, role: r.role, model: r.model, color: r.color, accent: r.accent, desk: roster.deskOf(key), brief: r.brief, tools: r.tools }; };
+        return json(res, 200, { roster: currentKeys().map(card), available: Object.keys(ROSTER).filter(k => !currentKeys().includes(k)).map(card), max: MAX_SPECIALISTS });
+      }
       case '/api/guard/log': return json(res, 200, { entries: guardAudit.read(Math.min(500, Number(b.limit) || 200)), status: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length } });
       case '/api/guard/status': return json(res, 200, { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length });
       case '/api/names': return json(res, 200, { names: dnames(), defaults: { tiro: 'Tiro', ...Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])) }, overrides: nameBox.get() });

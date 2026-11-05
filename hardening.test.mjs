@@ -107,7 +107,7 @@ function startServer() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-brg-')), port = 47500 + Math.floor(Math.random() * 400);
   const uiKey = crypto.randomBytes(24).toString('hex');
   const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
-    env: { ...process.env, USERPROFILE: tmp, HOME: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    env: { ...process.env, USERPROFILE: tmp, HOME: tmp, APPDATA: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let out = ''; child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
   return new Promise((resolve, reject) => {
     const t0 = Date.now();
@@ -177,4 +177,23 @@ test('/api/world: UI cookie and nonce required; a bad layout is refused with err
   assert.equal(tl.filter(x => x.builtIn).length, 3);
   assert.equal((await call(s.port, '/api/world/templates', { headers: { cookie }, body: { name: 'x', layout: first.layout } })).status, 403, 'template save needs the nonce');
   assert.equal((await call(s.port, '/api/world/template?id=../x', { method: 'GET', headers: h })).status, 400);
+});
+
+test('/api/roster follows the desks: adding an it desk via /api/world puts it on the roster', { timeout: 60000 }, async t => {
+  const s = await startServer();
+  t.after(() => { try { s.child.kill(); } catch {} });
+  const cookie = 'ao_ui=' + s.uiKey;
+  const page = await call(s.port, '/', { method: 'GET', headers: { cookie } });
+  const h = { cookie, 'x-nonce': page.headers['set-cookie'].join(';').match(/ao_nonce=([0-9a-f]+)/)[1] };
+  const r0 = JSON.parse((await call(s.port, '/api/roster', { headers: h })).body);
+  assert.deepEqual(r0.roster.map(r => r.key), ['pixel', 'forge', 'warden', 'probe', 'atlas', 'cabalan', 'tally', 'scribe']);
+  assert.deepEqual(r0.available.map(r => r.key).sort(), ['accounting', 'auditor', 'it', 'marketing', 'notetaker']);
+  assert.equal(r0.max, 8);
+  const { layout } = JSON.parse((await call(s.port, '/api/world', { method: 'GET', headers: h })).body);
+  layout.objects.push({ id: 'desk-9', type: 'dept-desk', x: 1120, y: 500, desk: 'desk-9', role: 'it' });
+  assert.equal((await call(s.port, '/api/world', { headers: h, body: { layout } })).status, 200);
+  const r1 = JSON.parse((await call(s.port, '/api/roster', { headers: h })).body);
+  assert.equal(r1.roster.at(-1).key, 'it'); assert.equal(r1.roster.at(-1).desk, 'desk-9');
+  assert.ok(!r1.available.some(r => r.key === 'it'));
+  assert.ok(fs.readdirSync(s.tmp, { recursive: true }).some(f => String(f).endsWith('specialist-it.md')), 'the new role gets its SOP note');
 });
