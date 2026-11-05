@@ -221,8 +221,8 @@ button:disabled{opacity:.45;cursor:default}
     </sc-if>
 
     <sc-if value="{{ hasRadial }}" hint-placeholder-val="{{ false }}">
-      <div role="menu" aria-label="{{ mgrMenu }}" style="position:fixed; left:{{ menuX }}px; top:{{ menuY }}px; width:0; height:0; z-index:3100;">
-        <sc-for list="{{ radialBtns }}" as="b" hint-placeholder-count="4"><button class="pill sm" role="menuitem" onClick="{{ b.onClick }}" style="position:absolute; left:{{ b.l }}px; top:{{ b.t }}px; transform:translate(-50%,-50%); white-space:nowrap; box-shadow:0 6px 18px rgba(0,0,0,.45); animation:pop .15s ease-out;">{{ b.label }}</button></sc-for>
+      <div role="menu" aria-label="{{ mgrMenu }}" style="position:fixed; left:{{ menuX }}px; top:{{ menuY }}px; width:0; height:0; z-index:3100; animation:pop .15s ease-out;">
+        <sc-for list="{{ radialBtns }}" as="b" hint-placeholder-count="4"><button class="pill sm" role="menuitem" onClick="{{ b.onClick }}" style="position:absolute; left:{{ b.l }}px; top:{{ b.t }}px; transform:translate(-50%,-50%); white-space:nowrap; box-shadow:0 6px 18px rgba(0,0,0,.45);">{{ b.label }}</button></sc-for>
       </div>
     </sc-if>
     <sc-if value="{{ hasPick }}" hint-placeholder-val="{{ false }}">
@@ -551,11 +551,15 @@ class Component extends DCLogic {
   zoomBy(k,cx,cy){this.setView(OfficeMotion.zoomAt(this.view||this.state.view,k,cx||0,cy||0));}
   // Zoomed in, keep the walking CEO inside the middle 60% of the office view; at z=1 the camera stays put.
   followCeo(sx,sy){
-    const v=this.view||this.state.view,el=this.wrapRef.current;if(!this.state.follow||v.z<=1.001||!el||!this.origin)return;
-    const r=el.getBoundingClientRect(),o=this.origin(),k=(this.fitSc||1)*v.z;
-    const into=(p,lo,hi)=>p<lo?lo-p:p>hi?hi-p:0;
-    const dx=into(o.x+v.x+(sx-740)*k,r.left+r.width*.2,r.right-r.width*.2),dy=into(o.y+v.y+(sy-460)*k,r.top+r.height*.2,r.bottom-r.height*.2);
-    if(dx||dy)this.setView({z:v.z,x:v.x+dx,y:v.y+dy});
+    const s=this.state,v=this.view||s.view,el=this.wrapRef.current;if(!s.follow||v.z<=1.001||!el||!this.origin||this.camDrag)return;
+    const r=el.getBoundingClientRect(),o=this.origin(),f=this.fitSc||1,k=f*v.z,vp=this.vp||{w:r.width,h:r.height},i=this.insets();
+    // the part of the office you can see: the Build insets, the open Today panel (wide) and the chat bottom sheet (narrow)
+    const L=r.left+i.l+(s.todayOpen&&s.vw>=700&&!s.building?304:0),T=r.top+i.t,R=r.left+i.l+vp.w,B=r.top+i.t+vp.h-(this.sel()&&!s.popout&&s.vw<1100?innerHeight*.62:0);
+    const into=(p,lo,hi)=>p<lo?lo-p:p>hi?hi-p:0,W=Math.max(0,R-L),H=Math.max(0,B-T);
+    const dx=into(o.x+v.x+(sx-740)*k,L+W*.2,R-W*.2),dy=into(o.y+v.y+(sy-460)*k,T+H*.2,B-H*.2);
+    if(!dx&&!dy)return;
+    const c=OfficeMotion.clampView({z:v.z,x:v.x+dx,y:v.y+dy},vp.w,vp.h,f,1480,920);
+    if(Math.abs(c.x-v.x)>=.5||Math.abs(c.y-v.y)>=.5)this.setView(c); // pinned at the stage edge: no re-render
   }
   // E / tap near someone: Tiro gets the radial menu, a specialist a desk card. Again on the same target closes it.
   openNear(n){
@@ -577,7 +581,8 @@ class Component extends DCLogic {
   ceoVals(){
     const s=this.state,m=s.menu,vw=s.vw,vh=window.innerHeight,cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
     const coarse=typeof matchMedia==='function'&&matchMedia('(pointer: coarse)').matches;
-    const ax=m?cl(m.x,110,vw-110):0,ay=m?cl(m.y,90,vh-90):0,pick=mode=>()=>this.setState({menu:{...m,kind:'pick',mode}});
+    const ax=m?cl(m.x,140,vw-140):0,ay=m?cl(m.y,86,vh-86):0, // radial reach: ±(84+~50) x, ±(62+~16) y, plus a margin
+      pick=mode=>()=>this.setState({menu:{...m,kind:'pick',mode}});
     const a=m&&m.kind==='card'&&s.agents.find(x=>x.id===m.id),st=a&&(STATUS[a.status]||STATUS.idle);
     const joy=e=>{const el=e.currentTarget,r=el.getBoundingClientRect(),R=r.width/2;let dx=(e.clientX-r.left-R)/R,dy=(e.clientY-r.top-R)/R;const n=Math.hypot(dx,dy);if(n>1){dx/=n;dy/=n;}el.firstElementChild.style.transform='translate('+dx*R*.6+'px,'+dy*R*.6+'px)';window.OfficeWorld&&OfficeWorld.setJoystick(dx,dy);};
     const joyEnd=e=>{e.currentTarget.firstElementChild.style.transform='';window.OfficeWorld&&OfficeWorld.setJoystick(0,0);};
@@ -600,8 +605,8 @@ class Component extends DCLogic {
     this.onWheel=e=>{if(!onCanvas(e))return;e.preventDefault();const o=origin();this.zoomBy(Math.exp(-e.deltaY*0.0016),e.clientX-o.x,e.clientY-o.y);};
     let drag=null;
     this.onDown=e=>{if(e.button!==0||!onCanvas(e)||(this.view||this.state.view).z<=1.001)return;const v=this.view||this.state.view;drag={x:e.clientX,y:e.clientY,vx:v.x,vy:v.y,moved:false};};
-    this.onMove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<5)return;if(!drag.moved){drag.moved=true;el.style.cursor='grabbing';}this.setView({z:(this.view||this.state.view).z,x:drag.vx+dx,y:drag.vy+dy});};
-    this.onUp=()=>{if(drag&&drag.moved){this.swallow=Date.now()+60;}drag=null;el.style.cursor='';};
+    this.onMove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<5)return;if(!drag.moved){drag.moved=true;this.camDrag=true;el.style.cursor='grabbing';}this.setView({z:(this.view||this.state.view).z,x:drag.vx+dx,y:drag.vy+dy});};
+    this.onUp=()=>{if(drag&&drag.moved){this.swallow=Date.now()+60;}drag=null;this.camDrag=false;el.style.cursor='';};
     this.onClickCap=e=>{if(this.swallow&&Date.now()<this.swallow){e.stopPropagation();e.preventDefault();this.swallow=0;}else if(this.session&&this.state.armed&&e.target.tagName==='CANVAS'){e.stopPropagation();this.place(this.state.armed,e.clientX,e.clientY);}};
     this.onDragOver=e=>{if(this.session&&e.dataTransfer&&[...e.dataTransfer.types].includes('text/x-ao-piece'))e.preventDefault();};
     this.onDrop=e=>{const t=this.session&&e.dataTransfer&&e.dataTransfer.getData('text/x-ao-piece');if(!t)return;e.preventDefault();this.place(t,e.clientX,e.clientY);};
