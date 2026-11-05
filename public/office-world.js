@@ -477,6 +477,7 @@
   }
   // One edit from a key or the page's edit bar: 'undo' | 'redo' | 'duplicate' | 'delete' (the selection),
   // 'zoneType' (arg: type, the selected zone), 'load' (arg: a whole layout). Refusals are toasted; returns the Result.
+  // Deleting a department desk goes through hooks.onRetire(desk, confirm) when the page set it (arg 'confirmed' skips it).
   function buildOp(name, arg) {
     if (!build) return { ok: false, reason: 'not in build mode' };
     const none = { ok: false, reason: 'nothing selected' };
@@ -485,7 +486,17 @@
     if (name === 'undo') build.undo();
     else if (name === 'redo') build.redo();
     else if (name === 'duplicate') { if (!sel || sel.kind !== 'obj') return none; r = build.duplicate(sel.id); if (r.ok) setSel({ kind: 'obj', id: r.id }); }
-    else if (name === 'delete') { if (!sel) return none; r = sel.kind === 'zone' ? build.removeZone(sel.id) : build.remove(sel.id); if (sel.kind === 'zone') noteZone(r); }
+    else if (name === 'delete') {
+      if (!sel) return none;
+      const o = sel.kind === 'obj' && arg !== 'confirmed' && bhooks.onRetire && blayout.objects.find(p => p.id === sel.id);
+      if (o && o.type === 'dept-desk') { // retiring a role: the page asks first, then calls back to delete
+        const c = build.check({ op: 'remove', id: o.id });
+        if (!c.ok) { toast(c.reason); return c; }
+        const id = o.id; bhooks.onRetire(o, () => { if (build && blayout.objects.some(p => p.id === id)) { setSel({ kind: 'obj', id }); buildOp('delete', 'confirmed'); } });
+        return { ok: false, reason: 'asking' };
+      }
+      r = sel.kind === 'zone' ? build.removeZone(sel.id) : build.remove(sel.id); if (sel.kind === 'zone') noteZone(r);
+    }
     else if (name === 'zoneType') { if (!sel || sel.kind !== 'zone') return none; r = build.setZone(sel.id, { type: arg }); noteZone(r); }
     else if (name === 'load') { r = build.load(arg); if (r.ok) setSel(null); }
     else return { ok: false, reason: 'unknown op ' + name };
@@ -519,7 +530,7 @@
     if (zs) { const r = rectOf(zs), [hx, hy] = P(r[2], r[3], 0); g.fillStyle = '#ffcf6b'; g.strokeStyle = '#2a1a0c'; g.lineWidth = 1.5; g.fillRect(hx - 5, hy - 5, 10, 10); g.strokeRect(hx - 5, hy - 5, 10, 10); }
     if (sel && sel.kind === 'obj' && !(d && d.kind === 'piece')) for (const o of OBJ) if (o.inst === sel.id && o.mask) { const rg = ringOf(o); g.drawImage(rg.c, o.mask.l - rg.pad, o.mask.t - rg.pad); }
   }
-  // session = a WorldEdit session (null leaves Build mode); hooks = {onChange(state), onSelect(id|null, kind), onToast(text)}.
+  // session = a WorldEdit session (null leaves Build mode); hooks = {onChange(state), onSelect(id|null, kind), onToast(text), onRetire(desk, confirm)}.
   function setBuild(session, hooks) {
     cancelDrag(); build = session || null; bhooks = hooks || {}; sel = null; tool = null; noClick = false; hover = null; tap = null; pointers.clear();
     if (build) syncBuild(); else blayout = null;
@@ -528,12 +539,36 @@
   }
   function setTool(t) { tool = t || null; if (build && sel && sel.kind === 'zone' && !pathOn() && (blayout.zones.find(z => z.id === sel.id) || {}).type === 'path') setSel(null); wake(); } // null, or 'zone:<type>'
   // Add a catalog piece at the snapped ground point under a client point (the drawer's drop, mouse or touch).
-  function dropAt(type, clientX, clientY) {
+  // params: the piece's params ({role} for a department desk). A desk goes to the nearest legal spot within
+  // DESK_REACH of the drop point, since free desk-sized spots are rare; none -> {ok:false, toast} for the page.
+  function dropAt(type, clientX, clientY, params) {
     if (!build || !cv) return { ok: false, reason: 'not in build mode' };
     cancelDrag();
-    const [px, py] = toStage({ clientX, clientY }), gp = WE().toGround(px, py), r = build.add(type, gp.x, gp.y);
+    const [px, py] = toStage({ clientX, clientY }), gp = WE().toGround(px, py);
+    let at = [gp.x, gp.y];
+    if (type === 'dept-desk' && deskFits(params)) {
+      at = nearestFree(type, gp.x, gp.y, params);
+      if (!at) return { ok: false, reason: 'no room nearby', toast: 'No room nearby — move something first' };
+    }
+    const r = build.add(type, at[0], at[1], params);
     if (r.ok) { setSel({ kind: 'obj', id: r.id }); afterOp(); }
     return r;
+  }
+  // Role free and under the desk limit: otherwise add() gives its own refusal at the drop point.
+  function deskFits(params) {
+    const l = build.layout(), desks = l.objects.filter(o => o.type === 'dept-desk').length;
+    return !!(params && WE().availableRoles(l).some(r => r.key === params.role)) && desks < root.WorldModel.MAX_DESKS;
+  }
+  const DESK_REACH = 150;
+  // Snapped grid points within DESK_REACH of (x, y), nearest first; the first one session.check accepts.
+  function nearestFree(type, x, y, params) {
+    const S = WE().snap, cx = S(x), cy = S(y), pts = [];
+    for (let dx = -DESK_REACH; dx <= DESK_REACH; dx += 10) for (let dy = -DESK_REACH; dy <= DESK_REACH; dy += 10) {
+      const d = Math.hypot(cx + dx - x, cy + dy - y); if (d <= DESK_REACH) pts.push([d, cx + dx, cy + dy]);
+    }
+    pts.sort((a, b) => a[0] - b[0]);
+    for (const [, px, py] of pts) if (build.check({ op: 'add', type, x: px, y: py, params }).ok) return [px, py];
+    return null;
   }
 
   // ---------- public API ----------
@@ -564,7 +599,7 @@
     M.useLayout(layout); F.place(layout.objects); rebuildObjects(); F.setZones(layout.zones);
     // seated characters snap to their spot's new place; walking ones re-route on the new grid
     for (const w of walkers.values()) if (w.target && M.SPOTS[w.target]) M.setTarget(w, w.target, { instant: !w.moving });
-    hover = null; NPC.w = null; bg = null; bgKey = ''; wake();
+    hover = null; NPC.w = null; bg = null; bgKey = ''; opts.onLayout && opts.onLayout(); wake();
   }
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {

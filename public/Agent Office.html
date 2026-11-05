@@ -170,7 +170,7 @@ button:disabled{opacity:.45;cursor:default}
         <button class="pill sm" onClick="{{ zoomReset }}" title="Reset the view. Wheel to zoom, drag to pan." style="min-width:54px; justify-content:center; border-color:{{ zoomBorder }};">{{ zoomLabel }}</button>
         <button class="pill sm" onClick="{{ zoomIn }}" aria-label="Zoom in" title="Zoom in (mouse wheel)" style="padding:0; width:30px; justify-content:center; font-size:15px;">+</button>
       </div>
-      <button class="pill sm" onClick="{{ toggleRoster }}" title="The team: eight specialists" style="border-color:{{ rosterBorder }};"><span>Team {{ rosterCount }}/8</span></button>
+      <button class="pill sm" onClick="{{ toggleRoster }}" title="The team: one specialist per desk" style="border-color:{{ rosterBorder }};"><span>Team {{ rosterCount }}/{{ deskCount }}</span></button>
       <button class="pill sm" onClick="{{ toggleLegend }}" title="Show or hide the zone labels" style="border-color:{{ legendBorder }};">Labels</button>
       <button class="pill sm" onClick="{{ toggleSaver }}" title="Power saver: the office redraws slowly while nothing moves and not at all when hidden. Turn off for a constant 30 fps." aria-pressed="{{ saverOn }}" style="border-color:{{ saverBorder }};">Power saver</button>
       <button class="pill sm" onClick="{{ toggleBuild }}" aria-pressed="{{ buildPressed }}" title="Build mode: move, add and remove furniture and zones" style="display:{{ buildPillDisp }}; border-color:{{ buildBorder }}; color:{{ buildColor }};">Build</button>
@@ -179,12 +179,12 @@ button:disabled{opacity:.45;cursor:default}
     <sc-if value="{{ rosterOpen }}" hint-placeholder-val="{{ false }}">
       <div style="position:absolute; right:16px; top:{{ panelTop }}px; z-index:2950; width:340px; max-height:calc(100vh - {{ panelTop }}px - 24px); display:flex; flex-direction:column; border-radius:10px; background:var(--panel); border:1px solid #3a2e25; box-shadow:0 10px 30px rgba(0,0,0,.4); overflow:hidden;">
         <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid #33281f;">
-          <span style="flex:1; font-family:'Pixelify Sans',sans-serif; font-size:15px; color:#ffdca0;">The team · {{ rosterCount }}/8 hired</span>
+          <span style="flex:1; font-family:'Pixelify Sans',sans-serif; font-size:15px; color:#ffdca0;">The team · {{ rosterCount }}/{{ deskCount }} hired</span>
           <div style="width:70px; height:8px; border-radius:4px; background:#120e0c; border:1px solid #2a211b; overflow:hidden;"><div style="height:100%; width:{{ rosterMeter }}; background:#5fd38d;"></div></div>
           <button class="xbtn" onClick="{{ toggleRoster }}" aria-label="Close the team panel" style="width:26px; height:26px;">×</button>
         </div>
         <div style="overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
-          <sc-for list="{{ rosterCards }}" as="c" hint-placeholder-count="8">
+          <sc-for list="{{ rosterCards }}" as="c" hint-placeholder-count="9">
             <div style="padding:9px 10px; border-radius:8px; background:#120e0c; border:1px solid #2a211b; border-left:4px solid {{ c.color }}; display:flex; flex-direction:column; gap:4px; opacity:{{ c.op }};">
               <div style="display:flex; align-items:center; gap:7px;">
                 <span style="padding:1px 8px; border-radius:5px; background:{{ c.accent }}; color:#1b1220; font-family:'Pixelify Sans',sans-serif; font-size:13px;">{{ c.name }}</span>
@@ -286,6 +286,12 @@ button:disabled{opacity:.45;cursor:default}
           <button class="pill sm cta" onClick="{{ bSave }}">Save</button>
           <button class="pill sm" onClick="{{ bDone }}">Done</button>
         </div>
+        <sc-if value="{{ deskSel }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:8px; padding:5px 10px; border-radius:10px; background:var(--panel); border:1px solid var(--line); pointer-events:auto;">
+            <span style="padding:1px 8px; border-radius:5px; background:{{ deskSelAccent }}; color:#1b1220; font-family:'Pixelify Sans',sans-serif; font-size:13px;">{{ deskSelName }}</span>
+            <span style="font-size:12px; color:var(--dim);">{{ deskSelRole }}</span>
+          </div>
+        </sc-if>
         <sc-if value="{{ zoneSel }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px; padding:5px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); pointer-events:auto;">
             <span style="font-size:12px; color:var(--dim); padding-right:4px;">Zone type</span>
@@ -328,6 +334,7 @@ button:disabled{opacity:.45;cursor:default}
         <div style="font-size:11.5px; line-height:1.35; color:var(--mute);">{{ catHint }}</div>
         <div style="flex:1; min-height:0; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:5px; align-content:start;">
           <sc-for list="{{ catItems }}" as="c" hint-placeholder-count="12"><button class="sbtn" draggable="{{ c.draggable }}" onDragStart="{{ c.onDrag }}" onClick="{{ c.onClick }}" aria-pressed="{{ c.on }}" title="{{ c.title }}" style="text-align:left; border-color:{{ c.border }}; color:{{ c.fg }}; background:{{ c.bg }};">{{ c.label }}</button></sc-for>
+          <sc-for list="{{ deskCards }}" as="c" hint-placeholder-count="0"><button class="sbtn" data-role="{{ c.key }}" disabled="{{ c.taken }}" draggable="{{ c.draggable }}" onDragStart="{{ c.onDrag }}" onClick="{{ c.onClick }}" aria-pressed="{{ c.on }}" title="{{ c.title }}" style="text-align:left; display:flex; flex-direction:column; gap:2px; opacity:{{ c.op }}; border-color:{{ c.border }}; color:{{ c.fg }}; background:{{ c.bg }};"><span style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:10px; border-radius:2px; flex-shrink:0; background:{{ c.color }};"></span><span style="font-weight:600;">{{ c.name }}</span></span><span style="font-size:11px; color:var(--mute);">{{ c.role }}</span><span style="font-size:11px; color:#ffb547;">{{ c.note }}</span></button></sc-for>
         </div>
       </div>
     </sc-if>
@@ -437,7 +444,7 @@ const nonce=()=>(document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/)||[])[1]||'';
 const MGR=()=>(window.OfficeMotion&&OfficeMotion.TIRO.name)||'Tiro';
 const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-nonce':nonce()},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.error||('HTTP '+r.status)),{body:j});return j;});
 const getJ=p=>fetch(p,{headers:{'x-nonce':nonce()}}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
-const CAT_GROUPS=[['furniture','Furniture'],['decor','Decor'],['nature','Nature']];
+const CAT_GROUPS=[['desks','Desks'],['furniture','Furniture'],['decor','Decor'],['nature','Nature']];
 const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
 const ZONE_BRUSHES=WorldModel.ZONE_TYPES.filter(t=>t!=='water');// water is drawn by the pond pieces, not painted
 const ZONE_LABEL={path:'Walkway',play:'Play area'},zoneLabel=t=>ZONE_LABEL[t]||cap(t);
@@ -468,11 +475,12 @@ class Component extends DCLogic {
     let mounted=false;const mountWorld=()=>{if(mounted)return;mounted=true;if(window.OfficeWorld&&this.canvasRef.current)OfficeWorld.mount(this.canvasRef.current,{
       onSelect:id=>this.setState({selectedId:id,modifyOpen:false,deskInfo:null}),onNudge:id=>{OfficeWorld.nudge(id);this.nudge(id);},
       onObject:k=>window.OfficeObjects&&OfficeObjects.open(k),onUi:k=>this.setState(k==='usage'?{usageOpen:true}:{todayOpen:true}),
-      onEmptyDesk:d=>this.setState({deskInfo:d,selectedId:null,rosterOpen:false}),onDemoSnap:d=>this.applyDemo(d)});};
+      onEmptyDesk:d=>this.setState({deskInfo:d,selectedId:null,rosterOpen:false}),onDemoSnap:d=>this.applyDemo(d),
+      onLayout:()=>this.applyNames(this.state.names)});}; // a layout rebuilds OfficeMotion.TEAM with default names
     fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout)this.layout=j.layout;if(j&&j.layout&&j.source!=='default'&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(j&&j.warning)this.showToast(j.warning);mountWorld();});
     setTimeout(mountWorld,400);
     this.ro=new ResizeObserver(fit); if(this.wrapRef.current){this.ro.observe(this.wrapRef.current);this.camEvents(this.wrapRef.current);} fit();
-    api('/api/roster').then(j=>this.setState({roster:j.roster})).catch(()=>{});
+    api('/api/roster').then(j=>this.setState({roster:[...j.roster,...(j.available||[])]})).catch(()=>{}); // cards for every role; who has a desk comes from the snapshot
     window.__demo=sc=>this.setDemo(sc||'');
     if(qd)this.setDemo(qd);
     this.es=new EventSource('/api/stream');
@@ -480,7 +488,7 @@ class Component extends DCLogic {
     this.es.onerror=()=>this.setState({online:false});
     window.officeToast=t=>this.showToast(t);
     window.OfficeObjects&&OfficeObjects.onState(x=>this.setState({music:x.playing}));
-    this.es.onmessage=ev=>{const d=JSON.parse(ev.data);this.worldVersion(d.worldVersion);this.applyNames(d.names);this.live=d;window.OfficeObjects&&OfficeObjects.update(d);window.OfficeWorld&&OfficeWorld.setSnapshot(d);this.setState(s=>({manager:d.manager,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,doneN:d.doneReports||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,tasksDone:d.tasksDone,hires:d.hires||[],names:d.names||null,...(s.demo?{}:{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null})}));};
+    this.es.onmessage=ev=>{const d=JSON.parse(ev.data);this.worldVersion(d.worldVersion);this.applyNames(d.names);this.live=d;window.OfficeObjects&&OfficeObjects.update(d);window.OfficeWorld&&OfficeWorld.setSnapshot(d);this.setState(s=>({manager:d.manager,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,doneN:d.doneReports||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,tasksDone:d.tasksDone,hires:d.hires||[],names:d.names||null,desks:d.roster||null,...(s.demo?{}:{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null})}));};
     this.onKey=e=>{
       if(this.state.ask){if(e.key==='Escape'){e.preventDefault();this.setState({ask:null});}else if(e.key==='Tab'){const bs=[...document.querySelectorAll('[role=dialog] button')],i=bs.indexOf(document.activeElement);if(bs.length){e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}}return;}
       const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;
@@ -570,7 +578,8 @@ class Component extends DCLogic {
     if(n.tiro&&M.TIRO.name!==n.tiro){M.TIRO.name=n.tiro;ch=true;}
     if(ch&&window.OfficeWorld&&OfficeWorld.render)try{OfficeWorld.render();}catch(e){}
   }
-  rosterList(){const n=this.state.names||{};return (this.state.roster||OfficeMotion.TEAM.map(t=>({key:t.key,name:t.name,role:t.role,model:t.model,color:t.color,accent:t.accent,desk:t.desk,brief:[],tools:[]}))).map(r=>({...r,defaultName:r.defaultName||r.name,name:n[r.key]||r.name}));}
+  // The roles with a desk (snapshot roster, else the drawn layout), filled in from the /api/roster cards or the role catalog.
+  rosterList(){const n=this.state.names||{},cards=this.state.roster||[];return (this.state.desks||OfficeMotion.TEAM).map(({key,desk})=>{const c=cards.find(x=>x.key===key)||RoleCatalog.get(key)||{key,name:key};const dn=c.defaultName||c.name;return {...c,brief:c.brief||[],tools:c.tools||[],key,desk,defaultName:dn,name:n[key]||dn};});}
   usageVals(){
     const s=this.state, u=s.usage||{}, days=u.days||[], L=u.limits||{}, today=days[days.length-1]||{cost:0,tokens:0};
     const $=v=>'$'+(v>=100?v.toFixed(0):v.toFixed(2)), tok=v=>v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?Math.round(v/1e3)+'K':String(v);
@@ -603,7 +612,7 @@ class Component extends DCLogic {
     return {
       reportsLabel:'Reports'+(s.reportsN?' ('+s.reportsN+')':''),
       hot:hs.map(h=>({title:h.label,l:h.l,t:h.t,w:h.w,h:h.h,onClick:()=>OfficeWorld.activate(h.id),onKey:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();OfficeWorld.activate(h.id);}}})),
-      rosterOpen:s.rosterOpen,toggleRoster:()=>this.setState({rosterOpen:!s.rosterOpen,deskInfo:null}),rosterCount:hired.size,rosterMeter:Math.round(hired.size/8*100)+'%',rosterBorder:s.rosterOpen?'#8a5a1c':'#3a2e25',
+      rosterOpen:s.rosterOpen,toggleRoster:()=>this.setState({rosterOpen:!s.rosterOpen,deskInfo:null}),rosterCount:hired.size,deskCount:roster.length,rosterMeter:Math.min(100,Math.round(hired.size/Math.max(1,roster.length)*100))+'%',rosterBorder:s.rosterOpen?'#8a5a1c':'#3a2e25',
       rosterCards:[{key:'tiro',name:OfficeMotion.TIRO.name,defaultName:'Tiro',role:'Office manager',model:'sonnet',color:OfficeMotion.TIRO.color,accent:OfficeMotion.TIRO.accent,brief:'Plans the day, asks you before hiring, checks the work.',tools:'manager',isMgr:true},...roster.map(r=>({key:r.key,defaultName:r.defaultName||r.name,name:r.name,role:r.role,model:r.model,color:r.color,accent:r.accent,brief:(r.brief||[]).join(String.fromCharCode(10)),tools:(r.tools||[]).join(' · '),isMgr:false}))].map(c=>{const hiredNow=c.isMgr||hired.has(c.key),draft=(s.nameDraft||{})[c.key],save=v=>api('/api/names/set',{key:c.key,name:v}).then(()=>{this.setState(p=>({nameDraft:{...p.nameDraft,[c.key]:undefined}}));this.showToast(v?'Renamed to '+v:'Name reset to '+c.defaultName);}).catch(e=>this.showToast(e.message));return {name:c.name,defaultName:c.defaultName,role:c.role,model:c.model,color:c.color,accent:c.accent,brief:c.brief,tools:c.tools,hired:c.isMgr?'manager':hired.has(c.key)?'at work':'not hired',hiredColor:hiredNow?'#5fd38d':'#7d7064',op:hiredNow?1:.78,draft:draft===undefined?c.name:draft,onDraft:e=>this.setState(p=>({nameDraft:{...p.nameDraft,[c.key]:e.target.value}})),onKey:e=>{if(e.key==='Enter')save(e.target.value);},onSave:()=>save(draft===undefined?c.name:draft),canReset:c.name!==c.defaultName,onReset:()=>api('/api/names/reset',{key:c.key}).then(()=>{this.setState(p=>({nameDraft:{...p.nameDraft,[c.key]:undefined}}));this.showToast('Name reset to '+c.defaultName);}).catch(e=>this.showToast(e.message))};}),
       hasDeskInfo:!!di,deskInfo:di?{name:di.name,role:di.role,model:di.model,color:di.color,accent:di.accent,brief:(di.brief||[]).join('\n')}:{name:'',role:'',model:'',color:'#3a2e25',accent:'#fff',brief:''},closeDeskInfo:()=>this.setState({deskInfo:null}),
       toggleSaver:()=>{const W=window.OfficeWorld;if(!W)return;W.setPowerSaver(!W.powerSaver());this.setState({saver:W.powerSaver()});},saverOn:(s.saver===undefined?!(window.OfficeWorld&&OfficeWorld.powerSaver&&!OfficeWorld.powerSaver()):s.saver)?'true':'false',saverBorder:(s.saver===undefined?!(window.OfficeWorld&&OfficeWorld.powerSaver&&!OfficeWorld.powerSaver()):s.saver)?'#8a5a1c':'#3a2e25',
@@ -660,7 +669,8 @@ class Component extends DCLogic {
   enterBuild(){
     const W=window.OfficeWorld,E=window.WorldEdit;if(!W||!E||!W.setBuild||this.session||this.state.demo)return;
     this.session=E.createSession(this.layout||WorldModel.defaultLayout());
-    W.setBuild(this.session,{onChange:st=>this.setState({bst:st}),onSelect:(id,kind)=>this.setState(s=>({bst:{...(s.bst||{}),selected:id,selectedKind:kind}})),onToast:t=>this.showToast(t)});
+    W.setBuild(this.session,{onChange:st=>this.setState({bst:st}),onSelect:(id,kind)=>this.setState(s=>({bst:{...(s.bst||{}),selected:id,selectedKind:kind}})),onToast:t=>this.showToast(t),
+      onRetire:(o,go)=>{const r=RoleCatalog.get(WorldModel.deskRole(o));this.askUser('Retire '+this.roleName(r)+' ('+r.role+')? Their memory is kept and they come back if you place their desk again.',[['Retire',go,'danger'],['Cancel']]);}});
     this.worldStale=false;document.body.classList.add('ao-building');
     this.setState({building:true,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,ask:null,selectedId:null,popout:false,rosterOpen:false,deskInfo:null,dispatchOpen:false});
     this.fit&&this.fit();
@@ -691,13 +701,15 @@ class Component extends DCLogic {
       ['Load theirs',()=>{this.loadTheirs();res(false);},true],['Cancel',()=>res(false)]]));
     this.ownSave=true;
     return api('/api/world',{layout:L}).then(()=>{this.layout=L;S.markSaved();this.setState({buildErrs:null,bst:{...(this.state.bst||{})}});this.showToast('Layout saved');return true;})
-      .catch(e=>{this.ownSave=false;this.showErrs(e.body&&e.body.errors||[e.message]);return false;});
+      .catch(e=>{this.ownSave=false;if(e.body&&e.body.errors)this.showErrs(e.body.errors);else this.showToast(e.message);return false;}); // 409: a role being retired is at work
   }
   // Replace the session with the layout another window saved; it is the saved state now, so the session is clean.
   loadTheirs(){
     return getJ('/api/world').then(j=>{const S=this.session;if(!S||!j||!j.layout)return;if(!OfficeWorld.buildOp('load',j.layout).ok)return;this.layout=j.layout;this.worldStale=false;S.markSaved();this.setState(s=>({bst:{...(s.bst||{})}}));this.showToast('Loaded the layout from the other window');}).catch(e=>this.showToast(e.message));
   }
-  place(type,x,y){const r=OfficeWorld.dropAt(type,x,y);if(r.ok)this.setState({armed:null});else this.showToast("Can't put the "+WorldEdit.labelOf(type)+' there: '+r.reason);return r;}
+  // piece = a catalog type, or 'dept-desk:<role>' from the Desks tab.
+  place(piece,x,y){const [type,role]=piece.split(':'),r=OfficeWorld.dropAt(type,x,y,role?{role}:undefined);if(r.ok)this.setState({armed:null});else this.showToast(r.toast||"Can't put the "+WorldEdit.labelOf(type)+' there: '+r.reason);return r;}
+  roleName(r){return (this.state.names||{})[r.key]||r.name;}
   // Load a template (or the default) into the session: one undoable step that stays dirty until saved.
   loadInto(name,get){
     this.setState({tplOpen:false});
@@ -723,6 +735,11 @@ class Component extends DCLogic {
       :cat.filter(c=>c.group===grp).map(c=>btn(c.label,armed===c.type,{draggable:narrow?'false':'true',title:'Click, then click the floor'+(narrow?'':', or drag it onto the floor'),
         onClick:()=>{OfficeWorld.setTool(null);this.setState({armed:armed===c.type?null:c.type,brush:null});},
         onDrag:e=>{e.dataTransfer.setData('text/x-ao-piece',c.type);e.dataTransfer.effectAllowed='copy';}}));
+    const free=on&&grp==='desks'?new Set(WorldEdit.availableRoles(S.layout()).map(r=>r.key)):null;
+    const deskCards=!free?[]:RoleCatalog.ROLES.map(r=>{const p='dept-desk:'+r.key,taken=!free.has(r.key);return {...btn(r.role,armed===p,{draggable:narrow||taken?'false':'true',title:taken?'':'Click, then click the floor'+(narrow?'':', or drag it onto the floor'),
+      onClick:()=>{OfficeWorld.setTool(null);this.setState({armed:armed===p?null:p,brush:null});},onDrag:e=>{e.dataTransfer.setData('text/x-ao-piece',p);e.dataTransfer.effectAllowed='copy';}}),
+      key:r.key,name:this.roleName(r),role:r.role,color:r.color,taken,op:taken?.5:1,note:taken?'On the floor':''};});
+    const sd=on&&st.selectedKind==='obj'&&st.selected?S.layout().objects.find(o=>o.id===st.selected&&o.type==='dept-desk'):null,sr=sd&&RoleCatalog.get(WorldModel.deskRole(sd));
     const errs=s.buildErrs||[],zs=st.selectedKind==='zone'&&st.selected&&S?S.layout().zones.find(z=>z.id===st.selected):null;
     const closeAsk=()=>this.setState({ask:null});
     return {
@@ -731,7 +748,7 @@ class Component extends DCLogic {
       building:on,headDisp:on?'none':'flex',todayDisp:on?'none':'flex',ctrlBottom:on&&narrow?'calc(38vh + 12px)':'16px',
       ebPos:narrow||!on?'left:16px; right:16px;':'left:302px; right:16px;',toastBottom:on&&narrow?'calc(38vh + 64px)':'24px',
       catPos:narrow?'left:0; right:0; bottom:0; height:38vh; border-radius:14px 14px 0 0;':'left:16px; top:16px; bottom:16px; width:270px; border-radius:10px;',
-      catTabs,catHint:grp==='zones'?'Pick a brush, then drag on the floor. Tap a zone to select it.':'Click a piece, then click the floor'+(narrow?'.':', or drag it onto the floor.'),
+      catTabs,catHint:grp==='zones'?'Pick a brush, then drag on the floor. Tap a zone to select it.':grp==='desks'?'One desk per role. Click a role, then click the floor; the desk goes to the nearest free spot.':'Click a piece, then click the floor'+(narrow?'.':', or drag it onto the floor.'),
       buildTitle:'Build'+(S&&S.dirty()?' · unsaved':''),
       noUndo:!(S&&S.canUndo()),noRedo:!(S&&S.canRedo()),noSel:!st.selected,noPiece:st.selectedKind!=='obj'||!st.selected,
       bUndo:()=>OfficeWorld.buildOp('undo'),bRedo:()=>OfficeWorld.buildOp('redo'),bDelete:()=>OfficeWorld.buildOp('delete'),bDuplicate:()=>OfficeWorld.buildOp('duplicate'),
@@ -744,7 +761,7 @@ class Component extends DCLogic {
         onDelete:()=>this.askUser('Delete the template '+t.name+'?',[['Delete',()=>api('/api/world/template/delete',{id:t.id}).then(r=>{this.showToast(r.ok?'Deleted '+t.name:'Could not delete '+t.name);this.refreshTpls();}).catch(e=>this.showToast(e.message)),'danger'],['Cancel']])})),
       tplName:s.tplName,onTplName:e=>this.setState({tplName:e.target.value}),onTplKey:e=>{if(e.key==='Enter')this.saveTpl();},saveTpl:()=>this.saveTpl(),
       resetDefault:()=>this.loadInto('The default layout',()=>WorldModel.defaultLayout()),
-      catItems,
+      catItems,deskCards,deskSel:!!sr,deskSelName:sr?this.roleName(sr):'',deskSelRole:sr?sr.role:'',deskSelAccent:sr?sr.accent:'#fff',
       hasAsk:!!s.ask,askText:s.ask?s.ask.text:'',askCancel:closeAsk,
       askBtns:s.ask?s.ask.btns.map(([label,fn,kind])=>({label,cls:kind==='danger'?'pill sm danger':kind?'pill sm cta':'pill sm',onClick:()=>{closeAsk();fn&&fn();}})):[],
     };
