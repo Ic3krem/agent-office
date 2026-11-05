@@ -93,7 +93,7 @@
       let w = walkers.get(a.id);
       const sp = M.SPOTS[a.spot] || M.SPOTS['tiro:seat'];
       if (!w) {
-        const from = (a.first || rd || !a.spawn) ? sp : M.NODES.spawn;
+        const from = (a.first || rd || !a.spawn) ? sp : M.SPAWN;
         w = M.createWalker(a.id, from.x, from.y, sp.face); w.alpha = 0; w.hip = HIP(a.spot); walkers.set(a.id, w);
         if (from === sp) { w.target = a.spot; w.goal = { x: sp.x, y: sp.y }; } else M.setTarget(w, a.spot);
       }

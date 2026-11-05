@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { ROSTER, MANAGER } from './company.mjs';
+import { loadWorld } from './world-vm.mjs';
 
-// The module is a classic browser script: load it the way the page does.
-const ctx = {}; ctx.globalThis = ctx;
-vm.runInNewContext(fs.readFileSync(new URL('./public/office-motion.js', import.meta.url), 'utf8'), ctx);
-const M = ctx.OfficeMotion, S = M.S;
+// The modules are classic browser scripts: load them the way the page does (world-model applies the default layout).
+const ctx = loadWorld();
+const M = ctx.OfficeMotion, S = M.S, W = ctx.WorldModel;
 
 const prof = key => ({ key, ...Object.fromEntries(['name', 'role', 'color', 'accent', 'desk'].map(k => [k, ROSTER[key][k]])) });
 const ag = (key, status = 'idle', extra = {}) => ({ id: 'a-' + key, name: ROSTER[key].name, role: 'Helper', profile: prof(key), model: 'sonnet', status, task: status === 'idle' ? '' : 't', logs: [{ t: '10:00:00', k: 'out', text: 'x' }], perm: null, ...extra });
@@ -49,6 +49,62 @@ test('pathTo from a free point joins the nearest corridor', () => {
   assert.equal(Math.round(p[p.length - 1].x), 155);
 });
 
+// where a path crosses the line axis=v (x or y), or null
+const crossing = (p, axis, v) => {
+  const o = axis === 'x' ? 'y' : 'x';
+  for (let i = 1; i < p.length; i++) {
+    const a = p[i - 1][axis] - v, b = p[i][axis] - v;
+    if (a === 0) return p[i - 1][o];
+    if (a * b < 0) return p[i - 1][o] + (p[i][o] - p[i - 1][o]) * a / (a - b);
+  }
+  return null;
+};
+
+test('narrow gaps stay open', () => {
+  const y = crossing(M.pathTo('desk-4', 'pk:pond'), 'x', 1000);
+  assert.ok(y > 383 && y < 409, 'park gate at y ' + y);
+  const x = crossing(M.pathTo('desk-1', 'tiro:seat'), 'y', 230);
+  assert.ok(x > 395 && x < 445, 'office door at x ' + x);
+  const g = crossing(M.pathTo('desk-1', 'garden:b1'), 'y', 230);
+  assert.ok(Math.abs(g - 500) < 20, 'garden gate at x ' + g);
+});
+
+test('agents keep to corridors', () => {
+  const paths = W.defaultLayout().zones.filter(z => z.type === 'path').map(z => z.rect);
+  const onPath = q => paths.some(([x0, y0, x1, y1]) => q.x >= x0 && q.x <= x1 && q.y >= y0 && q.y <= y1);
+  for (const [a, b] of [['desk-1', 'desk-8'], ['desk-2', 'play:pit'], ['hot:1', 'garden:b2']]) {
+    const p = M.pathTo(a, b);
+    let on = 0, all = 0;
+    for (let i = 1; i < p.length; i++) {
+      const n = Math.max(1, Math.ceil(M.dist(p[i - 1], p[i])));
+      for (let k = 0; k < n; k++) { all++; if (onPath({ x: p[i - 1].x + (p[i].x - p[i - 1].x) * (k + 0.5) / n, y: p[i - 1].y + (p[i].y - p[i - 1].y) * (k + 0.5) / n })) on++; }
+    }
+    assert.ok(on / all >= 0.7, `${a} -> ${b}: ${Math.round(100 * on / all)}% on corridors`);
+  }
+});
+
+test('useLayout keeps SPOTS identity', () => {
+  const s = M.SPOTS, d = M.DESKS, o = M.OBSTACLES, sp = M.SPAWN;
+  M.useLayout(W.defaultLayout());
+  assert.equal(M.SPOTS, s); assert.equal(M.DESKS, d); assert.equal(M.OBSTACLES, o); assert.equal(M.SPAWN, sp);
+  assert.deepEqual(JSON.parse(JSON.stringify(M.SPAWN)), { x: 420, y: 250 });
+  assert.equal(Object.keys(M.SPOTS).length, Object.keys(W.spotsOf(W.defaultLayout())).length);
+});
+
+test('desks derived from the default layout equal the built-in desks', () => {
+  const CX = [155, 385, 615, 845];
+  const J = v => JSON.parse(JSON.stringify(v)); // vm objects live in another realm
+  const want = J(M.TEAM).map((t, i) => {
+    const col = i % 4, top = i < 4, cx = CX[col];
+    return { id: t.desk, key: t.key, col, top, cx,
+      block: { x0: 60 + 230 * col, x1: 250 + 230 * col, y0: top ? 262 : 427, y1: top ? 372 : 540 },
+      rect: { x0: cx - 50, x1: cx + 50, y0: top ? 275 : 440, y1: top ? 327 : 492 },
+      seat: { x: cx, y: top ? 352 : 516 } };
+  });
+  assert.deepEqual(J(M.DESKS), want);
+  assert.deepEqual(J(M.OBSTACLES), [...want.map(d => d.rect), J(M.TIRO_DESK)]);
+});
+
 test('walker reaches the target facing the spot, within the 6 s budget, without teleporting', () => {
   const w = M.createWalker('x', 30, 568, 's');
   M.setTarget(w, 'garden:b1');
@@ -67,7 +123,7 @@ test('walker faces its direction of travel', () => {
 
 test('a blocked walker waits, then slips past; it never freezes forever', () => {
   const a = M.createWalker('a', 30, 396, 'e'), b = M.createWalker('b', 60, 396, 'e');
-  M.setTarget(a, 'a270');
+  M.setTarget(a, { x: 270, y: 396 });
   let waited = false, t = 0;
   while (a.moving && t < 6) { const x0 = a.x; M.stepWalker(a, 1 / 60, [b]); if (a.x === x0 && a.moving) waited = true; t += 1 / 60; }
   assert.ok(waited, 'waited behind b');

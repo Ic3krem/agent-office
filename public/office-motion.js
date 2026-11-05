@@ -1,4 +1,4 @@
-// Office movement: layout, walk graph, path finding, walkers and the state machine that decides where each
+// Office movement: layout (spots, desks, walk grid), path finding, walkers and the state machine that decides where each
 // agent should be. Pure logic with no DOM, so it is unit tested (office-motion.test.mjs loads this file in a vm).
 // The server snapshot is the only input; everything below is derived from it every tick, so a reload never desyncs.
 (function (root) {
@@ -19,16 +19,17 @@
   const TIRO = { key: 'tiro', name: 'Tiro', role: 'Office manager', model: 'sonnet', color: '#e8793a', accent: '#ffcf6b', desk: 'office' };
 
   // ---------- layout ----------
-  const COLX = [30, 270, 500, 730, 970];           // vertical walkways, in the gaps between desk blocks
-  const ROWY = { n: 250, a: 396, s: 568 };          // north corridor, the aisle between desk rows, south corridor
-  const CX = [155, 385, 615, 845];                  // desk block centres (x)
-  const DESKS = TEAM.map((t, i) => {
-    const col = i % 4, top = i < 4, cx = CX[col];
-    return { id: t.desk, key: t.key, col, top, cx,
-      block: { x0: 60 + 230 * col, x1: 250 + 230 * col, y0: top ? 262 : 427, y1: top ? 372 : 540 },
-      rect: { x0: cx - 50, x1: cx + 50, y0: top ? 275 : 440, y1: top ? 327 : 492 },
-      seat: { x: cx, y: top ? 352 : 516 } };
-  });
+  // Built-in values until useLayout() applies a layout (office-furniture.js reads DESKS and SPOTS at load).
+  const CX = [155, 385, 615, 845];                  // desk block centres (x) of the built-in office
+  // A department desk from its seat: the block is the floor it owns, the rect the furniture walkers must not cross.
+  const deskAt = (id, key, x, y) => {
+    const top = y < 396; // seat north of the aisle: top row
+    return { id, key, col: Math.round((x - 155) / 230), top, cx: x,
+      block: { x0: x - 95, x1: x + 95, y0: y - (top ? 90 : 89), y1: y + (top ? 20 : 24) },
+      rect: { x0: x - 50, x1: x + 50, y0: y - (top ? 77 : 76), y1: y - (top ? 25 : 24) },
+      seat: { x, y } };
+  };
+  const DESKS = TEAM.map((t, i) => deskAt(t.desk, t.key, CX[i % 4], i < 4 ? 352 : 516));
   const TIRO_DESK = { x0: 150, x1: 300, y0: 46, y1: 96 };
   // Furniture rectangles walkers must never cross (checked by the tests): desks and the manager's desk.
   const OBSTACLES = [...DESKS.map(d => d.rect), TIRO_DESK];
@@ -84,95 +85,35 @@
   [180, 230, 300, 350].forEach((x, i) => spot('over:' + (i + 1), x, 712, 'n', 'utility'));
   const HOT = ['hot:1', 'hot:2', 'hot:3', 'hot:4'], OVER = ['over:1', 'over:2', 'over:3', 'over:4'];
 
-  // ---------- walk graph ----------
-  const NODES = {}, EDGES = [];
-  const node = (id, x, y) => (NODES[id] = { id, x, y });
-  const edge = (a, b) => EDGES.push([a, b]);
-  const chain = ids => { for (let i = 1; i < ids.length; i++) edge(ids[i - 1], ids[i]); };
-  // corridor rows
-  const rowIds = { n: [], a: [], s: [] };
-  const addRow = (r, x) => { const id = r + x; node(id, x, ROWY[r]); rowIds[r].push(id); };
-  COLX.forEach(x => ['n', 'a', 's'].forEach(r => addRow(r, x)));
-  [295, 340, 385, 420].forEach(x => addRow('n', x));
-  CX.forEach(x => addRow('a', x));
-  CX.forEach(x => addRow('s', x));
-  ['n', 'a', 's'].forEach(r => chain(rowIds[r].sort((p, q) => NODES[p].x - NODES[q].x)));
-  COLX.forEach(x => { edge('n' + x, 'a' + x); edge('a' + x, 's' + x); });
-  // desks hang off the aisle (top row) or the south corridor (bottom row)
-  const near = (id, to) => { const s = SPOTS[id]; node('s:' + id, s.x, s.y); edge('s:' + id, to); };
-  DESKS.forEach(d => near(d.id, (d.top ? 'a' : 's') + d.cx));
-  // manager's office
-  node('o_gate', 420, 226); node('o_in', 420, 196); node('o_east', 325, 150); node('o_tside', 325, 36); node('o_west', 120, 150);
-  edge('n420', 'o_gate'); edge('o_gate', 'o_in'); edge('o_in', 'o_east'); edge('o_east', 'o_tside');
-  near('tiro:seat', 'o_tside'); near('office:report', 'o_east'); edge('s:office:report', 'o_west'); near('tiro:window', 'o_west');
-  [1, 2, 3].forEach(i => { const q = SPOTS['queue:' + i]; node('s:queue:' + i, q.x, q.y); edge('s:queue:' + i, 'n' + q.x); });
-  // garden: gate from the north corridor, a loop round the pond
-  node('g_gate', 500, 212); node('g_hub', 570, 205); edge('n500', 'g_gate'); edge('g_gate', 'g_hub');
-  const LOOP = []; for (let k = 0; k < 8; k++) { const t = k * Math.PI / 4; node('L' + k, Math.round(790 + 80 * Math.cos(t)), Math.round(105 + 80 * Math.sin(t))); LOOP.push('L' + k); }
-  for (let k = 0; k < 8; k++) edge(LOOP[k], LOOP[(k + 1) % 8]);
-  edge('g_hub', 'L3');
-  const gnear = { 'garden:b1': 'L5', 'garden:b2': 'L7', 'garden:b3': 'L4', 'garden:pS': 'L2', 'garden:pE': 'L0', 'garden:pW': 'L4', 'garden:fl': 'g_hub', 'garden:lamp': 'L1', 'pk:b1': 'k_hub', 'pk:b2': 'k_hub', 'pk:pond': 'k_hub' };
-  node('k_gate', 1010, 396); node('k_hub', 1100, 396); edge('a970', 'k_gate'); edge('k_gate', 'k_hub'); // fence gate and park hub
-  GARDEN.forEach(id => near(id, gnear[id]));
-  // playroom
-  node('pc', 500, 600); edge('s500', 'pc');
-  [['p1', 560, 655], ['p2', 720, 655], ['p3', 880, 655], ['p4', 560, 750], ['p5', 735, 755], ['p6', 880, 756]].forEach(([i, x, y]) => node(i, x, y));
-  edge('pc', 'p1'); edge('p1', 'p2'); edge('p2', 'p3'); edge('p1', 'p4'); edge('p2', 'p5'); edge('p3', 'p6'); edge('p4', 'p5'); edge('p5', 'p6');
-  const pnear = { 'play:sofa1': 'p1', 'play:sofa2': 'p2', 'play:sofa3': 'p2', 'play:bean1': 'p5', 'play:bean2': 'p3', 'play:arcade1': 'p3', 'play:arcade2': 'p3', 'play:pit': 'p6', 'play:hoop': 'p4', 'play:dart': 'p1', 'play:juke': 'pc', 'play:table': 'p2', 'play:rug': 'p3', 'play:toy': 'p1', 'play:plant': 'p3' };
-  PLAY.forEach(id => near(id, pnear[id]));
-  // utility
-  node('u1', 270, 668); node('u2', 440, 668); node('uh1', 135, 668); node('uh2', 326, 668);
-  edge('s270', 'u1'); chain(['uh1', 'u1', 'uh2', 'u2']);
-  edge('s500', 'u2');
-  COOLER.forEach(id => near(id, 'u2'));
-  HOT.forEach((id, i) => near(id, i < 2 ? 'uh1' : 'uh2'));
-  OVER.forEach((id, i) => near(id, ['u1', 'u1', 'uh2', 'uh2'][i]));
-  node('spawn', 420, 250); // newcomers appear at the manager's door and walk in
+  const SPAWN = { x: 420, y: 250 }; // newcomers appear at the manager's door and walk in
+
+  // ---------- paths ----------
+  let GRID = null; // walk grid of the current layout, built once per useLayout()
+  // Apply a layout (WorldModel format). Refills SPOTS, DESKS, OBSTACLES and SPAWN in place so held references stay valid.
+  function useLayout(layout) {
+    const WM = root.WorldModel;
+    const desks = layout.objects.filter(o => o.type === 'dept-desk').map(o => {
+      const t = TEAM.find(m => m.desk === o.desk);
+      return t && deskAt(o.desk, t.key, o.x, o.y);
+    }).filter(Boolean);
+    DESKS.splice(0, DESKS.length, ...desks);
+    OBSTACLES.splice(0, OBSTACLES.length, ...DESKS.map(d => d.rect), TIRO_DESK);
+    for (const k of Object.keys(SPOTS)) delete SPOTS[k];
+    Object.assign(SPOTS, WM.spotsOf(layout));
+    SPAWN.x = layout.spawn.x; SPAWN.y = layout.spawn.y;
+    GRID = WM.gridOf(layout);
+  }
 
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const ADJ = {}; Object.keys(NODES).forEach(k => (ADJ[k] = []));
-  EDGES.forEach(([a, b]) => { const w = dist(NODES[a], NODES[b]); ADJ[a].push([b, w]); ADJ[b].push([a, w]); });
+  const resolve = t => typeof t === 'string' ? (SPOTS[t] ? { x: SPOTS[t].x, y: SPOTS[t].y } : null) : t;
 
-  function projectOnEdge(p, a, b) {
-    const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
-    const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
-    return { x: a.x + dx * t, y: a.y + dy * t, t };
-  }
-  // Where a free point joins the graph: the closest point on any edge (so a walker mid-corridor can turn around).
-  function attach(p) {
-    let best = null;
-    for (const [a, b] of EDGES) { const q = projectOnEdge(p, NODES[a], NODES[b]); const d = dist(p, q); if (!best || d < best.d) best = { d, a, b, q }; }
-    return best;
-  }
-  const resolve = t => typeof t === 'string' ? (SPOTS[t] ? { x: SPOTS[t].x, y: SPOTS[t].y } : NODES[t]) : t;
-
-  // Dijkstra over the walk graph with temporary start/end nodes. Returns points from `from` to `to` (inclusive).
+  // A* over the layout grid. Returns points from `from` to `to` (inclusive); a straight line when there is no route.
   function pathTo(from, to) {
     const A = resolve(from), B = resolve(to);
     if (!A || !B) return [];
-    const g = {}, add = (id, p) => (g[id] = { x: p.x, y: p.y, adj: [] });
-    Object.keys(NODES).forEach(k => add(k, NODES[k]));
-    Object.keys(NODES).forEach(k => (g[k].adj = ADJ[k].slice()));
-    const link = (id, p) => {
-      const at = attach(p); add(id, p); g[id].adj = [];
-      const q = at.q; add(id + '*', q); g[id + '*'].adj = [];
-      const join = (x, y) => { const w = dist(g[x], g[y]); g[x].adj.push([y, w]); g[y].adj.push([x, w]); };
-      join(id, id + '*'); join(id + '*', at.a); join(id + '*', at.b);
-      // the edge itself stays; the projection point is a shortcut node that touches both of its ends
-    };
-    link('#from', A); link('#to', B);
-    const D = { '#from': 0 }, prev = {}, seen = new Set();
-    while (true) {
-      let u = null; for (const k in D) if (!seen.has(k) && (u === null || D[k] < D[u])) u = k;
-      if (u === null || u === '#to') break;
-      seen.add(u);
-      for (const [v, w] of g[u].adj) if (D[v] === undefined || D[u] + w < D[v]) { D[v] = D[u] + w; prev[v] = u; }
-    }
-    if (D['#to'] === undefined) return [{ x: A.x, y: A.y }, { x: B.x, y: B.y }];
-    const ids = []; for (let k = '#to'; k; k = prev[k]) ids.unshift(k);
-    const pts = ids.map(k => ({ x: g[k].x, y: g[k].y }));
-    // drop duplicates and collinear leftovers
-    return pts.filter((p, i) => i === 0 || dist(p, pts[i - 1]) > 0.5);
+    const pts = GRID ? root.WorldPath.findPath(GRID, A, B) : [];
+    if (!pts.length) return [{ x: A.x, y: A.y }, { x: B.x, y: B.y }];
+    return pts.filter((p, i) => i === 0 || dist(p, pts[i - 1]) > 0.5); // drop duplicates
   }
   const pathLen = pts => pts.reduce((s, p, i) => s + (i ? dist(p, pts[i - 1]) : 0), 0);
 
@@ -506,7 +447,7 @@
 
   // ms to wait before drawing, given the time since the last draw; never faster than MIN_GAP; -1 = paused
   const frameWait = (st, since) => { const d = nextFrameDelay(st); return d < 0 ? -1 : Math.max(FRAME.MIN_GAP - since, d - since, 0); };
-  const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, TIRO_DESK, OBSTACLES, SPOTS, NODES, EDGES, GARDEN, PLAY, COOLER, HOT, OVER, COLX, ROWY, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
-    boardOf, nextState, createBrain, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
+  const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, TIRO_DESK, OBSTACLES, SPOTS, SPAWN, GARDEN, PLAY, COOLER, HOT, OVER, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
+    boardOf, nextState, createBrain, useLayout, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
   root.OfficeMotion = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
