@@ -118,6 +118,8 @@ function openOffice(view) {
     office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'Agent Office', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { preload: path.join(ROOT, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
     office.loadURL(url('/') + (view ? '#' + view : ''));
     external(office.webContents);
+    // The page refuses to unload while Build mode has unsaved changes: ask here, or the window would silently stay open.
+    office.webContents.on('will-prevent-unload', e => { if (dialog.showMessageBoxSync(office, { type: 'question', buttons: ['Leave', 'Stay'], defaultId: 1, cancelId: 1, message: 'You have unsaved layout changes.' }) === 0) e.preventDefault(); });
     office.on('closed', () => { office = null; });
     office.once('ready-to-show', () => office.show());
   } else { office.show(); if (view) office.webContents.executeJavaScript(`location.hash=${JSON.stringify(view)}`).catch(() => {}); }

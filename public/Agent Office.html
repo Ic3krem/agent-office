@@ -43,6 +43,9 @@ button.pill:hover{background:#2a211b;border-color:#5a4838}
 .pill.sm{height:30px;padding:0 11px;font-size:12px}
 .pill.cta{background:var(--gold);border-color:var(--gold);color:#2a1a0c;font-weight:600}
 button.pill.cta:hover{background:#ffe08f;border-color:#ffe08f}
+.pill.danger{border-color:#a8431f;color:#ff9a8d}
+button.pill.danger:hover{background:#3a1612;border-color:#ff7a6b}
+body.ao-building>button[title^="Browse every agent"]{display:none}
 .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .xbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:16px;line-height:1;cursor:pointer;transition:background .15s,color .15s}
 .xbtn:hover{background:#2a211b;color:#fff}
@@ -66,7 +69,7 @@ button:disabled{opacity:.45;cursor:default}
 <div style="display:flex; width:100vw; height:100vh; background:#0f0c0d; font-family:'Instrument Sans',sans-serif; color:#f0e4d4;">
   <div ref="{{ wrapRef }}" style="position:relative; flex:1; min-width:0; overflow:hidden; touch-action:none; background:radial-gradient(ellipse at 45% 45%, #2b201a 0%, #151012 60%, #0d0a0b 100%);">
 
-    <div style="position:absolute; left:50%; top:52%; width:1480px; height:920px; transform:translate(-50%,-50%) translate({{ panX }}px,{{ panY }}px) scale({{ camScale }}); transform-origin:center; will-change:transform;">
+    <div style="position:absolute; left:50%; top:52%; width:1480px; height:920px; transform:translate(-50%,-50%) translate({{ stageX }}px,{{ stageY }}px) scale({{ camScale }}); transform-origin:center; will-change:transform;">
       <canvas ref="{{ canvasRef }}" width="1480" height="920" aria-hidden="true" style="position:absolute; left:0; top:0; width:1480px; height:920px; display:block;"></canvas>
       <sc-for list="{{ hot }}" as="h" hint-placeholder-count="22">
         <div role="button" tabindex="0" aria-label="{{ h.title }}" onClick="{{ h.onClick }}" onKeyDown="{{ h.onKey }}" style="position:absolute; left:{{ h.l }}px; top:{{ h.t }}px; width:{{ h.w }}px; height:{{ h.h }}px; z-index:1490; pointer-events:none; border-radius:6px;"></div>
@@ -278,6 +281,7 @@ button:disabled{opacity:.45;cursor:default}
           <button class="pill sm" onClick="{{ bDelete }}" disabled="{{ noSel }}" title="Delete the selection (Delete)">Delete</button>
           <button class="pill sm" onClick="{{ bDuplicate }}" disabled="{{ noPiece }}" title="Duplicate the selected piece (Ctrl+D)">Duplicate</button>
           <button class="pill sm" onClick="{{ toggleTpl }}" aria-expanded="{{ tplExpanded }}" style="border-color:{{ tplBorder }};">Templates ▾</button>
+          <sc-if value="{{ buildBlocked }}" hint-placeholder-val="{{ false }}"><button class="pill sm" onClick="{{ jumpBlocked }}" title="Open the approvals inbox" style="border-color:#8a5a1c; color:#ffd28a;"><div class="dot" style="background:var(--warn); animation:flash 1s infinite;"></div>{{ blockedN }} waiting</button></sc-if>
           <button class="pill sm cta" onClick="{{ bSave }}">Save</button>
           <button class="pill sm" onClick="{{ bDone }}">Done</button>
         </div>
@@ -316,12 +320,14 @@ button:disabled{opacity:.45;cursor:default}
           </div>
         </sc-if>
       </div>
-      <div style="position:absolute; {{ catPos }} z-index:2995; display:flex; flex-direction:column; gap:5px; padding:10px; box-sizing:border-box; overflow-y:auto; background:var(--panel); border:1px solid var(--line2); box-shadow:0 10px 30px rgba(0,0,0,.4);">
-        <sc-for list="{{ catItems }}" as="c" hint-placeholder-count="12">
-          <sc-if value="{{ c.head }}" hint-placeholder-val="{{ false }}"><div class="sect" style="margin-top:4px;">{{ c.label }}</div></sc-if>
-          <sc-if value="{{ c.hint }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px; line-height:1.35; color:var(--mute);">{{ c.label }}</div></sc-if>
-          <sc-if value="{{ c.btn }}" hint-placeholder-val="{{ false }}"><button class="sbtn" draggable="{{ c.draggable }}" onDragStart="{{ c.onDrag }}" onClick="{{ c.onClick }}" aria-pressed="{{ c.on }}" title="{{ c.title }}" style="text-align:left; border-color:{{ c.border }}; color:{{ c.fg }}; background:{{ c.bg }};">{{ c.label }}</button></sc-if>
-        </sc-for>
+      <div style="position:absolute; {{ catPos }} z-index:2995; display:flex; flex-direction:column; gap:8px; padding:10px; box-sizing:border-box; background:var(--panel); border:1px solid var(--line2); box-shadow:0 10px 30px rgba(0,0,0,.4);">
+        <div role="tablist" aria-label="Catalog" style="display:flex; flex-wrap:wrap; gap:4px;">
+          <sc-for list="{{ catTabs }}" as="g" hint-placeholder-count="4"><button class="sbtn" role="tab" aria-selected="{{ g.on }}" onClick="{{ g.onClick }}" style="padding:4px 10px; border-color:{{ g.border }}; color:{{ g.fg }}; background:{{ g.bg }};">{{ g.label }}</button></sc-for>
+        </div>
+        <div style="font-size:11.5px; line-height:1.35; color:var(--mute);">{{ catHint }}</div>
+        <div style="flex:1; min-height:0; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:5px; align-content:start;">
+          <sc-for list="{{ catItems }}" as="c" hint-placeholder-count="12"><button class="sbtn" draggable="{{ c.draggable }}" onDragStart="{{ c.onDrag }}" onClick="{{ c.onClick }}" aria-pressed="{{ c.on }}" title="{{ c.title }}" style="text-align:left; border-color:{{ c.border }}; color:{{ c.fg }}; background:{{ c.bg }};">{{ c.label }}</button></sc-for>
+        </div>
       </div>
     </sc-if>
     <sc-if value="{{ hasAsk }}" hint-placeholder-val="{{ false }}">
@@ -335,7 +341,7 @@ button:disabled{opacity:.45;cursor:default}
     </sc-if>
 
     <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
-      <div style="position:absolute; left:50%; bottom:24px; transform:translateX(-50%); z-index:3000; padding:9px 16px; border-radius:8px; background:#1d1714; border:1px solid #4a3a2c; font-size:13px; animation:pop .2s ease-out;">{{ toast }}</div>
+      <div style="position:absolute; left:50%; bottom:{{ toastBottom }}; transform:translateX(-50%); z-index:3000; padding:9px 16px; border-radius:8px; background:#1d1714; border:1px solid #4a3a2c; font-size:13px; animation:pop .2s ease-out;">{{ toast }}</div>
     </sc-if>
   </div>
 
@@ -432,6 +438,7 @@ const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/
 const getJ=p=>fetch(p,{headers:{'x-nonce':nonce()}}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
 const CAT_GROUPS=[['furniture','Furniture'],['decor','Decor'],['nature','Nature']];
 const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+const ZONE_LABEL={path:'Walkway',play:'Play area'},zoneLabel=t=>ZONE_LABEL[t]||cap(t);
 // Same id the server derives from a template name (world-store.mjs saveTemplate), to warn before an overwrite.
 const tplSlug=(nm,builtIns)=>{let id=nm.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40).replace(/-+$/,'')||'template';if(builtIns.includes(id))id=id.slice(0,35).replace(/-+$/,'')+'-mine';return id;};
 const pad=n=>String(n).padStart(2,'0');
@@ -447,10 +454,11 @@ const TOOLK={tool:'\u{1F527}',think:'\u{1F4AD}',out:'\u{1F4AC}',err:'\u26A0',hit
 const DEMOS=['','work','think','blocked','report','empty','tour'];
 
 class Component extends DCLogic {
-  state={nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null};
+  state={catGroup:'furniture',off:{x:0,y:0},nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null};
   wrapRef=React.createRef(); termRef=React.createRef(); canvasRef=React.createRef();
   componentDidMount(){
-    const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect();const sc=Math.min(r.width/1480,(r.height-40)/920);this.fitSc=sc;this.vp={w:r.width,h:r.height};this.setView(this.state.view,sc);this.setState({scale:sc});};
+    const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect(),i=this.insets();const sc=Math.min((r.width-i.l)/1480,(r.height-40-i.t-i.b)/920);this.fitSc=sc;this.vp={w:r.width-i.l,h:r.height-i.t-i.b};this.off={x:i.l/2,y:(i.t-i.b)/2};this.setView(this.state.view,sc);this.setState({scale:sc,off:this.off});};
+    this.fit=fit;
     this.onResize=()=>this.setState({vw:window.innerWidth});window.addEventListener('resize',this.onResize);
     const qd=new URLSearchParams(location.search).get('demo');
     // Boot: wait up to 400 ms for the stored layout so the first frame already shows it; later arrivals still apply.
@@ -472,6 +480,7 @@ class Component extends DCLogic {
     window.OfficeObjects&&OfficeObjects.onState(x=>this.setState({music:x.playing}));
     this.es.onmessage=ev=>{const d=JSON.parse(ev.data);this.worldVersion(d.worldVersion);this.applyNames(d.names);this.live=d;window.OfficeObjects&&OfficeObjects.update(d);window.OfficeWorld&&OfficeWorld.setSnapshot(d);this.setState(s=>({manager:d.manager,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,doneN:d.doneReports||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,tasksDone:d.tasksDone,hires:d.hires||[],names:d.names||null,...(s.demo?{}:{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null})}));};
     this.onKey=e=>{
+      if(this.state.ask){if(e.key==='Escape'){e.preventDefault();this.setState({ask:null});}else if(e.key==='Tab'){const bs=[...document.querySelectorAll('[role=dialog] button')],i=bs.indexOf(document.activeElement);if(bs.length){e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}}return;}
       const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;
       const a=this.sel();
       if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&!document.querySelector('.oo-win')){if(e.key==='+'||e.key==='=')this.zoomBy(1.25);else if(e.key==='-'||e.key==='_')this.zoomBy(0.8);else if(e.key==='0')this.setView({z:1,x:0,y:0});}
@@ -479,17 +488,18 @@ class Component extends DCLogic {
       if(a&&a.perm){if((e.key==='y'||e.key==='Y')&&!a.perm.defaultToNo)this.decide(a,'allow');if(e.key==='n'||e.key==='N')this.decide(a,'deny');}
     };
     window.addEventListener('keydown',this.onKey);
+    window.addEventListener('beforeunload',e=>{if(this.session&&this.session.dirty()){e.preventDefault();e.returnValue='';}});
     // Deep links from the Tiro island dock: #today, #reports, #usage.
     this.onHash=()=>{const h=location.hash.slice(1);if(!h)return;history.replaceState(null,'',location.pathname+location.search);if(h==='usage')this.setState({usageOpen:true});else if(h==='reports')this.openReports();else if(h==='today')this.setState({todayOpen:true});};
     window.addEventListener('hashchange',this.onHash);this.onHash();
   }
   componentWillUnmount(){this.camOff&&this.camOff();this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
-  componentDidUpdate(){if(this.state.selectedId!==this._selSent){this._selSent=this.state.selectedId;api('/api/select',{id:this.state.selectedId||null}).catch(()=>{});}this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
+  componentDidUpdate(){if(this.state.ask&&this.state.ask!==this._askShown){this._askShown=this.state.ask;const d=document.querySelector('[role=dialog]'),b=d&&(d.querySelector('button.cta')||d.querySelector('button'));b&&b.focus();}if(this.state.selectedId!==this._selSent){this._selSent=this.state.selectedId;api('/api/select',{id:this.state.selectedId||null}).catch(()=>{});}this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
   // Camera: wheel zooms about the cursor, drag pans, keys + - 0, buttons in the corner. Pure maths lives in OfficeMotion.
   setView(v,sc){const M=window.OfficeMotion,vp=this.vp||{w:1280,h:800},f=sc||this.fitSc||1;const c=M.clampView(v,vp.w,vp.h,f,1480,920);this.view=c;this.setState({view:c});window.OfficeWorld&&OfficeWorld.setScale(f*c.z);}
   zoomBy(k,cx,cy){this.setView(OfficeMotion.zoomAt(this.view||this.state.view,k,cx||0,cy||0));}
   camEvents(el){
-    const origin=()=>{const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height*0.52};};
+    const origin=()=>{const r=el.getBoundingClientRect(),o=this.off||{x:0,y:0};return {x:r.left+r.width/2+o.x,y:r.top+r.height*0.52+o.y};};
     const onCanvas=e=>e.target===el||(e.target.tagName==='CANVAS');
     this.onWheel=e=>{if(!onCanvas(e))return;e.preventDefault();const o=origin();this.zoomBy(Math.exp(-e.deltaY*0.0016),e.clientX-o.x,e.clientY-o.y);};
     let drag=null;
@@ -637,26 +647,36 @@ class Component extends DCLogic {
     if(v===undefined)return;const was=this.wv;this.wv=v;
     if(was===undefined||v===was)return;
     if(this.ownSave){this.ownSave=false;return;} // our own Save bumped it
-    if(this.session)return this.showToast('Layout changed in another window');
-    getJ('/api/world').then(j=>{if(j&&j.layout&&!this.session){this.layout=j.layout;window.OfficeWorld&&OfficeWorld.applyLayout(j.layout);}}).catch(()=>{});
+    if(this.session){this.worldStale=true;return this.showToast('Layout changed in another window');}
+    this.reloadWorld();
   }
+  reloadWorld(){
+    return getJ('/api/world').then(j=>{if(j&&j.layout&&!this.session){this.layout=j.layout;window.OfficeWorld&&OfficeWorld.applyLayout(j.layout);}}).catch(()=>{});
+  }
+  // Room the Build UI takes from the office view, in px: the left drawer, or on narrow screens the edit bar and the bottom sheet + controls.
+  insets(){if(!this.session)return {l:0,t:0,b:0};return window.innerWidth<700?{l:0,t:100,b:Math.round(window.innerHeight*.38)+52}:{l:286,t:0,b:0};}
   enterBuild(){
     const W=window.OfficeWorld,E=window.WorldEdit;if(!W||!E||!W.setBuild||this.session||this.state.demo)return;
     this.session=E.createSession(this.layout||WorldModel.defaultLayout());
     W.setBuild(this.session,{onChange:st=>this.setState({bst:st}),onSelect:(id,kind)=>this.setState(s=>({bst:{...(s.bst||{}),selected:id,selectedKind:kind}})),onToast:t=>this.showToast(t)});
+    this.worldStale=false;document.body.classList.add('ao-building');
     this.setState({building:true,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,ask:null,selectedId:null,popout:false,rosterOpen:false,deskInfo:null,dispatchOpen:false});
+    this.fit&&this.fit();
   }
   exitBuild(discard){
     if(!this.session)return;this.session=null;
-    const W=window.OfficeWorld;W.setBuild(null);if(discard)W.applyLayout(this.layout||WorldModel.defaultLayout());
+    const W=window.OfficeWorld;W.setBuild(null);document.body.classList.remove('ao-building');
+    if(this.worldStale){this.worldStale=false;this.reloadWorld();} // another window saved meanwhile: show theirs
+    else if(discard)W.applyLayout(this.layout||WorldModel.defaultLayout());
     this.setState({building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,ask:null});
+    this.fit&&this.fit();
   }
   // Done (or anything that ends Build mode): ask Save / Discard / Cancel when there are unsaved changes, then run next().
   leaveBuild(next){
     const go=()=>{next&&next();};
     if(!this.session)return go();
     if(!this.session.dirty()){this.exitBuild(false);return go();}
-    this.askUser('You have unsaved layout changes.',[['Save',()=>this.saveBuild().then(ok=>{if(ok){this.exitBuild(false);go();}}),true],['Discard',()=>{this.exitBuild(true);go();}],['Cancel']]);
+    this.askUser('You have unsaved layout changes.',[['Save',()=>this.saveBuild().then(ok=>{if(ok){this.exitBuild(false);go();}}),true],['Discard',()=>{this.exitBuild(true);go();},'danger'],['Cancel']]);
   }
   askUser(text,btns){this.setState({ask:{text,btns}});}
   showErrs(list){this.setState({buildErrs:(list&&list.length?list:['Unknown error']).map(String)});}
@@ -664,11 +684,18 @@ class Component extends DCLogic {
     const S=this.session;if(!S)return Promise.resolve(false);
     const L=S.layout(),v=WorldModel.validate(L);
     if(!v.ok){this.showErrs(v.errors);return Promise.resolve(false);} // never send a layout we know is invalid
+    if(this.worldStale)return new Promise(res=>this.askUser('The layout was changed in another window. Overwrite it?',[
+      ['Overwrite',()=>{this.worldStale=false;this.saveBuild().then(res);},'danger'],
+      ['Load theirs',()=>{this.loadTheirs();res(false);},true],['Cancel',()=>res(false)]]));
     this.ownSave=true;
     return api('/api/world',{layout:L}).then(()=>{this.layout=L;S.markSaved();this.setState({buildErrs:null,bst:{...(this.state.bst||{})}});this.showToast('Layout saved');return true;})
       .catch(e=>{this.ownSave=false;this.showErrs(e.body&&e.body.errors||[e.message]);return false;});
   }
-  place(type,x,y){const r=OfficeWorld.dropAt(type,x,y);if(r.ok)this.setState({armed:null});else this.showToast(r.reason);return r;}
+  // Replace the session with the layout another window saved; it is the saved state now, so the session is clean.
+  loadTheirs(){
+    return getJ('/api/world').then(j=>{const S=this.session;if(!S||!j||!j.layout)return;if(!OfficeWorld.buildOp('load',j.layout).ok)return;this.layout=j.layout;this.worldStale=false;S.markSaved();this.setState(s=>({bst:{...(s.bst||{})}}));this.showToast('Loaded the layout from the other window');}).catch(e=>this.showToast(e.message));
+  }
+  place(type,x,y){const r=OfficeWorld.dropAt(type,x,y);if(r.ok)this.setState({armed:null});else this.showToast("Can't put the "+WorldEdit.labelOf(type)+' there: '+r.reason);return r;}
   // Load a template (or the default) into the session: one undoable step that stays dirty until saved.
   loadInto(name,get){
     this.setState({tplOpen:false});
@@ -681,42 +708,43 @@ class Component extends DCLogic {
     const L=S.layout(),v=WorldModel.validate(L);if(!v.ok)return this.showErrs(v.errors);
     const go=()=>api('/api/world/templates',{name:nm,layout:L}).then(()=>{this.setState({tplName:''});this.showToast('Saved template '+nm);this.refreshTpls();}).catch(e=>this.showErrs(e.body&&e.body.errors||[e.message]));
     const ts=this.state.tpls,id=tplSlug(nm,ts.filter(t=>t.builtIn).map(t=>t.id)),old=ts.find(t=>!t.builtIn&&t.id===id);
-    if(old)this.askUser('A template named '+old.name+' already exists. Replace it?',[['Replace',go,true],['Cancel']]);else go();
+    if(old)this.askUser('A template named '+old.name+' already exists. Replace it?',[['Replace',go,'danger'],['Cancel']]);else go();
   }
   buildVals(){
     const s=this.state,S=this.session,on=!!(s.building&&S),st=s.bst||{},narrow=s.vw<700,armed=s.armed,brush=s.brush;
     const btn=(label,active,extra)=>({btn:true,label,on:active?'true':'false',border:active?'#ffcf6b':'var(--line)',fg:active?'#ffdca0':'#d7c3a8',bg:active?'#3a2d18':'transparent',draggable:'false',onDrag:()=>{},title:'',...extra});
     const cat=on?WorldEdit.catalog().filter(c=>c.addable):[];
-    const catItems=on?[
-      ...CAT_GROUPS.flatMap(([g,label])=>{const its=cat.filter(c=>c.group===g);return its.length?[{head:true,label},...its.map(c=>btn(cap(c.label.replace(/-/g," ")),armed===c.type,{draggable:narrow?'false':'true',title:'Click, then click the floor'+(narrow?'':', or drag it onto the floor'),
+    const grp=s.catGroup,tab=(g,label)=>({label,on:grp===g?'true':'false',border:grp===g?'#ffcf6b':'var(--line)',fg:grp===g?'#ffdca0':'#d7c3a8',bg:grp===g?'#3a2d18':'transparent',onClick:()=>this.setState({catGroup:g})});
+    const catTabs=on?[...CAT_GROUPS.map(([g,label])=>tab(g,label)),tab('zones','Zones')]:[];
+    const catItems=!on?[]:grp==='zones'
+      ?WorldModel.ZONE_TYPES.map(t=>btn(zoneLabel(t),brush===t,{onClick:()=>{const b=brush===t?null:t;OfficeWorld.setTool(b?'zone:'+b:null);this.setState({brush:b,armed:null});}}))
+      :cat.filter(c=>c.group===grp).map(c=>btn(c.label,armed===c.type,{draggable:narrow?'false':'true',title:'Click, then click the floor'+(narrow?'':', or drag it onto the floor'),
         onClick:()=>{OfficeWorld.setTool(null);this.setState({armed:armed===c.type?null:c.type,brush:null});},
-        onDrag:e=>{e.dataTransfer.setData('text/x-ao-piece',c.type);e.dataTransfer.effectAllowed='copy';}}))]:[];}),
-      {head:true,label:'Zones'},{hint:true,label:'Pick a brush, then drag on the floor. Tap a zone to select it.'},
-      ...WorldModel.ZONE_TYPES.map(t=>btn(cap(t),brush===t,{onClick:()=>{const b=brush===t?null:t;OfficeWorld.setTool(b?'zone:'+b:null);this.setState({brush:b,armed:null});}}))
-    ]:[];
+        onDrag:e=>{e.dataTransfer.setData('text/x-ao-piece',c.type);e.dataTransfer.effectAllowed='copy';}}));
     const errs=s.buildErrs||[],zs=st.selectedKind==='zone'&&st.selected&&S?S.layout().zones.find(z=>z.id===st.selected):null;
     const closeAsk=()=>this.setState({ask:null});
     return {
       buildPillDisp:s.demo?'none':'inline-flex',buildPressed:on?'true':'false',buildBorder:on?'#ffcf6b':'#3a2e25',buildColor:on?'#ffdca0':'#f0e4d4',
       toggleBuild:()=>on?this.leaveBuild():this.enterBuild(),
       building:on,headDisp:on?'none':'flex',todayDisp:on?'none':'flex',ctrlBottom:on&&narrow?'calc(38vh + 12px)':'16px',
-      ebPos:narrow||!on?'left:16px; right:16px;':'left:250px; right:16px;',
-      catPos:narrow?'left:0; right:0; bottom:0; max-height:38vh; padding-bottom:56px; border-radius:14px 14px 0 0;':'left:16px; top:16px; bottom:60px; width:220px; border-radius:10px;',
+      ebPos:narrow||!on?'left:16px; right:16px;':'left:302px; right:16px;',toastBottom:on&&narrow?'calc(38vh + 64px)':'24px',
+      catPos:narrow?'left:0; right:0; bottom:0; height:38vh; border-radius:14px 14px 0 0;':'left:16px; top:16px; bottom:16px; width:270px; border-radius:10px;',
+      catTabs,catHint:grp==='zones'?'Pick a brush, then drag on the floor. Tap a zone to select it.':'Click a piece, then click the floor'+(narrow?'.':', or drag it onto the floor.'),
       buildTitle:'Build'+(S&&S.dirty()?' · unsaved':''),
       noUndo:!(S&&S.canUndo()),noRedo:!(S&&S.canRedo()),noSel:!st.selected,noPiece:st.selectedKind!=='obj'||!st.selected,
       bUndo:()=>OfficeWorld.buildOp('undo'),bRedo:()=>OfficeWorld.buildOp('redo'),bDelete:()=>OfficeWorld.buildOp('delete'),bDuplicate:()=>OfficeWorld.buildOp('duplicate'),
       bSave:()=>this.saveBuild(),bDone:()=>this.leaveBuild(),
-      zoneSel:!!zs,zoneTypes:zs?WorldModel.ZONE_TYPES.map(t=>({label:cap(t),on:zs.type===t?'true':'false',border:zs.type===t?'#ffcf6b':'var(--line)',fg:zs.type===t?'#ffdca0':'#d7c3a8',onClick:()=>OfficeWorld.buildOp('zoneType',t)})):[],
+      zoneSel:!!zs,zoneTypes:zs?WorldModel.ZONE_TYPES.map(t=>({label:zoneLabel(t),on:zs.type===t?'true':'false',border:zs.type===t?'#ffcf6b':'var(--line)',fg:zs.type===t?'#ffdca0':'#d7c3a8',onClick:()=>OfficeWorld.buildOp('zoneType',t)})):[],
       hasBuildErrs:on&&errs.length>0,buildErrs:errs.slice(0,3).map(text=>({text})).concat(errs.length>3?[{text:'+'+(errs.length-3)+' more'}]:[]),closeErrs:()=>this.setState({buildErrs:null}),
       tplOpen:on&&s.tplOpen,tplExpanded:s.tplOpen?'true':'false',tplBorder:s.tplOpen?'#8a5a1c':'var(--line)',
       toggleTpl:()=>{if(!s.tplOpen)this.refreshTpls();this.setState({tplOpen:!s.tplOpen});},
       tpls:s.tpls.map(t=>({name:t.name,mine:!t.builtIn,onLoad:()=>this.loadInto(t.name,()=>getJ('/api/world/template?id='+encodeURIComponent(t.id)).then(j=>j.layout)),
-        onDelete:()=>this.askUser('Delete the template '+t.name+'?',[['Delete',()=>api('/api/world/template/delete',{id:t.id}).then(r=>{this.showToast(r.ok?'Deleted '+t.name:'Could not delete '+t.name);this.refreshTpls();}).catch(e=>this.showToast(e.message)),true],['Cancel']])})),
+        onDelete:()=>this.askUser('Delete the template '+t.name+'?',[['Delete',()=>api('/api/world/template/delete',{id:t.id}).then(r=>{this.showToast(r.ok?'Deleted '+t.name:'Could not delete '+t.name);this.refreshTpls();}).catch(e=>this.showToast(e.message)),'danger'],['Cancel']])})),
       tplName:s.tplName,onTplName:e=>this.setState({tplName:e.target.value}),onTplKey:e=>{if(e.key==='Enter')this.saveTpl();},saveTpl:()=>this.saveTpl(),
       resetDefault:()=>this.loadInto('The default layout',()=>WorldModel.defaultLayout()),
-      catItems:catItems.map(c=>({head:!!c.head,hint:!!c.hint,btn:!!c.btn,label:c.label,on:c.on||'false',border:c.border||'',fg:c.fg||'',bg:c.bg||'',draggable:c.draggable||'false',title:c.title||'',onClick:c.onClick||(()=>{}),onDrag:c.onDrag||(()=>{})})),
+      catItems,
       hasAsk:!!s.ask,askText:s.ask?s.ask.text:'',askCancel:closeAsk,
-      askBtns:s.ask?s.ask.btns.map(([label,fn,cta])=>({label,cls:cta?'pill sm cta':'pill sm',onClick:()=>{closeAsk();fn&&fn();}})):[],
+      askBtns:s.ask?s.ask.btns.map(([label,fn,kind])=>({label,cls:kind==='danger'?'pill sm danger':kind?'pill sm cta':'pill sm',onClick:()=>{closeAsk();fn&&fn();}})):[],
     };
   }
   renderVals(){
@@ -732,7 +760,7 @@ class Component extends DCLogic {
     const logs=a?a.logs.slice(s.cleared[a.id]||0).concat(s.local[a.id]||[]):[];
     const selLogs=logs.map(l=>{const k=KIND[l.k]||KIND.sys;return {t:l.t,tag:k[0],tagColor:k[1],color:k[2],fs:l.k==='think'?'italic':'normal',text:l.text};});
     return {
-      wrapRef:this.wrapRef,termRef:this.termRef,canvasRef:this.canvasRef,scale:s.scale.toFixed(4),camScale:(s.scale*s.view.z).toFixed(4),panX:Math.round(s.view.x),panY:Math.round(s.view.y),
+      wrapRef:this.wrapRef,termRef:this.termRef,canvasRef:this.canvasRef,scale:s.scale.toFixed(4),camScale:(s.scale*s.view.z).toFixed(4),stageX:Math.round(s.view.x+s.off.x),stageY:Math.round(s.view.y+s.off.y),buildBlocked:!!(s.building&&blockedN),panX:Math.round(s.view.x),panY:Math.round(s.view.y),
       zoomLabel:s.view.z<=1.001?'Fit':Math.round(s.view.z*100)+'%',zoomBorder:s.view.z>1.001?'#8a5a1c':'#3a2e25',zoomIn:()=>this.zoomBy(1.25),zoomOut:()=>this.zoomBy(0.8),zoomReset:()=>this.setView({z:1,x:0,y:0}),offlineBanner:s.online===false&&!s.demo,
       workingN,idleN,blockedN,totalN:s.agents.length,tasksDone:s.tasksDone,
       overflowLabel:s.overflow?' · +'+s.overflow+' more':'',onlineLabel:s.claudeMissing?'Claude Code not found: install it and log in':s.online?'Live':s.online===null?'Connecting…':'Offline: is the server running?',onlineColor:s.online?'#5fd38d':s.online===null?'#a8998a':'#ff7a6b',

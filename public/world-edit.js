@@ -21,8 +21,20 @@
   // One-of-a-kind pieces: desks wait for Phase 3; the others register fixed click keys (or, the pond, a water zone that
   // would not follow a copy).
   const NOT_ADDABLE = new Set(['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond']);
+  // What the drawer and messages call each piece.
+  const LABELS = {
+    'dept-desk': 'Department desk', 'tiro-desk': "Manager's desk", inbox: 'Inbox tray', 'tiro-chair': "Manager's chair", 'guest-chair': 'Guest chair',
+    'trophy-shelf': 'Trophy shelf', plant: 'Plant', 'side-table': 'Side table', 'glass-x': 'Glass wall (left\u2013right)', 'glass-y': 'Glass wall (front\u2013back)',
+    'office-door': 'Door', pond: 'Pond', bench: 'Bench', 'bench-side': 'Bench (side-on)', tree: 'Tree', 'server-plant': 'Server plant', 'bird-feeder': 'Bird feeder',
+    hedge: 'Hedge', arcade: 'Arcade cabinet', 'arcade-race': 'Racing arcade', jukebox: 'Jukebox', sofa3: 'Sofa (3-seat)', 'snack-table': 'Snack table',
+    beanbag: 'Beanbag', 'ball-pit': 'Ball pit', hoop: 'Basketball hoop', dartboard: 'Dartboard', 'toy-bin': 'Toy bin', 'filing-cabinet': 'Filing cabinet',
+    'server-rack': 'Server rack', bookshelf: 'Bookshelf', 'water-cooler': 'Water cooler', 'coffee-counter': 'Coffee bar', printer: 'Printer',
+    'recycling-bin': 'Recycling bin', 'hot-desk': 'Hot desk', 'hot-chair': 'Hot-desk chair', fence: 'Fence', gate: 'Gate', 'pond-east': 'Pond',
+    'picnic-table': 'Picnic table', 'lamp-post': 'Lamp post', garage: 'Garage shed', 'mail-bench': 'Mail sorting bench', mailbox: 'Mailbox', tires: 'Tyre stack',
+  };
+  const labelOf = type => LABELS[type] || (F.CATALOG[type] && F.CATALOG[type].label) || type;
   const catalog = () => Object.keys(F.CATALOG).filter(t => !isFixture(t)).map(type => ({
-    type, label: F.CATALOG[type].label || type, group: GROUP[type] || 'furniture', addable: !NOT_ADDABLE.has(type), deletable: type !== 'dept-desk',
+    type, label: labelOf(type), group: GROUP[type] || 'furniture', addable: !NOT_ADDABLE.has(type), deletable: type !== 'dept-desk',
   }));
 
   // A new piece of a type copies the params of the type's first default piece (bench seat id, plant scale, ...).
@@ -147,7 +159,10 @@
           l.zones = l.zones.filter(q => q.id !== op.id);
           return done(l, '');
         }
-        case 'load': return done(copy(op.layout), ''); // a template or the default, already validated by its source
+        case 'load': { // a whole layout (template, default, another window's save)
+          const v = WM.validate(op.layout);
+          return v.ok ? done(copy(op.layout), '') : fail('invalid layout: ' + v.errors.slice(0, 3).join('; '));
+        }
       }
       return fail('unknown op ' + op.op);
     }
@@ -191,5 +206,5 @@
     };
   }
 
-  root.WorldEdit = { toGround, snap, catalog, createSession, pieceAt, isFixture };
+  root.WorldEdit = { toGround, snap, catalog, labelOf, createSession, pieceAt, isFixture };
 })(globalThis);

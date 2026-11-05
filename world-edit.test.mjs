@@ -85,7 +85,7 @@ test('check does not apply', () => {
 test('catalog skips fixtures and pins desks', () => {
   const c = J(E.catalog());
   assert.ok(!c.some((t) => /^fixture-/.test(t.type)));
-  assert.deepEqual(c.find((t) => t.type === 'dept-desk'), { type: 'dept-desk', label: 'dept-desk', group: 'desk', addable: false, deletable: false });
+  assert.deepEqual(c.find((t) => t.type === 'dept-desk'), { type: 'dept-desk', label: 'Department desk', group: 'desk', addable: false, deletable: false });
   assert.ok(c.every((t) => ['furniture', 'decor', 'nature', 'desk'].includes(t.group)));
   const s = E.createSession(WM.defaultLayout());
   for (const type of ['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond']) {
@@ -172,4 +172,21 @@ test('load swaps the whole layout as one undoable, dirty op', () => {
   assert.ok(s.dirty());
   s.undo();
   assert.ok(!s.dirty());
+});
+
+test('catalog labels are words, not raw type ids', () => {
+  for (const c of E.catalog()) {
+    assert.notEqual(c.label, c.type, c.type);
+    assert.ok(!/^[a-z0-9-]+$/.test(c.label), c.type + ' -> ' + c.label);
+  }
+  assert.equal(E.labelOf('sofa3'), 'Sofa (3-seat)');
+});
+
+test('load refuses an invalid layout and changes nothing', () => {
+  const s = E.createSession(WM.defaultLayout());
+  const bad = WM.defaultLayout(); bad.zones.push({ id: 'x', type: 'nope', rect: [0, 0, 50, 50] });
+  const r = s.load(bad);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /invalid layout/);
+  assert.ok(!s.dirty() && !s.canUndo());
 });

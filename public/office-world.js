@@ -457,11 +457,11 @@
     if (d.kind === 'piece') { if (d.x != null && (d.x !== d.o.x || d.y !== d.o.y)) r = build.move(d.id, d.x, d.y); }
     else if (d.rect && d.kind === 'zone') { r = build.addZone(d.type, d.rect); if (r.ok) setSel({ kind: 'zone', id: r.id }); }
     else if (d.rect) r = build.setZone(d.id, { rect: d.rect });
-    if (r && !r.ok) toast(r.reason);
+    if (r && !r.ok) toast(d.kind === 'piece' ? "Can't put the " + WE().labelOf(d.o.type) + ' there: ' + r.reason : r.reason);
     afterOp(); // also snaps an illegal or unchanged drag back
   }
   function onKey(e) {
-    if (!build || e.defaultPrevented) return;
+    if (!build || e.defaultPrevented || document.querySelector('[role=dialog][aria-modal=true]')) return; // a page dialog owns the keys
     const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
     const k = (e.key || '').length === 1 ? e.key.toLowerCase() : e.key || '', mod = e.ctrlKey || e.metaKey;
     if (mod && k === 'z' && !e.shiftKey) buildOp('undo');
