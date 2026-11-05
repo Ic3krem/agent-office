@@ -1,6 +1,7 @@
 // The company layer: today's goals, the manager's brief, and the specialists it can hire.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import vm from 'node:vm';
 
 export const MAX_SPECIALISTS = 8;
 const OPEN = ['todo', 'doing'];
@@ -41,7 +42,7 @@ export function goalStore(file, today = () => new Date().toLocaleDateString('en-
 
 // ---------- the manager ----------
 export const OLD_HIRE_LINE = '- Hire specialists with the Agent tool, always with run_in_background: true, so several work at once. At most ${MAX_SPECIALISTS} work at the same time; if you are told the team is full, wait for a report before hiring again.';
-export const MANAGER_PROMPT = `
+export const managerPrompt = keys => `
 # You are Tiro, the office manager in Agent Office
 The user runs a small "company" of Claude agents from a pixel-office dashboard and a desktop app where you appear as Tiro, a little orange cube-crab. You are its manager. Your replies also show in Tiro's small chat bubble on the user's desktop, so lead with the answer in a sentence or two. You plan, delegate, check work and keep today's goal board honest. Do hands-on work yourself only when it is a quick read or a one-line check.
 
@@ -56,10 +57,9 @@ The user runs a small "company" of Claude agents from a pixel-office dashboard a
 - Hiring is the exception, not the default. Do the work yourself when it is a quick read, a lookup or a small edit. Reuse a specialist who is already on the team (SendMessage to an idle one) before hiring another. Hire only when a goal truly needs separate hands: work too large or too specialised for you, or independent work that should run in parallel.
 - You cannot hire on your own. First call mcp__office__request_hire (specialist, goal_id, why: a concrete reason this needs a sub-agent, prompt: the exact first prompt you will send). The Agent call must then use that prompt unchanged. The user approves or denies it on the dashboard; the call returns their answer. Only after "approved" use the Agent tool, once, for that specialist. A denied request means do the work yourself or mark the goal blocked; do not ask again for the same reason.
 - Hire with the Agent tool, always with run_in_background: true. At most ${MAX_SPECIALISTS} work at the same time; if you are told the team is full, wait for a report before requesting another hire.
-- The team is exactly eight specialists, hired by subagent_type: pixel (frontend: UI, HTML/CSS/JS, accessibility), forge (backend: APIs, data, scripts, servers), warden (security review, read-only), probe (QA: runs tests, reproduces bugs; read-only), atlas (deep research: long multi-source investigations, read-only), cabalan (quick research: lookups and fact-finding, read-only), tally (task checker and organizer: checks work against the board, tidies notes and checklists), scribe (SOP and document writer; never sends). Old names still work: researcher=cabalan, builder=forge, ops=forge, writer=scribe, reviewer=probe.
-- Each specialist is ONE person with one desk. Never spawn a second copy of a type on your own, and never let a specialist spawn one. If a specialist is short on capacity or needs help, it says so in its report; you then call mcp__office__request_hire for the type that is needed (a second forge is a "Forge helper" and needs the user's approval like any hire). Tell every specialist you brief: do not spawn, ask for help in your report.
-- Pixel, forge, warden and probe are the four coders; hire warden or probe to check code that matters instead of marking it done on trust.
-- Pick the model for each hire with the Agent tool's model field: haiku for lookups and small mechanical edits, sonnet for most work, opus only for hard design or debugging.
+${teamLine(keys)}
+- Each specialist is ONE person with one desk. Never spawn a second copy of a type on your own, and never let a specialist spawn one. If a specialist is short on capacity or needs help, it says so in its report; you then call mcp__office__request_hire for the type that is needed (a second ${helperEg(keys)[0]} is a "${helperEg(keys)[1]} helper" and needs the user's approval like any hire). Tell every specialist you brief: do not spawn, ask for help in your report.
+${coderLine(keys)}- Pick the model for each hire with the Agent tool's model field: haiku for lookups and small mechanical edits, sonnet for most work, opus only for hard design or debugging.
 - Give each specialist one clear goal, the folder to work in, what "done" looks like, and the goal id to mention in its report.
 
 ## Spend tokens like they are the company's money
@@ -84,25 +84,64 @@ const READ_ONLY = ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Bash']; // 
 const HANDS_ON = [...READ_ONLY, 'Edit', 'Write'];
 const FOOTER = '\nYou are the only one of your kind: do not spawn sub-agents or copies of yourself. If you lack capacity or need help, say exactly what and which specialist type in your report so the manager can request an approved hire.\nFinish with a short report: what you did, where the result is, and anything left open.';
 
-// The eight specialists. key = subagent_type. brief = the 3-line job card; color/accent/desk drive the office UI.
-export const ROSTER = {
-  pixel: { name: 'Pixel', role: 'Frontend engineer', kind: 'coder', model: 'sonnet', tools: HANDS_ON, color: '#e0679a', accent: '#ffb3d1', desk: 'desk-1',
+// Server-only fields for every catalog role: tools, effort, the 3-line job card (brief) and the manager's one-line summary (team).
+const SPECS = {
+  pixel: { tools: HANDS_ON, team: 'frontend: UI, HTML/CSS/JS, accessibility',
     brief: ['Builds and fixes UI: HTML, CSS, JavaScript and components.', 'Matches the existing look, keeps it accessible and responsive.', 'Runs the page or its tests before reporting.'] },
-  forge: { name: 'Forge', role: 'Backend engineer', kind: 'coder', model: 'sonnet', tools: HANDS_ON, color: '#e08a3a', accent: '#ffc78a', desk: 'desk-2',
+  forge: { tools: HANDS_ON, team: 'backend: APIs, data, scripts, servers',
     brief: ['Builds and fixes servers, APIs, data jobs, scripts and automations.', 'Prefers read-only checks first and the smallest complete change.', 'Reports exactly what it changed and how it verified it.'] },
-  warden: { name: 'Warden', role: 'Security reviewer', kind: 'coder', model: 'opus', effort: 'medium', tools: READ_ONLY, color: '#5b7fd1', accent: '#a9c1f5', desk: 'desk-3',
+  warden: { effort: 'medium', tools: READ_ONLY, team: 'security review, read-only',
     brief: ['Audits code, configs and scripts for secrets, injection and unsafe permissions.', 'Read-only: never edits, never prints a secret value.', 'Lists findings by severity with file and line.'] },
-  probe: { name: 'Probe', role: 'QA and test engineer', kind: 'coder', model: 'sonnet', effort: 'medium', tools: READ_ONLY, color: '#4fb286', accent: '#a5e6c6', desk: 'desk-4',
+  probe: { effort: 'medium', tools: READ_ONLY, team: 'QA: runs tests, reproduces bugs; read-only',
     brief: ["Checks another specialist's work against the goal.", 'Runs tests, builds and reproductions; changes no files.', 'Says it passes, or lists concrete problems.'] },
-  atlas: { name: 'Atlas', role: 'Deep researcher', kind: 'research', model: 'opus', effort: 'medium', tools: READ_ONLY, color: '#8a63c9', accent: '#c9b0f0', desk: 'desk-5',
+  atlas: { effort: 'medium', tools: READ_ONLY, team: 'deep research: long multi-source investigations, read-only',
     brief: ['Long, multi-source investigations and comparisons.', 'Cross-checks sources and marks what is fact and what is guess.', 'Read-only: delivers a structured report with citations.'] },
-  cabalan: { name: 'Cabalan', role: 'Researcher', kind: 'research', model: 'haiku', effort: 'low', tools: READ_ONLY, color: '#3fb0b8', accent: '#9de4e8', desk: 'desk-6',
+  cabalan: { effort: 'low', tools: READ_ONLY, team: 'quick research: lookups and fact-finding, read-only',
     brief: ['Quick lookups: finds and reads facts in files, the web or systems.', 'Cites where each fact came from.', 'Read-only and brief.'] },
-  tally: { name: 'Tally', role: 'Task checker and organizer', kind: 'ops', model: 'haiku', effort: 'low', tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'], color: '#d6b13a', accent: '#f5e08f', desk: 'desk-7',
+  tally: { effort: 'low', tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'], team: 'task checker and organizer: checks work against the board, tidies notes and checklists',
     brief: ["Checks finished work against each goal's definition of done.", 'Keeps checklists, task lists and notes tidy and in order.', 'Flags gaps instead of fixing code.'] },
-  scribe: { name: 'Scribe', role: 'SOP and document writer', kind: 'writer', model: 'sonnet', effort: 'low', tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'WebFetch', 'WebSearch'], color: '#b8785a', accent: '#e8b99f', desk: 'desk-8',
+  scribe: { effort: 'low', tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'WebFetch', 'WebSearch'], team: 'SOP and document writer; never sends',
     brief: ['Writes SOPs, runbooks, documents, emails and summaries as drafts.', 'Plain language, numbered steps, saved to files.', 'Never sends mail or posts messages.'] },
+  it: { tools: HANDS_ON, team: 'IT support and sysadmin: machines, accounts, networks, admin scripts',
+    brief: ['Fixes machines, accounts, networks, printers and the scripts that run them.', 'Checks the current state read-only first, then makes the smallest safe change.', 'Reports exactly what it changed and how to undo it.'] },
+  accounting: { tools: HANDS_ON, team: 'accountant: books, reconciliations, financial reports from files and exports',
+    brief: ['Works books, reconciliations, invoices and financial reports from files and exports.', 'Gives every figure with its source and period, and flags anything that does not tie out.', 'Drafts entries and reports only; never moves money or posts to live systems.'] },
+  marketing: { tools: HANDS_ON.filter(t => t !== 'Bash'), team: 'marketing writer: campaigns, posts, newsletters and web copy as drafts; never publishes',
+    brief: ['Writes campaigns, social posts, newsletters and web copy as drafts.', 'Matches the brand voice and says who each piece is for.', 'Never publishes, posts or sends.'] },
+  auditor: { effort: 'medium', tools: READ_ONLY, team: 'auditor and compliance reviewer, read-only',
+    brief: ['Reviews processes, records and policies against rules and controls.', 'Read-only: cites the evidence for every finding (file and line, or record).', 'Rates findings by risk and says what would close each one.'] },
+  notetaker: { effort: 'low', tools: [...READ_ONLY, 'Write'], team: 'meeting notes and minutes; never sends',
+    brief: ['Turns meeting transcripts and notes into clean minutes.', 'Lists decisions, owners and due dates as action items.', 'Saves drafts to files; never sends them.'] },
 };
+// Display data comes from the page's own catalog script, so the two can never drift.
+const box = {};
+vm.runInNewContext(fs.readFileSync(new URL('./public/role-catalog.js', import.meta.url), 'utf8'), box, { filename: 'role-catalog.js' });
+export const RoleCatalog = box.RoleCatalog;
+const BUILTIN = Object.values(RoleCatalog.BUILTIN_DESKS);
+const BUILTIN_DESK = Object.fromEntries(Object.entries(RoleCatalog.BUILTIN_DESKS).map(([d, k]) => [k, d]));
+// Every catalog role, key = subagent_type. desk is set only for the eight built-ins (their desk in the default layout).
+export const ROSTER = Object.fromEntries(RoleCatalog.ROLES.map(({ key, ...r }) => [key, { ...r, ...SPECS[key], ...(BUILTIN_DESK[key] && { desk: BUILTIN_DESK[key] }) }]));
+// Role keys of the layout's department desks in desk order; a desk without a role param holds its built-in role. No layout: the eight.
+export function activeKeys(layout) {
+  if (!layout) return [...BUILTIN];
+  const n = o => Number(String(o.desk).replace(/\D/g, '')) || 0;
+  return (layout.objects || []).filter(o => o.type === 'dept-desk').sort((a, b) => n(a) - n(b))
+    .map(o => o.role || RoleCatalog.BUILTIN_DESKS[o.desk]).filter(k => ROSTER[k]);
+}
+// The parts of the manager's brief that name the team.
+const andList = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join('');
+const WORDS = ['no', 'one', 'two', 'three', 'four'];
+function teamLine(keys) {
+  const old = Object.entries(ALIASES).filter(([, k]) => keys.includes(k)).map(([o, k]) => o + '=' + k).join(', ');
+  return `- The team is ${keys.length === 1 ? 'this 1 specialist' : 'these ' + keys.length + ' specialists'}: ` + keys.map(k => k + ' (' + ROSTER[k].team + ')').join(', ') + ', hired by subagent_type.' + (old ? ' Old names still work: ' + old + '.' : '');
+}
+const helperEg = keys => { const k = keys.includes('forge') ? 'forge' : keys[0] || 'forge'; return [k, ROSTER[k].name]; };
+function coderLine(keys) {
+  const coders = keys.filter(k => ROSTER[k].kind === 'coder'); if (!coders.length) return '';
+  const check = coders.filter(k => ['warden', 'probe'].includes(k)), who = andList(coders);
+  return '- ' + who[0].toUpperCase() + who.slice(1) + (coders.length > 1 ? ' are the ' + WORDS[coders.length] + ' coders' : ' is the only coder') +
+    (check.length ? '; hire ' + check.join(' or ') + ' to check code that matters instead of marking it done on trust' : '') + '.\n';
+}
 // ---------- display names (cosmetic only: types/ids/subagent_type never change) ----------
 export const NAME_MAX = 20;
 // Trim, collapse whitespace, drop control and markup characters, limit length. Returns '' when nothing usable is left.
@@ -192,13 +231,17 @@ export function hireGate({ now = Date.now, ttl = 10 * 60e3 } = {}) {
 export const MANAGER = { name: 'Tiro', role: 'Office manager', color: '#e8793a', accent: '#ffcf6b', desk: 'office' };
 // Old subagent_type names keep working: they map onto the new roster.
 export const ALIASES = { researcher: 'cabalan', builder: 'forge', ops: 'forge', writer: 'scribe', reviewer: 'probe' };
+export const MANAGER_PROMPT = managerPrompt(BUILTIN);
 
 const def = r => ({
   description: r.role + '. ' + r.brief[0],
   prompt: 'You are ' + r.name + ', the office\'s ' + r.role + '.\n' + r.brief.map(l => '- ' + l).join('\n') + FOOTER,
   tools: r.tools, model: r.model, ...(r.effort && { effort: r.effort }),
 });
-export const SPECIALISTS = Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, def(r)]));
+const DEFS = Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, def(r)]));
+// What the SDK may hire for a set of desks (the same definition object per key, every time).
+export const specialists = keys => Object.fromEntries(keys.filter(k => DEFS[k]).map(k => [k, DEFS[k]]));
+export const SPECIALISTS = specialists(BUILTIN);
 // One person per roster specialist: of all live agents sharing a specialist key (builder/ops/forge all resolve to forge),
 // the earliest-started one is the specialist; every other is labelled "<Name> helper" of it, never drawn as another Forge.
 // agents: [{id, born, profile:{key}}]. Returns Map(id -> {helper:false} | {helper:true, helperOf, label}).
@@ -213,7 +256,8 @@ export function assignHelpers(agents, names = {}) {
   return out;
 }
 // Look and desk for a subagent_type (old names resolve through ALIASES); null for anything else.
-export const profileOf = type => { const k = ALIASES[type] || type; const r = ROSTER[k]; return r ? { key: k, name: r.name, role: r.role, color: r.color, accent: r.accent, desk: r.desk } : null; };
+// deskOf(key) gives the desk id in the active layout.
+export const profileOf = (type, deskOf = k => ROSTER[k].desk) => { const k = ALIASES[type] || type; const r = ROSTER[k]; return r ? { key: k, name: r.name, role: r.role, color: r.color, accent: r.accent, desk: deskOf(k) } : null; };
 // Everything the SDK may hire: the eight, plus the old names as aliases of the same definitions.
 export const withAliases = team => ({ ...team, ...Object.fromEntries(Object.entries(ALIASES).map(([o, k]) => [o, team[k]])) });
 
@@ -232,8 +276,9 @@ export function narrowTools(field, builtin) {
   return kept.length ? kept : builtin;
 }
 
-export function teamFromSops(sops, base = SPECIALISTS) {
-  const team = { ...base };
+// Only SOPs for keys on the team apply.
+export function teamFromSops(sops, keys = BUILTIN) {
+  const base = specialists(keys), team = { ...base };
   for (const { name, text } of sops) {
     const m = name.match(/^specialist-([a-z0-9-]+)$/); if (!m || !(m[1] in base)) continue;
     const fmm = text.match(/^---\n([\s\S]*?)\n---\n?/), head = fmm ? fmm[1] : '', body = (fmm ? text.slice(fmm[0].length) : text).trim();

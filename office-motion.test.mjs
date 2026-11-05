@@ -320,7 +320,7 @@ test('camera: zoom keeps the point under the cursor, clamps, and resets at 1x', 
 
 test('playroom: eight idle agents spread out and spots are distinct', () => {
   const b = M.createBrain();
-  const a8 = Object.keys(ROSTER).map(k => ag(k, 'idle', { first: true }));
+  const a8 = Object.keys(ROSTER).filter(k => ROSTER[k].desk).map(k => ag(k, 'idle', { first: true }));
   const f = b.update(snap([tiro('idle'), ...a8], [goal('g1', 'done', { at: Date.now() - 99e6 })]), 1000, { arrived: () => true });
   const spots = f.agents.filter(a => !a.isManager).map(a => M.SPOTS[a.spot]);
   assert.equal(spots.length, 8);

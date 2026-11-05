@@ -31,6 +31,11 @@ test('a hire grant is single use, tied to the goal and the exact first prompt', 
 test('specialist tools are the roster definition (Bash included); permissions decide, not removed tools', () => {
   for (const k of ['pixel', 'forge', 'warden', 'probe', 'atlas', 'cabalan']) assert.ok(ROSTER[k].tools.includes('Bash'), k + ' keeps Bash as defined in the roster');
   for (const k of ['warden', 'probe', 'atlas', 'cabalan']) assert.ok(!ROSTER[k].tools.some(x => ['Write', 'Edit'].includes(x)), k + ' stays read-only by role definition');
+  const RO = ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Bash'];
+  assert.deepEqual(ROSTER.auditor.tools, RO, 'auditor is read-only');
+  assert.deepEqual(ROSTER.notetaker.tools, [...RO, 'Write'], 'notetaker can only add files');
+  for (const k of ['it', 'accounting']) assert.deepEqual(ROSTER[k].tools, [...RO, 'Edit', 'Write'], k);
+  assert.deepEqual(ROSTER.marketing.tools, ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Edit', 'Write'], 'marketing has no Bash');
 });
 
 test('SOP tools frontmatter can only narrow the roster list (what a kept tool may do is still decided by your Claude Code permissions)', () => {

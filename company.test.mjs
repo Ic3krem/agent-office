@@ -34,11 +34,11 @@ test('SOP notes edit the eight specialists but cannot add or revive others', () 
   assert.deepEqual(team.cabalan.tools, SPECIALISTS.cabalan.tools, 'built-in keeps its tools');
   assert.deepEqual([team.pixel.description, team.pixel.tools, team.pixel.model], ['UI', ['Read', 'Write'], 'haiku']);
   assert.equal(team.scribe, SPECIALISTS.scribe, 'an empty note falls back');
-  assert.deepEqual(Object.keys(team).sort(), Object.keys(ROSTER).sort(), 'no ninth specialist, no legacy keys');
+  assert.deepEqual(Object.keys(team).sort(), Object.keys(SPECIALISTS).sort(), 'no ninth specialist, no legacy keys');
 });
 
-test('roster: exactly 8 specialists, distinct desks and colors, 3-line briefs, cap 8', () => {
-  const r = Object.values(ROSTER);
+test('roster: exactly 8 built-in specialists, distinct desks and colors, 3-line briefs, cap 8', () => {
+  const r = Object.keys(SPECIALISTS).map(k => ROSTER[k]);
   assert.equal(r.length, 8);
   assert.equal(MAX_SPECIALISTS, 8);
   assert.equal(new Set(r.map(x => x.desk)).size, 8);
@@ -63,7 +63,7 @@ test('old subagent_type names still resolve to the new roster', () => {
 test('the manager brief is Tiro and names all eight', () => {
   assert.match(MANAGER_PROMPT, /You are Tiro/);
   assert.doesNotMatch(MANAGER_PROMPT, /Kiro/);
-  for (const k of Object.keys(ROSTER)) assert.ok(MANAGER_PROMPT.includes(k), k);
+  for (const k of Object.keys(SPECIALISTS)) assert.ok(MANAGER_PROMPT.includes(k), k);
   assert.ok(MANAGER_PROMPT.includes('At most ' + MAX_SPECIALISTS + ' work'));
 });
 
@@ -152,7 +152,7 @@ test('each roster specialist is one person; same-type extras are labelled helper
 test('prompts: one person per specialist, ask for an approved hire instead of spawning', () => {
   assert.match(MANAGER_PROMPT, /ONE person/);
   assert.match(MANAGER_PROMPT, /request_hire/);
-  for (const k of Object.keys(ROSTER)) assert.match(SPECIALISTS[k].prompt, /do not spawn/);
+  for (const k of Object.keys(SPECIALISTS)) assert.match(SPECIALISTS[k].prompt, /do not spawn/);
   const old = 'Hire with request_hire only.';
   assert.match(migrateBrief(old), /ONE person/);
   assert.equal(migrateBrief(migrateBrief(old)), null);
