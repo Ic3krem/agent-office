@@ -14,6 +14,7 @@ import { createGuardHooks, discoverSyncRoots, makeReadReg, markSdkSession, unmar
 import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
+import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
 import { goalStore, MANAGER_PROMPT, SPECIALISTS, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
@@ -120,15 +121,36 @@ const dailyData = (day = today()) => {
 const scheduleDaily = () => { clearTimeout(dailyTimer); dailyTimer = setTimeout(() => { try { V.writeDaily(today(), redact(dailyMarkdown(dailyData()))); } catch (e) { console.error('daily note:', e.message); } }, 3000); };
 for (const k of ['add', 'update', 'clear']) { const fn = goals[k]; goals[k] = (...a) => { const r = fn(...a); scheduleDaily(); return r; }; }
 { const fn = reports.save; reports.save = r => { const out = fn(redactDeep(r)); scheduleDaily(); return out; }; }
-const ledger = usageLedger(PROJECTS);
+// Performance settings (kiro.json, read at most every 10 s): tiroIdleMinutes (default 15, 0 = never end Tiro's session) and
+// limitsProbeMinutes (default 15, at least 5). uiState is told by the desktop app which windows are on screen.
+const perfPrefs = (() => {
+  let at = 0, v = {};
+  return () => {
+    if (Date.now() - at > 10e3) {
+      at = Date.now();
+      let k = {}; try { k = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')); } catch {}
+      const n = (x, d, lo, hi) => (Number.isFinite(x) ? Math.min(hi, Math.max(lo, Math.floor(x))) : d);
+      v = { tiroIdleMinutes: k.tiroIdleMinutes === 0 ? 0 : n(k.tiroIdleMinutes, 15, 1, 24 * 60), limitsProbeMinutes: n(k.limitsProbeMinutes, 15, 5, 24 * 60) };
+    }
+    return v;
+  };
+})();
+const uiState = { visible: true, sel: undefined, visibleAt: 0 }; // standalone: always visible; Electron reports window visibility
+const ledger = usageLedger(PROJECTS, { stateFile: path.join(CFG_DIR, 'usage-ledger.json') });
 let limits = null;
 const credits = creditLog(path.join(CFG_DIR, 'credits.json'));
 const overLimit = () => !!limits && !limits.error && [limits.session, limits.weekly].some(w => w && w.pct >= 100);
 const refreshLimits = () => planLimits(query, LIMITS_OPTS).then(l => { limits = l; credits.observe(l.extra?.used, overLimit()); guard(); bump(); }).catch(e => { limits = { error: e.message, at: Date.now() }; bump(); });
-setInterval(() => { ledger.refresh(); bump(); }, 30e3);
-// Check limits every 5 minutes, every 2 while Tiro is working (it is what spends them).
+// The ledger reads only what was appended, in small time slices, about every 90 s.
+every(90e3, () => ledger.refreshAsync().then(bump));
+// The limits probe starts a whole claude process, so it only runs while a window is visible or Tiro is working, and not more
+// often than limitsProbeMinutes (15 by default; every 5 minutes while Tiro works, because the plan guard depends on it).
 let lastLimits = 0;
-setInterval(() => { if (Date.now() - lastLimits > (boss.id ? 2 : 5) * 60e3) { lastLimits = Date.now(); refreshLimits(); } }, 30e3);
+const bossActive = () => { const b = boss.id && agents.get(boss.id); return !!boss.id && (boss.running > 0 || (!!b && statusOf(b) !== 'idle')); };
+function maybeProbe() {
+  if (shouldProbe({ now: Date.now(), last: lastLimits, visible: uiState.visible, bossActive: bossActive(), minMs: perfPrefs().limitsProbeMinutes * 60e3 })) { lastLimits = Date.now(); refreshLimits(); }
+}
+every(30e3, maybeProbe);
 const BOSS_FILE = path.join(CFG_DIR, 'manager-session.json');
 const boss = { id: null, push: null, running: 0, progress: false, autoRuns: 0, paused: '' };
 // At a plan limit the guard stops Tiro and its team (so extra-usage credits aren't spent) and resumes after the reset.
@@ -145,8 +167,8 @@ function guard() {
 function stopBoss() { hires.clear(); const live = boss.id && sdk.get(boss.id); if (live) live.q.close(); }
 
 // ---------- transcripts ----------
-function readNew(file, f, a) {
-  const st = fs.statSync(file);
+function readNew(file, f, a, known) {
+  const st = known || fs.statSync(file);
   if (st.size < f.offset) f.offset = 0;
   if (st.size === f.offset) return;
   const fd = fs.openSync(file, 'r');
@@ -169,9 +191,9 @@ function readNew(file, f, a) {
   bump();
 }
 
-function track(file, id, extra) {
+function track(file, id, extra, known) {
   let f = files.get(file);
-  const st = fs.statSync(file);
+  const st = known || fs.statSync(file);
   if (!f) {
     if (Date.now() - st.mtimeMs > RECENT_MS && !agents.has(id)) return;
     const start = Math.max(0, st.size - TAIL_BYTES);
@@ -180,32 +202,18 @@ function track(file, id, extra) {
   }
   f.mtime = st.mtimeMs;
   const a = agents.get(id); a.mtime = st.mtimeMs;
-  readNew(file, f, a);
+  readNew(file, f, a, st);
 }
 
-function scan() {
-  let dirs = [];
-  try { dirs = fs.readdirSync(PROJECTS); } catch { return; }
-  const now = Date.now();
-  for (const d of dirs) {
-    const dir = path.join(PROJECTS, d);
-    let names; try { names = fs.readdirSync(dir); } catch { continue; }
-    for (const n of names) {
-      if (!n.endsWith('.jsonl')) continue;
-      const id = n.slice(0, -6), file = path.join(dir, n);
-      try { track(file, id); } catch {}
-      const sub = path.join(dir, id, 'subagents');
-      if (!fs.existsSync(sub)) continue;
-      for (const s of fs.readdirSync(sub)) {
-        if (!s.endsWith('.jsonl')) continue;
-        const sf = path.join(sub, s), sid = s.slice(0, -6);
-        let meta = {}; try { meta = JSON.parse(fs.readFileSync(sf.replace(/\.jsonl$/, '.meta.json'), 'utf8')); } catch {}
-        if (meta.finished && now - fs.statSync(sf).mtimeMs > 60e3) continue;
-        try { track(sf, sid, { role: 'Helper · ' + (meta.agentType || 'agent'), profile: profileOf(meta.agentType), name: meta.description || 'Helper', parent: id, helper: true }); } catch {}
-      }
-    }
-  }
-}
+// Gated scanner (perf.mjs): only recently touched transcripts are stat'ed every second; quiet project folders every 5 s;
+// a full re-list every 60 s, which also notices an old session that was resumed. Helper metadata is cached per file.
+const scanner = createScanner({
+  projects: PROJECTS, fs,
+  onFile: (file, id, extra, st) => { try { track(file, id, extra, st); } catch {} },
+  isKnown: id => agents.has(id),
+  subExtra: (meta, parent) => ({ role: 'Helper \u00b7 ' + (meta.agentType || 'agent'), profile: profileOf(meta.agentType), name: meta.description || 'Helper', parent, helper: true }),
+});
+const scan = () => scanner.tick();
 
 // ---------- approvals ----------
 function ask(agentId, tool, input, details = {}) {
@@ -416,6 +424,7 @@ Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).
 };
 function tellBoss(text) {
   if (!sw().kiro || (sw().guard && overLimit())) return false; // switched off, or paused at a plan limit: the goal waits on the board
+  boss.startedAt = Date.now(); // activity marker for the idle-session timer
   if (boss.push) return boss.push(text);
   boss.push = () => {}; // claimed while starting so a second click can't start a second manager
   startSession(text, workDir(), {
@@ -466,14 +475,36 @@ function snapshot() {
   };
 }
 
+// What goes over the wire: the selected agent (set by the dashboard) and Tiro keep their full log tail, other desks a short one.
+// Identical snapshots are never pushed again, and while no window is visible pushes are coalesced to one per 3 s.
+const snapshotOut = () => { const sn = snapshot(); return { ...sn, agents: trimLogs(sn.agents, uiState.sel) }; };
+const gate = createSnapshotGate({ hiddenMs: 3000 });
 let sent = -1;
 setInterval(() => {
   scan();
-  if (sent === version || !clients.size) return;
+  if (sent === version || !clients.size || !gate.due(uiState.visible)) return;
+  const data = 'data: ' + JSON.stringify(snapshotOut()) + '\n\n', d = gate.decide(data, uiState.visible);
+  if (d === 'wait') return;
   sent = version;
-  const data = 'data: ' + JSON.stringify(snapshot()) + '\n\n';
+  if (d === 'same') return;
   for (const c of clients) c.write(data);
 }, 1000);
+
+// Tiro's own claude process holds hundreds of MB while idle: end the session after tiroIdleMinutes without activity. The next goal
+// resumes it by the saved session id (manager-session.json), so nothing is lost. Never while an approval is pending, a specialist
+// is out, a goal is being worked on, or Tiro is working.
+every(60e3, () => {
+  const b = boss.id && agents.get(boss.id);
+  if (!b || boss.reload) return;
+  const idleMin = perfPrefs().tiroIdleMinutes;
+  if (shouldEndIdleSession({ now: Date.now(), lastActive: Math.max(b.mtime || 0, b.lastTs || 0, boss.startedAt || 0), idleMin, hasSession: sdk.has(boss.id) && !!boss.push,
+    pendingAsks: asks.size, running: boss.running, doingGoals: goals.list().filter(g => g.status === 'doing').length, working: statusOf(b) !== 'idle' })) {
+    host.note('Tiro was idle for ' + idleMin + ' min: session closed to free memory; it resumes with the next goal');
+    stopBoss();
+  }
+});
+// Forget agents and transcript files nobody touched for a day (the manager, running sessions and pending approvals are kept).
+every(10 * 60e3, () => { if (pruneIdle({ agents, files, keep: a => a.isManager || a.id === boss.id || sdk.has(a.id) })) bump(); });
 
 // ---------- http ----------
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -514,8 +545,8 @@ async function handle(req, res) {
   {
     if (url.pathname === '/api/stream') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      res.write('data: ' + JSON.stringify(snapshot()) + '\n\n');
-      clients.add(res); res.on('close', () => clients.delete(res));
+      res.write('data: ' + JSON.stringify(snapshotOut()) + '\n\n');
+      clients.add(res); gate.reset(); res.on('close', () => clients.delete(res));
       return;
     }
     if (req.method === 'GET' && /^\/(print|export)\//.test(url.pathname)) {
@@ -570,6 +601,16 @@ async function handle(req, res) {
         return json(res, 200, { ok: true });
       }
       case '/api/scheduler': return json(res, 200, readScheduler(path.join(CFG_DIR, 'scheduler.json'))); // read-only: the scheduler job writes the file
+      case '/api/visibility': { // sent by the desktop app: is any window on screen? (standalone never sends it: always visible)
+        const v = b.visible !== false;
+        if (v !== uiState.visible) { uiState.visible = v; if (v) { uiState.visibleAt = Date.now(); gate.reset(); bump(); maybeProbe(); } }
+        return json(res, 200, { visible: uiState.visible });
+      }
+      case '/api/select': { // the dashboard tells which agent's log it shows; others get a short tail
+        const id = typeof b.id === 'string' && b.id.length <= 200 ? b.id : null;
+        if (id !== uiState.sel) { uiState.sel = id === null ? undefined : id; bump(); }
+        return json(res, 200, { ok: true });
+      }
       case '/api/roster': return json(res, 200, { roster: Object.entries(ROSTER).map(([key, r]) => ({ key, name: dnames()[key], defaultName: r.name, role: r.role, model: r.model, color: r.color, accent: r.accent, desk: r.desk, brief: r.brief, tools: r.tools })), max: MAX_SPECIALISTS }); // read-only
       case '/api/guard/log': return json(res, 200, { entries: guardAudit.read(Math.min(500, Number(b.limit) || 200)), status: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length } });
       case '/api/guard/status': return json(res, 200, { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length });
@@ -667,7 +708,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  scan(); ledger.refresh(); lastLimits = Date.now(); refreshLimits(); scheduleDaily();
+  scan(); ledger.refreshAsync().then(bump); setTimeout(maybeProbe, 5000).unref(); scheduleDaily(); // the probe waits 5 s so the desktop app can report that no window is open
   if (KEY_ROTATED) host.note('Bridge key replaced (key separation). Restart open Claude terminals so their bridge picks up the new key.');
   if (SEEDED) host.note(`Memory seeded from Claude Code notes: ${SEEDED.copied} note(s) copied, ${SEEDED.scrubbed} had secret-like text removed.`);
   if (ENV_UI_KEY) console.log(`Agent Office is running on http://localhost:${PORT}/`);

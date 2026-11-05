@@ -158,7 +158,9 @@ function refreshLyrics() {
   lyricsClient.get(nowPlaying).then(lines => { if (lyr.key === key) { lyr = { key, lines }; pushLyrics(); } });
 }
 const np = createNowPlaying(n => { nowPlaying = n; pushNowPlaying(); refreshLyrics(); });
-const syncNowPlaying = () => { if (notchOn() && isleSettings().nowPlaying && isleMode() !== 'off') np.start(); else np.stop(); };
+// The SMTC poller is a resident PowerShell: it runs only while the island window is visible (not hidden, not behind a fullscreen app)
+// and the now-playing setting is on, and is stopped otherwise.
+const syncNowPlaying = () => { if (notchOn() && isleSettings().nowPlaying && isleMode() !== 'off' && alive() && island.isVisible() && !isle.fs) np.start(); else np.stop(); };
 const pushIsland = () => { if (alive()) island.webContents.send('island:state', { mode: isleMode(), mute: !!prefs.islandMute, fs: isle.fs, peek: isle.peek, settings: isleSettings(), notchShortcutOk: notchKeyOk }); };
 function placeIsland(force) {
   if (!alive()) return;
@@ -183,6 +185,7 @@ function showIsland() {
   external(island.webContents);
   island.webContents.on('did-finish-load', () => { pushIsland(); pushNowPlaying(); pushLyrics(); pushUpdate(); });
   island.once('ready-to-show', () => island.showInactive());
+  island.on('show', () => syncNowPlaying()); island.on('hide', () => syncNowPlaying()); // the SMTC helper follows the window
   const me = island; island.on('closed', () => { if (island === me) island = null; }); // a destroyed window must not clear a newer one
 }
 const fromIsland = e => island && e.sender === island.webContents;
@@ -320,13 +323,13 @@ function watchFullscreen(on) {
   let buf = '';
   fsProc.stdout.on('data', d => {
     buf += d; const lines = buf.split(String.fromCharCode(10)); buf = lines.pop();
-    for (const l of lines) { const n = parseInt(l.trim(), 10); if (Number.isNaN(n)) continue; const f = isFullscreenState(n); if (f !== isle.fs) { isle.fs = f; pushIsland(); } }
+    for (const l of lines) { const n = parseInt(l.trim(), 10); if (Number.isNaN(n)) continue; const f = isFullscreenState(n); if (f !== isle.fs) { isle.fs = f; pushIsland(); syncNowPlaying(); } }
   });
   const me = fsProc; fsProc.on('exit', () => { if (fsProc === me) fsProc = null; });
 }
 
-// One light timer: follow the cursor's display, and (smart mode) peek when the cursor touches the top edge.
-setInterval(() => {
+// Follow the cursor's display, and (smart mode) peek when the cursor touches the top edge.
+function cursorTick() {
   if (!alive() || !island.isVisible()) return;
   if (prefs.islandDisplay == null || prefs.islandDisplay === 'cursor') placeIsland();
   const inZone = isleMode() === 'smart' && inPeekZone(isleDisplay().bounds, screen.getCursorScreenPoint(), isle.peek);
@@ -334,7 +337,11 @@ setInterval(() => {
   if (!inZone) isle.edgeSince = null; else if (isle.edgeSince == null) isle.edgeSince = now;
   const peek = inZone && (isle.peek || peekReady(isle.edgeSince, now, isleSettings().edgeDelay)); // edge delay only gates the first peek
   if (peek !== isle.peek) { isle.peek = peek; pushIsland(); }
-}, 200).unref();
+}
+// Event-light: 200 ms only in smart mode (the edge peek needs it), once a second otherwise (display following only).
+const cursorLoop = () => { try { cursorTick(); } catch {} setTimeout(cursorLoop, isleMode() === 'smart' ? 200 : 1000).unref(); };
+cursorLoop();
+
 
 function applyIsland() {
   const on = notchOn(), m = isleMode();
@@ -374,6 +381,23 @@ const watchDisplays = () => { for (const ev of ['display-metrics-changed', 'disp
 // Start with Windows (on unless turned off in the tray), re-registered each start so it follows the installed exe.
 const syncLogin = () => { if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: prefs.autostart !== false, args: ['--hidden'] }); };
 
+// ---------- window visibility -> server ----------
+// Tells the server whether any window is on screen, so it can slow its pushes and skip background work while nothing is shown.
+// Sent on change over the same signed-in cookie the windows use. Checked on window events and once every 2 s.
+let lastVisible = null;
+const anyWindowVisible = () => [office, kiro, island].some(w => w && !w.isDestroyed() && w.isVisible() && !w.isMinimized());
+function reportVisibility() {
+  const v = anyWindowVisible();
+  if (v === lastVisible) return;
+  lastVisible = v;
+  fetch(BASE + '/api/visibility', { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json' }, body: JSON.stringify({ visible: v }), signal: AbortSignal.timeout(2000) }).catch(() => { lastVisible = null; });
+}
+function startVisibilityReports() {
+  app.on('browser-window-created', (e, w) => { for (const ev of ['show', 'hide', 'minimize', 'restore', 'closed']) w.on(ev, () => setTimeout(reportVisibility, 50)); });
+  reportVisibility();
+  setInterval(reportVisibility, 2000).unref();
+}
+
 // ---------- tray ----------
 function buildTray() {
   tray = new Tray(ICON.resize({ width: 16, height: 16 }));
@@ -410,7 +434,11 @@ app.whenReady().then(async () => {
   syncLogin();
   mgrName = readMgrName();
   buildTray();
-  setInterval(() => applyMgrName(), 3000);
+  // The name lives in kiro.json: react to changes of that file (debounced) and re-check every 10 s as a fallback.
+  let nameTimer;
+  try { fs.mkdirSync(CFG_DIR, { recursive: true }); fs.watch(CFG_DIR, { persistent: false }, (ev, f) => { if (!f || f === 'kiro.json') { clearTimeout(nameTimer); nameTimer = setTimeout(() => applyMgrName(), 300); } }).on('error', () => {}); } catch {}
+  setInterval(() => applyMgrName(), 10000).unref();
+  startVisibilityReports();
   try { await ensureServer(); await signInWindows(); }
   catch (e) { tray.displayBalloon?.({ title: 'Agent Office', content: e.message }); return; }
   if (!prefs.hidden) showKiro();

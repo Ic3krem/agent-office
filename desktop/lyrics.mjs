@@ -56,8 +56,20 @@ export function lookupUrl(np) {
 }
 
 // get(np) -> [{t,text}] | null. Cached on disk under dir (one small JSON per track). Never throws.
+export const MAX_FAILED = 200, MAX_FILES = 500, MAX_BYTES = 10 * 1024 * 1024;
 export function createLyrics({ dir, fetchFn = globalThis.fetch, timeoutMs = 3000, userAgent = 'AgentOffice (local desktop app)', now = () => Date.now() } = {}) {
   const inflight = new Map(), failed = new Map();
+  // Bounded memory and disk: at most MAX_FAILED remembered failures, and the on-disk cache keeps the newest MAX_FILES files / MAX_BYTES bytes.
+  const markFailed = key => { failed.delete(key); failed.set(key, now()); while (failed.size > MAX_FAILED) failed.delete(failed.keys().next().value); };
+  let writes = 0;
+  const pruneCache = () => {
+    try {
+      const items = fs.readdirSync(dir).filter(f => f.endsWith('.json')).map(f => { const p = path.join(dir, f), st = fs.statSync(p); return { p, m: st.mtimeMs, n: st.size }; }).sort((a, b) => b.m - a.m);
+      let bytes = 0;
+      items.forEach((it, i) => { bytes += it.n; if (i >= MAX_FILES || bytes > MAX_BYTES) { try { fs.rmSync(it.p, { force: true }); } catch {} } });
+    } catch {}
+  };
+  pruneCache();
   const file = key => path.join(dir, crypto.createHash('sha1').update(key).digest('hex') + '.json');
   const readCache = key => {
     try {
@@ -67,18 +79,18 @@ export function createLyrics({ dir, fetchFn = globalThis.fetch, timeoutMs = 3000
       return Array.isArray(j.lines) ? j.lines.map(([t, text]) => ({ t, text })) : undefined;
     } catch { return undefined; }
   };
-  const writeCache = (key, lines) => { try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file(key), JSON.stringify({ v: 1, at: now(), lines: lines && lines.map(l => [l.t, l.text]) })); } catch {} };
+  const writeCache = (key, lines) => { if (++writes % 25 === 0) pruneCache(); try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file(key), JSON.stringify({ v: 1, at: now(), lines: lines && lines.map(l => [l.t, l.text]) })); } catch {} };
   async function lookup(np, key) {
     try {
       const r = await fetchFn(lookupUrl(np), { signal: AbortSignal.timeout(timeoutMs), headers: { 'user-agent': userAgent, accept: 'application/json' } });
       if (r.status === 404) { writeCache(key, null); return null; }
-      if (!r.ok) { failed.set(key, now()); return null; }
+      if (!r.ok) { markFailed(key); return null; }
       const body = await r.text();
-      if (body.length > MAX_BODY) { failed.set(key, now()); return null; }
+      if (body.length > MAX_BODY) { markFailed(key); return null; }
       const j = JSON.parse(body);
       const lines = !j || j.instrumental ? [] : parseLrc(j.syncedLyrics);
       const res = lines.length ? lines : null; writeCache(key, res); return res;
-    } catch { failed.set(key, now()); return null; }
+    } catch { markFailed(key); return null; }
   }
   return {
     async get(np) {

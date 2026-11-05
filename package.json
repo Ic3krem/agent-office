@@ -5,7 +5,7 @@
   "main": "desktop/main.mjs",
   "scripts": {
     "start": "electron .",
-    "test": "node --test company.test.mjs agent-home.test.mjs transcript.test.mjs usage.test.mjs reports.test.mjs island.test.mjs office-motion.test.mjs perf-sources.test.mjs scheduler.test.mjs scheduler-job.test.mjs repo.test.mjs security.test.mjs parity.test.mjs hardening.test.mjs bridge-register.test.mjs notch.test.mjs share-ready.test.mjs guard.test.mjs guard-wiring.test.mjs guard-review.test.mjs nowplaying.test.mjs lyrics.test.mjs updater.test.mjs updater-signed.test.mjs",
+    "test": "node --test company.test.mjs agent-home.test.mjs transcript.test.mjs usage.test.mjs reports.test.mjs island.test.mjs office-motion.test.mjs perf-sources.test.mjs scheduler.test.mjs scheduler-job.test.mjs repo.test.mjs perf.test.mjs security.test.mjs parity.test.mjs hardening.test.mjs bridge-register.test.mjs notch.test.mjs share-ready.test.mjs guard.test.mjs guard-wiring.test.mjs guard-review.test.mjs nowplaying.test.mjs lyrics.test.mjs updater.test.mjs updater-signed.test.mjs",
     "dist": "electron-builder"
   },
   "author": {
@@ -42,6 +42,7 @@
       "redact.mjs",
       "retention.mjs",
       "usage.mjs",
+      "perf.mjs",
       "reports.mjs",
       "vault.mjs",
       "scheduler.mjs",

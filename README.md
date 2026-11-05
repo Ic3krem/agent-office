@@ -104,6 +104,8 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 | `islandDisplay` | `cursor` (default), `primary` or a display id. |
 | `islandSettings` | Island theme, motion, pinned actions, clocks, `nowPlaying`, `lyrics` (off by default: turning it on looks songs up at lrclib.net, see the guide), `kiroFace`, `animate`, `powerSaver` (default on: caps redraw rates and pauses idle animations to save GPU; see the guide). |
 | `updateAuto` | Check for updates on start (default on). The update feed itself is fixed in the app and cannot be set here. |
+| `tiroIdleMinutes` | Close Tiro's idle `claude` session after this many minutes and resume it with the next goal (default 15, `0` = never). |
+| `limitsProbeMinutes` | Minimum minutes between plan-limit checks (default 15, at least 5). The check only runs while a window is visible or Tiro is working. |
 | `autostart` | Start with Windows (packaged app, default on). |
 | `hidden`, `x`, `y` | Whether the desktop Tiro is hidden, and where it sits. |
 | `workDir` | Folder Tiro runs in, so Claude Code resolves project settings and CLAUDE.md as it would from there (default: your home folder). |
