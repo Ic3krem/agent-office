@@ -110,7 +110,7 @@ function applyMgrName(force) {
 }
 const keepTitle = w => w.on('page-title-updated', e => e.preventDefault());
 
-// ---------- the office window: closing hides it, the tray brings it back ----------
+// ---------- the office window: closing destroys it, the tray opens a new one ----------
 const VIEWS = new Set(['today', 'reports', 'usage', 'office']);
 function openOffice(view) {
   view = typeof view === 'string' && VIEWS.has(view) && view !== 'office' ? view : ''; // 'office' = just open the window
@@ -119,7 +119,8 @@ function openOffice(view) {
     office.loadURL(url('/') + (view ? '#' + view : ''));
     external(office.webContents);
     // The page refuses to unload while Build mode has unsaved changes: ask here, or the window would silently stay open.
-    office.webContents.on('will-prevent-unload', e => { if (dialog.showMessageBoxSync(office, { type: 'question', buttons: ['Leave', 'Stay'], defaultId: 1, cancelId: 1, message: 'You have unsaved layout changes.' }) === 0) e.preventDefault(); });
+    // An app quit (tray Quit, update install) always wins: before-quit has already stopped the server, so Stay would leave a dead app.
+    office.webContents.on('will-prevent-unload', e => { if (quitting) return e.preventDefault(); if (dialog.showMessageBoxSync(office, { type: 'question', buttons: ['Leave', 'Stay'], defaultId: 1, cancelId: 1, message: 'You have unsaved layout changes.' }) === 0) e.preventDefault(); });
     office.on('closed', () => { office = null; });
     office.once('ready-to-show', () => office.show());
   } else { office.show(); if (view) office.webContents.executeJavaScript(`location.hash=${JSON.stringify(view)}`).catch(() => {}); }
