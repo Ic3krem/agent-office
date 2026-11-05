@@ -17,10 +17,11 @@
     plant: 'nature', tree: 'nature', hedge: 'nature', pond: 'nature', 'pond-east': 'nature', 'server-plant': 'nature',
     'trophy-shelf': 'decor', 'bird-feeder': 'decor', 'lamp-post': 'decor', tires: 'decor', 'toy-bin': 'decor', dartboard: 'decor',
   };
-  const isFixture = type => /^fixture-/.test(type);
+  // Locked pieces: fixtures, and the ponds (each owns a water zone that would not follow a move or copy).
+  const isFixture = type => /^fixture-|^pond(-|$)/.test(type);
   // One-of-a-kind pieces: desks wait for Phase 3; the others register fixed click keys (or, the pond, a water zone that
   // would not follow a copy).
-  const NOT_ADDABLE = new Set(['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond']);
+  const NOT_ADDABLE = new Set(['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond', 'pond-east']);
   // What the drawer and messages call each piece.
   const LABELS = {
     'dept-desk': 'Department desk', 'tiro-desk': "Manager's desk", inbox: 'Inbox tray', 'tiro-chair': "Manager's chair", 'guest-chair': 'Guest chair',
@@ -150,12 +151,15 @@
         case 'setZone': {
           const z = findZone(l, op.id);
           if (!z) return fail('no zone ' + op.id);
+          if ((op.rect && z.type === 'water') || (op.type && op.type !== z.type && (op.type === 'water' || z.type === 'water'))) return fail('water belongs to its pond');
           if (op.rect) z.rect = op.rect.map(snap);
           if (op.type) z.type = op.type;
           return done(l, legalZone(l, z));
         }
         case 'removeZone': {
-          if (!findZone(l, op.id)) return fail('no zone ' + op.id);
+          const z = findZone(l, op.id);
+          if (!z) return fail('no zone ' + op.id);
+          if (z.type === 'water') return fail('water belongs to its pond');
           l.zones = l.zones.filter(q => q.id !== op.id);
           return done(l, '');
         }

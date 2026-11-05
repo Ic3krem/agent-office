@@ -384,6 +384,8 @@
   // ---------- build mode: overlay, pointer and keys over a WorldEdit session ----------
   const WE = () => root.WorldEdit;
   const toast = t => bhooks.onToast && bhooks.onToast(t);
+  let zoneNoted = false; // the first zone edit swaps the hand-painted floor for the procedural one: say so once
+  const noteZone = r => { if (r && r.ok && !zoneNoted) { zoneNoted = true; toast('Custom zones use simple floor textures — the original hand-painted floor returns on Reset to default.'); } };
   function setSel(s) { sel = s; bhooks.onSelect && bhooks.onSelect(s ? s.id : null, s ? s.kind : null); wake(); }
   const fpCache = new Map(); // footprints by instance JSON: one op changes one or two pieces
   function footprintsOf(o) { const k = JSON.stringify(o); if (!fpCache.has(k)) fpCache.set(k, F.footprints([o])); return fpCache.get(k); }
@@ -455,8 +457,8 @@
     noClick = true;
     let r = null;
     if (d.kind === 'piece') { if (d.x != null && (d.x !== d.o.x || d.y !== d.o.y)) r = build.move(d.id, d.x, d.y); }
-    else if (d.rect && d.kind === 'zone') { r = build.addZone(d.type, d.rect); if (r.ok) setSel({ kind: 'zone', id: r.id }); }
-    else if (d.rect) r = build.setZone(d.id, { rect: d.rect });
+    else if (d.rect && d.kind === 'zone') { r = build.addZone(d.type, d.rect); if (r.ok) setSel({ kind: 'zone', id: r.id }); noteZone(r); }
+    else if (d.rect) { r = build.setZone(d.id, { rect: d.rect }); noteZone(r); }
     if (r && !r.ok) toast(d.kind === 'piece' ? "Can't put the " + WE().labelOf(d.o.type) + ' there: ' + r.reason : r.reason);
     afterOp(); // also snaps an illegal or unchanged drag back
   }
@@ -483,8 +485,8 @@
     if (name === 'undo') build.undo();
     else if (name === 'redo') build.redo();
     else if (name === 'duplicate') { if (!sel || sel.kind !== 'obj') return none; r = build.duplicate(sel.id); if (r.ok) setSel({ kind: 'obj', id: r.id }); }
-    else if (name === 'delete') { if (!sel) return none; r = sel.kind === 'zone' ? build.removeZone(sel.id) : build.remove(sel.id); }
-    else if (name === 'zoneType') { if (!sel || sel.kind !== 'zone') return none; r = build.setZone(sel.id, { type: arg }); }
+    else if (name === 'delete') { if (!sel) return none; r = sel.kind === 'zone' ? build.removeZone(sel.id) : build.remove(sel.id); if (sel.kind === 'zone') noteZone(r); }
+    else if (name === 'zoneType') { if (!sel || sel.kind !== 'zone') return none; r = build.setZone(sel.id, { type: arg }); noteZone(r); }
     else if (name === 'load') { r = build.load(arg); if (r.ok) setSel(null); }
     else return { ok: false, reason: 'unknown op ' + name };
     if (!r.ok) toast(r.reason);

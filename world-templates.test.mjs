@@ -62,3 +62,10 @@ test('version increments on save only', () => {
   st.save(def);
   assert.equal(st.version(), 1);
 });
+
+test('the page tplSlug matches the server slug (overwrite check)', async () => {
+  const src = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8').match(/const tplSlug=.*?;return id;\};/s)[0];
+  const tplSlug = (await import('node:vm')).runInNewContext(src + ';tplSlug');
+  const st = createWorldStore(tmp()), built = st.listTemplates().filter((t) => t.builtIn).map((t) => t.id);
+  for (const nm of ['My Plan', 'Odd -- Name!!', 'x'.repeat(60), built[0], '!!!']) assert.equal(st.saveTemplate(nm, def).id, tplSlug(nm, built), nm);
+});

@@ -179,6 +179,7 @@
     lounge: { c: '#a8805a', t(g, x0, y0, x1, y1) { for (let y = y0; y < y1; y += 30) for (let x = x0; x < x1; x += 30) { g.fillStyle = ((x - x0 + y - y0) / 30) % 2 ? 'rgba(255,235,200,.1)' : 'rgba(60,30,10,.08)'; g.fillRect(x, y, 30, 30); } } },
   };
   function bakeZoneFloor(g, zones) {
+    flat(g, 0, 0, WXm(), WYm(), '#4a4a55'); // neutral base: a removed or shrunk zone leaves plain floor, not a hole
     for (const q of zones) {
       const T = ZONE_TEX[q.type]; if (!T) continue; // water: the pond pieces draw it
       const [x0, y0, x1, y1] = q.rect;

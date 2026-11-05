@@ -438,6 +438,7 @@ const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/
 const getJ=p=>fetch(p,{headers:{'x-nonce':nonce()}}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
 const CAT_GROUPS=[['furniture','Furniture'],['decor','Decor'],['nature','Nature']];
 const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+const ZONE_BRUSHES=WorldModel.ZONE_TYPES.filter(t=>t!=='water');// water is drawn by the pond pieces, not painted
 const ZONE_LABEL={path:'Walkway',play:'Play area'},zoneLabel=t=>ZONE_LABEL[t]||cap(t);
 // Same id the server derives from a template name (world-store.mjs saveTemplate), to warn before an overwrite.
 const tplSlug=(nm,builtIns)=>{let id=nm.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40).replace(/-+$/,'')||'template';if(builtIns.includes(id))id=id.slice(0,35).replace(/-+$/,'')+'-mine';return id;};
@@ -717,7 +718,7 @@ class Component extends DCLogic {
     const grp=s.catGroup,tab=(g,label)=>({label,on:grp===g?'true':'false',border:grp===g?'#ffcf6b':'var(--line)',fg:grp===g?'#ffdca0':'#d7c3a8',bg:grp===g?'#3a2d18':'transparent',onClick:()=>this.setState({catGroup:g})});
     const catTabs=on?[...CAT_GROUPS.map(([g,label])=>tab(g,label)),tab('zones','Zones')]:[];
     const catItems=!on?[]:grp==='zones'
-      ?WorldModel.ZONE_TYPES.map(t=>btn(zoneLabel(t),brush===t,{onClick:()=>{const b=brush===t?null:t;OfficeWorld.setTool(b?'zone:'+b:null);this.setState({brush:b,armed:null});}}))
+      ?ZONE_BRUSHES.map(t=>btn(zoneLabel(t),brush===t,{onClick:()=>{const b=brush===t?null:t;OfficeWorld.setTool(b?'zone:'+b:null);this.setState({brush:b,armed:null});}}))
       :cat.filter(c=>c.group===grp).map(c=>btn(c.label,armed===c.type,{draggable:narrow?'false':'true',title:'Click, then click the floor'+(narrow?'':', or drag it onto the floor'),
         onClick:()=>{OfficeWorld.setTool(null);this.setState({armed:armed===c.type?null:c.type,brush:null});},
         onDrag:e=>{e.dataTransfer.setData('text/x-ao-piece',c.type);e.dataTransfer.effectAllowed='copy';}}));
@@ -734,7 +735,7 @@ class Component extends DCLogic {
       noUndo:!(S&&S.canUndo()),noRedo:!(S&&S.canRedo()),noSel:!st.selected,noPiece:st.selectedKind!=='obj'||!st.selected,
       bUndo:()=>OfficeWorld.buildOp('undo'),bRedo:()=>OfficeWorld.buildOp('redo'),bDelete:()=>OfficeWorld.buildOp('delete'),bDuplicate:()=>OfficeWorld.buildOp('duplicate'),
       bSave:()=>this.saveBuild(),bDone:()=>this.leaveBuild(),
-      zoneSel:!!zs,zoneTypes:zs?WorldModel.ZONE_TYPES.map(t=>({label:zoneLabel(t),on:zs.type===t?'true':'false',border:zs.type===t?'#ffcf6b':'var(--line)',fg:zs.type===t?'#ffdca0':'#d7c3a8',onClick:()=>OfficeWorld.buildOp('zoneType',t)})):[],
+      zoneSel:!!zs,zoneTypes:zs&&zs.type!=='water'?ZONE_BRUSHES.map(t=>({label:zoneLabel(t),on:zs.type===t?'true':'false',border:zs.type===t?'#ffcf6b':'var(--line)',fg:zs.type===t?'#ffdca0':'#d7c3a8',onClick:()=>OfficeWorld.buildOp('zoneType',t)})):[],
       hasBuildErrs:on&&errs.length>0,buildErrs:errs.slice(0,3).map(text=>({text})).concat(errs.length>3?[{text:'+'+(errs.length-3)+' more'}]:[]),closeErrs:()=>this.setState({buildErrs:null}),
       tplOpen:on&&s.tplOpen,tplExpanded:s.tplOpen?'true':'false',tplBorder:s.tplOpen?'#8a5a1c':'var(--line)',
       toggleTpl:()=>{if(!s.tplOpen)this.refreshTpls();this.setState({tplOpen:!s.tplOpen});},

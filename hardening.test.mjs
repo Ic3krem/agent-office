@@ -175,5 +175,6 @@ test('/api/world: UI cookie and nonce required; a bad layout is refused with err
   assert.equal((await call(s.port, '/api/world/templates', { method: 'GET', headers: { cookie } })).status, 403, 'templates need the nonce');
   const tl = JSON.parse((await call(s.port, '/api/world/templates', { method: 'GET', headers: h })).body);
   assert.equal(tl.filter(x => x.builtIn).length, 3);
+  assert.equal((await call(s.port, '/api/world/templates', { headers: { cookie }, body: { name: 'x', layout: first.layout } })).status, 403, 'template save needs the nonce');
   assert.equal((await call(s.port, '/api/world/template?id=../x', { method: 'GET', headers: h })).status, 400);
 });

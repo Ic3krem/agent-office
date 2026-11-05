@@ -116,3 +116,12 @@ test('bake paints custom zones', () => {
   assert.ok(i >= 0 && now.slice(i + 5, i + 8).some(a => a[0] === 'fill'), 'zone rect polygon is filled');
   assert.ok(strokes(now) < strokes(before), 'no 1.2.9 office planks');
 });
+
+test('bake with a zone removed still paints a base floor under every zone', () => {
+  const w = loadWorld(), F = w.OfficeFurniture, P = F.P;
+  F.setZones(w.WorldModel.defaultLayout().zones.filter(q => q.type !== 'focus'));
+  const now = bakeLog(w), r2 = v => Math.round(v * 100) / 100;
+  const corners = [P(0, 0, 0), P(1240, 0, 0), P(1240, 780, 0), P(0, 780, 0)].map(p => p.map(r2));
+  const i = now.findIndex((a, k) => a[0] === 'moveTo' && corners.every((p, j) => now[k + j] && now[k + j][1] === p[0] && now[k + j][2] === p[1]));
+  assert.ok(i >= 0 && now.slice(i + 5, i + 8).some(a => a[0] === 'fill'), 'whole-world floor is filled');
+});

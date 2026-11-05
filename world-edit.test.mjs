@@ -88,7 +88,7 @@ test('catalog skips fixtures and pins desks', () => {
   assert.deepEqual(c.find((t) => t.type === 'dept-desk'), { type: 'dept-desk', label: 'Department desk', group: 'desk', addable: false, deletable: false });
   assert.ok(c.every((t) => ['furniture', 'decor', 'nature', 'desk'].includes(t.group)));
   const s = E.createSession(WM.defaultLayout());
-  for (const type of ['dept-desk', 'arcade', 'jukebox', 'server-plant', 'pond']) {
+  for (const type of ['dept-desk', 'arcade', 'jukebox', 'server-plant']) {
     const t = c.find((q) => q.type === type);
     assert.equal(t.addable, false, type);
     assert.equal(t.deletable, type !== 'dept-desk', type);
@@ -113,7 +113,7 @@ test('a move keeps overlaps the piece already had, and fails on new ones', () =>
 test('every default piece can be nudged by 10', () => {
   const l = WM.defaultLayout(), s = E.createSession(l), stuck = [];
   for (const o of J(l).objects) {
-    if (/^fixture-/.test(o.type)) continue;
+    if (/^fixture-|^pond/.test(o.type)) continue;
     const tries = [[10, 0], [-10, 0], [0, 10], [0, -10]].map(([dx, dy]) => J(s.check({ op: 'move', id: o.id, x: o.x + dx, y: o.y + dy })));
     if (!tries.some((r) => r.ok)) stuck.push(o.id + ': ' + tries.map((r) => r.reason).join(' / '));
   }
@@ -189,4 +189,29 @@ test('load refuses an invalid layout and changes nothing', () => {
   assert.equal(r.ok, false);
   assert.match(r.reason, /invalid layout/);
   assert.ok(!s.dirty() && !s.canUndo());
+});
+
+test('ponds are locked: not pickable, movable, deletable, copyable or in the catalog', () => {
+  const s = E.createSession(WM.defaultLayout()), L = J(s.layout());
+  for (const type of ['pond', 'pond-east']) {
+    assert.ok(!J(E.catalog()).some((t) => t.type === type), type + ' not in catalog');
+    const o = L.objects.find((q) => q.type === type);
+    assert.equal(s.move(o.id, o.x + 40, o.y).ok, false, 'move ' + type);
+    assert.equal(s.remove(o.id).ok, false, 'remove ' + type);
+    assert.equal(s.duplicate(o.id).ok, false, 'duplicate ' + type);
+    assert.equal(s.add(type, 1100, 520).ok, false, 'add ' + type);
+    assert.equal(E.pieceAt([o], o.x, o.y), null, 'pick ' + type);
+  }
+  assert.equal(s.canUndo(), false);
+});
+
+test('water zones follow their pond: no retype, resize, delete, or painting over', () => {
+  const s = E.createSession(WM.defaultLayout()), L = J(s.layout()), w = L.zones.find((q) => q.type === 'water'), g = L.zones.find((q) => q.type === 'garden');
+  assert.ok(w && g);
+  for (const r of [s.setZone(w.id, { type: 'garden' }), s.setZone(g.id, { type: 'water' }), s.setZone(w.id, { rect: [w.rect[0], w.rect[1], w.rect[2] + 10, w.rect[3]] }), s.removeZone(w.id)]) {
+    assert.equal(J(r).ok, false);
+    assert.match(J(r).reason, /water belongs to its pond/);
+  }
+  assert.equal(s.canUndo(), false);
+  assert.equal(J(s.setZone(w.id, { type: 'water' })).ok, true, 'a no-op keeps working');
 });
