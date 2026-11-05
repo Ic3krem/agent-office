@@ -177,6 +177,10 @@ test('/api/world: UI cookie and nonce required; a bad layout is refused with err
   assert.equal(tl.filter(x => x.builtIn).length, 3);
   assert.equal((await call(s.port, '/api/world/templates', { headers: { cookie }, body: { name: 'x', layout: first.layout } })).status, 403, 'template save needs the nonce');
   assert.equal((await call(s.port, '/api/world/template?id=../x', { method: 'GET', headers: h })).status, 400);
+  // Goal pace and priority change what hires cost: same cookie + nonce rule.
+  assert.equal((await call(s.port, '/api/goal/pace', { headers: { cookie }, body: { id: 'gx', pace: 'boost' } })).status, 403, '/api/goal/pace without nonce');
+  assert.equal((await call(s.port, '/api/goal/priority', { headers: { cookie }, body: { id: 'gx', priority: 'high' } })).status, 403, '/api/goal/priority without nonce');
+  assert.equal((await call(s.port, '/api/goal/pace', { headers: h, body: { id: 'gx', pace: 'boost' } })).status, 404, 'with the nonce: an unknown goal');
 });
 
 test('/api/roster follows the desks: adding an it desk via /api/world puts it on the roster', { timeout: 60000 }, async t => {

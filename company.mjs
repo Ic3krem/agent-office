@@ -22,7 +22,7 @@ export function goalStore(file, today = () => new Date().toLocaleDateString('en-
     open: () => (roll(), state.goals.filter(g => OPEN.includes(g.status))),
     add(text, by = 'you', status = 'todo', why = '') {
       roll();
-      const g = { id: 'g' + crypto.randomBytes(3).toString('hex'), text: String(text).slice(0, 300), status, by, note: why, at: Date.now() };
+      const g = { id: 'g' + crypto.randomBytes(3).toString('hex'), text: String(text).slice(0, 300), status, by, note: why, priority: 'normal', pace: null, at: Date.now() };
       state.goals.push(g); save(); return g;
     },
     // Take finished goals off the board; their reports stay on the shelf.
@@ -35,9 +35,32 @@ export function goalStore(file, today = () => new Date().toLocaleDateString('en-
       if (patch.status) g.status = patch.status;
       if (patch.note !== undefined) g.note = String(patch.note).slice(0, 300);
       if (patch.report) g.report = patch.report;
+      if (patch.priority) g.priority = patch.priority;
+      if (patch.pace !== undefined) g.pace = patch.pace;
+      if (['done', 'dismissed'].includes(g.status)) Object.assign(g, { priority: 'normal', pace: null });
       g.at = Date.now(); save(); return g;
     },
   };
+}
+
+// ---------- goal pace: the model the goal's next hires run on ----------
+export const PACES = { boost: { model: 'opus', effort: 'high' }, speed: { model: 'haiku', effort: 'low' } };
+// Why /api/goal/pace refuses a change: { status, error } or null.
+export function paceError(goal, pace) {
+  if (pace !== null && !PACES[pace]) return { status: 400, error: 'pace must be boost, speed or null' };
+  if (!['todo', 'doing', 'blocked'].includes(goal.status)) return { status: 409, error: 'Pace can only be set on an open goal.' };
+  return null;
+}
+// Boost never forces a hire through a breaker: it gives way to the hiring switch, the subscription guard and a full Opus window.
+export function paceFor(goal, sw, limits, overLimit) {
+  const p = PACES[goal?.pace];
+  if (!p) return null;
+  if (goal.pace === 'boost') {
+    if (!sw.hiring) return { skip: 'Hiring is switched off: Boost will apply when hiring is back on' };
+    if (sw.guard && overLimit) return { skip: 'Over the plan limit: Boost will apply when limits reset' };
+    if ((limits?.models || []).some(m => /opus/i.test(m.name) && m.pct >= 100)) return { skip: 'The Opus limit is used up: Boost will apply when it resets' };
+  }
+  return { ...p };
 }
 
 // ---------- the manager ----------

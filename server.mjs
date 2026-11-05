@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
+import { goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -59,7 +59,7 @@ const GUARD_KEY = typeof process.env.AGENT_OFFICE_GUARD_KEY === 'string' && proc
 delete process.env.AGENT_OFFICE_GUARD_KEY;
 const AUTH = createAuth({ bridgeKey: BRIDGE_KEY, uiKey: ENV_UI_KEY || rand(24) });
 // Decisions only the real UI may make: UI cookie plus the per-session nonce.
-const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset', '/api/world', '/api/world/templates', '/api/world/template', '/api/world/template/delete']);
+const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset', '/api/world', '/api/world/templates', '/api/world/template', '/api/world/template/delete', '/api/goal/priority', '/api/goal/pace']);
 
 const agents = new Map();      // id -> agent (sessionId, or "agent-<id>" for helpers)
 const files = new Map();       // transcript path -> { id, offset, mtime }
@@ -306,8 +306,8 @@ const say = t => { const a = boss.id && agents.get(boss.id); if (a) { a.logs.pus
 const officeTools = () => createSdkMcpServer({
   name: 'office',
   tools: [
-    tool('list_goals', "List today's goals with id, status (proposed, todo, doing, blocked, done, dismissed) and note.", {}, async () =>
-      ({ content: [{ type: 'text', text: JSON.stringify(goals.list()) }] })),
+    tool('list_goals', "List today's goals with id, status (proposed, todo, doing, blocked, done, dismissed), note, priority (high goals first) and pace (boost or speed: the model the user chose for its next hires).", {}, async () =>
+      ({ content: [{ type: 'text', text: JSON.stringify(goals.list().map(g => ({ priority: 'normal', pace: null, ...g }))) }] })),
     tool('update_goal', 'Set a goal to doing, blocked or done, with a one-line note.', { id: z.string(), status: z.enum(['doing', 'blocked', 'done']), note: z.string() }, async ({ id, status, note }) => {
       try { const g = goals.update(id, { status, note }); boss.progress = true; say('Goal ' + status + ': ' + g.text); return { content: [{ type: 'text', text: 'ok' }] }; }
       catch (e) { return { content: [{ type: 'text', text: e.message }], isError: true }; }
@@ -411,6 +411,7 @@ const denyClaudeLaunch = { matcher: 'Bash|PowerShell', hooks: [async input => (l
 // counted back by hireUndone, so the restart and the retire check are not blocked forever.
 const starting = new Map(); // tool_use_id -> roster key of a counted hire whose subagent has not started yet
 const hireHook = async input => {
+  let pace = null; // the approved goal's Boost/Speed choice, set once the grant is used
   const no = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
   if (!sw().hiring) return no('Hiring is switched off in the office breaker box. Do the work yourself if it is small, or mark the goal blocked.');
   if (boss.running >= MAX_SPECIALISTS) return no(MAX_SPECIALISTS + ' specialists are already working. Wait for a report, then hire again.');
@@ -418,11 +419,15 @@ const hireHook = async input => {
   { const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type; if (ROSTER[k]) { const hk = hireKey(k, currentKeys(), boss.keys, x => dnames()[x]); if (hk.error) return no(hk.error); } }
   { const chk = hires.check(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt);
     if (!chk.ok) return no(chk.why === 'prompt differs from the approved one' ? 'The Agent prompt must be exactly the prompt approved in request_hire. Call request_hire again with the prompt you really want to send.' : 'Hiring needs user approval first: call mcp__office__request_hire (specialist, goal_id, why, prompt) and wait for "approved". Do small work yourself and reuse idle specialists.');
-    hires.consume(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt); hireGoal[ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type] = chk.goalId; }
+    hires.consume(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt); hireGoal[ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type] = chk.goalId;
+    pace = paceFor(goals.list().find(g => g.id === chk.goalId), sw(), limits, overLimit()); }
   const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type;
   if (currentKeys().includes(k)) { try { AH.start(k, { goalId: hireGoal[k], title: input.tool_input?.description, brief: input.tool_input?.prompt }); } catch {} delete hireGoal[k]; }
   starting.set(input.tool_use_id, currentKeys().includes(k) ? k : '');
   boss.running++; boss.progress = true; bump();
+  // A goal's pace wins over espresso (the cup stays for a later hire). A skipped Boost: the hire runs on its own model.
+  if (pace?.model) return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: pace.model, effort: pace.effort } } };
+  if (pace?.skip) { host.note('Boost skipped: ' + pace.skip); return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'Boost skipped: ' + pace.skip + '.' } }; }
   // Espresso: this hire runs on the fast model; the cup is used up.
   if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
   return {};
@@ -504,7 +509,7 @@ function snapshot() {
   const shown = list.slice(0, deskCap).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   return {
     worldVersion: worldStore.version(),
-    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
+    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending(), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => ({
       isManager: !!a.isManager,
       id: a.id, name: a.isManager ? dn.tiro : helpers.get(a.id)?.helper ? helpers.get(a.id).label : dn[a.profile?.key] || a.title || a.name || a.firstPrompt || path.basename(a.cwd || '') || a.id.slice(0, 8),
@@ -661,6 +666,22 @@ async function handle(req, res) {
         const g = goals.update(String(b.id), { status }); bump();
         if (status === 'todo') tellBoss(`The user put goal ${g.id} on today's list: ${g.text}`);
         return json(res, 200, { ok: true });
+      }
+      case '/api/goal/priority': {
+        if (!['high', 'normal'].includes(b.priority)) return json(res, 400, { error: 'priority must be high or normal' });
+        if (!goals.list().some(x => x.id === String(b.id))) return json(res, 404, { error: 'no such goal' });
+        const g = goals.update(String(b.id), { priority: b.priority }); bump();
+        tellBoss(b.priority === 'high' ? `The user marked goal ${g.id} as high priority: work on it first.` : `The user put goal ${g.id} back to normal priority.`);
+        return json(res, 200, { ok: true, priority: g.priority });
+      }
+      case '/api/goal/pace': {
+        const pace = b.pace ?? null, cur = goals.list().find(x => x.id === String(b.id));
+        if (!cur) return json(res, 404, { error: 'no such goal' });
+        const bad = paceError(cur, pace); if (bad) return json(res, bad.status, { error: bad.error });
+        const g = goals.update(cur.id, { pace }); bump();
+        tellBoss(pace ? `The user set goal ${g.id} to ${pace === 'boost' ? 'Boost: strongest model' : 'Speed: fastest model'} for its next hires.` : `The user cleared the pace of goal ${g.id}: its next hires use their own model.`);
+        const skip = paceFor(g, sw(), limits, overLimit())?.skip;
+        return json(res, 200, { ok: true, pace: g.pace, ...(skip ? { warning: skip } : {}) });
       }
       case '/api/scheduler': return json(res, 200, readScheduler(path.join(CFG_DIR, 'scheduler.json'))); // read-only: the scheduler job writes the file
       case '/api/visibility': { // sent by the desktop app: is any window on screen? (standalone never sends it: always visible)

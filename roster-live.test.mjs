@@ -148,6 +148,7 @@ const hookEnv = () => {
   const env = {
     sw: () => ({ hiring: true, espresso: false }), boss: { running: 0, progress: false, keys: roster.keys() }, MAX_SPECIALISTS, ALIASES, ROSTER, hireKey,
     currentKeys: roster.keys, dnames: () => Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])), hires: hireGate(), hireGoal: {}, AH: agentHome(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ah-')), 'agents')), bump: () => {}, switches: { set() {} },
+    goals: { list: () => [] }, paceFor: () => null, limits: null, overLimit: () => false, host: { note() {} },
   };
   const hooks = new Function(...Object.keys(env), code + '\nreturn { hireHook, hireStarted, hireUndone, starting };')(...Object.values(env));
   const approve = async (key, prompt) => { const { id, promise } = env.hires.request({ key, goalId: 'g000001', promptHash: promptHash(prompt) }); env.hires.decide(id, true); await promise; };
