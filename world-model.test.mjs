@@ -39,3 +39,34 @@ test('garden walk goes round the pond, not through it', () => {
     assert.ok(!(x > x0 && x < x1 && y > y0 && y < y1), `(${x},${y}) is in the pond`);
   }
 });
+
+test('validate never throws on malformed input', () => {
+  const ok = J(WM.defaultLayout());
+  const cases = [null, undefined, 7, 'x', [], {}, { version: 1 }, { version: 1, size: { w: 1, h: 1 } },
+    { ...ok, size: { w: 1e9, h: 1e9 } }, { ...ok, spawn: null }, { ...ok, zones: null }, { ...ok, objects: {} }, { ...ok, spots: 'x' },
+    { ...ok, objects: [null] }, { ...ok, spots: [5] }, { ...ok, zones: [{ id: 'z', type: 'path' }] },
+    { ...ok, objects: [{ id: 3, type: 'bench', x: 0, y: 0 }] }, { ...ok, spots: [{ id: 's', x: 'a', y: 0 }] },
+    { ...ok, objects: [{ id: 'c', type: 'constructor', x: 0, y: 0 }] },
+    { ...ok, objects: [{ id: 'd', type: 'dept-desk', x: 0, y: 0, desk: 'no-such-desk' }] }];
+  for (const c of cases) {
+    const r = WM.validate(c);
+    assert.equal(r.ok, false, JSON.stringify(c)?.slice(0, 80));
+    assert.ok(r.errors.length > 0);
+  }
+});
+
+test('the main routes walk mostly on path zones', () => {
+  const l = WM.defaultLayout(), s = WM.spotsOf(l), g = WM.gridOf(l);
+  const paths = l.zones.filter((q) => q.type === 'path').map((q) => q.rect);
+  for (const [a, b] of [['desk-1', 'desk-8'], ['desk-2', 'play:pit'], ['hot:1', 'garden:b2']]) {
+    const p = W.findPath(g, s[a], s[b]); let n = 0, on = 0;
+    for (let i = 1; i < p.length; i++) {
+      const m = Math.max(1, Math.round(Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y)));
+      for (let k = 0; k < m; k++) {
+        const x = p[i - 1].x + (p[i].x - p[i - 1].x) * k / m, y = p[i - 1].y + (p[i].y - p[i - 1].y) * k / m;
+        n++; if (paths.some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) on++;
+      }
+    }
+    assert.ok(on / n >= 0.78, `${a} -> ${b}: ${(on / n).toFixed(3)} on paths`);
+  }
+});

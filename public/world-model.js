@@ -38,7 +38,10 @@
     ...Object.keys(ROWY).map(r => strip('row-' + r, 0, ROWY[r] - 15, 1000, ROWY[r] + 15)),
     ...COLX.map(x => strip('col-' + x, x - 15, ROWY.n, x + 15, ROWY.s)),
     strip('loop-n', 695, 10, 885, 40), strip('loop-s', 695, 170, 885, 200), strip('loop-w', 695, 10, 725, 200), strip('loop-e', 855, 10, 885, 200),
-    strip('utility-row', 120, 653, 455, 683), strip('play-n', 545, 640, 895, 670), strip('play-s', 545, 740, 895, 770),
+    strip('garden-gate', 485, 185, 515, ROWY.n), strip('garden-hub', 485, 185, 725, 215),
+    strip('utility-in', 255, ROWY.s, 285, 683), strip('utility-row', 120, 653, 455, 683),
+    strip('play-in', 485, ROWY.s, 515, 670), strip('play-n', 485, 640, 895, 670), strip('play-s', 545, 740, 895, 770),
+    strip('play-w', 545, 640, 575, 770), strip('play-e', 865, 640, 895, 770),
     strip('office-door', 405, 180, 435, 265), strip('office-mid', 310, 165, 435, 195), strip('office-desk', 310, 21, 340, 195),
   ];
 
@@ -60,20 +63,45 @@
     costs: rectsOf(layout, 'path').map(rect => ({ rect, cost: PATH_COST })),
   });
 
+  // Shape check for untrusted input (disk, PUT body): the first problem, or '' when the geometry checks can run safely.
+  const obj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const num = v => typeof v === 'number' && isFinite(v);
+  const MAX = 4000; // ponytail: arbitrary cap so a PUT body cannot ask for a huge grid; today's world is 1240x780
+  const rect = r => Array.isArray(r) && r.length === 4 && r.every(num);
+  function malformed(l) {
+    if (!obj(l.size) || !(l.size.w > 0 && l.size.w <= MAX) || !(l.size.h > 0 && l.size.h <= MAX)) return 'size needs w and h in 1..' + MAX;
+    if (!obj(l.spawn) || !num(l.spawn.x) || !num(l.spawn.y)) return 'spawn needs numeric x and y';
+    for (const k of ['zones', 'objects', 'spots']) {
+      if (!Array.isArray(l[k])) return k + ' is not a list';
+      for (const e of l[k]) {
+        if (!obj(e) || typeof e.id !== 'string') return k + ' has an entry without a string id';
+        if (k === 'zones' ? !rect(e.rect) : !num(e.x) || !num(e.y)) return k + ' entry ' + e.id + (k === 'zones' ? ' needs a numeric rect' : ' needs numeric x and y');
+      }
+    }
+    return '';
+  }
+
   function validate(layout) {
     const errors = [];
-    if (!layout || typeof layout.version !== 'number') return { ok: false, errors: ['layout has no version'] };
+    if (!obj(layout) || !num(layout.version)) return { ok: false, errors: ['layout has no version'] };
     if (layout.version > VERSION) return { ok: false, errors: ['layout version ' + layout.version + ' is a newer version than ' + VERSION] };
+    const bad = malformed(layout);
+    if (bad) return { ok: false, errors: ['malformed: ' + bad] };
     const ids = name => { const seen = new Set(); return id => { if (seen.has(id)) errors.push('duplicate id ' + name + ' ' + id); seen.add(id); }; };
     const extra = (what, o, allowed) => Object.keys(o).forEach(k => allowed.has(k) || errors.push(what + ' ' + o.id + ': unknown field ' + k));
     const zoneId = ids('zone'), objId = ids('object'), spotId = ids('spot');
     layout.zones.forEach(q => zoneId(q.id));
     for (const o of layout.objects) {
       objId(o.id);
-      if (!F.CATALOG[o.type]) errors.push('object ' + o.id + ': unknown type ' + o.type);
+      if (!Object.prototype.hasOwnProperty.call(F.CATALOG, o.type)) errors.push('object ' + o.id + ': unknown type ' + o.type);
       else extra('object', o, PARAMS[o.type] || new Set(['id', 'type', 'x', 'y', 'home']));
     }
     if (errors.length) return { ok: false, errors }; // the checks below draw the objects
+    try { geometry(layout, errors, spotId, extra); } catch (e) { errors.push('malformed: ' + e.message); } // bad params can break a painter
+    return { ok: !errors.length, errors };
+  }
+
+  function geometry(layout, errors, spotId, extra) {
     Object.keys(F.spotsOf(layout.objects)).forEach(spotId);
     layout.spots.forEach(s => { spotId(s.id); extra('spot', s, SPOT_FIELDS); });
 
@@ -85,7 +113,6 @@
       if (water.some(([x0, y0, x1, y1]) => s.x > x0 && s.x < x1 && s.y > y0 && s.y < y1)) errors.push('spot ' + s.id + ' is in water');
       else if (!W.findPath(grid, sp0, s).length) errors.push('spot ' + s.id + ' is unreachable from spawn');
     }
-    return { ok: !errors.length, errors };
   }
 
   root.WorldModel = { VERSION, defaultLayout, validate, spotsOf, gridOf };
