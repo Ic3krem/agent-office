@@ -74,7 +74,7 @@ button:disabled{opacity:.45;cursor:default}
     </div>
 
     <sc-if value="{{ offlineBanner }}" hint-placeholder-val="{{ false }}"><div class="offline" role="alert">Connection to the Agent Office server lost. Retrying…</div></sc-if>
-    <div style="position:absolute; top:16px; left:16px; right:16px; z-index:3000; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 12px; pointer-events:none;">
+    <div style="position:absolute; top:16px; left:16px; right:16px; z-index:3000; display:{{ headDisp }}; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 12px; pointer-events:none;">
       <div style="display:flex; flex-direction:column; gap:3px; padding:9px 14px; border-radius:10px; background:var(--panel); border:1px solid var(--line); pointer-events:auto;">
         <div style="font-family:'Pixelify Sans',sans-serif; font-size:20px; line-height:1.1; color:#ffdca0;">Agent Office</div>
         <div style="font-size:12px; color:var(--dim); white-space:nowrap;"><span style="color:{{ onlineColor }};">●</span> {{ onlineLabel }} · {{ totalN }} agents{{ overflowLabel }} · {{ tasksDone }} turns done</div>
@@ -99,7 +99,7 @@ button:disabled{opacity:.45;cursor:default}
       </div>
     </div>
 
-    <div style="position:absolute; {{ todayPos }} left:16px; z-index:2900; width:{{ todayW }}; max-height:{{ todayMax }}; display:flex; flex-direction:column; border-radius:10px; background:var(--panel); border:1px solid #3a2e25; box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden;">
+    <div style="position:absolute; {{ todayPos }} left:16px; z-index:2900; width:{{ todayW }}; max-height:{{ todayMax }}; display:{{ todayDisp }}; flex-direction:column; border-radius:10px; background:var(--panel); border:1px solid #3a2e25; box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden;">
       <button onClick="{{ toggleToday }}" style="display:flex; align-items:center; gap:8px; padding:10px 12px; border:none; background:transparent; color:#ffdca0; font-family:'Pixelify Sans',sans-serif; font-size:15px; cursor:pointer; text-align:left;">
         <span style="flex:1; white-space:nowrap;">Today · {{ goalDone }}/{{ goalTotal }} done</span>
         <span style="font-family:'Instrument Sans',sans-serif; font-size:12px; color:#a8998a; white-space:nowrap;">{{ bossLabel }}</span>
@@ -160,7 +160,7 @@ button:disabled{opacity:.45;cursor:default}
       </sc-if>
     </div>
 
-    <div style="position:absolute; right:16px; bottom:16px; z-index:2990; display:flex; align-items:center; gap:6px; pointer-events:auto;">
+    <div style="position:absolute; right:16px; bottom:{{ ctrlBottom }}; z-index:2990; display:flex; align-items:center; gap:6px; pointer-events:auto;">
       <div style="display:flex; align-items:center; gap:2px;">
         <button class="pill sm" onClick="{{ zoomOut }}" aria-label="Zoom out" title="Zoom out (mouse wheel)" style="padding:0; width:30px; justify-content:center; font-size:15px;">−</button>
         <button class="pill sm" onClick="{{ zoomReset }}" title="Reset the view. Wheel to zoom, drag to pan." style="min-width:54px; justify-content:center; border-color:{{ zoomBorder }};">{{ zoomLabel }}</button>
@@ -169,6 +169,7 @@ button:disabled{opacity:.45;cursor:default}
       <button class="pill sm" onClick="{{ toggleRoster }}" title="The team: eight specialists" style="border-color:{{ rosterBorder }};"><span>Team {{ rosterCount }}/8</span></button>
       <button class="pill sm" onClick="{{ toggleLegend }}" title="Show or hide the zone labels" style="border-color:{{ legendBorder }};">Labels</button>
       <button class="pill sm" onClick="{{ toggleSaver }}" title="Power saver: the office redraws slowly while nothing moves and not at all when hidden. Turn off for a constant 30 fps." aria-pressed="{{ saverOn }}" style="border-color:{{ saverBorder }};">Power saver</button>
+      <button class="pill sm" onClick="{{ toggleBuild }}" aria-pressed="{{ buildPressed }}" title="Build mode: move, add and remove furniture and zones" style="display:{{ buildPillDisp }}; border-color:{{ buildBorder }}; color:{{ buildColor }};">Build</button>
       <button class="pill sm" onClick="{{ cycleDemo }}" title="Preview every state (work, think, blocked, report, empty board) without live agents" style="border-color:{{ demoBorder }}; color:{{ demoColor }};">{{ demoLabel }}</button>
     </div>
     <sc-if value="{{ rosterOpen }}" hint-placeholder-val="{{ false }}">
@@ -268,6 +269,71 @@ button:disabled{opacity:.45;cursor:default}
       </div>
     </sc-if>
 
+    <sc-if value="{{ building }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; top:16px; {{ ebPos }} z-index:3050; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none;">
+        <div role="toolbar" aria-label="Build mode" style="display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:6px; padding:6px 8px; border-radius:12px; background:var(--panel); border:1px solid var(--line2); box-shadow:0 10px 30px rgba(0,0,0,.4); pointer-events:auto;">
+          <span style="padding:0 6px; font-family:'Pixelify Sans',sans-serif; font-size:15px; color:#ffdca0; white-space:nowrap;">{{ buildTitle }}</span>
+          <button class="pill sm" onClick="{{ bUndo }}" disabled="{{ noUndo }}" title="Undo (Ctrl+Z)">Undo</button>
+          <button class="pill sm" onClick="{{ bRedo }}" disabled="{{ noRedo }}" title="Redo (Ctrl+Y)">Redo</button>
+          <button class="pill sm" onClick="{{ bDelete }}" disabled="{{ noSel }}" title="Delete the selection (Delete)">Delete</button>
+          <button class="pill sm" onClick="{{ bDuplicate }}" disabled="{{ noPiece }}" title="Duplicate the selected piece (Ctrl+D)">Duplicate</button>
+          <button class="pill sm" onClick="{{ toggleTpl }}" aria-expanded="{{ tplExpanded }}" style="border-color:{{ tplBorder }};">Templates ▾</button>
+          <button class="pill sm cta" onClick="{{ bSave }}">Save</button>
+          <button class="pill sm" onClick="{{ bDone }}">Done</button>
+        </div>
+        <sc-if value="{{ zoneSel }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px; padding:5px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); pointer-events:auto;">
+            <span style="font-size:12px; color:var(--dim); padding-right:4px;">Zone type</span>
+            <sc-for list="{{ zoneTypes }}" as="z" hint-placeholder-count="9">
+              <button class="sbtn" onClick="{{ z.onClick }}" aria-pressed="{{ z.on }}" style="padding:3px 8px; border-color:{{ z.border }}; color:{{ z.fg }};">{{ z.label }}</button>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ hasBuildErrs }}" hint-placeholder-val="{{ false }}">
+          <div role="alert" style="display:flex; align-items:flex-start; gap:8px; max-width:520px; padding:9px 10px 9px 12px; border-radius:10px; background:#2a1710; border:1px solid #a8431f; color:#ffb199; font-size:12.5px; pointer-events:auto;">
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; word-break:break-word;">
+              <span style="font-weight:600;">Not saved: the layout has problems</span>
+              <sc-for list="{{ buildErrs }}" as="e" hint-placeholder-count="3"><span>{{ e.text }}</span></sc-for>
+            </div>
+            <button class="xbtn" onClick="{{ closeErrs }}" aria-label="Dismiss the errors" style="width:26px; height:26px;">×</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ tplOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="width:300px; max-width:calc(100vw - 32px); max-height:60vh; overflow-y:auto; padding:10px; box-sizing:border-box; border-radius:10px; background:#1d1714; border:1px solid var(--line2); box-shadow:0 12px 30px rgba(0,0,0,.5); display:flex; flex-direction:column; gap:6px; pointer-events:auto; animation:pop .15s ease-out;">
+            <div class="sect">Templates</div>
+            <sc-for list="{{ tpls }}" as="t" hint-placeholder-count="3">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.name }}</span>
+                <button class="sbtn" onClick="{{ t.onLoad }}" aria-label="Load {{ t.name }}">Load</button>
+                <sc-if value="{{ t.mine }}" hint-placeholder-val="{{ false }}"><button class="xbtn" onClick="{{ t.onDelete }}" aria-label="Delete {{ t.name }}" style="width:26px; height:26px;">×</button></sc-if>
+              </div>
+            </sc-for>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+              <input value="{{ tplName }}" onChange="{{ onTplName }}" onKeyDown="{{ onTplKey }}" maxlength="60" aria-label="Template name" placeholder="Name for this layout" style="flex:1; min-width:0; padding:6px 8px; border-radius:7px; border:1px solid var(--line2); background:#120e0c; color:var(--ink); font:inherit; font-size:12.5px; outline:none;"></input>
+              <button class="sbtn" onClick="{{ saveTpl }}">Save as template</button>
+            </div>
+            <button class="sbtn" onClick="{{ resetDefault }}" style="align-self:flex-start;">Reset to default</button>
+          </div>
+        </sc-if>
+      </div>
+      <div style="position:absolute; {{ catPos }} z-index:2995; display:flex; flex-direction:column; gap:5px; padding:10px; box-sizing:border-box; overflow-y:auto; background:var(--panel); border:1px solid var(--line2); box-shadow:0 10px 30px rgba(0,0,0,.4);">
+        <sc-for list="{{ catItems }}" as="c" hint-placeholder-count="12">
+          <sc-if value="{{ c.head }}" hint-placeholder-val="{{ false }}"><div class="sect" style="margin-top:4px;">{{ c.label }}</div></sc-if>
+          <sc-if value="{{ c.hint }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px; line-height:1.35; color:var(--mute);">{{ c.label }}</div></sc-if>
+          <sc-if value="{{ c.btn }}" hint-placeholder-val="{{ false }}"><button class="sbtn" draggable="{{ c.draggable }}" onDragStart="{{ c.onDrag }}" onClick="{{ c.onClick }}" aria-pressed="{{ c.on }}" title="{{ c.title }}" style="text-align:left; border-color:{{ c.border }}; color:{{ c.fg }}; background:{{ c.bg }};">{{ c.label }}</button></sc-if>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasAsk }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ askCancel }}" style="position:fixed; inset:0; z-index:4500; background:rgba(8,5,4,.6);"></div>
+      <div role="dialog" aria-modal="true" aria-label="{{ askText }}" style="position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:4501; width:min(400px,92vw); padding:16px; box-sizing:border-box; background:#1a1512; border:1px solid #4a3a2c; border-radius:12px; box-shadow:0 30px 80px rgba(0,0,0,.6); display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:14px; line-height:1.45;">{{ askText }}</div>
+        <div style="display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px;">
+          <sc-for list="{{ askBtns }}" as="b" hint-placeholder-count="3"><button class="{{ b.cls }}" onClick="{{ b.onClick }}">{{ b.label }}</button></sc-for>
+        </div>
+      </div>
+    </sc-if>
+
     <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
       <div style="position:absolute; left:50%; bottom:24px; transform:translateX(-50%); z-index:3000; padding:9px 16px; border-radius:8px; background:#1d1714; border:1px solid #4a3a2c; font-size:13px; animation:pop .2s ease-out;">{{ toast }}</div>
     </sc-if>
@@ -362,7 +428,12 @@ button:disabled{opacity:.45;cursor:default}
 <script type="text/x-dc" data-dc-script>
 const nonce=()=>(document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/)||[])[1]||'';
 const MGR=()=>(window.OfficeMotion&&OfficeMotion.TIRO.name)||'Tiro';
-const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-nonce':nonce()},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
+const api=(p,body)=>fetch(p,{method:'POST',headers:{'content-type':'application/json','x-nonce':nonce()},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.error||('HTTP '+r.status)),{body:j});return j;});
+const getJ=p=>fetch(p,{headers:{'x-nonce':nonce()}}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
+const CAT_GROUPS=[['furniture','Furniture'],['decor','Decor'],['nature','Nature']];
+const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+// Same id the server derives from a template name (world-store.mjs saveTemplate), to warn before an overwrite.
+const tplSlug=(nm,builtIns)=>{let id=nm.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40).replace(/-+$/,'')||'template';if(builtIns.includes(id))id=id.slice(0,35).replace(/-+$/,'')+'-mine';return id;};
 const pad=n=>String(n).padStart(2,'0');
 const guardText=g=>[g.title,'Rules: '+(g.rules||[]).join(', '),(g.files&&g.files.length)?'Files: '+g.files.map(f=>f.path+' ('+f.why+((f.preview&&f.preview.length)?'; '+f.preview.slice(0,3).join(', '):'')+')').join('; '):'',g.host?'Destination: '+g.host:'',g.exact===false?'Payload: estimated':'Payload: exact',g.source?'Source: '+g.source:'',g.rememberable?'':'This kind of request cannot be remembered.'].filter(Boolean).join('\n');
 const stamp=d=>pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
@@ -376,7 +447,7 @@ const TOOLK={tool:'\u{1F527}',think:'\u{1F4AD}',out:'\u{1F4AC}',err:'\u26A0',hit
 const DEMOS=['','work','think','blocked','report','empty','tour'];
 
 class Component extends DCLogic {
-  state={nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0}};
+  state={nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null};
   wrapRef=React.createRef(); termRef=React.createRef(); canvasRef=React.createRef();
   componentDidMount(){
     const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect();const sc=Math.min(r.width/1480,(r.height-40)/920);this.fitSc=sc;this.vp={w:r.width,h:r.height};this.setView(this.state.view,sc);this.setState({scale:sc});};
@@ -388,7 +459,7 @@ class Component extends DCLogic {
       onSelect:id=>this.setState({selectedId:id,modifyOpen:false,deskInfo:null}),onNudge:id=>{OfficeWorld.nudge(id);this.nudge(id);},
       onObject:k=>window.OfficeObjects&&OfficeObjects.open(k),onUi:k=>this.setState(k==='usage'?{usageOpen:true}:{todayOpen:true}),
       onEmptyDesk:d=>this.setState({deskInfo:d,selectedId:null,rosterOpen:false}),onDemoSnap:d=>this.applyDemo(d)});};
-    fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout&&j.source!=='default'&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(j&&j.warning)this.showToast(j.warning);mountWorld();});
+    fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout)this.layout=j.layout;if(j&&j.layout&&j.source!=='default'&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(j&&j.warning)this.showToast(j.warning);mountWorld();});
     setTimeout(mountWorld,400);
     this.ro=new ResizeObserver(fit); if(this.wrapRef.current){this.ro.observe(this.wrapRef.current);this.camEvents(this.wrapRef.current);} fit();
     api('/api/roster').then(j=>this.setState({roster:j.roster})).catch(()=>{});
@@ -399,7 +470,7 @@ class Component extends DCLogic {
     this.es.onerror=()=>this.setState({online:false});
     window.officeToast=t=>this.showToast(t);
     window.OfficeObjects&&OfficeObjects.onState(x=>this.setState({music:x.playing}));
-    this.es.onmessage=ev=>{const d=JSON.parse(ev.data);this.applyNames(d.names);this.live=d;window.OfficeObjects&&OfficeObjects.update(d);window.OfficeWorld&&OfficeWorld.setSnapshot(d);this.setState(s=>({manager:d.manager,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,doneN:d.doneReports||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,tasksDone:d.tasksDone,hires:d.hires||[],names:d.names||null,...(s.demo?{}:{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null})}));};
+    this.es.onmessage=ev=>{const d=JSON.parse(ev.data);this.worldVersion(d.worldVersion);this.applyNames(d.names);this.live=d;window.OfficeObjects&&OfficeObjects.update(d);window.OfficeWorld&&OfficeWorld.setSnapshot(d);this.setState(s=>({manager:d.manager,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,doneN:d.doneReports||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,tasksDone:d.tasksDone,hires:d.hires||[],names:d.names||null,...(s.demo?{}:{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null})}));};
     this.onKey=e=>{
       const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;
       const a=this.sel();
@@ -425,9 +496,12 @@ class Component extends DCLogic {
     this.onDown=e=>{if(e.button!==0||!onCanvas(e)||(this.view||this.state.view).z<=1.001)return;const v=this.view||this.state.view;drag={x:e.clientX,y:e.clientY,vx:v.x,vy:v.y,moved:false};};
     this.onMove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<5)return;if(!drag.moved){drag.moved=true;el.style.cursor='grabbing';}this.setView({z:(this.view||this.state.view).z,x:drag.vx+dx,y:drag.vy+dy});};
     this.onUp=()=>{if(drag&&drag.moved){this.swallow=Date.now()+60;}drag=null;el.style.cursor='';};
-    this.onClickCap=e=>{if(this.swallow&&Date.now()<this.swallow){e.stopPropagation();e.preventDefault();this.swallow=0;}};
+    this.onClickCap=e=>{if(this.swallow&&Date.now()<this.swallow){e.stopPropagation();e.preventDefault();this.swallow=0;}else if(this.session&&this.state.armed&&e.target.tagName==='CANVAS'){e.stopPropagation();this.place(this.state.armed,e.clientX,e.clientY);}};
+    this.onDragOver=e=>{if(this.session&&e.dataTransfer&&[...e.dataTransfer.types].includes('text/x-ao-piece'))e.preventDefault();};
+    this.onDrop=e=>{const t=this.session&&e.dataTransfer&&e.dataTransfer.getData('text/x-ao-piece');if(!t)return;e.preventDefault();this.place(t,e.clientX,e.clientY);};
+    el.addEventListener('dragover',this.onDragOver);el.addEventListener('drop',this.onDrop);
     el.addEventListener('wheel',this.onWheel,{passive:false});el.addEventListener('pointerdown',this.onDown);window.addEventListener('pointermove',this.onMove);window.addEventListener('pointerup',this.onUp);el.addEventListener('click',this.onClickCap,true);
-    this.camOff=()=>{el.removeEventListener('wheel',this.onWheel);el.removeEventListener('pointerdown',this.onDown);window.removeEventListener('pointermove',this.onMove);window.removeEventListener('pointerup',this.onUp);el.removeEventListener('click',this.onClickCap,true);};
+    this.camOff=()=>{el.removeEventListener('wheel',this.onWheel);el.removeEventListener('pointerdown',this.onDown);window.removeEventListener('pointermove',this.onMove);window.removeEventListener('pointerup',this.onUp);el.removeEventListener('click',this.onClickCap,true);el.removeEventListener('dragover',this.onDragOver);el.removeEventListener('drop',this.onDrop);};
   }
   sel(){return this.state.agents.find(a=>a.id===this.state.selectedId);}
   showToast(t){this.setState({toast:t});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({toast:''}),3200);}
@@ -471,6 +545,7 @@ class Component extends DCLogic {
   setDemo(scene){
     if(scene&&!DEMOS.includes(scene))scene='work';
     const W=window.OfficeWorld;if(!W)return;
+    if(scene&&this.session)return this.leaveBuild(()=>this.setDemo(scene));
     if(!scene){W.setDemo(null);const d=this.live;this.setState({demo:'',selectedId:null,...(d?{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow}:{goals:[],boss:null,agents:[],overflow:0})});if(d)W.setSnapshot(d);return;}
     W.setDemo(scene);this.setState({demo:scene,selectedId:null});
   }
@@ -557,6 +632,93 @@ class Component extends DCLogic {
         onAsk:()=>{if(bossId)this.setState({selectedId:bossId,input:'About '+g.id+': '});else this.showToast(''+MGR()+' is away. Start the workday first.');}};})
     };
   }
+  // ---------- Build mode: an edit session (WorldEdit) over the saved layout; OfficeWorld draws and edits it ----------
+  worldVersion(v){
+    if(v===undefined)return;const was=this.wv;this.wv=v;
+    if(was===undefined||v===was)return;
+    if(this.ownSave){this.ownSave=false;return;} // our own Save bumped it
+    if(this.session)return this.showToast('Layout changed in another window');
+    getJ('/api/world').then(j=>{if(j&&j.layout&&!this.session){this.layout=j.layout;window.OfficeWorld&&OfficeWorld.applyLayout(j.layout);}}).catch(()=>{});
+  }
+  enterBuild(){
+    const W=window.OfficeWorld,E=window.WorldEdit;if(!W||!E||!W.setBuild||this.session||this.state.demo)return;
+    this.session=E.createSession(this.layout||WorldModel.defaultLayout());
+    W.setBuild(this.session,{onChange:st=>this.setState({bst:st}),onSelect:(id,kind)=>this.setState(s=>({bst:{...(s.bst||{}),selected:id,selectedKind:kind}})),onToast:t=>this.showToast(t)});
+    this.setState({building:true,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,ask:null,selectedId:null,popout:false,rosterOpen:false,deskInfo:null,dispatchOpen:false});
+  }
+  exitBuild(discard){
+    if(!this.session)return;this.session=null;
+    const W=window.OfficeWorld;W.setBuild(null);if(discard)W.applyLayout(this.layout||WorldModel.defaultLayout());
+    this.setState({building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,ask:null});
+  }
+  // Done (or anything that ends Build mode): ask Save / Discard / Cancel when there are unsaved changes, then run next().
+  leaveBuild(next){
+    const go=()=>{next&&next();};
+    if(!this.session)return go();
+    if(!this.session.dirty()){this.exitBuild(false);return go();}
+    this.askUser('You have unsaved layout changes.',[['Save',()=>this.saveBuild().then(ok=>{if(ok){this.exitBuild(false);go();}}),true],['Discard',()=>{this.exitBuild(true);go();}],['Cancel']]);
+  }
+  askUser(text,btns){this.setState({ask:{text,btns}});}
+  showErrs(list){this.setState({buildErrs:(list&&list.length?list:['Unknown error']).map(String)});}
+  saveBuild(){
+    const S=this.session;if(!S)return Promise.resolve(false);
+    const L=S.layout(),v=WorldModel.validate(L);
+    if(!v.ok){this.showErrs(v.errors);return Promise.resolve(false);} // never send a layout we know is invalid
+    this.ownSave=true;
+    return api('/api/world',{layout:L}).then(()=>{this.layout=L;S.markSaved();this.setState({buildErrs:null,bst:{...(this.state.bst||{})}});this.showToast('Layout saved');return true;})
+      .catch(e=>{this.ownSave=false;this.showErrs(e.body&&e.body.errors||[e.message]);return false;});
+  }
+  place(type,x,y){const r=OfficeWorld.dropAt(type,x,y);if(r.ok)this.setState({armed:null});else this.showToast(r.reason);return r;}
+  // Load a template (or the default) into the session: one undoable step that stays dirty until saved.
+  loadInto(name,get){
+    this.setState({tplOpen:false});
+    const go=()=>Promise.resolve(get()).then(L=>{if(this.session&&OfficeWorld.buildOp('load',L).ok)this.showToast(name+' loaded. Save to keep it.');}).catch(e=>this.showToast(e.message));
+    if(this.session&&this.session.dirty())this.askUser('Replace your unsaved changes with '+name+'?',[['Load',go,true],['Cancel']]);else go();
+  }
+  refreshTpls(){return getJ('/api/world/templates').then(l=>{this.setState({tpls:Array.isArray(l)?l:[]});return l;}).catch(e=>{this.showToast(e.message);return [];});}
+  saveTpl(){
+    const S=this.session,nm=this.state.tplName.trim();if(!S)return;if(!nm)return this.showToast('Give the template a name');
+    const L=S.layout(),v=WorldModel.validate(L);if(!v.ok)return this.showErrs(v.errors);
+    const go=()=>api('/api/world/templates',{name:nm,layout:L}).then(()=>{this.setState({tplName:''});this.showToast('Saved template '+nm);this.refreshTpls();}).catch(e=>this.showErrs(e.body&&e.body.errors||[e.message]));
+    const ts=this.state.tpls,id=tplSlug(nm,ts.filter(t=>t.builtIn).map(t=>t.id)),old=ts.find(t=>!t.builtIn&&t.id===id);
+    if(old)this.askUser('A template named '+old.name+' already exists. Replace it?',[['Replace',go,true],['Cancel']]);else go();
+  }
+  buildVals(){
+    const s=this.state,S=this.session,on=!!(s.building&&S),st=s.bst||{},narrow=s.vw<700,armed=s.armed,brush=s.brush;
+    const btn=(label,active,extra)=>({btn:true,label,on:active?'true':'false',border:active?'#ffcf6b':'var(--line)',fg:active?'#ffdca0':'#d7c3a8',bg:active?'#3a2d18':'transparent',draggable:'false',onDrag:()=>{},title:'',...extra});
+    const cat=on?WorldEdit.catalog().filter(c=>c.addable):[];
+    const catItems=on?[
+      ...CAT_GROUPS.flatMap(([g,label])=>{const its=cat.filter(c=>c.group===g);return its.length?[{head:true,label},...its.map(c=>btn(cap(c.label.replace(/-/g," ")),armed===c.type,{draggable:narrow?'false':'true',title:'Click, then click the floor'+(narrow?'':', or drag it onto the floor'),
+        onClick:()=>{OfficeWorld.setTool(null);this.setState({armed:armed===c.type?null:c.type,brush:null});},
+        onDrag:e=>{e.dataTransfer.setData('text/x-ao-piece',c.type);e.dataTransfer.effectAllowed='copy';}}))]:[];}),
+      {head:true,label:'Zones'},{hint:true,label:'Pick a brush, then drag on the floor. Tap a zone to select it.'},
+      ...WorldModel.ZONE_TYPES.map(t=>btn(cap(t),brush===t,{onClick:()=>{const b=brush===t?null:t;OfficeWorld.setTool(b?'zone:'+b:null);this.setState({brush:b,armed:null});}}))
+    ]:[];
+    const errs=s.buildErrs||[],zs=st.selectedKind==='zone'&&st.selected&&S?S.layout().zones.find(z=>z.id===st.selected):null;
+    const closeAsk=()=>this.setState({ask:null});
+    return {
+      buildPillDisp:s.demo?'none':'inline-flex',buildPressed:on?'true':'false',buildBorder:on?'#ffcf6b':'#3a2e25',buildColor:on?'#ffdca0':'#f0e4d4',
+      toggleBuild:()=>on?this.leaveBuild():this.enterBuild(),
+      building:on,headDisp:on?'none':'flex',todayDisp:on?'none':'flex',ctrlBottom:on&&narrow?'calc(38vh + 12px)':'16px',
+      ebPos:narrow||!on?'left:16px; right:16px;':'left:250px; right:16px;',
+      catPos:narrow?'left:0; right:0; bottom:0; max-height:38vh; padding-bottom:56px; border-radius:14px 14px 0 0;':'left:16px; top:16px; bottom:60px; width:220px; border-radius:10px;',
+      buildTitle:'Build'+(S&&S.dirty()?' · unsaved':''),
+      noUndo:!(S&&S.canUndo()),noRedo:!(S&&S.canRedo()),noSel:!st.selected,noPiece:st.selectedKind!=='obj'||!st.selected,
+      bUndo:()=>OfficeWorld.buildOp('undo'),bRedo:()=>OfficeWorld.buildOp('redo'),bDelete:()=>OfficeWorld.buildOp('delete'),bDuplicate:()=>OfficeWorld.buildOp('duplicate'),
+      bSave:()=>this.saveBuild(),bDone:()=>this.leaveBuild(),
+      zoneSel:!!zs,zoneTypes:zs?WorldModel.ZONE_TYPES.map(t=>({label:cap(t),on:zs.type===t?'true':'false',border:zs.type===t?'#ffcf6b':'var(--line)',fg:zs.type===t?'#ffdca0':'#d7c3a8',onClick:()=>OfficeWorld.buildOp('zoneType',t)})):[],
+      hasBuildErrs:on&&errs.length>0,buildErrs:errs.slice(0,3).map(text=>({text})).concat(errs.length>3?[{text:'+'+(errs.length-3)+' more'}]:[]),closeErrs:()=>this.setState({buildErrs:null}),
+      tplOpen:on&&s.tplOpen,tplExpanded:s.tplOpen?'true':'false',tplBorder:s.tplOpen?'#8a5a1c':'var(--line)',
+      toggleTpl:()=>{if(!s.tplOpen)this.refreshTpls();this.setState({tplOpen:!s.tplOpen});},
+      tpls:s.tpls.map(t=>({name:t.name,mine:!t.builtIn,onLoad:()=>this.loadInto(t.name,()=>getJ('/api/world/template?id='+encodeURIComponent(t.id)).then(j=>j.layout)),
+        onDelete:()=>this.askUser('Delete the template '+t.name+'?',[['Delete',()=>api('/api/world/template/delete',{id:t.id}).then(r=>{this.showToast(r.ok?'Deleted '+t.name:'Could not delete '+t.name);this.refreshTpls();}).catch(e=>this.showToast(e.message)),true],['Cancel']])})),
+      tplName:s.tplName,onTplName:e=>this.setState({tplName:e.target.value}),onTplKey:e=>{if(e.key==='Enter')this.saveTpl();},saveTpl:()=>this.saveTpl(),
+      resetDefault:()=>this.loadInto('The default layout',()=>WorldModel.defaultLayout()),
+      catItems:catItems.map(c=>({head:!!c.head,hint:!!c.hint,btn:!!c.btn,label:c.label,on:c.on||'false',border:c.border||'',fg:c.fg||'',bg:c.bg||'',draggable:c.draggable||'false',title:c.title||'',onClick:c.onClick||(()=>{}),onDrag:c.onDrag||(()=>{})})),
+      hasAsk:!!s.ask,askText:s.ask?s.ask.text:'',askCancel:closeAsk,
+      askBtns:s.ask?s.ask.btns.map(([label,fn,cta])=>({label,cls:cta?'pill sm cta':'pill sm',onClick:()=>{closeAsk();fn&&fn();}})):[],
+    };
+  }
   renderVals(){
     const s=this.state;
     const workingN=s.agents.filter(a=>a.status==='working').length;
@@ -586,7 +748,7 @@ class Component extends DCLogic {
       ...this.panel(!!a),hasSel:!!a,sel,selLogs,noLogs:!!a&&!selLogs.length,feed:logs.slice(-6).map(l=>({icon:TOOLK[l.k]||'\u2022',color:(KIND[l.k]||KIND.sys)[2],text:String(l.text||'').split('\n')[0]})),
       closeDrawer:()=>this.setState({selectedId:null,popout:false}),
       togglePop:()=>this.setState({popout:!s.popout}),popIcon:s.popout?'▭':'⤢',popTitle:s.popout?'Dock the panel':'Pop out into a window',
-      ...this.today(),...this.usageVals(),...this.officeVals(),
+      ...this.today(),...this.usageVals(),...this.officeVals(),...this.buildVals(),
       nudgeSel:()=>a&&this.nudge(a.id),
       approveSel:()=>a&&this.decide(a,'allow'),approveAlways:()=>a&&this.decide(a,'allow',null,true),alwaysDisp:a&&a.perm&&a.perm.canAlways&&!a.perm.guard?'inline-block':'none',guardDisp:a&&a.perm&&a.perm.guard?'block':'none',rememberDisp:a&&a.perm&&a.perm.guard&&a.perm.guard.rememberable&&window.agentOfficeDesktop&&window.agentOfficeDesktop.guard?'inline-block':'none',approveRemember:()=>{if(!a||!a.perm||!a.perm.guard)return;const g=a.perm.guard;try{window.agentOfficeDesktop.guard.remember(g.rememberKey,(g.title||'')+' '+(a.perm.cmd||'').slice(0,60));}catch(e){}this.decide(a,'allow');},yesDisp:a&&a.perm&&a.perm.questions?'none':'inline-block',questionDisp:a&&a.perm&&a.perm.questions?'block':'none',denySel:()=>a&&this.decide(a,'deny',s.modifyOpen?s.modifyText:null),terminalSel:()=>a&&this.decide(a,'terminal'),
       approveLabel:'Yes (Y)',modifyLabel:s.modifyOpen?'Cancel':'No, and tell Claude what to do',

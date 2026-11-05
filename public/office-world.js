@@ -16,7 +16,7 @@
   let hits = [], scaleCss = 1, moved = false;
   // Build mode: the edit session (WorldEdit) or null, the page's hooks, the zone tool, the selection {kind: 'obj'|'zone', id},
   // the session's layout as last applied, footprints per object id, the drag in progress and the pointers that are down.
-  let build = null, bhooks = {}, tool = null, sel = null, blayout = null, fps = new Map(), drag = null, noClick = false;
+  let build = null, bhooks = {}, tool = null, sel = null, blayout = null, fps = new Map(), drag = null, noClick = false, tap = null;
   const pointers = new Set();
   // Power saver (default on): idle scenes redraw about twice a second, seated animations 8 times, travelling characters 30 times;
   // a hidden window draws nothing. Off = the old flat 30 fps. Stored in localStorage so the page keeps the choice.
@@ -402,7 +402,8 @@
     const o = OBJ.filter(q => mine.has(q.inst) && inObj(q, px, py)).sort((a, b) => area(a) - area(b))[0];
     return o ? o.inst : null;
   }
-  const zoneAt = gp => blayout.zones.filter(z => gp.x >= z.rect[0] && gp.x <= z.rect[2] && gp.y >= z.rect[1] && gp.y <= z.rect[3])
+  const pathOn = () => tool === 'zone:path';
+  const zoneAt = gp => blayout.zones.filter(z => (z.type !== 'path' || pathOn()) && gp.x >= z.rect[0] && gp.x <= z.rect[2] && gp.y >= z.rect[1] && gp.y <= z.rect[3])
     .sort((a, b) => (a.rect[2] - a.rect[0]) * (a.rect[3] - a.rect[1]) - (b.rect[2] - b.rect[0]) * (b.rect[3] - b.rect[1]))[0] || null;
   const selZone = () => sel && sel.kind === 'zone' ? blayout.zones.find(z => z.id === sel.id) : null;
   function cancelDrag() { // put a half-dragged piece back where the session has it
@@ -413,14 +414,14 @@
   function onDown(e) {
     if (!build) return;
     noClick = false; pointers.add(e.pointerId);
-    if (pointers.size > 1) { cancelDrag(); return; } // a second finger: pinch and pan belong to the camera
+    if (pointers.size > 1) { cancelDrag(); tap = null; return; } // a second finger: pinch and pan belong to the camera
     if (e.button !== 0) return;
     const [px, py] = toStage(e), gp = WE().toGround(px, py), z = selZone();
     let d = null;
     if (z) { const [hx, hy] = P(z.rect[2], z.rect[3], 0); if (Math.hypot(px - hx, py - hy) <= 10) d = { kind: 'resize', id: z.id, r0: z.rect }; }
     if (!d) { const id = buildPiece(px, py); if (id) { d = { kind: 'piece', id, o: blayout.objects.find(q => q.id === id) }; setSel({ kind: 'obj', id }); } }
     if (!d && tool && tool.startsWith('zone:')) d = { kind: 'zone', type: tool.slice(5) };
-    if (!d) { if (sel) setSel(null); return; } // empty ground: let it through so the camera can pan
+    if (!d) { tap = { pid: e.pointerId, cx: e.clientX, cy: e.clientY, gp }; return; } // empty ground: let it through so the camera can pan; a tap selects the zone there
     e.stopPropagation();
     try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ }
     drag = Object.assign(d, { pid: e.pointerId, cx: e.clientX, cy: e.clientY, g0: gp, moved: false, ok: true });
@@ -446,6 +447,7 @@
   }
   function onUp(e) {
     pointers.delete(e.pointerId);
+    const t = tap; if (t && t.pid === e.pointerId) { tap = null; if (build && e.type === 'pointerup' && Math.hypot(e.clientX - t.cx, e.clientY - t.cy) < 4) { const z = zoneAt(t.gp); setSel(z ? { kind: 'zone', id: z.id } : null); } }
     const d = drag; if (!build || !d || e.pointerId !== d.pid) return;
     drag = null;
     if (e.type === 'pointercancel') { drag = d; cancelDrag(); return; }
@@ -462,16 +464,32 @@
     if (!build || e.defaultPrevented) return;
     const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
     const k = (e.key || '').length === 1 ? e.key.toLowerCase() : e.key || '', mod = e.ctrlKey || e.metaKey;
-    let r = null;
-    if (mod && k === 'z' && !e.shiftKey) { cancelDrag(); build.undo(); r = { ok: true }; }
-    else if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { cancelDrag(); build.redo(); r = { ok: true }; }
-    else if (mod && k === 'd') { if (sel && sel.kind === 'obj') { cancelDrag(); r = build.duplicate(sel.id); if (r.ok) setSel({ kind: 'obj', id: r.id }); } }
-    else if ((k === 'Delete' || k === 'Backspace') && !mod) { if (sel) { cancelDrag(); r = sel.kind === 'zone' ? build.removeZone(sel.id) : build.remove(sel.id); } }
+    if (mod && k === 'z' && !e.shiftKey) buildOp('undo');
+    else if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) buildOp('redo');
+    else if (mod && k === 'd') buildOp('duplicate');
+    else if ((k === 'Delete' || k === 'Backspace') && !mod) buildOp('delete');
     else if (k === 'r' && !mod && !e.altKey) toast('Rotation is coming in a later update');
     else if (k === 'Escape') { cancelDrag(); setSel(null); }
     else return;
     e.preventDefault(); e.stopImmediatePropagation(); // the page's own keys (Escape, zoom) stay out of Build mode
-    if (r) { if (!r.ok) toast(r.reason); afterOp(); }
+  }
+  // One edit from a key or the page's edit bar: 'undo' | 'redo' | 'duplicate' | 'delete' (the selection),
+  // 'zoneType' (arg: type, the selected zone), 'load' (arg: a whole layout). Refusals are toasted; returns the Result.
+  function buildOp(name, arg) {
+    if (!build) return { ok: false, reason: 'not in build mode' };
+    const none = { ok: false, reason: 'nothing selected' };
+    cancelDrag();
+    let r = { ok: true };
+    if (name === 'undo') build.undo();
+    else if (name === 'redo') build.redo();
+    else if (name === 'duplicate') { if (!sel || sel.kind !== 'obj') return none; r = build.duplicate(sel.id); if (r.ok) setSel({ kind: 'obj', id: r.id }); }
+    else if (name === 'delete') { if (!sel) return none; r = sel.kind === 'zone' ? build.removeZone(sel.id) : build.remove(sel.id); }
+    else if (name === 'zoneType') { if (!sel || sel.kind !== 'zone') return none; r = build.setZone(sel.id, { type: arg }); }
+    else if (name === 'load') { r = build.load(arg); if (r.ok) setSel(null); }
+    else return { ok: false, reason: 'unknown op ' + name };
+    if (!r.ok) toast(r.reason);
+    afterOp();
+    return r;
   }
   // The overlay: faint 10-unit grid, zones at 25% in their floor colour with labels, the selection, the drag ghost.
   function drawBuild() {
@@ -482,7 +500,11 @@
       for (let x = 0; x <= w; x += 10) { g.moveTo(x, 0); g.lineTo(x, h); }
       for (let y = 0; y <= h; y += 10) { g.moveTo(0, y); g.lineTo(w, y); }
       g.stroke();
-      for (const z of blayout.zones) { const [x0, y0, x1, y1] = rectOf(z); g.globalAlpha = .25; g.fillStyle = F.zoneColor(z.type); g.fillRect(x0, y0, x1 - x0, y1 - y0); g.globalAlpha = 1; }
+      for (const z of blayout.zones) { // walkway strips are outlines only unless the path brush is on: they would bury the scene
+        const [x0, y0, x1, y1] = rectOf(z);
+        if (z.type === 'path' && !pathOn()) { g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = .8; g.strokeRect(x0, y0, x1 - x0, y1 - y0); continue; }
+        g.globalAlpha = .25; g.fillStyle = F.zoneColor(z.type); g.fillRect(x0, y0, x1 - x0, y1 - y0); g.globalAlpha = 1;
+      }
       const zs = selZone();
       if (zs) { const [x0, y0, x1, y1] = rectOf(zs); g.strokeStyle = '#ffcf6b'; g.lineWidth = 2; g.strokeRect(x0, y0, x1 - x0, y1 - y0); }
       if (sel && sel.kind === 'obj' && !(d && d.kind === 'piece')) { g.strokeStyle = '#ffcf6b'; g.lineWidth = 1.5; for (const r of fps.get(sel.id) || []) g.strokeRect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }
@@ -490,19 +512,19 @@
       if (d && d.kind !== 'piece' && d.rect) { const [x0, y0, x1, y1] = d.rect; g.fillStyle = okCol(d.ok); g.fillRect(x0, y0, x1 - x0, y1 - y0); }
     });
     g.font = '10px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(255,255,255,.75)';
-    for (const z of blayout.zones) { const [x0, y0, x1, y1] = rectOf(z), [sx, sy] = P((x0 + x1) / 2, (y0 + y1) / 2, 0); g.fillText(z.id, sx, sy); }
+    for (const z of blayout.zones) { if (z.type === 'path' && !pathOn()) continue; const [x0, y0, x1, y1] = rectOf(z), [sx, sy] = P((x0 + x1) / 2, (y0 + y1) / 2, 0); g.fillText(z.id, sx, sy); }
     const zs = selZone();
     if (zs) { const r = rectOf(zs), [hx, hy] = P(r[2], r[3], 0); g.fillStyle = '#ffcf6b'; g.strokeStyle = '#2a1a0c'; g.lineWidth = 1.5; g.fillRect(hx - 5, hy - 5, 10, 10); g.strokeRect(hx - 5, hy - 5, 10, 10); }
     if (sel && sel.kind === 'obj' && !(d && d.kind === 'piece')) for (const o of OBJ) if (o.inst === sel.id && o.mask) { const rg = ringOf(o); g.drawImage(rg.c, o.mask.l - rg.pad, o.mask.t - rg.pad); }
   }
   // session = a WorldEdit session (null leaves Build mode); hooks = {onChange(state), onSelect(id|null, kind), onToast(text)}.
   function setBuild(session, hooks) {
-    cancelDrag(); build = session || null; bhooks = hooks || {}; sel = null; tool = null; noClick = false; hover = null;
+    cancelDrag(); build = session || null; bhooks = hooks || {}; sel = null; tool = null; noClick = false; hover = null; tap = null; pointers.clear();
     if (build) syncBuild(); else blayout = null;
     if (cv) { cv.style.cursor = ''; cv.title = ''; }
     wake();
   }
-  function setTool(t) { tool = t || null; wake(); } // null, or 'zone:<type>'
+  function setTool(t) { tool = t || null; if (build && sel && sel.kind === 'zone' && !pathOn() && (blayout.zones.find(z => z.id === sel.id) || {}).type === 'path') setSel(null); wake(); } // null, or 'zone:<type>'
   // Add a catalog piece at the snapped ground point under a client point (the drawer's drop, mouse or touch).
   function dropAt(type, clientX, clientY) {
     if (!build || !cv) return { ok: false, reason: 'not in build mode' };
@@ -519,6 +541,7 @@
     setScale(scaleCss); start(); // keep a scale set before mount (the page may mount after its first fit)
     cv.addEventListener('wheel', () => { lastInput = nowMs(); wake(); }, { passive: true }); cv.addEventListener('pointerdown', e => { lastInput = nowMs(); wake(); onDown(e); });
     cv.addEventListener('pointermove', onDrag);
+    cv.addEventListener('lostpointercapture', e => { if (drag && e.pointerId === drag.pid) { pointers.delete(e.pointerId); cancelDrag(); } }); // capture taken away: same as a cancel
     root.addEventListener('pointerup', onUp); root.addEventListener('pointercancel', onUp); // window: a finger lifted anywhere
     document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else { running = false; dirty = true; start(); } });
@@ -543,7 +566,7 @@
   }
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {
-    mount, setScale, advance, hotspots, activate, applyLayout, setBuild, setTool, dropAt, STW, STH,
+    mount, setScale, advance, hotspots, activate, applyLayout, setBuild, setTool, dropAt, buildOp, STW, STH,
     setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } wake(); },
     setExtras(e) { extras = Object.assign(extras, e); wake(); },
     setSelected(id) { selected = id; wake(); },

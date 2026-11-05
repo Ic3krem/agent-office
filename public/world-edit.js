@@ -147,6 +147,7 @@
           l.zones = l.zones.filter(q => q.id !== op.id);
           return done(l, '');
         }
+        case 'load': return done(copy(op.layout), ''); // a template or the default, already validated by its source
       }
       return fail('unknown op ' + op.op);
     }
@@ -185,6 +186,7 @@
       addZone: (type, rect) => apply({ op: 'addZone', type, rect }),
       setZone: (id, { rect, type } = {}) => apply({ op: 'setZone', id, rect, type }),
       removeZone: id => apply({ op: 'removeZone', id }),
+      load: layout => apply({ op: 'load', layout }),
       check,
     };
   }

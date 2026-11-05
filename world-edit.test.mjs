@@ -163,3 +163,13 @@ test('screen point under a placed piece hits it', () => {
   assert.ok(g.x >= r[0] && g.x <= r[2] && g.y >= r[1] && g.y <= r[3], `${g.x},${g.y} outside ${r}`);
   assert.equal(E.pieceAt(L.objects, g.x, g.y), 'bench-1');
 });
+
+test('load swaps the whole layout as one undoable, dirty op', () => {
+  const s = E.createSession(WM.defaultLayout());
+  const other = WM.defaultLayout(); other.objects.find((o) => o.id === 'bench-1').x += 40;
+  assert.ok(s.load(other).ok);
+  assert.equal(obj(s, 'bench-1').x, other.objects.find((o) => o.id === 'bench-1').x);
+  assert.ok(s.dirty());
+  s.undo();
+  assert.ok(!s.dirty());
+});
