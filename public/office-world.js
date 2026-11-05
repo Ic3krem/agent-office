@@ -377,7 +377,7 @@
   function mount(canvas, o) {
     opts = o || {}; cv = canvas; g = cv.getContext('2d'); born = clock;
     cv.addEventListener('mousemove', onMove); cv.addEventListener('click', onClick); cv.addEventListener('mouseleave', onLeave);
-    setScale(1); start();
+    setScale(scaleCss); start(); // keep a scale set before mount (the page may mount after its first fit)
     cv.addEventListener('wheel', () => { lastInput = nowMs(); wake(); }, { passive: true }); cv.addEventListener('pointerdown', () => { lastInput = nowMs(); wake(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else { running = false; dirty = true; start(); } });
     root.addEventListener('focus', wake); root.addEventListener('blur', wake);
@@ -395,6 +395,8 @@
   // Swap in a layout (WorldModel format): motion spots and grid, furniture, click objects, then repaint the baked floor.
   function applyLayout(layout) {
     M.useLayout(layout); F.place(layout.objects); rebuildObjects();
+    // seated characters snap to their spot's new place; walking ones re-route on the new grid
+    for (const w of walkers.values()) if (w.target && M.SPOTS[w.target]) M.setTarget(w, w.target, { instant: !w.moving });
     hover = null; NPC.w = null; bg = null; bgKey = ''; wake();
   }
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }

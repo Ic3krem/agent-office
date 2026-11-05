@@ -49,6 +49,8 @@
       "scheduler.mjs",
       "scheduler-job.mjs",
       "office.mjs",
+      "world-store.mjs",
+      "world-vm.mjs",
       "public/**",
       "desktop/**",
       "package.json",

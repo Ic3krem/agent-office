@@ -381,13 +381,15 @@ class Component extends DCLogic {
     const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect();const sc=Math.min(r.width/1480,(r.height-40)/920);this.fitSc=sc;this.vp={w:r.width,h:r.height};this.setView(this.state.view,sc);this.setState({scale:sc});};
     this.onResize=()=>this.setState({vw:window.innerWidth});window.addEventListener('resize',this.onResize);
     const qd=new URLSearchParams(location.search).get('demo');
-    if(window.OfficeWorld&&this.canvasRef.current)OfficeWorld.mount(this.canvasRef.current,{
+    // Boot: wait up to 400 ms for the stored layout so the first frame already shows it; later arrivals still apply.
+    // The built-in default is already loaded (world-model.js), so source 'default' needs no re-apply.
+    let mounted=false;const mountWorld=()=>{if(mounted)return;mounted=true;if(window.OfficeWorld&&this.canvasRef.current)OfficeWorld.mount(this.canvasRef.current,{
       onSelect:id=>this.setState({selectedId:id,modifyOpen:false,deskInfo:null}),onNudge:id=>{OfficeWorld.nudge(id);this.nudge(id);},
       onObject:k=>window.OfficeObjects&&OfficeObjects.open(k),onUi:k=>this.setState(k==='usage'?{usageOpen:true}:{todayOpen:true}),
-      onEmptyDesk:d=>this.setState({deskInfo:d,selectedId:null,rosterOpen:false}),onDemoSnap:d=>this.applyDemo(d)});
+      onEmptyDesk:d=>this.setState({deskInfo:d,selectedId:null,rosterOpen:false}),onDemoSnap:d=>this.applyDemo(d)});};
+    fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout&&j.source!=='default'&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(j&&j.warning)this.showToast(j.warning);mountWorld();});
+    setTimeout(mountWorld,400);
     this.ro=new ResizeObserver(fit); if(this.wrapRef.current){this.ro.observe(this.wrapRef.current);this.camEvents(this.wrapRef.current);} fit();
-    // The world starts on the built-in default layout; the stored one replaces it when it arrives (a failed fetch keeps the default).
-    fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.layout||!window.OfficeWorld)return;OfficeWorld.applyLayout(j.layout);if(j.warning)this.showToast(j.warning);}).catch(()=>{});
     api('/api/roster').then(j=>this.setState({roster:j.roster})).catch(()=>{});
     window.__demo=sc=>this.setDemo(sc||'');
     if(qd)this.setDemo(qd);

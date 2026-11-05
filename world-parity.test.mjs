@@ -37,6 +37,17 @@ test('applyLayout moves desks in furniture, motion and click areas', () => {
   assert.notDeepEqual(w.OfficeFurniture.items.map(i => i.d).sort((a, b) => a - b), d0);
 });
 
+test('applyLayout snaps a seated character to its desk at the new place', () => {
+  const w = loadWorld({ extra: ['office-world.js'], globals: { OfficeSprites: { lookOf: () => ({}), W: 32, H: 48 } } });
+  w.document.documentElement = { dataset: {} };
+  const OW = w.OfficeWorld, L = w.WorldModel.defaultLayout(), at = () => OW.debug().agents.find(a => a.spot === 'desk-1');
+  OW.setDemo('work'); OW.advance(20);
+  assert.equal(at().x, 155);
+  L.objects.find(o => o.id === 'desk-1').x += 40;
+  OW.applyLayout(L); OW.advance(0.1);
+  assert.equal(at().x, 195);
+});
+
 test('a piece placed 40 units east draws translated and shifts its footprint', () => {
   const calls = [];
   const w = loadWorld({ ctxFactory: () => ({}) }), F = w.OfficeFurniture;
