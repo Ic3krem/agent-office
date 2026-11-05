@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadWorld } from './world-vm.mjs';
-import { ROSTER, MANAGER, RoleCatalog, activeKeys, managerPrompt, specialists, teamFromSops, profileOf, setAgentName, sanitizeNames, MANAGER_PROMPT, SPECIALISTS } from './company.mjs';
+import { ROSTER, MANAGER, RoleCatalog, activeKeys, managerPrompt, specialists, teamFromSops, profileOf, setAgentName, sanitizeNames, MANAGER_PROMPT, SPECIALISTS, LEGACY_MANAGER_PROMPT, teamNote, migrateBrief } from './company.mjs';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { KEYS } from './agent-home.mjs';
 
 const BUILTIN = ['pixel', 'forge', 'warden', 'probe', 'atlas', 'cabalan', 'tally', 'scribe'];
@@ -99,4 +101,42 @@ test('names accept new role keys', () => {
 
 test('agent-home KEYS cover every catalog key', () => {
   assert.deepEqual(KEYS, ['tiro', ...RoleCatalog.keys()]);
+});
+
+test('LEGACY_MANAGER_PROMPT is the b08dbef built-in brief, byte for byte', () => {
+  // sha256 of b08dbef's MANAGER_PROMPT with ${MAX_SPECIALISTS} = 8 (git show b08dbef:company.mjs).
+  assert.equal(crypto.createHash('sha256').update(LEGACY_MANAGER_PROMPT).digest('hex'), '1c9c08f4f963713aa6a90db31ee57087085c327e19144a3a187b7e90995d5a19');
+  assert.equal(LEGACY_MANAGER_PROMPT.length, 5736);
+  assert.ok(LEGACY_MANAGER_PROMPT.includes('- The team is exactly eight specialists, hired by subagent_type: pixel (frontend: UI, HTML/CSS/JS, accessibility), forge (backend'));
+  assert.ok(LEGACY_MANAGER_PROMPT.includes('(a second forge is a "Forge helper" and needs'));
+  assert.notEqual(LEGACY_MANAGER_PROMPT, MANAGER_PROMPT);
+  assert.equal(migrateBrief(LEGACY_MANAGER_PROMPT), null, 'the legacy brief is current for the hiring migration; the server replaces it whole');
+});
+
+test('server: an unedited legacy brief is replaced and re-pinned; an edited one gets the live team appended', () => {
+  const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  assert.match(src, /if \(V\.sop\('kiro-brief', MANAGER_PROMPT\)\.replace\(\/\\r\\n\/g, '\\n'\)\.trim\(\) === LEGACY_MANAGER_PROMPT\.trim\(\)\) \{ V\.saveSop\('kiro-brief', MANAGER_PROMPT\); PINS\['kiro-brief'\] = sopHash\(V\.sop\('kiro-brief', MANAGER_PROMPT\)\); \}/);
+  assert.ok(src.indexOf('let PINS') < src.indexOf('LEGACY_MANAGER_PROMPT.trim()'), 'PINS exist before the legacy rewrite');
+  assert.ok(src.indexOf('LEGACY_MANAGER_PROMPT.trim()') < src.indexOf('const savePins'), 'the new pin is saved with the startup savePins()');
+  assert.match(src, /if \(PINS\['kiro-brief'\] === sopHash\(t\)\) return t \+ teamNote\(currentKeys\(\)\);/);
+  // The rewritten brief is MANAGER_PROMPT, which briefText turns into today's team.
+  const live = managerPrompt(['pixel', 'forge', 'it', 'auditor']);
+  assert.match(live, /The team is these 4 specialists: pixel \(.*it \(IT support.*auditor \(/);
+  assert.doesNotMatch(live, /exactly eight/);
+});
+
+test('teamNote: empty for the built-in eight (any order), names the live team otherwise', () => {
+  assert.equal(teamNote(BUILTIN), '');
+  assert.equal(teamNote([...BUILTIN].reverse()), '');
+  const n = teamNote([...BUILTIN, 'it']);
+  assert.match(n, /^\n\n## The team now \(from the office desks; this replaces any other team list above\)\n- The team is these 9 specialists: pixel \(/);
+  assert.ok(n.includes('it (IT support'));
+  assert.match(teamNote(['pixel']), /this 1 specialist: pixel \(/);
+  assert.doesNotMatch(teamNote(['pixel']), /forge/);
+});
+
+test('the helper example in the brief uses the display name, not the key', () => {
+  assert.ok(managerPrompt(['it', 'pixel']).includes('(a second Byte is a "Byte helper" and needs'));
+  assert.ok(MANAGER_PROMPT.includes('(a second Forge is a "Forge helper" and needs'));
+  assert.doesNotMatch(managerPrompt(['it']), /a second it\b/);
 });

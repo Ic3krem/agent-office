@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { goalStore, MANAGER_PROMPT, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
+import { goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -102,6 +102,8 @@ V.sop('kiro-brief', MANAGER_PROMPT);
 // An unedited brief from before the Tiro rename (old name and 5-role roster) is replaced; an edited one is kept.
 if (/^\s*# You are Kiro, the office manager/.test(V.sop('kiro-brief', MANAGER_PROMPT))) { V.saveSop('kiro-brief', MANAGER_PROMPT); delete PINS['kiro-brief']; }
 { const mb = migrateBrief(V.sop('kiro-brief', MANAGER_PROMPT)); if (mb) { V.saveSop('kiro-brief', mb); delete PINS['kiro-brief']; } }
+// The previous built-in brief (exactly eight specialists), unedited: replace it with today's built-in text and pin the text we wrote.
+if (V.sop('kiro-brief', MANAGER_PROMPT).replace(/\r\n/g, '\n').trim() === LEGACY_MANAGER_PROMPT.trim()) { V.saveSop('kiro-brief', MANAGER_PROMPT); PINS['kiro-brief'] = sopHash(V.sop('kiro-brief', MANAGER_PROMPT)); }
 const savePins = () => writePrivate(PIN_FILE, JSON.stringify(PINS));
 const pinSop = name => { const x = V.sops().find(y => y.name === name); if (x) { PINS[name] = sopHash(x.text); savePins(); } };
 // Role notes: missing ones are written from the built-in text and pinned; planted ones stay untrusted (company.mjs seedRoleSops).
@@ -115,7 +117,7 @@ const warnedSops = new Set();
 const briefText = () => {
   const t = V.sop('kiro-brief', MANAGER_PROMPT);
   if (t.replace(/\r\n/g, '\n').trim() === MANAGER_PROMPT.trim()) return managerPrompt(currentKeys()); // unedited: name today's team
-  if (PINS['kiro-brief'] === sopHash(t)) return t;
+  if (PINS['kiro-brief'] === sopHash(t)) return t + teamNote(currentKeys()); // edited: its own text, plus today's team when the desks changed
   if (!warnedSops.has('kiro-brief' + sopHash(t))) { warnedSops.add('kiro-brief' + sopHash(t)); console.error('SOP kiro-brief changed outside Agent Office; using the built-in brief until you save it in the app.'); }
   return managerPrompt(currentKeys());
 };
@@ -164,7 +166,7 @@ function maybeProbe() {
 }
 every(30e3, maybeProbe);
 const BOSS_FILE = path.join(CFG_DIR, 'manager-session.json');
-const boss = { id: null, push: null, running: 0, progress: false, autoRuns: 0, paused: '' };
+const boss = { id: null, push: null, running: 0, progress: false, autoRuns: 0, paused: '', keys: [] }; // keys: the roles Tiro's session was built with
 // At a plan limit the guard stops Tiro and its team (so extra-usage credits aren't spent) and resumes after the reset.
 function guard() {
   if (sw().guard && overLimit()) {
@@ -335,13 +337,13 @@ const officeTools = () => createSdkMcpServer({
       try { V.write(name, { description, body }); say('Memory saved: ' + name); return { content: [{ type: 'text', text: 'saved' }] }; } catch (e) { return { content: [{ type: 'text', text: e.message }], isError: true }; }
     }),
     tool('request_hire', 'Ask the user for approval to hire ONE specialist sub-agent. Required before every Agent call; it waits for the answer. Only for work you cannot do yourself or by reusing a specialist already on the team.', {
-      specialist: z.string().describe('subagent_type: ' + currentKeys().join(', ')),
+      specialist: z.string().describe('subagent_type: ' + boss.keys.join(', ')),
       goal_id: z.string().describe('the open goal this hire serves'),
       why: z.string().describe('Concrete reason this needs a separate sub-agent (what, and why you cannot do it yourself)'),
       prompt: z.string().describe('The exact first prompt you will pass to the Agent tool for this hire. The user approves this text, and the Agent call must use it unchanged.'),
     }, async ({ specialist, goal_id, why, prompt }) => {
       const deny = text => ({ content: [{ type: 'text', text }], isError: true });
-      const hk = hireKey(specialist, currentKeys());
+      const hk = hireKey(specialist, currentKeys(), boss.keys, k => dnames()[k]);
       if (hk.error) return deny(hk.error);
       const key = hk.key, r = ROSTER[key];
       if (!sw().hiring) return deny('Hiring is switched off in the office breaker box. Do the work yourself or mark the goal blocked.');
@@ -404,8 +406,37 @@ const secGuard = createGuardHooks({
 });
 const denyClaudeLaunch = { matcher: 'Bash|PowerShell', hooks: [async input => (launchesClaude(input.tool_input?.command)
   ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Starting Claude from a command skips the hiring approval. Use mcp__office__request_hire and then the Agent tool.' } } : {})] };
+// The hire gate, Agent side. A hire it lets through counts as working (boss.running, AH.start) until SubagentStop. A call the SDK
+// then fails or denies before the subagent starts (PostToolUseFailure / PermissionDenied, no SubagentStart, no SubagentStop) is
+// counted back by hireUndone, so the restart and the retire check are not blocked forever.
+const starting = new Map(); // tool_use_id -> roster key of a counted hire whose subagent has not started yet
+const hireHook = async input => {
+  const no = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
+  if (!sw().hiring) return no('Hiring is switched off in the office breaker box. Do the work yourself if it is small, or mark the goal blocked.');
+  if (boss.running >= MAX_SPECIALISTS) return no(MAX_SPECIALISTS + ' specialists are already working. Wait for a report, then hire again.');
+  // Only roles on a desk now AND in this session's agents map: a desk added mid-session is not in the SDK's map yet.
+  { const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type; if (ROSTER[k]) { const hk = hireKey(k, currentKeys(), boss.keys, x => dnames()[x]); if (hk.error) return no(hk.error); } }
+  { const chk = hires.check(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt);
+    if (!chk.ok) return no(chk.why === 'prompt differs from the approved one' ? 'The Agent prompt must be exactly the prompt approved in request_hire. Call request_hire again with the prompt you really want to send.' : 'Hiring needs user approval first: call mcp__office__request_hire (specialist, goal_id, why, prompt) and wait for "approved". Do small work yourself and reuse idle specialists.');
+    hires.consume(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt); hireGoal[ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type] = chk.goalId; }
+  const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type;
+  if (currentKeys().includes(k)) { try { AH.start(k, { goalId: hireGoal[k], title: input.tool_input?.description, brief: input.tool_input?.prompt }); } catch {} delete hireGoal[k]; }
+  starting.set(input.tool_use_id, currentKeys().includes(k) ? k : '');
+  boss.running++; boss.progress = true; bump();
+  // Espresso: this hire runs on the fast model; the cup is used up.
+  if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
+  return {};
+};
+const hireStarted = async input => { const k = ALIASES[input.agent_type] || input.agent_type; for (const [id, x] of starting) if (x === k) { starting.delete(id); break; } return {}; };
+const hireUndone = async input => {
+  if (!starting.has(input.tool_use_id)) return {};
+  const k = starting.get(input.tool_use_id); starting.delete(input.tool_use_id);
+  if (k) { try { AH.end(k, { summary: 'The hire did not start: ' + String(input.error || input.reason || '').slice(0, 300) }); } catch {} }
+  boss.running = Math.max(0, boss.running - 1); bump(); return {};
+};
 const bossOptions = () => {
   let saved = {}; try { saved = JSON.parse(fs.readFileSync(BOSS_FILE, 'utf8')); } catch {}
+  boss.keys = currentKeys(); // the agents map below is fixed for the session's life; hires check against these
   return {
     ...claudeSessionOptions({ cwd: workDir(), home: HOME, claudeExe: CLAUDE }),
     // No model, effort, tools or settings overrides: Tiro uses your Claude Code defaults, like a plain `claude` in this folder.
@@ -416,22 +447,11 @@ Shared memory: Markdown notes in ${V.dirs.memory} (grep them for context first).
     mcpServers: { office: officeTools() },
     allowedTools: ['request_hire', 'list_goals', 'update_goal', 'propose_goal', 'file_report', 'memory_search', 'memory_read', 'memory_write', 'scheduler_inbox'].map(t => 'mcp__office__' + t),
     hooks: {
-      PreToolUse: [denyClaudeLaunch, { hooks: [secGuard.pre] }, { matcher: 'Agent|Task', hooks: [async input => {
-        const no = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
-        if (!sw().hiring) return no('Hiring is switched off in the office breaker box. Do the work yourself if it is small, or mark the goal blocked.');
-        if (boss.running >= MAX_SPECIALISTS) return no(MAX_SPECIALISTS + ' specialists are already working. Wait for a report, then hire again.');
-        { const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type; if (ROSTER[k] && !currentKeys().includes(k)) return no(hireKey(k, currentKeys()).error); }
-        { const chk = hires.check(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt);
-          if (!chk.ok) return no(chk.why === 'prompt differs from the approved one' ? 'The Agent prompt must be exactly the prompt approved in request_hire. Call request_hire again with the prompt you really want to send.' : 'Hiring needs user approval first: call mcp__office__request_hire (specialist, goal_id, why, prompt) and wait for "approved". Do small work yourself and reuse idle specialists.');
-          hires.consume(input.tool_input?.subagent_type || 'general-purpose', input.tool_input?.prompt); hireGoal[ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type] = chk.goalId; }
-        { const k = ALIASES[input.tool_input?.subagent_type] || input.tool_input?.subagent_type;
-          if (currentKeys().includes(k)) { try { AH.start(k, { goalId: hireGoal[k], title: input.tool_input?.description, brief: input.tool_input?.prompt }); } catch {} delete hireGoal[k]; } }
-        boss.running++; boss.progress = true; bump();
-        // Espresso: this hire runs on the fast model; the cup is used up.
-        if (sw().espresso) { switches.set('espresso', false); return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, model: 'haiku' } } }; }
-        return {};
-      }] }],
+      PreToolUse: [denyClaudeLaunch, { hooks: [secGuard.pre] }, { matcher: 'Agent|Task', hooks: [hireHook] }],
       PostToolUse: [{ hooks: [secGuard.post] }],
+      PostToolUseFailure: [{ matcher: 'Agent|Task', hooks: [hireUndone] }],
+      PermissionDenied: [{ matcher: 'Agent|Task', hooks: [hireUndone] }],
+      SubagentStart: [{ hooks: [hireStarted] }],
       UserPromptSubmit: [{ hooks: [secGuard.prompt] }],
       SubagentStop: [{ hooks: [async input => { try { const k = ALIASES[input.agent_type] || input.agent_type; if (ROSTER[k]) AH.end(k, { agentId: input.agent_id, transcript: input.agent_transcript_path, summary: input.last_assistant_message }); } catch {} boss.running = Math.max(0, boss.running - 1); bump(); return {}; }] }],
     },
@@ -463,7 +483,7 @@ function tellBoss(text) {
     onEnd: () => {
       hires.clear();
       if (!boss.id) fs.rmSync(BOSS_FILE, { force: true });
-      const reload = boss.reload; Object.assign(boss, { id: null, push: null, running: 0, reload: false }); bump();
+      const reload = boss.reload; Object.assign(boss, { id: null, push: null, running: 0, reload: false }); starting.clear(); bump();
       if (Array.isArray(reload)) tellBoss(reload.join('\n\n'));
       else if (reload && sw().autopilot && goals.open().length) tellBoss("Your SOPs or team were updated. Continue with today's goals using them.");
     },

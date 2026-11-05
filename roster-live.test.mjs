@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { liveRoster, hireKey, teamFromSops, withAliases, specialists, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS } from './company.mjs';
+import { liveRoster, hireKey, teamFromSops, withAliases, specialists, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, activeDesks, ALIASES, ROSTER, hireGate, promptHash } from './company.mjs';
+import { agentHome } from './agent-home.mjs';
 import { createWorldStore } from './world-store.mjs';
 
 const BUILTIN = ['pixel', 'forge', 'warden', 'probe', 'atlas', 'cabalan', 'tally', 'scribe'];
@@ -114,4 +115,86 @@ test('server: the SOP pins load before the brief migration that drops a pin; rol
   assert.ok(src.indexOf('let PINS') > 0 && src.indexOf('let PINS') < src.indexOf("delete PINS['kiro-brief']"), 'no TDZ error when an old brief is migrated');
   assert.match(src, /if \(!PINS\[x\.name\] && !isRoleSop\(x\.name\)\)/);
   assert.match(src, /seedSops\(Object\.keys\(ROSTER\)\)/);
+});
+
+test('hireKey: a desk added after the session started is refused until the restart', () => {
+  const session = BUILTIN, now = [...BUILTIN, 'auditor'];
+  assert.deepEqual(hireKey('forge', now, session), { key: 'forge' });
+  assert.deepEqual(hireKey('auditor', now, session, k => (k === 'auditor' ? 'Judy' : k)), { error: "The Judy desk is new; Judy joins after Tiro's next restart." });
+  assert.equal(hireKey('auditor', now, session).error, "The Vera desk is new; Vera joins after Tiro's next restart.");
+  assert.equal(hireKey('auditor', now, now).key, 'auditor', 'after the restart it is hireable');
+  const gone = BUILTIN.filter(k => k !== 'warden');
+  assert.match(hireKey('warden', gone, BUILTIN).error, /^No desk for warden\. Available: pixel, forge, probe/, 'a retired desk is refused even though the session still has it');
+  assert.doesNotMatch(hireKey('it', BUILTIN, BUILTIN).error, /Available:.*\bit\b/);
+});
+
+test('liveRoster.save: a malformed objects list is a 400, not a crash', () => {
+  const { roster, base } = fresh();
+  for (const objects of [[null], [7], ['x'], [null, ...base.objects]]) {
+    const r = roster.save({ ...base, objects });
+    assert.equal(r.ok, false); assert.equal(r.status, 400, JSON.stringify(objects).slice(0, 30));
+  }
+  assert.deepEqual(roster.keys(), BUILTIN);
+  assert.equal(isRoleSop('specialist-constructor'), false); assert.equal(isRoleSop('specialist-__proto__'), false);
+  assert.deepEqual(activeDesks({ objects: [{ type: 'dept-desk', desk: 'desk-9', role: 'constructor' }, { type: 'dept-desk', desk: 'desk-10', role: 'toString' }] }), []);
+});
+
+// The Agent hook and its balancing hooks, run from server.mjs's own source with stand-ins for the server's state.
+const hookEnv = () => {
+  const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  const code = src.slice(src.indexOf('const starting = new Map()'), src.indexOf('const bossOptions = () =>'));
+  assert.ok(code.includes('const hireHook = async input =>') && code.includes('const hireUndone'), 'hook source found');
+  const { roster, base } = fresh();
+  const env = {
+    sw: () => ({ hiring: true, espresso: false }), boss: { running: 0, progress: false, keys: roster.keys() }, MAX_SPECIALISTS, ALIASES, ROSTER, hireKey,
+    currentKeys: roster.keys, dnames: () => Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])), hires: hireGate(), hireGoal: {}, AH: agentHome(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ah-')), 'agents')), bump: () => {}, switches: { set() {} },
+  };
+  const hooks = new Function(...Object.keys(env), code + '\nreturn { hireHook, hireStarted, hireUndone, starting };')(...Object.values(env));
+  const approve = async (key, prompt) => { const { id, promise } = env.hires.request({ key, goalId: 'g000001', promptHash: promptHash(prompt) }); env.hires.decide(id, true); await promise; };
+  return { env, hooks, roster, base, approve };
+};
+
+test('server wiring: a role added mid-session is denied cleanly; boss.running and openCount stay unchanged', async () => {
+  const { env, hooks, roster, base, approve } = hookEnv();
+  assert.equal(roster.save(withDesk(base, 'desk-9', 'auditor')).ok, true);
+  assert.ok(roster.keys().includes('auditor') && !env.boss.keys.includes('auditor'));
+  await approve('auditor', 'Audit the March close for missing approvals, please.');
+  const r = await hooks.hireHook({ tool_use_id: 't1', tool_input: { subagent_type: 'auditor', prompt: 'Audit the March close for missing approvals, please.' } });
+  assert.equal(r.hookSpecificOutput.permissionDecision, 'deny');
+  assert.equal(r.hookSpecificOutput.permissionDecisionReason, "The Vera desk is new; Vera joins after Tiro's next restart.");
+  assert.equal(env.boss.running, 0); assert.equal(env.AH.openCount('auditor'), 0); assert.equal(hooks.starting.size, 0);
+  assert.equal(env.hires.check('auditor', 'Audit the March close for missing approvals, please.').ok, true, 'the approval is not used up');
+});
+
+test('server wiring: a counted hire the SDK fails or denies before it starts is counted back; a started one waits for SubagentStop', async () => {
+  const { env, hooks, approve } = hookEnv();
+  const P = 'Fix the CSV export endpoint so dates are ISO 8601.';
+  await approve('forge', P);
+  assert.deepEqual(await hooks.hireHook({ tool_use_id: 't1', tool_input: { subagent_type: 'builder', prompt: P } }), {});
+  assert.equal(env.boss.running, 1); assert.equal(env.AH.openCount('forge'), 1);
+  await hooks.hireUndone({ tool_use_id: 't1', error: 'Agent type not found' });
+  assert.equal(env.boss.running, 0); assert.equal(env.AH.openCount('forge'), 0);
+  assert.match(env.AH.tasks('forge')[0].summary, /did not start: Agent type not found/);
+  await hooks.hireUndone({ tool_use_id: 't1', error: 'again' });
+  assert.equal(env.boss.running, 0, 'counted back once only');
+  // Started: a later failure of the same call is SubagentStop's to balance, not ours.
+  await approve('forge', P);
+  await hooks.hireHook({ tool_use_id: 't2', tool_input: { subagent_type: 'forge', prompt: P } });
+  await hooks.hireStarted({ agent_type: 'forge', agent_id: 'a1' });
+  await hooks.hireUndone({ tool_use_id: 't2', reason: 'denied' });
+  assert.equal(env.boss.running, 1); assert.equal(env.AH.openCount('forge'), 1);
+  await hooks.hireUndone({ tool_use_id: 'unknown' });
+  assert.equal(env.boss.running, 1, 'calls the hook did not count are ignored');
+});
+
+test('server wiring: the session records its keys and wires the balancing hooks', () => {
+  const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  const boss = src.slice(src.indexOf('const bossOptions = () =>'), src.indexOf('function tellBoss'));
+  assert.match(boss, /boss\.keys = currentKeys\(\);/);
+  assert.ok(boss.indexOf('boss.keys = currentKeys()') < boss.indexOf('officeTools()'), 'request_hire is built after the keys are recorded');
+  assert.match(boss, /PostToolUseFailure: \[\{ matcher: 'Agent\|Task', hooks: \[hireUndone\] \}\]/);
+  assert.match(boss, /PermissionDenied: \[\{ matcher: 'Agent\|Task', hooks: \[hireUndone\] \}\]/);
+  assert.match(boss, /SubagentStart: \[\{ hooks: \[hireStarted\] \}\]/);
+  assert.match(src, /const hk = hireKey\(specialist, currentKeys\(\), boss\.keys, k => dnames\(\)\[k\]\);/);
+  assert.match(src, /starting\.clear\(\)/);
 });

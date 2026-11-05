@@ -58,7 +58,7 @@ The user runs a small "company" of Claude agents from a pixel-office dashboard a
 - You cannot hire on your own. First call mcp__office__request_hire (specialist, goal_id, why: a concrete reason this needs a sub-agent, prompt: the exact first prompt you will send). The Agent call must then use that prompt unchanged. The user approves or denies it on the dashboard; the call returns their answer. Only after "approved" use the Agent tool, once, for that specialist. A denied request means do the work yourself or mark the goal blocked; do not ask again for the same reason.
 - Hire with the Agent tool, always with run_in_background: true. At most ${MAX_SPECIALISTS} work at the same time; if you are told the team is full, wait for a report before requesting another hire.
 ${teamLine(keys)}
-- Each specialist is ONE person with one desk. Never spawn a second copy of a type on your own, and never let a specialist spawn one. If a specialist is short on capacity or needs help, it says so in its report; you then call mcp__office__request_hire for the type that is needed (a second ${helperEg(keys)[0]} is a "${helperEg(keys)[1]} helper" and needs the user's approval like any hire). Tell every specialist you brief: do not spawn, ask for help in your report.
+- Each specialist is ONE person with one desk. Never spawn a second copy of a type on your own, and never let a specialist spawn one. If a specialist is short on capacity or needs help, it says so in its report; you then call mcp__office__request_hire for the type that is needed (a second ${helperEg(keys)} is a "${helperEg(keys)} helper" and needs the user's approval like any hire). Tell every specialist you brief: do not spawn, ask for help in your report.
 ${coderLine(keys)}- Pick the model for each hire with the Agent tool's model field: haiku for lookups and small mechanical edits, sonnet for most work, opus only for hard design or debugging.
 - Give each specialist one clear goal, the folder to work in, what "done" looks like, and the goal id to mention in its report.
 
@@ -125,8 +125,8 @@ export const ROSTER = Object.fromEntries(RoleCatalog.ROLES.map(({ key, ...r }) =
 export function activeDesks(layout) {
   if (!layout) return BUILTIN.map(key => ({ key, desk: BUILTIN_DESK[key] }));
   const n = o => Number(String(o.desk).replace(/\D/g, '')) || 0;
-  return (layout.objects || []).filter(o => o.type === 'dept-desk').sort((a, b) => n(a) - n(b))
-    .map(o => ({ key: o.role || RoleCatalog.BUILTIN_DESKS[o.desk], desk: o.desk })).filter(d => ROSTER[d.key]);
+  return (layout.objects || []).filter(o => o && typeof o === 'object' && o.type === 'dept-desk').sort((a, b) => n(a) - n(b))
+    .map(o => ({ key: o.role || RoleCatalog.BUILTIN_DESKS[o.desk], desk: o.desk })).filter(d => Object.hasOwn(ROSTER, d.key));
 }
 // Role keys of the layout's department desks in desk order.
 export const activeKeys = layout => activeDesks(layout).map(d => d.key);
@@ -151,8 +151,13 @@ export function liveRoster(store) {
     },
   };
 }
-// request_hire: the roster key for a subagent_type (old names resolve), or why it cannot be hired.
-export const hireKey = (type, keys) => { const k = ALIASES[type] || type; return keys.includes(k) ? { key: k } : { error: 'No desk for ' + k + '. Available: ' + keys.join(', ') }; };
+// request_hire and the Agent hook: the roster key for a subagent_type (old names resolve), or why it cannot be hired.
+// keys = the desks now; session = the roles Tiro's running session was built with (a newer desk joins after a restart).
+export const hireKey = (type, keys, session = keys, nameOf = k => ROSTER[k].name) => {
+  const k = ALIASES[type] || type;
+  if (!keys.includes(k)) return { error: 'No desk for ' + k + '. Available: ' + keys.filter(x => session.includes(x)).join(', ') };
+  return session.includes(k) ? { key: k } : { error: `The ${nameOf(k)} desk is new; ${nameOf(k)} joins after Tiro's next restart.` };
+};
 // The parts of the manager's brief that name the team.
 const andList = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join('');
 const WORDS = ['no', 'one', 'two', 'three', 'four'];
@@ -160,7 +165,7 @@ function teamLine(keys) {
   const old = Object.entries(ALIASES).filter(([, k]) => keys.includes(k)).map(([o, k]) => o + '=' + k).join(', ');
   return `- The team is ${keys.length === 1 ? 'this 1 specialist' : 'these ' + keys.length + ' specialists'}: ` + keys.map(k => k + ' (' + ROSTER[k].team + ')').join(', ') + ', hired by subagent_type.' + (old ? ' Old names still work: ' + old + '.' : '');
 }
-const helperEg = keys => { const k = keys.includes('forge') ? 'forge' : keys[0] || 'forge'; return [k, ROSTER[k].name]; };
+const helperEg = keys => ROSTER[keys.includes('forge') ? 'forge' : keys[0] || 'forge'].name;
 function coderLine(keys) {
   const coders = keys.filter(k => ROSTER[k].kind === 'coder'); if (!coders.length) return '';
   const check = coders.filter(k => ['warden', 'probe'].includes(k)), who = andList(coders);
@@ -257,6 +262,12 @@ export const MANAGER = { name: 'Tiro', role: 'Office manager', color: '#e8793a',
 // Old subagent_type names keep working: they map onto the new roster.
 export const ALIASES = { researcher: 'cabalan', builder: 'forge', ops: 'forge', writer: 'scribe', reviewer: 'probe' };
 export const MANAGER_PROMPT = managerPrompt(BUILTIN);
+// The built-in brief before desks named the team (b08dbef). A vault brief equal to it is unedited and is replaced by MANAGER_PROMPT.
+export const LEGACY_MANAGER_PROMPT = MANAGER_PROMPT.replace(teamLine(BUILTIN), '- The team is exactly eight specialists, hired by subagent_type: ' +
+  BUILTIN.map(k => k + ' (' + ROSTER[k].team + ')').join(', ') + '. Old names still work: researcher=cabalan, builder=forge, ops=forge, writer=scribe, reviewer=probe.')
+  .replace('a second Forge is', 'a second forge is');
+// An edited brief keeps its own team text; when the desks differ from the built-in eight, this note names the team Tiro has now.
+export const teamNote = keys => [...keys].sort().join() === [...BUILTIN].sort().join() ? '' : '\n\n## The team now (from the office desks; this replaces any other team list above)\n' + teamLine(keys);
 
 const def = r => ({
   description: r.role + '. ' + r.brief[0],
@@ -348,7 +359,7 @@ export function seedRoleSops(keys, { pins, sops, write, hash }) {
     if (!have) { write(n, text); pins[n] = hash(text); } else if (!pins[n] && hash(have.text) === hash(text)) pins[n] = hash(text);
   }
 }
-export const isRoleSop = name => /^specialist-/.test(name) && !!ROSTER[name.slice('specialist-'.length)];
+export const isRoleSop = name => /^specialist-/.test(name) && Object.hasOwn(ROSTER, name.slice('specialist-'.length));
 // A role is working while its hire is open (Agent hook start, no SubagentStop yet) or one of Tiro's specialists of that role
 // is live and not idle (e.g. resumed with SendMessage). Same predicate request_hire uses for "idle", inverted.
 export const roleBusy = (k, { open, agents, bossId, live, idle }) => open(k) > 0 || agents.some(a => !a.isManager && a.parent === bossId && a.profile?.key === k && live(a.id) && !idle(a));
