@@ -132,7 +132,7 @@ function startServer() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-srv-')), port = 47000 + Math.floor(Math.random() * 900);
   const uiKey = crypto.randomBytes(24).toString('hex');
   const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
-    env: { ...process.env, USERPROFILE: tmp, HOME: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    env: { ...process.env, USERPROFILE: tmp, HOME: tmp, APPDATA: tmp, LOCALAPPDATA: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let out = '';
   child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
   return new Promise((resolve, reject) => {
@@ -198,7 +198,7 @@ test('server: credentials are separated, decisions need the UI cookie and nonce,
 
 test('server: standalone bootstrap URL signs in once, then the key is not in the URL', { timeout: 60000 }, async t => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-boot-')), port = 47900 + Math.floor(Math.random() * 90);
-  const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], { env: { ...process.env, USERPROFILE: tmp, HOME: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: '', CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], { env: { ...process.env, USERPROFILE: tmp, HOME: tmp, APPDATA: tmp, LOCALAPPDATA: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: '', CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   t.after(() => { try { child.kill(); } catch {} });
   let out = ''; child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
   const t0 = Date.now(); while (!/__boot\?t=/.test(out) && Date.now() - t0 < 20000) await new Promise(r => setTimeout(r, 150));

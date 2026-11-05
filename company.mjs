@@ -336,3 +336,19 @@ export function migrateBrief(text) {
   if (t.includes(old)) return t.replace(old, () => policy);
   return t.replace(/\n*$/, '\n\n## Hiring policy (added by Agent Office)\n' + policy + '\n');
 }
+
+// Role SOP notes (specialist-<key>.md) steer a specialist, so only our own text is trusted on sight. For each key: a missing note
+// is written from the built-in prompt and pinned with the hash of that text (not re-read from disk); an existing unpinned note is
+// pinned only if it is exactly the built-in text, so a note planted outside the app stays untrusted (the built-in prompt is used).
+// sops: [{name, text}]; write(name, text) creates the note only if it is still missing; pins is updated in place.
+export function seedRoleSops(keys, { pins, sops, write, hash }) {
+  for (const k of keys) {
+    if (!DEFS[k]) continue;
+    const n = 'specialist-' + k, text = DEFS[k].prompt.trim() + '\n', have = sops.find(x => x.name === n);
+    if (!have) { write(n, text); pins[n] = hash(text); } else if (!pins[n] && hash(have.text) === hash(text)) pins[n] = hash(text);
+  }
+}
+export const isRoleSop = name => /^specialist-/.test(name) && !!ROSTER[name.slice('specialist-'.length)];
+// A role is working while its hire is open (Agent hook start, no SubagentStop yet) or one of Tiro's specialists of that role
+// is live and not idle (e.g. resumed with SendMessage). Same predicate request_hire uses for "idle", inverted.
+export const roleBusy = (k, { open, agents, bossId, live, idle }) => open(k) > 0 || agents.some(a => !a.isManager && a.parent === bossId && a.profile?.key === k && live(a.id) && !idle(a));

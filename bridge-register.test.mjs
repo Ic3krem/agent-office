@@ -17,7 +17,7 @@ function startServer(env = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-breg-')), port = 47100 + Math.floor(Math.random() * 400);
   const uiKey = crypto.randomBytes(24).toString('hex');
   const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
-    env: { ...process.env, USERPROFILE: tmp, HOME: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    env: { ...process.env, USERPROFILE: tmp, HOME: tmp, APPDATA: tmp, LOCALAPPDATA: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let out = ''; child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
   return new Promise((resolve, reject) => {
     const t0 = Date.now();

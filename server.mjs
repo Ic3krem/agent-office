@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { goalStore, MANAGER_PROMPT, managerPrompt, specialists, liveRoster, hireKey, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
+import { goalStore, MANAGER_PROMPT, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -91,22 +91,23 @@ if (fs.existsSync(OLD_REPORTS)) { fs.cpSync(OLD_REPORTS, V.dirs.reports, { recur
 // First run: start the agents' memory from Claude Code's own memory notes for this user.
 let SEEDED = null;
 if (!fs.readdirSync(V.dirs.memory).length) SEEDED = seedMemory(V, path.join(PROJECTS, HOME.replace(/[:\\/]/g, '-'), 'memory'), redact);
+// SOP notes steer every agent, so a note edited outside Agent Office (a file write, a synced folder) is not trusted: it is ignored
+// until you save it in the app. Hashes of the notes you last saved are pinned in sop-pins.json; first run pins what is there
+// (role notes excepted: see seedRoleSops). Loaded before the brief migration below, which drops the brief's pin.
+const PIN_FILE = path.join(CFG_DIR, 'sop-pins.json');
+let PINS = {}; try { PINS = JSON.parse(fs.readFileSync(PIN_FILE, 'utf8')); } catch {}
+const sopHash = t => crypto.createHash('sha256').update(String(t).replace(/\r\n/g, '\n'), 'utf8').digest('hex');
 // The filing cabinet: Tiro's brief and each specialist's instructions, editable as vault notes.
 V.sop('kiro-brief', MANAGER_PROMPT);
 // An unedited brief from before the Tiro rename (old name and 5-role roster) is replaced; an edited one is kept.
 if (/^\s*# You are Kiro, the office manager/.test(V.sop('kiro-brief', MANAGER_PROMPT))) { V.saveSop('kiro-brief', MANAGER_PROMPT); delete PINS['kiro-brief']; }
 { const mb = migrateBrief(V.sop('kiro-brief', MANAGER_PROMPT)); if (mb) { V.saveSop('kiro-brief', mb); delete PINS['kiro-brief']; } }
-// SOP notes steer every agent, so a note edited outside Agent Office (a file write, a synced folder) is not trusted: it is ignored
-// until you save it in the app. Hashes of the notes you last saved are pinned in sop-pins.json; first run pins what is there.
-const PIN_FILE = path.join(CFG_DIR, 'sop-pins.json');
-let PINS = {}; try { PINS = JSON.parse(fs.readFileSync(PIN_FILE, 'utf8')); } catch {}
-const sopHash = t => crypto.createHash('sha256').update(String(t).replace(/\r\n/g, '\n'), 'utf8').digest('hex');
 const savePins = () => writePrivate(PIN_FILE, JSON.stringify(PINS));
 const pinSop = name => { const x = V.sops().find(y => y.name === name); if (x) { PINS[name] = sopHash(x.text); savePins(); } };
-// A role's SOP note is written from the built-in text the first time it has a desk, and pinned: it is our own text.
-const seedSops = () => { for (const [k, d] of Object.entries(specialists(currentKeys()))) if (!V.sops().some(x => x.name === 'specialist-' + k)) { V.sop('specialist-' + k, d.prompt); pinSop('specialist-' + k); } };
-seedSops();
-for (const x of V.sops()) if (!PINS[x.name]) PINS[x.name] = sopHash(x.text);
+// Role notes: missing ones are written from the built-in text and pinned; planted ones stay untrusted (company.mjs seedRoleSops).
+const seedSops = (keys = currentKeys()) => { seedRoleSops(keys, { pins: PINS, sops: V.sops(), write: (n, t) => V.sop(n, t), hash: sopHash }); savePins(); };
+seedSops(Object.keys(ROSTER));
+for (const x of V.sops()) if (!PINS[x.name] && !isRoleSop(x.name)) PINS[x.name] = sopHash(x.text);
 savePins();
 const sopTrusted = x => PINS[x.name] === sopHash(x.text);
 const trustedSops = () => V.sops().filter(sopTrusted);
@@ -440,7 +441,8 @@ function tellBoss(text) {
   if (!sw().kiro || (sw().guard && overLimit())) return false; // switched off, or paused at a plan limit: the goal waits on the board
   boss.startedAt = Date.now(); // activity marker for the idle-session timer
   // The desks changed since this session started and Tiro is between turns with nobody out working: restart with the new team, then send the text.
-  if (boss.push && boss.id && !bossActive() && roster.at() !== boss.rosterAt) { boss.reload = text; stopBoss(); return true; }
+  if (Array.isArray(boss.reload)) { boss.reload.push(text); return true; } // that restart is under way: these go to the new session
+  if (boss.push && boss.id && !bossActive() && roster.at() !== boss.rosterAt) { boss.reload = [text]; stopBoss(); return true; }
   if (boss.push) return boss.push(text);
   boss.push = () => {}; // claimed while starting so a second click can't start a second manager
   startSession(text, workDir(), {
@@ -462,7 +464,7 @@ function tellBoss(text) {
       hires.clear();
       if (!boss.id) fs.rmSync(BOSS_FILE, { force: true });
       const reload = boss.reload; Object.assign(boss, { id: null, push: null, running: 0, reload: false }); bump();
-      if (typeof reload === 'string') tellBoss(reload);
+      if (Array.isArray(reload)) tellBoss(reload.join('\n\n'));
       else if (reload && sw().autopilot && goals.open().length) tellBoss("Your SOPs or team were updated. Continue with today's goals using them.");
     },
   });
@@ -627,9 +629,10 @@ async function handle(req, res) {
       case '/api/world/template/delete': return json(res, 200, worldStore.deleteTemplate(b.id));
       case '/api/world': {
         // A role whose specialist is out working cannot lose its desk (409, nothing saved).
-        const r = roster.save(b.layout, k => boss.running > 0 && AH.openCount(k) > 0, k => dnames()[k]);
+        const r = roster.save(b.layout, k => roleBusy(k, { open: x => (boss.running > 0 ? AH.openCount(x) : 0), agents: [...agents.values()], bossId: boss.id, live: id => sdk.has(id), idle: a => statusOf(a, Date.now()) === 'idle' }), k => dnames()[k]);
         if (!r.ok) return json(res, r.status, r.status === 409 ? { error: r.error } : { errors: r.errors });
-        worldNow = { layout: b.layout, source: 'file' }; seedSops(); bump();
+        worldNow = { layout: b.layout, source: 'file' }; bump();
+        try { seedSops(); } catch (e) { console.error('SOP seeding after layout save:', e.message); } // the layout is saved either way
         return json(res, 200, { ok: true });
       }
       case '/api/goal': {

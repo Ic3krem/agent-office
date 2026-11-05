@@ -74,7 +74,7 @@ test('docs: the Guard is described as a safety net with its limits, and every pr
 
 function startServer() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-gsrv-')), port = 47600 + Math.floor(Math.random() * 300), uiKey = crypto.randomBytes(24).toString('hex');
-  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { env: { ...process.env, USERPROFILE: tmp, HOME: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { env: { ...process.env, USERPROFILE: tmp, HOME: tmp, APPDATA: tmp, LOCALAPPDATA: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let out = ''; child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
   return new Promise((resolve, reject) => { const t0 = Date.now(); const tick = () => { if (/running on/.test(out)) return resolve({ child, port, tmp, uiKey }); if (Date.now() - t0 > 20000) { child.kill(); return reject(new Error('no start: ' + out.slice(0, 300))); } setTimeout(tick, 150); }; tick(); });
 }
