@@ -7,7 +7,7 @@ const ser = v => (v && typeof v === 'object' ? v.tag || '[object]' : v);
 export const hashLog = calls => crypto.createHash('sha1').update(JSON.stringify(calls)).digest('hex');
 
 // A 2D context that records every call and property set into `calls`.
-function recorder(calls) {
+export function recorder(calls) {
   const store = {};
   const stub = (kind, args) => {
     const tag = kind + '(' + args.map(r2).join(',') + ')';

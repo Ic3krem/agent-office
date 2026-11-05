@@ -65,8 +65,34 @@
   const walls = [];   // wall decor painted each frame after the baked background
   // add(d, fn, o): d = fallback depth (x+y); o.fp = explicit footprint [x0,y0,x1,y1]; o.nofp = never use a measured footprint
   // (seated-in pieces whose sitter must stay in front); o.floor = flat floor piece drawn under everyone.
-  const add = (d, fn, o) => { const it = { d: o && o.floor ? -1e9 : d, fn, o: o || {}, fp: (o && o.fp) || null }; items.push(it); return it; };
-  const reg = (key, label, b, src, o) => { const ob = { key, label, box: b, src: src || null }; if (o) Object.assign(ob, o); objects.push(ob); return ob; };
+  // While place() builds a piece away from its home, CUR holds the offset: the painter draws through a canvas translate
+  // and its depth, footprints and click box shift with it. IT/OB are where add/reg collect (footprints() uses scratch arrays).
+  let CUR = null, IT = items, OB = objects;
+  const off = (q, dx, dy) => [q[0] + dx, q[1] + dy, q[2] + dx, q[3] + dy];
+  const add = (d, fn, o) => {
+    if (CUR && (CUR.dx || CUR.dy)) {
+      const { dx, dy } = CUR, f0 = fn, tx = K * (dx - dy), ty = K2 * (dx + dy);
+      d += dx + dy; if (o && o.fp) o = Object.assign({}, o, { fp: off(o.fp, dx, dy) });
+      fn = g => { const n = REC ? REC.length : 0; g.translate(tx, ty); try { f0(g); } finally { g.translate(-tx, -ty); if (REC) for (let i = n; i < REC.length; i++) REC[i] = off(REC[i], dx, dy); } };
+    }
+    const it = { d: o && o.floor ? -1e9 : d, fn, o: o || {}, fp: (o && o.fp) || null }; IT.push(it); return it;
+  };
+  const reg = (key, label, b, src, o) => {
+    if (CUR && (CUR.dx || CUR.dy)) b = [b[0] + CUR.dx, b[1] + CUR.dy, ...b.slice(2)];
+    const ob = { key, label, box: b, src: src || null }; if (o) Object.assign(ob, o); OB.push(ob); return ob;
+  };
+  // Furniture catalog: def() declares a type whose build(p, x, y) calls add/reg exactly as the hardcoded scene did, drawing at
+  // its home (x, y): the type anchor, or p.home for a second copy of a type, or T.home(p) (desks read M.DESKS). put() lists
+  // today's pieces, in today's add() order, as the default instances. Spot dx/dy are relative to the instance's x, y.
+  const CATALOG = {}, DEFAULTS = [];
+  const def = (type, anchor, build, meta) => (CATALOG[type] = Object.assign({ type, anchor, build }, meta));
+  const put = (id, type, x, y, extra) => {
+    const T = CATALOG[type], p = Object.assign({ id, type, x, y }, extra);
+    if (!T.home && (x !== T.anchor[0] || y !== T.anchor[1])) p.home = [x, y];
+    DEFAULTS.push(p);
+  };
+  const homeOf = (T, p) => T.home ? T.home(p) : p.home || T.anchor;
+  const fixture = (name, build) => { def('fixture-' + name, [0, 0], build); put(name, 'fixture-' + name, 0, 0); };
 
   const COL = { wood: '#b98a57', dwood: '#7a5230', ink: '#1b1220', metal: '#8a909c', dmetal: '#4a4f5c', paper: '#f3ede2', glass: 'rgba(170,215,240,.22)', wallL: '#2e3058', wallR: '#25274a' };
   const teamOf = key => M.TEAM.find(t => t.key === key);
@@ -403,14 +429,17 @@
     g.restore();
     if (!st.present) { const c = P(d.cx, d.rect.y0 + 20, 36); g.save(); g.fillStyle = 'rgba(20,16,40,.28)'; poly(g, [P(d.block.x0, d.block.y0, 0), P(d.block.x1, d.block.y0, 0), P(d.block.x1, d.block.y1, 0), P(d.block.x0, d.block.y1, 0)], 'rgba(20,16,40,.22)'); g.restore(); void c; }
   }
-  M.DESKS.forEach(d => {
+  const deskOf = p => M.DESKS.find(d => d.id === p.desk);
+  def('dept-desk', [155, 352], p => { // a department desk with its chair; anchored at the seat
+    const d = deskOf(p);
     const deskItem = add(d.cx + d.rect.y0 + 30 + (d.top ? 0 : 0), g => drawDesk(g, d));
     add(d.cx + d.seat.y - 8, g => { const st = dstate(d.id); g.save(); if (!st.present) g.globalAlpha = .5; chair(g, d.seat.x, d.seat.y, sh(teamOf(d.key).color, .6)); g.restore(); });
     reg('desk', teamOf(d.key).name + "'s desk", [d.block.x0, d.block.y0, 0, d.block.x1 - d.block.x0, d.block.y1 - d.block.y0, 70], deskItem, { desk: d.id });
-  });
+  }, { home: p => { const d = deskOf(p); return [d.seat.x, d.seat.y]; }, spots: [{ id: p => p.desk, dx: 0, dy: 0, face: 'n', zone: 'focus', seat: true, desk: true }] });
+  M.DESKS.forEach(d => put(d.id, 'dept-desk', d.seat.x, d.seat.y, { desk: d.id }));
 
-  const tiroObj = reg('desk', "Tiro's desk", [150, 14, 0, 150, 84, 64], null, { desk: 'office' });
   // ---------- manager's office ----------
+  def('tiro-desk', [150, 46], () => { const tiroObj = reg('desk', "Tiro's desk", [150, 14, 0, 150, 84, 64], null, { desk: 'office' });
   tiroObj.src = add(340, g => { // Tiro's desk, trophy shelf, rug items, plant, glass walls are separate items
     const D = M.TIRO_DESK; const dx = D.x0, dy = D.y0, w = D.x1 - D.x0, dd = D.y1 - D.y0;
     box(g, dx + 4, dy + 2, 0, w - 8, dd - 4, 28, '#5e3a1e'); box(g, dx, dy, 28, w, dd, 6, '#7d5230', { t: '#9a6a3c' });
@@ -421,9 +450,14 @@
     box(g, dx + 60, dy + dd - 10, 34, 34, 4, 9, '#20202a'); Fy(g, dy + dd - 6, 43, () => { g.translate(dx + 60, 0); g.fillStyle = '#ffcf6b'; g.fillRect(2, 1.5, 30, 5.5); txt(g, 'TIRO · MANAGER', 17, 6.2, 5.2, '#1b1220', 'center'); });
     mug(g, dx + 132, dy + 34, 34, '#ffcf6b', true); lamp(g, dx + 140, dy + 8, 34, true);
     box(g, dx + 10, dy + 30, 34, 14, 11, 1, '#f3ede2'); box(g, dx + 12, dy + 32, 35, 14, 11, 1, '#e9e4d6');
-  }); // Tiro sits behind his desk: the desk has a footprint now, so its top and front panel draw over his lower body
+  }); }); // Tiro sits behind his desk: the desk has a footprint now, so its top and front panel draw over his lower body
+  put('tiro-desk', 'tiro-desk', 150, 46);
+  fixture('wall-boards', () => {
+    reg('usage', 'Usage and plan limits', [355, 0, 58, 100, 4, 62], usageBoard, { clip: true });
+    reg('today', 'Today board', [132, 0, 54, 180, 4, 74], todayBoard, { clip: true });
+  });
   // Inbox tray (approvals) on the desk, and the report icon
-  const inboxItem = add(95, g => {
+  def('inbox', [158, 70], () => { const inboxItem = add(95, g => {
     const D = M.TIRO_DESK, tx = D.x0 + 8, ty = D.y1 - 24, pend = ST.ex.pending || 0;
     const hov = ST.hover === 'inbox'; g.save(); if (pend) g.shadowColor = '#ffcf6b', g.shadowBlur = 6 + 6 * Math.sin(ST.T * 5);
     box(g, tx, ty, 34, 26, 16, 5, '#7a5a3a'); box(g, tx + 2, ty + 2, 35, 22, 12, 1, '#5e4228'); g.restore();
@@ -431,22 +465,27 @@
     if (ST.reportIcon) { const c = P(D.x1 - 12, D.y1 - 24, 44 + Math.sin(ST.T * 4) * 2); g.fillStyle = '#fff'; g.strokeStyle = '#1b1220'; g.lineWidth = 1; g.fillRect(c[0] - 6, c[1] - 8, 12, 15); g.strokeRect(c[0] - 6, c[1] - 8, 12, 15); g.fillStyle = '#3f9f68'; g.fillRect(c[0] - 4, c[1] - 5, 8, 1.4); g.fillRect(c[0] - 4, c[1] - 2, 8, 1.4); g.fillRect(c[0] - 4, c[1] + 1, 5, 1.4); }
     void hov;
   });
-  reg('usage', 'Usage and plan limits', [355, 0, 58, 100, 4, 62], usageBoard, { clip: true });
-  reg('today', 'Today board', [132, 0, 54, 180, 4, 74], todayBoard, { clip: true });
-  reg('inbox', 'Inbox tray: approvals', [158, 70, 34, 26, 16, 6], inboxItem);
-  add(26, g => { // Tiro's leather chair behind the desk
+  reg('inbox', 'Inbox tray: approvals', [158, 70, 34, 26, 16, 6], inboxItem); });
+  put('inbox', 'inbox', 158, 70);
+  def('tiro-chair', [225, 26], () => add(26, g => { // Tiro's leather chair behind the desk
     gell(g, 225, 26, 0, 17, 'rgba(10,5,20,.25)'); cyl(g, 225, 26, 0, 2.4, 11, '#2b2b36'); cyl(g, 225, 26, 11, 15, 6, '#6e2f2a'); box(g, 213, 12, 14, 24, 4, 34, '#5a2420'); box(g, 211, 12, 40, 28, 4, 6, '#6e2f2a');
-  }, { nofp: true });
-  [[170, 152], [284, 152]].forEach(([x, y]) => add(x + y, g => chair(g, x, y, '#4a5a7a', { noBack: false, h: 18 })));
-  add(120, g => { // trophy shelf on the back wall, fills as goals finish
+  }, { nofp: true }), { spots: [{ id: 'tiro:seat', dx: 0, dy: 4, face: 's', zone: 'office', seat: true, desk: true }] });
+  put('tiro-chair', 'tiro-chair', 225, 26);
+  def('guest-chair', [170, 152], (p, x, y) => add(x + y, g => chair(g, x, y, '#4a5a7a', { noBack: false, h: 18 })));
+  [[170, 152], [284, 152]].forEach(([x, y], i) => put('guest-chair-' + (i + 1), 'guest-chair', x, y));
+  def('trophy-shelf', [20, 0], () => add(120, g => { // trophy shelf on the back wall, fills as goals finish
     const n = Math.min(6, ST.board.done);
     box(g, 20, 0, 0, 96, 12, 20, '#5e3a1e'); box(g, 20, 0, 70, 96, 12, 3, '#7d5230'); box(g, 20, 0, 40, 96, 12, 3, '#7d5230');
     Fy(g, 12, 73, () => { g.translate(20, 0); for (let i = 0; i < 6; i++) { const x = 8 + i * 15, y = 24; if (i < n) { g.fillStyle = '#ffd23f'; g.fillRect(x, y - 14, 8, 9); g.fillRect(x + 2.5, y - 5, 3, 4); g.fillRect(x - 1, y - 1, 10, 2); g.fillStyle = '#fff3a0'; g.fillRect(x + 1, y - 13, 2, 5); } else { g.strokeStyle = 'rgba(255,255,255,.18)'; g.strokeRect(x, y - 9, 8, 8); } } g.fillStyle = '#d9d2c3'; g.fillRect(0, 36, 96, 1); g.fillStyle = '#2b2b36'; g.fillRect(24, 48, 48, 20); txt(g, 'GOALS DONE', 48, 56, 6, '#ffd23f', 'center'); txt(g, String(ST.board.done), 48, 66, 9, '#5ef0a0', 'center'); });
-  });
-  add(430 + 40, g => plant(g, 445, 38, 1.15));
-  add(150, g => { // window seat cushion area: a small side table with a cup near the window
+  }));
+  put('trophy-shelf', 'trophy-shelf', 20, 0);
+  // potted plant; p.s = scale, p.dd = depth tweak against x + y (each copy was hand-tuned)
+  def('plant', [445, 38], (p, x, y) => add(x + y + (p.dd || 0), g => plant(g, x, y, p.s)));
+  put('plant-1', 'plant', 445, 38, { s: 1.15, dd: -13 });
+  def('side-table', [22, 190], () => add(150, g => { // window seat cushion area: a small side table with a cup near the window
     cyl(g, 22, 190, 0, 9, 22, '#7a5230'); mug(g, 22, 190, 22, '#ffcf6b', true);
-  });
+  }));
+  put('side-table', 'side-table', 22, 190);
 
   // glass walls round the manager's office: east wall (x=470) and south wall (y=230) with a door gap
   function glassX(g, x, y0, y1) { // plane x=const, between y0..y1
@@ -461,8 +500,11 @@
     poly(g, [P(x0, y, h), P(x1, y, h), P(x1, y, h - 5), P(x0, y, h - 5)], '#b9c0cc', null); poly(g, [P(x0, y, 5), P(x1, y, 5), P(x1, y, 0), P(x0, y, 0)], '#8a909c', null);
     for (let x = x0; x <= x1 + .1; x += 60) poly(g, [P(x - 1.5, y, h), P(x + 1.5, y, h), P(x + 1.5, y, 0), P(x - 1.5, y, 0)], '#a9b0bc', null);
   }
-  for (let y = 0; y < 230; y += 46) add(470 + y + 23, g => glassX(g, 470, y, Math.min(230, y + 46)), { fp: [468, y, 472, Math.min(230, y + 46)] });
-  [[0, 130], [130, 260], [260, 395]].forEach(([a, b]) => add((a + b) / 2 + 230 + 2, g => glassY(g, 230, a, b), { fp: [a, 228, b, 232] }));
+  def('glass-x', [470, 0], (p, x, y) => add(x + y + 23, g => glassX(g, x, y, Math.min(230, y + 46)), { fp: [x - 2, y, x + 2, Math.min(230, y + 46)] }));
+  for (let y = 0; y < 230; y += 46) put('glass-x-' + (y / 46 + 1), 'glass-x', 470, y);
+  def('glass-y', [0, 230], (p, a, y) => { const b = a + p.w; add((a + b) / 2 + y + 2, g => glassY(g, y, a, b), { fp: [a, y - 2, b, y + 2] }); }); // p.w = pane length
+  [[0, 130], [130, 260], [260, 395]].forEach(([a, b], i) => put('glass-y-' + (i + 1), 'glass-y', a, 230, { w: b - a }));
+  def('office-door', [420, 230], () => { // the short pane east of the door, then the door itself
   add(445 + 230 + 2, g => glassY(g, 230, 445, 470), { fp: [445, 228, 470, 232] });
   add(420 + 230 + 4, g => { // door frame + open door leaf + sign
     const h = 100; [395, 445].forEach(x => { poly(g, [P(x - 3, 230, h), P(x + 3, 230, h), P(x + 3, 230, 0), P(x - 3, 230, 0)], '#8a909c', null); });
@@ -470,42 +512,54 @@
     Fy(g, 230, h + 24, () => { g.translate(395, 0); g.fillStyle = '#2a2030'; g.fillRect(0, 0, 50, 15); g.strokeStyle = '#ffcf6b'; g.strokeRect(.5, .5, 49, 14); txt(g, "TIRO'S OFFICE", 25, 10.5, 6.4, '#ffcf6b', 'center'); });
     poly(g, [P(445, 230, h), P(445, 230, 0), P(445, 262, 0), P(445, 262, h - 12)], 'rgba(200,225,240,.22)', 'rgba(210,235,250,.6)', 1);
     Fg(g, .5, () => { g.fillStyle = '#8f3b2e'; g.fillRect(398, 228, 44, 8); g.fillStyle = '#d6b13a'; g.fillRect(398, 232, 44, 1.6); });
-  });
+  }); });
+  put('office-door', 'office-door', 420, 230);
 
   // ---------- focus area furniture: pendant lights ----------
   const pendants = [[270, 330], [500, 330], [730, 330], [385, 470], [615, 470], [845, 470], [155, 330], [970, 330]];
   walls.push(g => { }); // reserved
 
   // ---------- garden ----------
-  add(790 + 105 + 2, g => { // pond with koi and lily pads
+  def('pond', [790, 105], () => add(790 + 105 + 2, g => { // pond with koi and lily pads
     const c = P(790, 105, 0); g.fillStyle = '#9a8f7a'; g.beginPath(); g.ellipse(c[0], c[1], 58, 29, 0, 0, 6.2832); g.fill();
     g.fillStyle = '#7a705f'; g.beginPath(); g.ellipse(c[0], c[1] + 1, 54, 27, 0, 0, 6.2832); g.fill();
     const gr = g.createRadialGradient(c[0] - 12, c[1] - 6, 3, c[0], c[1], 52); gr.addColorStop(0, '#6ec2e6'); gr.addColorStop(1, '#2f7aa8'); g.fillStyle = gr; g.beginPath(); g.ellipse(c[0], c[1], 49, 24.5, 0, 0, 6.2832); g.fill();
     g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; for (let i = 0; i < 3; i++) { const r = 8 + ((ST.T * 6 + i * 11) % 30); g.globalAlpha = Math.max(0, 1 - r / 38) * .8; g.beginPath(); g.ellipse(c[0] + 14, c[1] + 4, r, r / 2, 0, 0, 6.2832); g.stroke(); } g.globalAlpha = 1;
     [['#ff9a4a', 0, 1], ['#fff', 2.4, -1.2], ['#ff6a5a', 4.4, .8]].forEach(([col, ph, sp], i) => { const a = ST.T * .5 * sp + ph, kx = c[0] + Math.cos(a) * (28 - i * 4), ky = c[1] + Math.sin(a) * (14 - i * 2); g.save(); g.translate(kx, ky); g.rotate(a + (sp > 0 ? Math.PI / 2 : -Math.PI / 2)); g.fillStyle = col; g.beginPath(); g.ellipse(0, 0, 6, 2.4, 0, 0, 6.2832); g.fill(); g.beginPath(); g.moveTo(-5, 0); g.lineTo(-9, -2.4); g.lineTo(-9, 2.4); g.fill(); g.restore(); });
     [[-22, 6], [18, -10], [26, 8]].forEach(([dx, dy]) => { g.fillStyle = '#3d8a4a'; g.beginPath(); g.ellipse(c[0] + dx, c[1] + dy, 7, 3.4, 0, 0, 6.2832); g.fill(); g.fillStyle = '#ffb3d1'; g.beginPath(); g.arc(c[0] + dx + 1, c[1] + dy - 1, 1.8, 0, 6.2832); g.fill(); });
-  }, { floor: true }); // flat water: always under the walkers
-  add(700 + 24, g => bench(g, 700, 24, 56));
-  add(860 + 24, g => bench(g, 860, 24, 56));
-  add(585 + 118, g => { // bench facing the pond, seen from its side
+  }, { floor: true }), { walkable: true }); // flat water: always under the walkers
+  put('pond', 'pond', 790, 105);
+  def('bench', [700, 24], (p, x, y) => add(x + y, g => bench(g, x, y, 56)), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 's', zone: 'garden', seat: true }] }); // p.spot = its seat id
+  put('bench-1', 'bench', 700, 24, { spot: 'garden:b1' });
+  put('bench-2', 'bench', 860, 24, { spot: 'garden:b2' });
+  def('bench-side', [585, 118], () => add(585 + 118, g => { // bench facing the pond, seen from its side
     box(g, 578, 90, 0, 14, 5, 12, COL.dwood); box(g, 578, 142, 0, 14, 5, 12, COL.dwood); box(g, 578, 90, 12, 14, 57, 3, '#b98a57'); box(g, 575, 90, 15, 3, 57, 16, '#a5764a');
-  });
-  add(560 + 36 + 4, g => tree(g, 560, 36, 1.05)); add(950 + 44, g => tree(g, 950, 44, 1.2));
-  const plantItem = add(940 + 190, g => plant(g, 945, 196, 1.1 + Math.min(6, ST.ex.plantLevel || 0) * .07));
-  add(930 + 100, g => { // bird feeder on a pole
+  }), { spots: [{ id: 'garden:b3', dx: 0, dy: 0, face: 'e', zone: 'garden', seat: true }] });
+  put('bench-side', 'bench-side', 585, 118);
+  // tree; p.s = scale, p.dd = depth tweak against x + y + 4
+  def('tree', [560, 36], (p, x, y) => add(x + y + 4 + (p.dd || 0), g => tree(g, x, y, p.s)));
+  put('tree-1', 'tree', 560, 36, { s: 1.05 }); put('tree-2', 'tree', 950, 44, { s: 1.2, dd: -4 });
+  def('server-plant', [945, 196], () => { const plantItem = add(940 + 190, g => plant(g, 945, 196, 1.1 + Math.min(6, ST.ex.plantLevel || 0) * .07));
+    reg('plant', 'Server plant', [938, 190, 0, 14, 14, 70], plantItem); });
+  put('server-plant', 'server-plant', 945, 196);
+  def('bird-feeder', [930, 100], () => add(930 + 100, g => { // bird feeder on a pole
     cyl(g, 930, 100, 0, 1.8, 52, '#5a3d25'); box(g, 922, 92, 52, 16, 16, 10, '#a65f2c'); poly(g, [P(920, 90, 62), P(940, 90, 62), P(930, 99, 74)], '#7a3b1c', null); poly(g, [P(920, 90, 62), P(920, 110, 62), P(930, 99, 74)], '#6a321a', null);
     const c = P(930, 99, 80); g.fillStyle = '#e0573f'; g.beginPath(); g.ellipse(c[0] + 8 + Math.sin(ST.T) * 1, c[1] - 6, 3, 2, 0, 0, 6.2832); g.fill();
-  });
+  }));
+  put('bird-feeder', 'bird-feeder', 930, 100);
   // lantern string lights along the right wall
-  add(10, g => { const n = 11; g.strokeStyle = '#2b2b36'; g.lineWidth = 1; g.beginPath(); for (let i = 0; i <= 60; i++) { const x = 490 + i * 8.5, z = 118 - Math.sin(i / 60 * Math.PI * 4) ** 2 * 0 - 8 * Math.sin((i / 15) * Math.PI) ** 2 * 1 - 4; const p = P(x, 3, z); i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); } g.stroke();
-    for (let i = 0; i < n * 3; i++) { const x = 500 + i * (480 / (n * 3 - 1)), z = 118 - 8 * Math.sin((((x - 490) / 8.5) / 15) * Math.PI) ** 2 - 8, p = P(x, 3, z - 4); const on = ST.night > .1 || ST.dim > .3 || true; g.fillStyle = ['#ffd36b', '#ffb3d1', '#9de4e8', '#c9f0a0'][i % 4]; g.beginPath(); g.arc(p[0], p[1] + 2, 2.6, 0, 6.2832); g.fill(); if (on) { const gr = g.createRadialGradient(p[0], p[1] + 2, 1, p[0], p[1] + 2, 12); gr.addColorStop(0, 'rgba(255,225,150,' + (.25 + .35 * ST.night) + ')'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(p[0] - 12, p[1] - 10, 24, 24); } } });
+  fixture('string-lights', () => add(10, g => { const n = 11; g.strokeStyle = '#2b2b36'; g.lineWidth = 1; g.beginPath(); for (let i = 0; i <= 60; i++) { const x = 490 + i * 8.5, z = 118 - Math.sin(i / 60 * Math.PI * 4) ** 2 * 0 - 8 * Math.sin((i / 15) * Math.PI) ** 2 * 1 - 4; const p = P(x, 3, z); i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); } g.stroke();
+    for (let i = 0; i < n * 3; i++) { const x = 500 + i * (480 / (n * 3 - 1)), z = 118 - 8 * Math.sin((((x - 490) / 8.5) / 15) * Math.PI) ** 2 - 8, p = P(x, 3, z - 4); const on = ST.night > .1 || ST.dim > .3 || true; g.fillStyle = ['#ffd36b', '#ffb3d1', '#9de4e8', '#c9f0a0'][i % 4]; g.beginPath(); g.arc(p[0], p[1] + 2, 2.6, 0, 6.2832); g.fill(); if (on) { const gr = g.createRadialGradient(p[0], p[1] + 2, 1, p[0], p[1] + 2, 12); gr.addColorStop(0, 'rgba(255,225,150,' + (.25 + .35 * ST.night) + ')'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(p[0] - 12, p[1] - 10, 24, 24); } } }));
   // hedge along the garden's south edge (gate at x=500)
-  for (let x = 545; x < 1000; x += 36) add(x + 18 + 224, g => { box(g, x, 222, 0, 34, 7, 16, '#2f6a34', { t: '#3f8a44' }); [0, 1, 2].forEach(i => { const c = P(x + 6 + i * 11, 225, 18); g.fillStyle = '#3f8a44'; g.beginPath(); g.arc(c[0], c[1], 6, 0, 6.2832); g.fill(); }); });
-  reg('plant', 'Server plant', [938, 190, 0, 14, 14, 70], plantItem);
+  def('hedge', [545, 222], (p, x) => add(x + 18 + 224, g => { box(g, x, 222, 0, 34, 7, 16, '#2f6a34', { t: '#3f8a44' }); [0, 1, 2].forEach(i => { const c = P(x + 6 + i * 11, 225, 18); g.fillStyle = '#3f8a44'; g.beginPath(); g.arc(c[0], c[1], 6, 0, 6.2832); g.fill(); }); }));
+  for (let x = 545; x < 1000; x += 36) put('hedge-' + ((x - 545) / 36 + 1), 'hedge', x, 222);
 
   // ---------- playroom ----------
-  const arcadeItem = add(897 + 612 + 2, g => arcade(g, 880, 600, true, 'BUGS', '#ff6a6a'));
-  add(837 + 612 + 2, g => arcade(g, 820, 600, false, 'RACE', '#3dd6ff'));
+  def('arcade', [880, 600], () => { const arcadeItem = add(897 + 612 + 2, g => arcade(g, 880, 600, true, 'BUGS', '#ff6a6a'));
+    reg('arcade', 'Arcade: Bug Squasher', [880, 600, 0, 34, 28, 82], arcadeItem); }, { spots: [{ id: 'play:arcade1', dx: 54, dy: 18, face: 'w', zone: 'play', game: true }] });
+  put('arcade', 'arcade', 880, 600);
+  def('arcade-race', [820, 600], () => add(837 + 612 + 2, g => arcade(g, 820, 600, false, 'RACE', '#3dd6ff')), { spots: [{ id: 'play:arcade2', dx: 30, dy: 54, face: 'n', zone: 'play', game: true }] });
+  put('arcade-race', 'arcade-race', 820, 600);
   function arcade(g, x, y, live, name, col) {
     box(g, x, y, 0, 34, 28, 82, '#2a1f4a', { t: '#3a2c66', l: '#2a1f4a', r: '#1c1533' }); box(g, x + 3, y + 22, 40, 28, 7, 4, '#3a2a6a');
     Fy(g, y + 28, 82, () => { g.translate(x, 0); g.fillStyle = col; g.fillRect(3, 2, 28, 9); txt(g, name, 17, 9.2, 7, '#1b1220', 'center'); g.fillStyle = '#0d1a10'; g.fillRect(4, 14, 26, 22); g.strokeStyle = '#3dff8f'; g.strokeRect(4.5, 14.5, 25, 21);
@@ -513,63 +567,73 @@
       g.fillStyle = '#3a2a6a'; g.fillRect(3, 40, 28, 13); g.fillStyle = '#ff4d6d'; g.beginPath(); g.arc(10, 47, 2.4, 0, 6.2832); g.fill(); g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(18, 47, 2.4, 0, 6.2832); g.fill(); g.fillStyle = '#3dd6ff'; g.beginPath(); g.arc(25, 47, 2.4, 0, 6.2832); g.fill(); });
     const c = P(x + 17, y + 34, 50); const gr = g.createRadialGradient(c[0], c[1], 3, c[0], c[1], 38); gr.addColorStop(0, alpha(col, .22)); gr.addColorStop(1, alpha(col, 0)); g.fillStyle = gr; g.fillRect(c[0] - 40, c[1] - 30, 80, 70);
   }
-  reg('arcade', 'Arcade: Bug Squasher', [880, 600, 0, 34, 28, 82], arcadeItem);
-  const jukeItem = add(538 + 608, g => { // jukebox
+  def('jukebox', [520, 598], () => { const jukeItem = add(538 + 608, g => { // jukebox
     const x = 520, y = 598, play = !!ST.ex.music;
     box(g, x, y, 0, 38, 22, 52, '#7a3a1c', { t: '#9a4a24' }); cyl(g, x + 19, y + 11, 52, 19, 14, '#7a3a1c');
     Fy(g, y + 22, 54, () => { g.translate(x, 0); g.fillStyle = '#3b1a0a'; g.fillRect(4, 8, 30, 38); g.fillStyle = play ? '#ffb547' : '#a8742a'; g.fillRect(6, 10, 26, 24); for (let i = 0; i < 5; i++) { g.fillStyle = '#ffd36b'; const hh = play ? 4 + Math.abs(Math.sin(ST.T * 6 + i * 1.3)) * 12 : 4; g.fillRect(8 + i * 5, 34 - hh, 3.4, hh); } g.fillStyle = '#ffd36b'; g.fillRect(8, 38, 22, 3); });
     if (play) [0, 1].forEach(i => { const q = (ST.T * .6 + i * .5) % 1, c = P(x + 28 + i * 6, y, 60 + q * 34); g.globalAlpha = 1 - q; g.fillStyle = '#ffd36b'; g.font = '13px sans-serif'; g.fillText(i ? '♫' : '♪', c[0], c[1]); g.globalAlpha = 1; });
   });
-  reg('jukebox', 'Jukebox', [520, 598, 0, 38, 22, 62], jukeItem);
-  add(686 + 610, g => { // three-seat sofa facing +y
+  reg('jukebox', 'Jukebox', [520, 598, 0, 38, 22, 62], jukeItem); }, { spots: [{ id: 'play:juke', dx: 25, dy: 42, face: 'n', zone: 'play' }] });
+  put('jukebox', 'jukebox', 520, 598);
+  def('sofa3', [598, 598], () => add(686 + 610, g => { // three-seat sofa facing +y
     const x = 598, y = 598, w = 176, col = '#c0627a';
     box(g, x, y, 0, w, 10, 44, sh(col, .85)); box(g, x - 4, y, 0, 10, 42, 26, sh(col, .75)); box(g, x + w - 6, y, 0, 10, 42, 26, sh(col, .75));
     box(g, x + 6, y + 8, 0, w - 12, 34, 16, col); [0, 1, 2].forEach(i => box(g, x + 8 + i * 55, y + 10, 16, 53, 30, 8, sh(col, 1.08), { st: 'rgba(60,10,30,.45)' }));
     [0, 1, 2].forEach(i => box(g, x + 8 + i * 55, y + 6, 24, 53, 6, 18, sh(col, .98)));
-  });
-  add(660 + 690, g => { // low table with snacks
+  }), { spots: [30, 88, 146].map((dx, i) => ({ id: 'play:sofa' + (i + 1), dx, dy: 18, face: 's', zone: 'play', seat: true })) });
+  put('sofa3', 'sofa3', 598, 598);
+  def('snack-table', [624, 672], () => add(660 + 690, g => { // low table with snacks
     box(g, 628, 676, 0, 3, 3, 14, '#3a2a18'); box(g, 680, 676, 0, 3, 3, 14, '#3a2a18'); box(g, 628, 700, 0, 3, 3, 14, '#3a2a18'); box(g, 680, 700, 0, 3, 3, 14, '#3a2a18');
     box(g, 624, 672, 14, 62, 34, 4, '#b98a57'); cyl(g, 640, 686, 18, 8, 3, '#e8e4dc'); [['#ffd23f', 0], ['#ff7aa8', 4], ['#7cf29a', 8]].forEach(([c, d]) => { cyl(g, 637 + d, 685 + d / 2, 21, 2.2, 3, c, { stroke: false }); });
     box(g, 662, 684, 18, 18, 14, 3, '#d35a4a'); box(g, 663, 685, 21, 16, 12, 1.4, '#f3d9a0'); cyl(g, 712 - 20, 700, 18, 3, 6, '#3dd6ff');
-  });
+  }), { spots: [{ id: 'play:table', dx: 81, dy: 18, face: 'w', zone: 'play' }] });
+  put('snack-table', 'snack-table', 624, 672);
   function bean(g, x, y, col) { gell(g, x, y, 0, 26, 'rgba(10,5,20,.25)'); const c = P(x, y, 0); g.fillStyle = sh(col, .72); g.beginPath(); g.ellipse(c[0], c[1] - 4, 25, 15, 0, 0, 6.2832); g.fill(); g.fillStyle = col; g.beginPath(); g.ellipse(c[0] - 1, c[1] - 11, 22, 13, 0, 0, 6.2832); g.fill(); g.fillStyle = sh(col, 1.25); g.beginPath(); g.ellipse(c[0] - 5, c[1] - 14, 9, 4, -.2, 0, 6.2832); g.fill(); }
-  add(775 + 715, g => bean(g, 775, 715, '#3dd6e8')); add(850 + 748, g => bean(g, 850, 748, '#ffb547'));
-  add(935 + 725 - 12, g => { // ball pit
+  def('beanbag', [775, 715], (p, x, y) => add(x + y, g => bean(g, x, y, p.col)), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 's', zone: 'play', seat: true }] }); // p.col colour, p.spot seat id
+  put('beanbag-1', 'beanbag', 775, 715, { col: '#3dd6e8', spot: 'play:bean1' }); put('beanbag-2', 'beanbag', 850, 748, { col: '#ffb547', spot: 'play:bean2' });
+  def('ball-pit', [935, 725], () => add(935 + 725 - 12, g => { // ball pit
     const c = P(935, 725, 0); g.fillStyle = '#2a5a8a'; g.beginPath(); g.ellipse(c[0], c[1], 48, 24, 0, 0, 6.2832); g.fill();
     const q = rnd(9); for (let i = 0; i < 60; i++) { const a = q() * 6.2832, r = Math.sqrt(q()) * 38; g.fillStyle = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0', '#ff9a4a'][i % 6]; g.beginPath(); g.arc(c[0] + Math.cos(a) * r, c[1] - 3 + Math.sin(a) * r / 2, 4.4, 0, 6.2832); g.fill(); }
     cyl(g, 935, 725, 0, 49, 0.1, '#2a5a8a', { stroke: false }); g.strokeStyle = '#1f4a78'; g.lineWidth = 6; g.beginPath(); g.ellipse(c[0], c[1] - 6, 48, 24, 0, 0, 6.2832); g.stroke(); g.strokeStyle = '#3a7ab8'; g.lineWidth = 2; g.beginPath(); g.ellipse(c[0], c[1] - 9, 48, 24, 0, 0, 6.2832); g.stroke();
-  });
-  add(528 + 735, g => { // basketball hoop
+  }), { walkable: true, spots: [{ id: 'play:pit', dx: 0, dy: 0, face: 's', zone: 'play', seat: true }] });
+  put('ball-pit', 'ball-pit', 935, 725);
+  def('hoop', [520, 748], () => add(528 + 735, g => { // basketball hoop
     cyl(g, 520, 748, 0, 8, 3, '#3a3a44'); cyl(g, 520, 748, 3, 2, 76, '#8a909c'); box(g, 516, 734, 76, 3, 28, 30, '#f3ede2'); Fx(g, 519, 762, 106, () => { g.strokeStyle = '#d35a4a'; g.lineWidth = 1.4; g.strokeRect(8, 8, 12, 10); });
     const r = P(530, 748, 82); g.strokeStyle = '#ff7a2a'; g.lineWidth = 2; g.beginPath(); g.ellipse(r[0], r[1], 8, 4, 0, 0, 6.2832); g.stroke(); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = .8; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(r[0] + i * 3.5, r[1]); g.lineTo(r[0] + i * 1.8, r[1] + 11); g.stroke(); }
     ball(g, 548, 760, 0, 5, '#ff8a2a');
-  });
-  add(512 + 686, g => { // dartboard on a stand
+  }), { spots: [{ id: 'play:hoop', dx: 48, dy: -13, face: 'w', zone: 'play', game: true }] });
+  put('hoop', 'hoop', 520, 748);
+  def('dartboard', [512, 676], () => add(512 + 686, g => { // dartboard on a stand
     box(g, 512, 676, 0, 3, 3, 52, '#3a2a18'); box(g, 505, 672, 0, 17, 11, 3, '#3a2a18'); Fx(g, 515, 688, 68, () => { g.fillStyle = '#1b1220'; g.beginPath(); g.arc(14, 14, 14, 0, 6.2832); g.fill(); [[12, '#d35a4a'], [8, '#f3ede2'], [4, '#2f9f68'], [1.6, '#d35a4a']].forEach(([r, c]) => { g.fillStyle = c; g.beginPath(); g.arc(14, 14, r, 0, 6.2832); g.fill(); }); g.fillStyle = '#7cc4ff'; g.fillRect(20, 10, 1.6, 6); });
-  });
-  add(512 + 668, g => { // toy bin
+  }), { spots: [{ id: 'play:dart', dx: 48, dy: 14, face: 'w', zone: 'play', game: true }] });
+  put('dartboard', 'dartboard', 512, 676);
+  def('toy-bin', [495, 650], () => add(512 + 668, g => { // toy bin
     box(g, 495, 650, 0, 30, 24, 20, '#ff8a4a', { t: '#ffa86a' }); Fy(g, 674, 20, () => { g.translate(495, 0); g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(2, 8, 26, 2); });
     ball(g, 505, 660, 20, 5, '#3dd6ff'); box(g, 512, 664, 20, 6, 6, 6, '#ffd23f'); ball(g, 517, 656, 20, 4, '#7cf29a');
-  });
-  add(975 + 600, g => plant(g, 976, 604, 1.2)); add(488 + 770, g => plant(g, 486, 768, 1));
+  }), { spots: [{ id: 'play:toy', dx: 50, dy: 18, face: 's', zone: 'play' }] });
+  put('toy-bin', 'toy-bin', 495, 650);
+  put('plant-2', 'plant', 976, 604, { s: 1.2, dd: -5 }); put('plant-3', 'plant', 486, 768, { s: 1, dd: 4 });
   // pennant string over the playroom
-  add(10, g => { const a = P(480, 560, 108), b = P(990, 560, 108); g.strokeStyle = '#2b2b36'; g.lineWidth = 1; g.beginPath(); g.moveTo(a[0], a[1]); g.quadraticCurveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + 26, b[0], b[1]); g.stroke(); for (let i = 1; i < 16; i++) { const t = i / 16, x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * ((a[0] + b[0]) / 2) + t * t * b[0], y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * ((a[1] + b[1]) / 2 + 26) + t * t * b[1]; g.fillStyle = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0'][i % 5]; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y); g.lineTo(x, y + 9); g.fill(); } });
+  fixture('pennants', () => add(10, g => { const a = P(480, 560, 108), b = P(990, 560, 108); g.strokeStyle = '#2b2b36'; g.lineWidth = 1; g.beginPath(); g.moveTo(a[0], a[1]); g.quadraticCurveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + 26, b[0], b[1]); g.stroke(); for (let i = 1; i < 16; i++) { const t = i / 16, x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * ((a[0] + b[0]) / 2) + t * t * b[0], y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * ((a[1] + b[1]) / 2 + 26) + t * t * b[1]; g.fillStyle = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0'][i % 5]; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y); g.lineTo(x, y + 9); g.fill(); } }));
 
   // ---------- utility strip ----------
-  const sopItem = add(26 + 620, g => { // filing cabinet: SOPs
+  def('filing-cabinet', [4, 596], () => { const sopItem = add(26 + 620, g => { // filing cabinet: SOPs
     box(g, 4, 596, 0, 46, 48, 72, '#8a909c', { t: '#a9afba', l: '#8a909c', r: '#6b717d' });
     Fx(g, 50, 644, 72, () => { for (let i = 0; i < 3; i++) { g.fillStyle = i % 2 ? '#7d838f' : '#848a96'; g.fillRect(2, 2 + i * 23, 44, 21); g.fillStyle = '#d9d2c3'; g.fillRect(14, 6 + i * 23, 20, 7); g.fillStyle = '#2b2b36'; g.fillRect(18, 16 + i * 23, 12, 2.4); txt(g, 'SOP', 24, 12 + i * 23, 5, '#3a3a44', 'center'); } });
   });
-  reg('sops', 'Filing cabinet: SOPs', [4, 596, 0, 46, 48, 72], sopItem);
-  const rackItem = add(26 + 668, g => { // server rack (existing)
+  reg('sops', 'Filing cabinet: SOPs', [4, 596, 0, 46, 48, 72], sopItem); });
+  put('filing-cabinet', 'filing-cabinet', 4, 596);
+  def('server-rack', [4, 650], () => { const rackItem = add(26 + 668, g => { // server rack (existing)
     box(g, 4, 650, 0, 40, 38, 108, '#2b2f3a'); const ledc = (ST.ex.rack || {}).led === 'red' ? '#ff5a4a' : (ST.ex.rack || {}).led === 'amber' ? '#ffb547' : '#5ef0a0';
     Fx(g, 44, 688, 108, () => { for (let i = 0; i < 7; i++) { g.fillStyle = '#1c1f28'; g.fillRect(2, 3 + i * 14.5, 34, 12.5); g.fillStyle = '#3a4050'; g.fillRect(3, 4 + i * 14.5, 18, 1); for (let k = 0; k < 4; k++) { const f = Math.sin(ST.T * (3 + k * 1.7) + i * 2.1) > -.3; g.fillStyle = f ? (k % 3 === 0 ? ledc : k % 3 === 1 ? '#7cc4ff' : '#ffb547') : '#2a2f3a'; g.fillRect(22 + k * 3.6, 6 + i * 14.5, 2, 2); } } g.fillStyle = '#d9d2c3'; g.fillRect(4, 104, 30, 3); });
   });
-  reg('rack', 'Server rack', [4, 650, 0, 40, 38, 108], rackItem);
-  const shelfItem = add(26 + 740, g => { // bookshelf: reports
+  reg('rack', 'Server rack', [4, 650, 0, 40, 38, 108], rackItem); });
+  put('server-rack', 'server-rack', 4, 650);
+  def('bookshelf', [4, 696], () => { const shelfItem = add(26 + 740, g => { // bookshelf: reports
     box(g, 4, 696, 0, 38, 80, 128, '#6b4220'); Fx(g, 42, 776, 128, () => { g.fillStyle = '#3a2412'; g.fillRect(2, 2, 76, 124); const q = rnd(77); for (let row = 0; row < 5; row++) { g.fillStyle = '#5a3a1c'; g.fillRect(2, 24 + row * 25, 76, 2.5); let x = 4; while (x < 76) { const w = 3 + q() * 4, h = 14 + q() * 8; g.fillStyle = ['#8f3b2e', '#3f6b4a', '#c99a3c', '#2f4a72', '#6b3a5a', '#d8cdb5', '#3fb0b8'][(q() * 7) | 0]; g.fillRect(x, 24 + row * 25 - h, w, h); x += w + .5; } } txt(g, 'REPORTS ' + (ST.ex.reportsN || 0), 40, 122, 6.5, '#ffdca0', 'center'); });
   });
-  reg('reports', 'Bookshelf: reports', [4, 696, 0, 38, 80, 128], shelfItem);
+  reg('reports', 'Bookshelf: reports', [4, 696, 0, 38, 80, 128], shelfItem); });
+  put('bookshelf', 'bookshelf', 4, 696);
   const cork = g => { // corkboard (memory) and breaker box on the left wall
     const n = ST.ex.memoryN || 0;
     Fx(g, 0, 700, 128, () => { g.translate(0, 0); const yy = 700 - 100; void yy; });
@@ -578,63 +642,76 @@
     Fx(g, 0, 598, 112, () => { g.translate(0, 0); g.fillStyle = '#3b3f45'; g.fillRect(-2, -2, 38, 52); g.fillStyle = '#8a9099'; g.fillRect(0, 0, 34, 48); g.fillStyle = '#5e646c'; g.fillRect(3, 3, 28, 42); on.forEach((v, i) => { const x = 6 + (i % 3) * 8, y = 7 + Math.floor(i / 3) * 18; g.fillStyle = '#2b2b33'; g.fillRect(x, y, 5, 13); g.fillStyle = v ? '#5fd38d' : '#e0573f'; g.fillRect(x - 1, y + (v ? 0 : 7), 7, 6); }); });
   };
   walls.push(cork);
-  reg('memory', 'Corkboard: memory notes', [0, 600, 78, 4, 92, 56], cork, { clip: true });
-  reg('breaker', 'Breaker box: switches', [0, 560, 62, 4, 38, 52], cork, { clip: true });
-  add(290 + 590, g => { // water cooler (rate-limit corner)
-    box(g, 446, 596, 0, 20, 18, 44, '#e8e4dc'); cyl(g, 456, 605, 44, 8, 22, 'rgba(120,190,240,.75)', { top: 'rgba(170,220,250,.85)' }); box(g, 452, 614, 22, 8, 2, 4, '#3a8ae0'); Fy(g, 614, 40, () => { g.translate(446, 0); g.fillStyle = '#7ad0ff'; g.fillRect(6, 6, 4, 4); g.fillStyle = '#ff7a6b'; g.fillRect(12, 6, 4, 4); });
+  fixture('corkboard', () => {
+    reg('memory', 'Corkboard: memory notes', [0, 600, 78, 4, 92, 56], cork, { clip: true });
+    reg('breaker', 'Breaker box: switches', [0, 560, 62, 4, 38, 52], cork, { clip: true });
   });
-  const coffeeItem = add(400 + 600, g => { // coffee counter with the espresso machine
+  def('water-cooler', [446, 596], () => add(290 + 590, g => { // water cooler (rate-limit corner)
+    box(g, 446, 596, 0, 20, 18, 44, '#e8e4dc'); cyl(g, 456, 605, 44, 8, 22, 'rgba(120,190,240,.75)', { top: 'rgba(170,220,250,.85)' }); box(g, 452, 614, 22, 8, 2, 4, '#3a8ae0'); Fy(g, 614, 40, () => { g.translate(446, 0); g.fillStyle = '#7ad0ff'; g.fillRect(6, 6, 4, 4); g.fillStyle = '#ff7a6b'; g.fillRect(12, 6, 4, 4); });
+  }));
+  put('water-cooler', 'water-cooler', 446, 596);
+  def('coffee-counter', [360, 592], () => { const coffeeItem = add(400 + 600, g => { // coffee counter with the espresso machine
     box(g, 360, 592, 0, 76, 30, 34, '#8d6840', { t: '#d8d2c6' }); Fy(g, 622, 34, () => { g.translate(360, 0); g.fillStyle = '#6b4a2a'; g.fillRect(3, 3, 32, 26); g.fillRect(41, 3, 32, 26); g.fillStyle = '#c9a878'; g.fillRect(14, 12, 10, 2); g.fillRect(52, 12, 10, 2); });
     const on = !!(ST.ex.switches || {}).espresso;
     box(g, 372, 596, 34, 30, 20, 30, '#3b3f45'); Fy(g, 616, 64, () => { g.translate(372, 0); g.fillStyle = '#1f2125'; g.fillRect(4, 4, 22, 9); g.fillStyle = on ? '#5fd38d' : '#555'; g.beginPath(); g.arc(8, 8.5, 1.6, 0, 6.2832); g.fill(); g.fillStyle = '#f3ede2'; g.fillRect(11, 20, 9, 8); });
     if (on) { const c = P(381, 612, 40); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.2; for (let i = 0; i < 2; i++) { g.beginPath(); g.moveTo(c[0] + i * 5, c[1]); g.quadraticCurveTo(c[0] + i * 5 + 3, c[1] - 6, c[0] + i * 5, c[1] - 12 - (ST.T * 8 % 4)); g.stroke(); } }
     mug(g, 414, 604, 34, '#ffcf6b'); mug(g, 424, 610, 34, '#f3ede2');
   });
-  reg('coffee', 'Coffee machine', [372, 596, 34, 30, 20, 30], coffeeItem, { clip: true });
-  add(225 + 600, g => { // printer: animates when a report is filed
+  reg('coffee', 'Coffee machine', [372, 596, 34, 30, 20, 30], coffeeItem, { clip: true }); });
+  put('coffee-counter', 'coffee-counter', 360, 592);
+  def('printer', [204, 592], () => add(225 + 600, g => { // printer: animates when a report is filed
     box(g, 204, 592, 0, 50, 26, 22, '#8d6840'); box(g, 206, 594, 22, 46, 22, 14, '#d8d2c6'); box(g, 208, 596, 36, 40, 18, 3, '#b9b3a6');
     Fy(g, 616, 36, () => { g.translate(206, 0); g.fillStyle = '#2b2b36'; g.fillRect(4, 4, 38, 4); g.fillStyle = ST.printer > 0 ? '#5fd38d' : '#7a7a86'; g.fillRect(36, 9, 3, 2); });
     if (ST.printer > 0) { const t = ST.printer; box(g, 218, 598, 39 + Math.min(10, (3 - t) * 6), 20, 12, 1, '#fff'); led(g, 238, 612, 30, '#5ef0a0', true); }
-  });
-  add(466 + 646, g => { // recycling bin
+  }));
+  put('printer', 'printer', 204, 592);
+  def('recycling-bin', [468, 618], () => add(466 + 646, g => { // recycling bin
     box(g, 468, 618, 0, 14, 14, 20, '#3a8a5a'); Fy(g, 632, 20, () => { g.translate(468, 0); g.fillStyle = '#e8f5ec'; g.fillRect(3, 3, 8, 8); });
-  });
+  }));
+  put('recycling-bin', 'recycling-bin', 468, 618);
   // hot desks for visitors (spill desks): two small tables
-  [[98, 'a'], [290, 'b']].forEach(([x]) => add(x + 36 + 612, g => { box(g, x, 600, 0, 74, 28, 30, '#8d6840', { t: '#d8d2c6' }); box(g, x + 8, 606, 30, 24, 14, 1.5, '#2b2f3a'); box(g, x + 42, 606, 30, 24, 14, 1.5, '#2b2f3a'); Fg(g, 32, () => { g.fillStyle = '#7cc4ff'; g.fillRect(x + 12, 609, 16, 7); g.fillRect(x + 46, 609, 16, 7); }); }));
-  [118, 152, 306, 346].forEach(x => add(x + 645, g => chair(g, x, 654, '#6b6b78', { h: 16 })));
+  def('hot-desk', [98, 600], (p, x) => add(x + 36 + 612, g => { box(g, x, 600, 0, 74, 28, 30, '#8d6840', { t: '#d8d2c6' }); box(g, x + 8, 606, 30, 24, 14, 1.5, '#2b2f3a'); box(g, x + 42, 606, 30, 24, 14, 1.5, '#2b2f3a'); Fg(g, 32, () => { g.fillStyle = '#7cc4ff'; g.fillRect(x + 12, 609, 16, 7); g.fillRect(x + 46, 609, 16, 7); }); }));
+  [98, 290].forEach((x, i) => put('hot-desk-' + (i + 1), 'hot-desk', x, 600));
+  def('hot-chair', [118, 654], (p, x) => add(x + 645, g => chair(g, x, 654, '#6b6b78', { h: 16 })));
+  [118, 152, 306, 346].forEach((x, i) => put('hot-chair-' + (i + 1), 'hot-chair', x, 654));
   walls.push(g => { Fg(g, 0.3, () => { if (ST.labels > 0.02) { g.globalAlpha = ST.labels; g.fillStyle = 'rgba(255,255,255,.55)'; g.font = "700 15px 'Pixelify Sans',monospace"; g.textAlign = 'center';
       const L = (s, x, y, c) => { g.fillStyle = c || 'rgba(255,255,255,.55)'; g.fillText(s, x, y); };
       L('MANAGER', 400, 120, 'rgba(255,255,255,.5)'); L('FOCUS WORK', 500, 270, 'rgba(255,255,255,.55)'); L('GARDEN', 880, 212, 'rgba(255,255,255,.6)'); L('PARK', 1120, 540, 'rgba(255,255,255,.6)'); L('GARAGE', 1120, 776, 'rgba(255,255,255,.7)'); L('PLAYROOM', 560, 778, 'rgba(255,255,255,.6)'); L('UTILITY', 150, 776, 'rgba(60,40,20,.55)'); g.globalAlpha = 1; } }); });
 
   // ---------- east park ----------
   // low fence along the focus band's east edge, with a gate gap at the aisle (y 380..412)
-  [[236, 380], [412, 548]].forEach(([y0, y1]) => { for (let y = y0; y < y1; y += 24) add(1000 + y + 12, g => { box(g, 999, y, 0, 3, 22, 14, '#d8d2c6', { t: '#efe9dc' }); box(g, 999, y, 8, 3, 22, 3, '#c9c2b4'); }); });
-  add(1000 + 396, g => { [380, 410].forEach(y => box(g, 997, y - 1, 0, 7, 4, 26, '#7a5230', { t: '#9a6a3c' })); }, { fp: [997, 379, 1004, 413] });
-  add(1120 + 290 + 2, g => { // east pond, a little bigger than the garden one
+  def('fence', [999, 236], (p, x, y) => add(1000 + y + 12, g => { box(g, 999, y, 0, 3, 22, 14, '#d8d2c6', { t: '#efe9dc' }); box(g, 999, y, 8, 3, 22, 3, '#c9c2b4'); }));
+  let fenceN = 0; [[236, 380], [412, 548]].forEach(([y0, y1]) => { for (let y = y0; y < y1; y += 24) put('fence-' + ++fenceN, 'fence', 999, y); });
+  def('gate', [997, 379], () => add(1000 + 396, g => { [380, 410].forEach(y => box(g, 997, y - 1, 0, 7, 4, 26, '#7a5230', { t: '#9a6a3c' })); }, { fp: [997, 379, 1004, 413] }));
+  put('gate', 'gate', 997, 379);
+  def('pond-east', [1120, 290], () => add(1120 + 290 + 2, g => { // east pond, a little bigger than the garden one
     const c = P(1120, 290, 0); g.fillStyle = '#9a8f7a'; g.beginPath(); g.ellipse(c[0], c[1], 66, 33, 0, 0, 6.2832); g.fill();
     g.fillStyle = '#7a705f'; g.beginPath(); g.ellipse(c[0], c[1] + 1, 62, 31, 0, 0, 6.2832); g.fill();
     const gr = g.createRadialGradient(c[0] - 14, c[1] - 7, 3, c[0], c[1], 58); gr.addColorStop(0, '#6ec2e6'); gr.addColorStop(1, '#2f7aa8'); g.fillStyle = gr; g.beginPath(); g.ellipse(c[0], c[1], 57, 28.5, 0, 0, 6.2832); g.fill();
     g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; for (let i = 0; i < 2; i++) { const r = 8 + ((ST.T * 5 + i * 14) % 34); g.globalAlpha = Math.max(0, 1 - r / 44) * .8; g.beginPath(); g.ellipse(c[0] - 12, c[1] + 3, r, r / 2, 0, 0, 6.2832); g.stroke(); } g.globalAlpha = 1;
     [[-30, 6], [22, -9], [34, 8]].forEach(([dx, dy]) => { g.fillStyle = '#3d8a4a'; g.beginPath(); g.ellipse(c[0] + dx, c[1] + dy, 7, 3.4, 0, 0, 6.2832); g.fill(); g.fillStyle = '#ffd1e0'; g.beginPath(); g.arc(c[0] + dx + 1, c[1] + dy - 1, 1.8, 0, 6.2832); g.fill(); });
-  }, { floor: true });
-  add(1050 + 440, g => bench(g, 1050, 440, 56)); add(1150 + 440, g => bench(g, 1150, 440, 56));
-  add(1100 + 150, g => { // picnic table with two benches
+  }, { floor: true }), { walkable: true });
+  put('pond-east', 'pond-east', 1120, 290);
+  put('bench-3', 'bench', 1050, 440, { spot: 'pk:b1' }); put('bench-4', 'bench', 1150, 440, { spot: 'pk:b2' });
+  def('picnic-table', [1100, 150], () => add(1100 + 150, g => { // picnic table with two benches
     box(g, 1070, 140, 0, 6, 26, 14, COL.dwood); box(g, 1124, 140, 0, 6, 26, 14, COL.dwood);
     box(g, 1064, 128, 10, 72, 10, 3, '#a5764a'); box(g, 1064, 172, 10, 72, 10, 3, '#a5764a'); box(g, 1066, 138, 14, 68, 32, 4, '#b98a57');
     mug(g, 1090, 150, 18, '#ffcf6b'); box(g, 1112, 154, 18, 14, 10, 3, '#d35a4a');
-  });
-  [[1190, 44, 1.15], [1205, 200, 1.0], [1040, 470, 1.0], [1212, 440, 1.1], [1045, 150, .95], [1070, 330, 1.0]].forEach(([x, y, k]) => add(x + y + 4, g => tree(g, x, y, k)));
-  add(1180 + 120, g => plant(g, 1180, 120, 1.1)); add(1010 + 250, g => plant(g, 1012, 252, 1));
-  [[1010, 330], [1190, 280]].forEach(([x, y]) => add(x + y + 2, g => { // lamp posts
+  }));
+  put('picnic-table', 'picnic-table', 1100, 150);
+  [[1190, 44, 1.15], [1205, 200, 1.0], [1040, 470, 1.0], [1212, 440, 1.1], [1045, 150, .95], [1070, 330, 1.0]].forEach(([x, y, s], i) => put('tree-' + (i + 3), 'tree', x, y, { s }));
+  put('plant-4', 'plant', 1180, 120, { s: 1.1 }); put('plant-5', 'plant', 1012, 252, { s: 1, dd: -4 });
+  def('lamp-post', [1010, 330], (p, x, y) => add(x + y + 2, g => { // lamp posts
     cyl(g, x, y, 0, 2, 66, '#2b2b36'); const c = P(x, y, 70); g.fillStyle = '#ffe8a8'; g.beginPath(); g.arc(c[0], c[1], 5, 0, 6.2832); g.fill();
     const gr = g.createRadialGradient(c[0], c[1], 1, c[0], c[1], 24); gr.addColorStop(0, 'rgba(255,225,150,' + (.3 + .3 * ST.night) + ')'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(c[0] - 24, c[1] - 24, 48, 48);
   }));
+  put('lamp-post-1', 'lamp-post', 1010, 330); put('lamp-post-2', 'lamp-post', 1190, 280);
 
   // ---------- garage + scheduler station ----------
   // Status comes from /api/scheduler (the scheduler job writes scheduler.json); ST.ex.scheduler is that payload, or null = no data yet.
   const sched = () => ST.ex.scheduler || null;
   const ago = iso => { if (!iso) return 'never'; const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
-  const garageItem = add(1220 + 690, g => { // building with a half-open roller door, status screen and a bay interior
+  def('garage', [1030, 590], () => { const garageItem = add(1220 + 690, g => { // building with a half-open roller door, status screen and a bay interior
     const x0 = 1030, y0 = 590, w = 190, d = 100, h = 96, S = sched();
     box(g, x0, y0, 0, w, d, h, '#8f95a3', { t: '#6e7482', l: '#9aa0ae', r: '#6f7583' });
     box(g, x0 - 4, y0 - 4, h, w + 8, d + 8, 6, '#3a3f4e', { t: '#4a5062' });
@@ -656,9 +733,10 @@
       g.fillStyle = '#2a2030'; g.fillRect(24, 6, 88, 13); g.strokeStyle = '#ffcf6b'; g.strokeRect(24.5, 6.5, 87, 12); txt(g, 'SCHEDULER GARAGE', 68, 15.5, 6.6, '#ffcf6b', 'center');
     });
   });
+  reg('garage', 'Garage: scheduler status', [1030, 590, 0, 190, 100, 102], garageItem); });
   // The bench and the mailbox are separate pieces with their own footprints: as one piece its footprint stretched over the
   // mailbox post and swallowed the Scheduler character, who then sorted behind the bench and the mailbox.
-  const stationItem = add(1140 + 730, g => { // mail-sorting bench with a monitor
+  def('mail-bench', [1068, 704], () => { const stationItem = add(1140 + 730, g => { // mail-sorting bench with a monitor
     const S = sched();
     box(g, 1072, 707, 0, 5, 5, 20, '#4a3420'); box(g, 1130, 707, 0, 5, 5, 20, '#4a3420'); box(g, 1072, 721, 0, 5, 5, 20, '#4a3420'); box(g, 1130, 721, 0, 5, 5, 20, '#4a3420');
     box(g, 1068, 704, 20, 72, 26, 4, '#b98a57', { t: '#d8b27a' });
@@ -666,17 +744,19 @@
     Fy(g, 715, 38, () => { g.translate(1088, 0); g.fillStyle = S && S.present ? '#0d2a1c' : '#0c1024'; g.fillRect(0, 0, 18, 11); g.fillStyle = '#5ef0a0'; for (let i = 0; i < 3; i++) g.fillRect(2, 2 + i * 3, 4 + ((i * 5) % 7), 1.2); });
     box(g, 1108, 712, 24, 14, 10, 1.5, '#fff'); box(g, 1112, 714, 25.5, 14, 10, 1.5, '#f3ede2');
   }, { fp: [1068, 704, 1140, 730] });
-  const mailboxItem = add(1190 + 740, g => { // mailbox on a post whose flag goes up when items were found
+  reg('scheduler', 'Scheduler station: mail and check-ins', [1068, 704, 0, 72, 26, 48], stationItem); });
+  def('mailbox', [1166, 726], () => { const mailboxItem = add(1190 + 740, g => { // mailbox on a post whose flag goes up when items were found
     const S = sched(), up = S && S.present && S.itemsFound > 0;
     cyl(g, 1178, 735, 0, 2.2, 34, '#6b4220');
     box(g, 1168, 726, 34, 22, 18, 14, '#3a7ad0', { t: '#5a9af0', l: '#3a7ad0', r: '#2a5aa0' });
     Fy(g, 744, 48, () => { g.translate(1168, 0); g.fillStyle = '#10305a'; g.fillRect(3, 4, 16, 7); });
     const fl = P(1190, 732, up ? 58 : 40); g.fillStyle = '#e0573f'; g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 3, up ? 14 : 5); g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 7, 4);
   }, { fp: [1166, 724, 1190, 746] });
-  [[1022, 760], [1034, 766]].forEach(([x, y]) => add(x + y, g => { cyl(g, x, y, 0, 8, 6, '#2a2a30'); cyl(g, x, y, 6, 8, 6, '#34343c'); }));
-  reg('scheduler', 'Scheduler station: mail and check-ins', [1068, 704, 0, 72, 26, 48], stationItem);
-  reg('mailbox', 'Mailbox: scheduler check-ins', [1166, 726, 0, 24, 20, 58], mailboxItem);
-  reg('garage', 'Garage: scheduler status', [1030, 590, 0, 190, 100, 102], garageItem);
+  reg('mailbox', 'Mailbox: scheduler check-ins', [1166, 726, 0, 24, 20, 58], mailboxItem); });
+  def('tires', [1022, 760], (p, x, y) => add(x + y, g => { cyl(g, x, y, 0, 8, 6, '#2a2a30'); cyl(g, x, y, 6, 8, 6, '#34343c'); }));
+  // the garage is listed after the bench and mailbox so the click objects keep their 1.2.9 order
+  put('mail-bench', 'mail-bench', 1068, 704); put('mailbox', 'mailbox', 1166, 726); put('garage', 'garage', 1030, 590);
+  put('tires-1', 'tires', 1022, 760); put('tires-2', 'tires', 1034, 766);
 
   // pendant lamps are painted after everything (overlay)
   function overlay(g) {
@@ -692,8 +772,6 @@
     }
     g.globalCompositeOperation = 'source-over';
   }
-
-  items.sort((a, b) => a.d - b.d);
 
   // ---------- pixel-tight measuring ----------
   // Every painter is rendered once on a scratch canvas. From that we get (1) the tight bounding box of its opaque pixels
@@ -813,5 +891,40 @@
     for (let i = 0; i <= n; i++) { if (slots[i]) slots[i].sort((a, b) => a.d - b.d).forEach(p => out.push(p)); if (i < n) out.push(items[i]); }
     return out;
   }
-  root.OfficeFurniture = { measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
+  // ---------- placing the catalog ----------
+  function build(instances, its, obs) {
+    IT = its; OB = obs;
+    try {
+      for (const p of instances) {
+        const T = CATALOG[p.type]; if (!T) continue; // unknown types are WorldModel.validate's job
+        const [hx, hy] = homeOf(T, p); CUR = { dx: p.x - hx, dy: p.y - hy };
+        T.build(p, hx, hy);
+      }
+    } finally { CUR = null; IT = items; OB = objects; }
+  }
+  // Rebuild the painters and click objects from instances (in place: the world holds these arrays).
+  function place(instances) {
+    items.length = 0; objects.length = 0; build(instances, items, objects);
+    items.sort((a, b) => a.d - b.d); measured = false;
+  }
+  // Ground rects of every box and cylinder the pieces stand on (an item that draws none, like a glass pane, gives its fp).
+  const NUL = new Proxy(function () {}, { get: () => NUL, apply: () => NUL, set: () => true }); // a 2D context that does nothing
+  function footprints(instances) {
+    const its = [], out = []; build(instances, its, []);
+    for (const it of its) { const { rec } = scanTight(NUL, it.fn, null, true); if (rec.length) out.push(...rec); else if (it.fp) out.push(it.fp); }
+    return out;
+  }
+  // The spots the pieces carry, at their placed positions: {id: {id, x, y, face, zone, seat?, desk?, game?}}.
+  function spotsOf(instances) {
+    const out = {};
+    for (const p of instances) for (const sp of (CATALOG[p.type] || {}).spots || []) {
+      const { id, dx, dy, ...rest } = sp, sid = typeof id === 'function' ? id(p) : id;
+      out[sid] = Object.assign({ id: sid, x: p.x + dx, y: p.y + dy }, rest);
+    }
+    return out;
+  }
+  const defaultInstances = () => JSON.parse(JSON.stringify(DEFAULTS));
+  place(defaultInstances());
+
+  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
