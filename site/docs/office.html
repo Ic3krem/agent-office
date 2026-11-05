@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>The dashboard and the office - Agent Office docs</title>
+<meta name="description" content="The panels, the world, the objects and the agent history.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/atom+xml" title="Agent Office releases" href="../releases.xml">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="../quickstart.html">Quickstart</a>
+<a href="../docs/index.html" aria-current="page">Docs</a>
+<a href="../changelog.html">Changelog</a>
+<a href="../stats.html">Stats</a>
+<a href="../download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation">
+<div role="search" class="doc-search"><label for="doc-search">Search the docs</label><input id="doc-search" type="search" autocomplete="off" placeholder="Search"><p id="doc-search-status" class="meta" role="status" aria-live="polite"></p><ul id="doc-results"></ul></div>
+<nav aria-label="Docs sections"><ul class="top"><li><a href="index.html">Overview</a></li></ul><h2>Get started</h2><ul><li><a href="requirements.html">Requirements</a></li><li><a href="install.html">Install and verify</a></li><li><a href="first-task.html">First task with Tiro</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li></ul><h2>Using the office</h2><ul><li><a href="office.html" aria-current="page">The dashboard and the office</a></li><li><a href="approvals.html">Hiring and approvals</a></li><li><a href="team.html">The team</a></li><li><a href="agents-and-memory.html">Agents and memory</a></li><li><a href="goals-and-reports.html">Goals, reports and the vault</a></li><li><a href="island.html">The island, Tiro and the tray</a></li><li><a href="scheduler.html">Scheduler</a></li></ul><h2>Safety</h2><ul><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html">Security model</a></li><li><a href="security-guard.html">Security Guard</a></li><li><a href="breaker-box.html">Breaker box and subscription guard</a></li></ul><h2>Reference</h2><ul><li><a href="configuration.html">Configuration</a></li><li><a href="troubleshooting.html">Troubleshooting</a></li><li><a href="faq.html">FAQ</a></li><li><a href="api.html">API reference</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li></ul></nav>
+</aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Using the office / The dashboard and the office</p><h1>The dashboard and the office</h1><p class="lead">The panels, the world, the objects and the agent history.</p><p class="meta">Written for v1.2.8 &middot; updated 2026-11-04</p><h2 id="the-dashboard">The dashboard</h2>
+<p>The header is one row of pills: manager auto-approval, usage and plan limits, reports, and the switches menu. Below it is the office, with the Today panel, the Team panel and the detail pane over it.</p>
+<p><picture><source type="image/avif" srcset="../assets/img/01-dashboard-overview-640.avif 640w, ../assets/img/01-dashboard-overview.avif 1480w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/01-dashboard-overview-640.webp 640w, ../assets/img/01-dashboard-overview.webp 1480w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/01-dashboard-overview.png" width="1480" height="920" alt="The whole office with the eight specialists at work, the goal board on the left and the status bar on top" decoding="async" loading="lazy"></picture></p>
+<ul><li><strong>Click a character</strong> to open its detail pane: name, role, task, live log of recent events, the approval it is waiting for, and a box to send it a message.</li><li><strong>Click an empty desk</strong> to see who sits there and what they do.</li><li><strong>Team n/8</strong> shows how many specialists are hired. The hire cap is 8 working at once.</li><li>A banner appears when the server is unreachable (&quot;Connecting&quot;) and clears when it comes back.</li></ul>
+<h2 id="the-office">The office</h2>
+<p>The world is isometric with five zones: Tiro's glass office (top left), the focus area with eight desks, the garden and park (top right, with a gate), the playroom (bottom right) and a utility strip (bottom left). The garage and Scheduler station sit beside the playroom.</p>
+<p><picture><source type="image/avif" srcset="../assets/img/02-office-focus-zone-640.avif 640w, ../assets/img/02-office-focus-zone.avif 930w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/02-office-focus-zone-640.webp 640w, ../assets/img/02-office-focus-zone.webp 930w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/02-office-focus-zone.png" width="930" height="705" alt="The desk area: each specialist at their own desk with a name tag and status dot" decoding="async" loading="lazy"></picture></p>
+<p><picture><source type="image/avif" srcset="../assets/img/06-manager-office-tiro-640.avif 640w, ../assets/img/06-manager-office-tiro.avif 882w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/06-manager-office-tiro-640.webp 640w, ../assets/img/06-manager-office-tiro.webp 882w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/06-manager-office-tiro.png" width="882" height="615" alt="Tiro, the office manager, at the desk in the glass office" decoding="async" loading="lazy"></picture></p>
+<p><picture><source type="image/avif" srcset="../assets/img/03-garden-park-640.avif 640w, ../assets/img/03-garden-park.avif 840w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/03-garden-park-640.webp 640w, ../assets/img/03-garden-park.webp 840w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/03-garden-park.png" width="840" height="756" alt="The garden and park, with agents thinking on benches" decoding="async" loading="lazy"></picture></p>
+<p><picture><source type="image/avif" srcset="../assets/img/05-playroom-640.avif 640w, ../assets/img/05-playroom.avif 864w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/05-playroom-640.webp 640w, ../assets/img/05-playroom.webp 864w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/05-playroom.png" width="864" height="592" alt="The playroom with idle agents on the sofa and at the arcade" decoding="async" loading="lazy"></picture></p>
+<ul><li><strong>Working</strong> agents sit at their own desk. Thinking agents walk to the garden or park. When the board is empty, idle agents go to the playroom. A rate-limited agent waits at the water cooler. A finished goal sends its agent to Tiro's office to report, then back.</li><li><strong>Objects:</strong> Today board, Bookshelf (reports), Corkboard (memory), Filing cabinet (SOPs), Inbox tray, Breaker box, Server rack, Whiteboard (tokens and limits), Coffee machine (espresso: the next hire uses the fast model), Arcade, Jukebox, Server plant, and the Scheduler garage and mailbox.</li><li><strong>Breaker box switches:</strong> Tiro (manager) on/off, Autopilot, Hiring, Terminal approvals, the Subscription guard, and (desktop app only) the Notch, which stops at the 5-hour or weekly plan limit instead of spending extra-usage credits.</li><li><strong>Click outlines.</strong> Objects and people are picked by their drawn shape, not a rough box. Hover shows a gold outline that follows the silhouette; where pieces overlap, the smaller one wins. Characters are depth-sorted so none is hidden behind its own desk.</li></ul>
+<p><picture><source type="image/avif" srcset="../assets/img/15-click-outline-hover.avif 640w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/15-click-outline-hover.webp 640w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/15-click-outline-hover.png" width="640" height="460" alt="Hovering a desk draws a yellow outline that follows its shape" decoding="async" loading="lazy"></picture></p>
+<ul><li><strong>Camera.</strong> Mouse wheel zooms about the cursor (1x to 3x), drag pans when zoomed, keys <code>+</code>, <code>-</code> and <code>0</code> zoom and reset, and corner buttons do the same. Bottom-right controls: Team count, Labels (zone names), and Preview, which plays demo scenes (work, think, blocked, report, empty, tour) without touching real data.</li></ul>
+<h2 id="agent-history">Agent history</h2>
+<p>The <strong>Agent history</strong> button (bottom left) opens a three-pane browser: agents on the left, that agent's tasks (with search) in the middle, and the task summary on the right with the transcript path and the agent's folder paths. Every hire starts in a fresh context; the only thing carried over is that agent's own memory folder. Folders are under <code>~/.claude/agent-office/agents/tiro/&lt;type&gt;/{memory,history}</code>. Summaries are redacted for secrets. See <a href="agents-and-memory.html">Agents and memory</a>.</p>
+<p><picture><source type="image/avif" srcset="../assets/img/09-agent-history-overlay-640.avif 640w, ../assets/img/09-agent-history-overlay.avif 1480w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/09-agent-history-overlay-640.webp 640w, ../assets/img/09-agent-history-overlay.webp 1480w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/09-agent-history-overlay.png" width="1480" height="920" alt="Agent history: every agent with task counts and Forge's past tasks" decoding="async" loading="lazy"></picture></p>
+<p><picture><source type="image/avif" srcset="../assets/img/10-agent-history-task-detail-640.avif 640w, ../assets/img/10-agent-history-task-detail.avif 1480w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/10-agent-history-task-detail-640.webp 640w, ../assets/img/10-agent-history-task-detail.webp 1480w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/10-agent-history-task-detail.png" width="1480" height="920" alt="One past task opened: summary, transcript reference and the final report" decoding="async" loading="lazy"></picture></p><nav class="prev-next" aria-label="Previous and next page"><a class="prev" href="uninstall.html"><span>Previous</span>Uninstall</a><a class="next" href="approvals.html"><span>Next</span>Hiring and approvals</a></nav></main><nav class="page-toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#the-dashboard">The dashboard</a></li><li><a href="#the-office">The office</a></li><li><a href="#agent-history">Agent history</a></li></ul></nav></div>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
+<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../quickstart.html">Quickstart</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../releases.xml">Releases feed (Atom)</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="../docs/index.html">Documentation</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting</a></li><li><a href="../llms.txt">llms.txt</a></li></ul></div>
+<div><h2>Legal</h2><ul><li><a href="../index.html#licence">Licence: proprietary</a></li><li><a href="../privacy.html">Privacy</a></li><li><a href="../stats.html">Download statistics</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+<script src="../assets/common.js" defer></script>
+<script src="../assets/search.js" defer></script>
+</body>
+</html>

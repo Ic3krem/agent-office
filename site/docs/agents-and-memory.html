@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Agents and memory - Agent Office docs</title>
+<meta name="description" content="The team, the hiring gate and per-agent memory and history.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/atom+xml" title="Agent Office releases" href="../releases.xml">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="../quickstart.html">Quickstart</a>
+<a href="../docs/index.html" aria-current="page">Docs</a>
+<a href="../changelog.html">Changelog</a>
+<a href="../stats.html">Stats</a>
+<a href="../download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation">
+<div role="search" class="doc-search"><label for="doc-search">Search the docs</label><input id="doc-search" type="search" autocomplete="off" placeholder="Search"><p id="doc-search-status" class="meta" role="status" aria-live="polite"></p><ul id="doc-results"></ul></div>
+<nav aria-label="Docs sections"><ul class="top"><li><a href="index.html">Overview</a></li></ul><h2>Get started</h2><ul><li><a href="requirements.html">Requirements</a></li><li><a href="install.html">Install and verify</a></li><li><a href="first-task.html">First task with Tiro</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li></ul><h2>Using the office</h2><ul><li><a href="office.html">The dashboard and the office</a></li><li><a href="approvals.html">Hiring and approvals</a></li><li><a href="team.html">The team</a></li><li><a href="agents-and-memory.html" aria-current="page">Agents and memory</a></li><li><a href="goals-and-reports.html">Goals, reports and the vault</a></li><li><a href="island.html">The island, Tiro and the tray</a></li><li><a href="scheduler.html">Scheduler</a></li></ul><h2>Safety</h2><ul><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html">Security model</a></li><li><a href="security-guard.html">Security Guard</a></li><li><a href="breaker-box.html">Breaker box and subscription guard</a></li></ul><h2>Reference</h2><ul><li><a href="configuration.html">Configuration</a></li><li><a href="troubleshooting.html">Troubleshooting</a></li><li><a href="faq.html">FAQ</a></li><li><a href="api.html">API reference</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li></ul></nav>
+</aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Using the office / Agents and memory</p><h1>Agents and memory</h1><p class="lead">The team, the hiring gate and per-agent memory and history.</p><p class="meta">Written for v1.2.8 &middot; updated 2026-11-04</p><p>Everything here describes Agent Office 1.2.8. Source files are named so each claim can be checked.</p>
+<h2 id="the-team">The team</h2>
+<p>Tiro is the manager. It leads eight specialists, defined once in <code>ROSTER</code> in <code>company.mjs</code>: pixel, forge, warden, probe, atlas, cabalan, tally and scribe. The key (<code>pixel</code>, <code>forge</code>, ...) is the agent type. It is what Tiro passes as <code>subagent_type</code>, and it never changes.</p>
+<p>Old type names still work through <code>ALIASES</code>: researcher maps to cabalan, builder and ops to forge, writer to scribe, reviewer to probe.</p>
+<h3 id="one-person-per-specialist-and-helpers">One person per specialist, and helpers</h3>
+<p>Each specialist is one person with one desk. If the Agent tool ever starts a second agent of the same type, the earliest one is the specialist and the others are labelled &quot;&lt;Name&gt; helper&quot; (or &quot;&lt;Name&gt; helper 2&quot;, &quot;helper 3&quot;, and so on). They are never drawn as another full copy. The logic is <code>assignHelpers</code> in <code>company.mjs</code>. The default prompts also tell Tiro and the specialists not to spawn extra copies.</p>
+<p>At most 8 specialists work at once (<code>MAX_SPECIALISTS</code>).</p>
+<h3 id="renamable-names">Renamable names</h3>
+<p>You can give Tiro and each specialist a display name from the Team panel. Names are cosmetic: ids, folders and <code>subagent_type</code> do not change, so history stays with the agent after a rename.</p>
+<p>Rules (<code>cleanName</code>, <code>sanitizeNames</code> and <code>setAgentName</code> in <code>company.mjs</code>):</p>
+<ul><li>At most 20 characters. Control characters and <code>&lt; &gt; &amp; &quot; \</code><code> are removed, and HTML tags are stripped first, so </code>&lt;b&gt;Zed&lt;/b&gt;<code> becomes </code>Zed`.</li><li>A name cannot equal another agent's current name or another agent's default name. For example, Pixel cannot be renamed &quot;Forge&quot;, even while Forge is called &quot;Ember&quot;.</li><li>A blank name resets that agent to its default.</li><li>Overrides are stored under <code>agentNames</code> in <code>~/.claude/agent-office/kiro.json</code>. Stored names that break the rules are dropped when read, so two agents can never end up with the same name.</li></ul>
+<p>API (all <code>POST</code>, key required): <code>/api/names</code>, <code>/api/names/set</code> (<code>{key, name}</code>), <code>/api/names/reset</code> (<code>{key}</code> for one agent, or no key for all) and <code>/api/roster</code>.</p>
+<h2 id="the-hiring-gate">The hiring gate</h2>
+<p>Starting a specialist with the Agent tool needs your approval. The flow, in <code>server.mjs</code> and <code>company.mjs</code> (<code>hireGate</code>):</p>
+<ol><li>Tiro calls the <code>request_hire</code> tool with the specialist type, the goal id and a reason.</li><li>The request is refused without reaching you if hiring is switched off in the Breaker box, the goal is not an open goal (<code>todo</code> or <code>doing</code>), the reason is shorter than 25 characters, 8 specialists are already working, that specialist is already on the team and idle (Tiro is told to reuse it), or an identical request is already waiting.</li><li>Otherwise an approval card appears for you. Your answer goes through <code>POST /api/hire/decide</code> (<code>{id, approve, note}</code>).</li><li>An approval is one-shot. It lets Tiro start exactly one agent of that type, with exactly the first prompt shown on the card (<code>request_hire</code> carries the prompt and the grant is bound to its hash and the goal id), and it expires after 10 minutes if unused.</li><li>A hook on the Agent tool blocks any start that has no approval or a different prompt. It only denies or adjusts input; it never approves anything, so your own permission rules for the Agent tool still apply. A second, deny-only hook on Tiro's Bash and PowerShell calls refuses a command that launches <code>claude</code> or the Agent SDK, because that would start an agent without <code>request_hire</code>. This is a best-effort check, not a sandbox: a command can be written in ways it does not recognise.</li><li>All pending cards and unused approvals are cleared when Tiro's session ends, when you reset it (<code>/api/boss-reset</code>), when the manager is stopped or switched off, and when the hiring switch is turned off. A stale card cannot create an approval for a later session.</li></ol>
+<h2 id="per-agent-memory-and-history">Per-agent memory and history</h2>
+<p>Every agent type has its own folder. Tiro is the parent. The root is <code>~/.claude/agent-office/agents/tiro/</code>:</p>
+<pre tabindex="0"><code>agents/tiro/memory/          Tiro's own notes
+agents/tiro/history/         Tiro's index: every hire
+agents/tiro/&lt;key&gt;/memory/    that specialist's notes (MEMORY.md plus note files)
+agents/tiro/&lt;key&gt;/history/   index.jsonl plus one &lt;task&gt;.md summary per task</code></pre>
+<p>The code is <code>agent-home.mjs</code>. Folders are keyed by type, never by display name.</p>
+<ul><li><strong>Fresh context per task.</strong> Each hire starts with an empty context. The only thing that carries over is that agent's own <code>memory/</code> folder. Its instructions point at the folder, ask it to read <code>MEMORY.md</code> first and, when it is allowed to write files, to add a short note for durable facts before it finishes.</li><li><strong>Read-only specialists</strong> (warden, probe, atlas, cabalan) have no Write or Edit tool in their roster definition, so they cannot write notes; Agent Office files their final report into their <code>history/</code> for them. Whether any agent may run a given command or write a given file is decided by your Claude Code permissions, not by Agent Office.</li><li><strong>History</strong> is recorded by hooks. When a hire starts, a task entry is written with the goal id, description and brief. When the specialist stops, <code>&lt;task&gt;.md</code> holds its final report and its transcript path, and the index entry is closed. Tiro's history lists every hire. Transcripts stay where Claude Code wrote them, under <code>~/.claude/projects/</code>.</li><li><strong>No secrets in our files.</strong> Summaries and briefs (Agent Office's own history, memory, report and daily files; not Claude's transcripts) pass through one shared redaction step (passwords, tokens, API keys, bearer tokens and private key blocks become <code>[redacted]</code>). Agents are also told never to store secrets. Redaction is pattern based, so it is a safety net, not a guarantee.</li><li>Nothing is migrated or deleted automatically. Old vault notes and reports are untouched.</li></ul>
+<h3 id="agent-history-overlay-and-api">Agent history overlay and API</h3>
+<p>The <strong>Agent history</strong> button (bottom left of the dashboard, <code>public/agent-history.js</code>) opens a three-pane view: agents, tasks with search, and the summary with the transcript path and folder paths.</p>
+<p>API (all <code>POST</code>, key required): <code>/api/agents/overview</code>, <code>/api/agents/tasks</code> (<code>{key, q?}</code>) and <code>/api/agents/task</code> (<code>{key, id}</code>).</p><nav class="prev-next" aria-label="Previous and next page"><a class="prev" href="team.html"><span>Previous</span>The team</a><a class="next" href="goals-and-reports.html"><span>Next</span>Goals, reports and the vault</a></nav></main><nav class="page-toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#the-team">The team</a></li><li><a href="#the-hiring-gate">The hiring gate</a></li><li><a href="#per-agent-memory-and-history">Per-agent memory and history</a></li></ul></nav></div>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
+<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../quickstart.html">Quickstart</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../releases.xml">Releases feed (Atom)</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="../docs/index.html">Documentation</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting</a></li><li><a href="../llms.txt">llms.txt</a></li></ul></div>
+<div><h2>Legal</h2><ul><li><a href="../index.html#licence">Licence: proprietary</a></li><li><a href="../privacy.html">Privacy</a></li><li><a href="../stats.html">Download statistics</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+<script src="../assets/common.js" defer></script>
+<script src="../assets/search.js" defer></script>
+</body>
+</html>

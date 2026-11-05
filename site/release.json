@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.2.8",
+  "asset": "Agent-Office-Setup-1.2.8.exe",
+  "url": "https://github.com/Ic3krem/agent-office/releases/download/v1.2.8/Agent-Office-Setup-1.2.8.exe",
+  "sha256": "d101594d116e0e7e133aa03a84d0faa3cbc9111c9a03fde41a297febf3f5eb7b",
+  "size": 111158533,
+  "date": "2026-11-04",
+  "notes": "Licence, privacy and Security Guard release. Windows installer, not code-signed.",
+  "releaseUrl": "https://github.com/Ic3krem/agent-office/releases/tag/v1.2.8",
+  "platforms": { "windows": "available", "macos": "coming-soon", "linux": "coming-soon" },
+  "previous": []
+}

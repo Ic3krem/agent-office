@@ -1,0 +1,24 @@
+{
+  "baseUrl": "https://ic3krem.github.io/agent-office/",
+  "repo": "https://github.com/Ic3krem/agent-office",
+  "analytics": {
+    "provider": "none",
+    "cloudflare": {
+      "token": ""
+    },
+    "goatcounter": {
+      "code": ""
+    }
+  },
+  "privacy": {
+    "controller": "Ic3krem, the owner of the Agent Office repository",
+    "contact": "Open an issue or a private security advisory on the repository",
+    "retention": "No personal data is stored by this site. Aggregate counters are kept as long as the statistics page exists."
+  },
+  "edge": {
+    "_comment": "Early-access worker (site/edge) is kept but NOT wired into the pages; the cap is dropped.",
+    "origin": "",
+    "closed": false,
+    "cap": 500
+  }
+}

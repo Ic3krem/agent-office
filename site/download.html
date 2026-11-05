@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Download - Agent Office</title>
+<meta name="description" content="Download the Agent Office Windows installer, check its SHA-256 and follow the install steps.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/atom+xml" title="Agent Office releases" href="releases.xml">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="quickstart.html">Quickstart</a>
+<a href="docs/index.html">Docs</a>
+<a href="changelog.html">Changelog</a>
+<a href="stats.html">Stats</a>
+<a href="download.html" aria-current="page" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap download">
+<h1>Download Agent Office</h1>
+<p class="lead">The Windows installer. macOS and Linux builds are not published yet.</p>
+
+<div class="dl-card">
+<p><span class="badge">Latest</span> <span class="meta">v<span data-fill="version">1.2.8</span> &middot; <span data-fill="date">2026-11-04</span></span></p>
+<div class="cta-row"><a id="dl-button" class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v1.2.8/Agent-Office-Setup-1.2.8.exe" data-dl-link download="Agent-Office-Setup-1.2.8.exe"><span id="dl-label">Download for Windows</span></a><div class="mascot mascot-work" role="img" aria-label="Tiro with a headset, working"></div></div>
+<p id="os-note" class="notice compact" hidden></p>
+<p><button type="button" class="btn-small" id="copy-page" hidden>Copy this page's link</button></p>
+<p id="dl-status" class="status" role="status" aria-live="polite"></p>
+<dl class="dl-meta">
+<dt>File</dt><dd><code data-fill="asset">Agent-Office-Setup-1.2.8.exe</code></dd>
+<dt>Size</dt><dd data-fill="size">106.0 MB</dd>
+<dt>Requires</dt><dd>Windows 10 or later, and Claude Code installed and logged in</dd>
+<dt>SHA-256</dt><dd><div class="hash-row"><div class="hash" id="dl-sha" tabindex="0" data-fill="sha">d101594d116e0e7e133aa03a84d0faa3cbc9111c9a03fde41a297febf3f5eb7b</div><button type="button" class="btn-small" data-copy-sha>Copy</button></div></dd>
+</dl>
+<p class="meta" data-fill="notes">Licence, privacy and Security Guard release. Windows installer, not code-signed.</p>
+<p class="meta"><a data-release-link href="https://github.com/Ic3krem/agent-office/releases/tag/v1.2.8">Release page on GitHub</a> &middot; <a href="changelog.html">Changelog</a></p>
+</div>
+
+<details id="dl-previous" class="faq-like" hidden><summary>Previous versions</summary><ul></ul></details>
+
+<h2 id="verify">Verify the download</h2>
+<p>Open PowerShell in the folder where you saved the installer and run:</p>
+<pre tabindex="0"><code data-fill="verify">Get-FileHash .\Agent-Office-Setup-1.2.8.exe -Algorithm SHA256</code></pre>
+<p>The result must equal the SHA-256 above, letter for letter. If it does not, delete the file and do not run it.</p>
+
+<h2 id="smartscreen">Windows warnings</h2>
+<p>The installer is <strong>not code-signed</strong>, so Windows may warn you. That is expected for an unsigned build. Check the SHA-256 first.</p>
+<div class="notice"><p><strong>SmartScreen.</strong> You may see "Windows protected your PC". If the SHA-256 matches, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p></div>
+<div class="notice"><p><strong>Windows 11 Smart App Control.</strong> If Smart App Control is on, Windows may block an unsigned installer with no Run anyway option. You can look at the setting in Windows Security under App and browser control, Smart App Control settings. Turning it off can be permanent on some Windows 11 versions, so decide deliberately. If you cannot accept that, do not install the unsigned build. See also <a href="docs/troubleshooting.html">Troubleshooting</a>.</p></div>
+
+<h2 id="install-steps">Install steps</h2>
+<ol class="dl-steps">
+<li>Install <a href="https://claude.com/claude-code" rel="noopener noreferrer">Claude Code</a> and run <code>claude</code> once to log in. Agent Office uses your own install and plan.</li>
+<li>Download the installer with the button above.</li>
+<li>Verify its SHA-256 as shown above.</li>
+<li>Run the installer. It is a normal setup wizard where you pick the folder, and it adds a Start menu entry and a desktop shortcut.</li>
+<li>Open Agent Office from the shortcut. Double-click Tiro, or use the tray menu and choose Open office. Then follow the <a href="quickstart.html">quickstart</a>.</li>
+</ol>
+
+<h2 id="platforms">Other platforms</h2>
+<div class="grid">
+<div class="card muted"><h3>macOS</h3><p>Coming soon. No build is published yet.</p></div>
+<div class="card muted"><h3>Linux</h3><p>Coming soon. No build is published yet.</p></div>
+</div>
+<p>To hear about new releases, subscribe to the <a href="releases.xml">releases feed (Atom)</a> or use Watch, then Releases, on the GitHub repository.</p>
+<p>The updater and the install scripts verify an Ed25519 signature on the release manifest as well as the installer's SHA-256. See <a href="docs/install.html">Install and verify</a>, <a href="docs/update.html">Update</a> and <a href="docs/uninstall.html">Uninstall</a>.</p>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
+<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="quickstart.html">Quickstart</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="releases.xml">Releases feed (Atom)</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="docs/index.html">Documentation</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
+<div><h2>Legal</h2><ul><li><a href="index.html#licence">Licence: proprietary</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="stats.html">Download statistics</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+<script src="assets/common.js" defer></script>
+<script src="assets/release.js" defer></script>
+</body>
+</html>

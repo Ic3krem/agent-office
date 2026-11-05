@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16110e">
+<title>Agent Office - a pixel office for your Claude Code agents</title>
+<meta name="description" content="Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows installer.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/atom+xml" title="Agent Office releases" href="releases.xml">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<nav class="site-nav" aria-label="Main">
+<a href="quickstart.html">Quickstart</a>
+<a href="docs/index.html">Docs</a>
+<a href="changelog.html">Changelog</a>
+<a href="stats.html">Stats</a>
+<a href="download.html" class="nav-cta">Download</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<section class="hero">
+<div class="wrap hero-grid">
+<div>
+<p class="eyebrow">Windows app for Claude Code users</p>
+<h1>A pixel office for your own Claude Code agents.</h1>
+<p class="lead">Tiro, a little orange cube-crab, is the office manager. Give Tiro a task. It plans the work, asks you before it hires a specialist and files reports into plain Markdown notes. The office itself spends no tokens.</p>
+<div class="cta-row"><a id="dl-button" class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v1.2.8/Agent-Office-Setup-1.2.8.exe" data-dl-link download="Agent-Office-Setup-1.2.8.exe"><span id="dl-label">Download for Windows</span></a><div class="mascot mascot-work" role="img" aria-label="Tiro with a headset, working"></div></div>
+<p class="meta dl-line">v<span data-fill="version">1.2.8</span> &middot; <span data-fill="size">106.0 MB</span> &middot; Windows 10/11</p>
+<p class="meta">SHA-256 <code data-fill="sha-short">d101594d…f3f5eb7b</code> &middot; <a href="download.html#verify">Verify</a> &middot; <a href="download.html#smartscreen">Windows warning?</a></p>
+<p id="os-note" class="notice compact" hidden></p>
+<div class="btn-row"><a class="btn secondary" href="docs/index.html">Read the docs</a><a class="btn secondary" href="quickstart.html">Quickstart</a></div>
+<p class="meta">macOS and Linux: coming, not published yet.</p>
+</div>
+<div class="hero-shot"><picture><source type="image/avif" srcset="assets/img/hero-640.avif 640w, assets/img/hero.avif 1480w" sizes="(min-width: 900px) 54vw, 100vw"><source type="image/webp" srcset="assets/img/hero-640.webp 640w, assets/img/hero.webp 1480w" sizes="(min-width: 900px) 54vw, 100vw"><img src="assets/img/hero.png" width="1480" height="920" alt="The Agent Office dashboard: eight specialists at their desks in an isometric office, a hire approval card on the goal board and the status bar on top" decoding="async" fetchpriority="high"></picture></div>
+</div>
+</section>
+
+<section class="trust" aria-label="Trust">
+<div class="wrap">
+<ul class="trust-list"><li>No tokens for the office itself</li><li>You approve every hire</li><li>Local only: 127.0.0.1</li><li>Signed updates</li><li>No cookies, no trackers</li></ul>
+<p class="meta"><span data-stats>Public download statistics start after the first real snapshot.</span> <a href="stats.html">Statistics</a></p>
+</div>
+</section>
+
+<section class="block" id="how">
+<div class="wrap">
+<div class="section-head"><h2>How it works</h2><p>You stay in charge of every step that matters.</p></div>
+<ol class="steps">
+<li><strong>Give Tiro a task</strong>Type it in the dispatch box. It lands on today's board as a goal.</li>
+<li><strong>Approve the hire</strong>Tiro asks for the specialist it needs. One approval buys exactly one hire.</li>
+<li><strong>Agents work, you watch</strong>Prompts that Claude Code would show you appear in the dashboard and the island.</li>
+<li><strong>Read the report</strong>Findings are filed as reports, and each agent keeps notes for the next task.</li>
+</ol>
+</div>
+</section>
+
+<section class="block" id="features">
+<div class="wrap">
+<div class="section-head"><h2>A tour of the office</h2><p>Everything runs locally on top of the Claude Code you already have. Your settings, permissions, hooks and MCP servers apply unchanged.</p></div>
+<div class="panel"><div class="panel-text"><h3>You approve every hire</h3><p>Tiro cannot hire on its own. A card shows the goal and the reason. One approval buys exactly one hire, tied to the first prompt, and expires after 10 minutes.</p><p><a href="docs/approvals.html">How approvals work</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/08-hire-approval-card-640.avif 640w, assets/img/08-hire-approval-card.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/08-hire-approval-card-640.webp 640w, assets/img/08-hire-approval-card.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/08-hire-approval-card.png" width="1480" height="920" alt="Tiro asking to hire Warden, with the goal, the reason and Approve hire and Deny buttons" decoding="async" loading="lazy"></picture></div></div>
+<div class="panel flip"><div class="panel-text"><h3>The dynamic island</h3><p>A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics and themes. Answer a prompt with Y or N without leaving your work.</p><p><a href="docs/island.html">The island and tray</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/13-island-chat.avif 640w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/13-island-chat.webp 640w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/13-island-chat.png" width="640" height="560" alt="The island chat box and quick actions" decoding="async" loading="lazy"></picture></div></div>
+<div class="panel"><div class="panel-text"><h3>Reports and a Markdown vault</h3><p>Findings are filed as color-coded reports with PDF and Excel export. Notes, memory and SOPs are plain Markdown in your own vault.</p><p><a href="docs/goals-and-reports.html">Goals, reports and the vault</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/16-reports-panel-640.avif 640w, assets/img/16-reports-panel.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/16-reports-panel-640.webp 640w, assets/img/16-reports-panel.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/16-reports-panel.png" width="1480" height="920" alt="The Reports bookshelf with a daily summary and demo reports" decoding="async" loading="lazy"></picture></div></div>
+<div class="panel flip"><div class="panel-text"><h3>Memory and history per agent</h3><p>Every task starts in a fresh context. Each agent keeps its own notes, and the Agent history overlay lets you browse past tasks and summaries.</p><p><a href="docs/agents-and-memory.html">Agents and memory</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/09-agent-history-overlay-640.avif 640w, assets/img/09-agent-history-overlay.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/09-agent-history-overlay-640.webp 640w, assets/img/09-agent-history-overlay.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/09-agent-history-overlay.png" width="1480" height="920" alt="Agent history: every agent with task counts and past tasks" decoding="async" loading="lazy"></picture></div></div>
+<div class="panel"><div class="panel-text"><h3>Breaker box and Security Guard</h3><p>Hard switches for Tiro, autopilot, hiring and terminal approvals, plus a subscription guard that stops at your plan limit instead of spending extra-usage credits. The ask-only Security Guard asks before secrets leave your computer or a downloaded script runs.</p><p><a href="docs/breaker-box.html">Breaker box</a> &middot; <a href="docs/security-guard.html">Security Guard</a></p></div><div class="panel-shot"><div class="card"><h3>What the Guard asks about</h3><ul><li>Secrets leaving this computer</li><li>Downloaded scripts and persistence</li><li>Credential stores</li><li>Untrusted instructions in web or mail text</li></ul></div></div></div>
+</div>
+</section>
+
+<section class="block" id="team">
+<div class="wrap">
+<div class="section-head"><h2>Meet Tiro and the team</h2><p>Tiro leads a fixed team of eight specialists, at most eight working at once. Tiro runs on Sonnet at medium effort and picks Haiku, Sonnet or Opus for each hire. Its mood follows the work.</p></div>
+<div class="moods"><picture><source type="image/avif" srcset="assets/img/tiro-moods-640.avif 640w, assets/img/tiro-moods.avif 1000w" sizes="(min-width: 1120px) 1080px, 100vw"><source type="image/webp" srcset="assets/img/tiro-moods-640.webp 640w, assets/img/tiro-moods.webp 1000w" sizes="(min-width: 1120px) 1080px, 100vw"><img src="assets/img/tiro-moods.png" width="1000" height="500" alt="Tiro in eight moods: idle, all goals done, agents working, building, planning, needs your approval, goal done and paused at plan limit" decoding="async" loading="lazy"></picture></div>
+<div class="grid team-grid"><div class="card team-card"><h3>Pixel</h3><p>Frontend engineer</p><p class="model">sonnet</p><p class="tools">read, web, Bash, Edit, Write</p></div><div class="card team-card"><h3>Forge</h3><p>Backend engineer</p><p class="model">sonnet</p><p class="tools">read, web, Bash, Edit, Write</p></div><div class="card team-card"><h3>Warden</h3><p>Security reviewer</p><p class="model">opus</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Probe</h3><p>QA and test engineer</p><p class="model">sonnet</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Atlas</h3><p>Deep researcher</p><p class="model">opus</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Cabalan</h3><p>Researcher</p><p class="model">haiku</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Tally</h3><p>Task checker and organizer</p><p class="model">haiku</p><p class="tools">Read, Grep, Glob, Edit, Write</p></div><div class="card team-card"><h3>Scribe</h3><p>SOP and document writer</p><p class="model">sonnet</p><p class="tools">read, web, Edit, Write</p></div></div>
+</div>
+</section>
+
+<section class="block" id="security">
+<div class="wrap">
+<div class="section-head"><h2>Security model</h2><p>Built so that an agent working for you cannot approve its own requests. <a href="docs/security.html">Read the full model</a> or the <a href="docs/permissions.html">permissions page</a>.</p></div>
+<div class="grid"><div class="card"><h3>Local only</h3><p>The server binds 127.0.0.1 and rejects any other Host header. The UI key stays in the app process and an HttpOnly cookie, so an agent cannot approve its own requests.</p></div><div class="card"><h3>Strict CSP</h3><p>Pages load scripts, styles and fonts only from the app itself. React, Babel and the fonts are vendored, so nothing loads from a CDN.</p></div><div class="card"><h3>Hardened windows</h3><p>Context isolation and sandbox on, no Node integration, navigation locked to the local server, webviews blocked.</p></div><div class="card"><h3>Verified updates</h3><p>The updater accepts only a release manifest with a valid Ed25519 signature from the key pinned in the app, and checks the installer SHA-256 twice before it runs.</p></div><div class="card"><h3>Approvals stay yours</h3><p>Tool permissions are Claude Code's own. What would ask you still asks you. Nothing is auto-approved or timed out into an answer.</p></div><div class="card"><h3>Security Guard</h3><p>An ask-only layer that watches for secrets leaving the machine, unwanted scripts and persistence, credential stores and untrusted instructions. A safety net, not a boundary. <a href="docs/security-guard.html">How it works</a>.</p></div></div>
+</div>
+</section>
+
+<section class="block" id="faq">
+<div class="wrap">
+<div class="section-head"><h2>FAQ</h2></div>
+<div class="faq"><details><summary>Does the office cost tokens?</summary><div><p>No. Only agents that are working cost tokens, and only on your Claude Code plan.</p></div></details><details><summary>Which systems does it run on?</summary><div><p>Windows 10 or later today. macOS and Linux builds are not published yet.</p></div></details><details><summary>Do I need Claude Code?</summary><div><p>Yes. Install Claude Code and log in once by running claude. Agent Office uses your own install and plan.</p></div></details><details><summary>Can an agent hire without asking me?</summary><div><p>No. Every hire needs your one-shot approval, which expires after 10 minutes and is cleared when Tiro's session ends or resets.</p></div></details><details><summary>Why does Windows warn me when I install it?</summary><div><p>The builds are not code-signed. SmartScreen may show a warning, and Windows 11 Smart App Control can block unsigned installers. Compare the installer's SHA-256 first. See the <a href="download.html#smartscreen">download page</a>.</p></div></details><details><summary>Where is my data?</summary><div><p>On your machine: ~/.claude/agent-office, your vault and Claude Code's own ~/.claude/projects. Model calls go to Anthropic through Claude Code, as in the terminal.</p></div></details><details><summary>Does it read my email?</summary><div><p>No. The scheduler reads a local feed file that you must produce yourself.</p></div></details><details><summary>Does this site track me?</summary><div><p>No cookies and no consent banner. See the <a href="privacy.html">privacy page</a>.</p></div></details></div>
+<p>More answers are on the <a href="docs/troubleshooting.html">troubleshooting page</a> and the <a href="docs/faq.html">FAQ</a>.</p>
+</div>
+</section>
+
+<section class="block closing" id="get">
+<div class="wrap">
+<h2>Put Tiro to work</h2>
+<p class="lead">Windows 10 or later and Claude Code, logged in. Takes a few minutes.</p>
+<div class="btn-row"><a class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v1.2.8/Agent-Office-Setup-1.2.8.exe" data-dl-link download="Agent-Office-Setup-1.2.8.exe"><span>Download for Windows</span></a><a class="btn secondary" href="quickstart.html">Quickstart</a></div>
+</div>
+</section>
+
+<section class="block" id="licence">
+<div class="wrap">
+<div class="section-head"><h2>Licence</h2></div>
+<p>Agent Office is proprietary software. All rights reserved. Nobody else may use, copy, modify, publish or distribute it unless the owner gives permission in writing. The installer shows the licence text before installing. The text is a plain-English draft that has not yet been reviewed by a lawyer. Earlier versions published under the MIT licence (1.1.0 to 1.1.4 and 1.2.5) stay available under the terms they were released with. Third-party components keep their own licences, listed in the notices that ship with the installer.</p>
+<p>Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan.</p>
+</div>
+</section>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<div class="cols">
+<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
+<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="quickstart.html">Quickstart</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="releases.xml">Releases feed (Atom)</a></li></ul></div>
+<div><h2>Learn</h2><ul><li><a href="docs/index.html">Documentation</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
+<div><h2>Legal</h2><ul><li><a href="index.html#licence">Licence: proprietary</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="stats.html">Download statistics</a></li></ul></div>
+</div>
+<small>Proprietary software, all rights reserved. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+</div>
+</footer>
+<script src="assets/common.js" defer></script>
+<script src="assets/release.js" defer></script>
+</body>
+</html>
