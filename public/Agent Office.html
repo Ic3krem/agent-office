@@ -221,6 +221,30 @@ button:disabled{opacity:.45;cursor:default}
                 <button class="wbtn" onClick="{{ m.onVisit }}" title="Look around their office (view only)">Visit</button>
               </div>
             </sc-for>
+            <div style="border-top:1px solid #2a211b; padding-top:6px; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;"><span style="color:#ffdca0; font-family:'Pixelify Sans',sans-serif; font-size:13px; margin-right:4px;">Games</span>
+                <button class="wbtn" onClick="{{ g.onRace }}" title="Everyone types the same sentence; the server times it">Typing race</button>
+                <button class="wbtn" onClick="{{ g.onQuizGeneral }}">Trivia</button><button class="wbtn" onClick="{{ g.onQuizTech }}">Tech</button><button class="wbtn" onClick="{{ g.onQuizPinoy }}">Pinoy</button>
+              </div>
+              <sc-if value="{{ g.hasRace }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:8px; border-radius:7px; background:#120e0c; border:1px solid #8a5a1c; display:flex; flex-direction:column; gap:6px;">
+                  <div style="color:#ffcf6b;">{{ g.raceHead }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; line-height:1.5; color:#f0e4d4; user-select:none;">{{ g.raceText }}</div>
+                  <sc-if value="{{ g.raceTyping }}" hint-placeholder-val="{{ false }}"><input value="{{ g.typed }}" onChange="{{ g.onTyped }}" onKeyDown="{{ g.onTypedKey }}" onPaste="{{ g.noPaste }}" maxlength="200" placeholder="Type it exactly, then press Enter" aria-label="Typing race" class="pin" style="border-color:{{ g.typedBorder }};"></input></sc-if>
+                  <sc-for list="{{ g.raceRows }}" as="r" hint-placeholder-count="2"><div style="display:flex; gap:6px;"><span style="width:18px; color:#7d7064;">{{ r.rank }}</span><span style="flex:1;">{{ r.name }}</span><span style="color:#5fd38d;">{{ r.wpm }} wpm</span><span style="color:#7d7064;">{{ r.secs }}s</span></div></sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ g.hasQuiz }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:8px; border-radius:7px; background:#120e0c; border:1px solid #3a8ae0; display:flex; flex-direction:column; gap:6px;">
+                  <div style="color:#8fd3ff;">{{ g.quizHead }}</div>
+                  <sc-if value="{{ g.hasQuestion }}" hint-placeholder-val="{{ false }}"><div style="color:#f0e4d4; font-size:13px; line-height:1.4;">{{ g.question }}</div></sc-if>
+                  <sc-for list="{{ g.options }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.on }}" style="text-align:left; padding:6px 8px; border-radius:6px; border:1px solid {{ o.border }}; background:{{ o.bg }}; color:#f0e4d4; font:inherit; font-size:12px; cursor:pointer;">{{ o.label }}</button></sc-for>
+                  <sc-for list="{{ g.quizRows }}" as="r" hint-placeholder-count="2"><div style="display:flex; gap:6px;"><span style="width:18px; color:#7d7064;">{{ r.rank }}</span><span style="flex:1;">{{ r.name }}</span><span style="color:#8fd3ff;">{{ r.points }}</span></div></sc-for>
+                </div>
+              </sc-if>
+              <div style="color:#a8998a;">Leaderboard · tasks done</div>
+              <sc-for list="{{ g.board }}" as="r" hint-placeholder-count="2"><div style="display:flex; gap:6px;"><span style="width:18px; color:#7d7064;">{{ r.rank }}</span><span style="flex:1; color:{{ r.col }};">{{ r.name }}</span><span>{{ r.done }} done</span><span style="color:#7d7064;">{{ r.reports }} reports</span></div></sc-for>
+            </div>
             <div style="border-top:1px solid #2a211b; padding-top:6px; display:flex; flex-direction:column; gap:3px; max-height:180px; overflow-y:auto;">
               <sc-for list="{{ partyChat }}" as="l" hint-placeholder-count="2"><div><span style="color:{{ l.col }};">{{ l.name }}:</span> {{ l.text }}</div></sc-for>
             </div>
@@ -563,6 +587,7 @@ class Component extends DCLogic {
   state={catGroup:'furniture',off:{x:0,y:0},nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null,menu:null,follow:lsGet('ao.follow','1')!=='0'};
   wrapRef=React.createRef(); termRef=React.createRef(); canvasRef=React.createRef();
   componentDidMount(){
+    this.gameTimer=setInterval(()=>{const G=this.state.party&&this.state.party.game;if(this.state.partyOpen&&G&&(G.race||G.quiz))this.setState({gameTick:Date.now()});},250);
     this.avTimer=setInterval(()=>{const P=this.state.party;if(!P||!P.connected||!window.OfficeWorld)return;const c=OfficeWorld.ceo(),v=this.state.visit,k=[Math.round(c.x),Math.round(c.y),v?v.id:''].join(',');if(k===this.avKey)return;this.avKey=k;api('/api/party/avatar',{x:c.x,y:c.y,room:v?'office:'+v.id:'home'}).catch(()=>{this.avKey='';});},1000);
     const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect(),i=this.insets();const sc=Math.min((r.width-i.l)/1480,(r.height-40-i.t-i.b)/920);this.fitSc=sc;this.vp={w:r.width-i.l,h:r.height-i.t-i.b};this.off={x:i.l/2,y:(i.t-i.b)/2};this.setView(this.state.view,sc);this.setState({scale:sc,off:this.off});};
     this.fit=fit;
@@ -604,7 +629,7 @@ class Component extends DCLogic {
     this.onHash=()=>{const h=location.hash.slice(1);if(!h)return;history.replaceState(null,'',location.pathname+location.search);if(h==='usage')this.setState({usageOpen:true});else if(h==='reports')this.openReports();else if(h==='today')this.setState({todayOpen:true});};
     window.addEventListener('hashchange',this.onHash);this.onHash();
   }
-  componentWillUnmount(){clearInterval(this.avTimer);this.camOff&&this.camOff();this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
+  componentWillUnmount(){clearInterval(this.avTimer);clearInterval(this.gameTimer);this.camOff&&this.camOff();this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
   componentDidUpdate(){if(this.state.menu!==this._menuShown){this._menuShown=this.state.menu;const b=this.state.menu&&document.querySelector('[role=menu] [role=menuitem], [data-card] .cta');b&&b.focus({preventScroll:true});}if(this.state.ask&&this.state.ask!==this._askShown){this._askShown=this.state.ask;const d=document.querySelector('[role=dialog]'),b=d&&(d.querySelector('button.cta')||(d.querySelector('button.danger')&&[...d.querySelectorAll('button')].find(x=>x.textContent.trim()==='Cancel'))||d.querySelector('button'));b&&b.focus();}if(this.state.selectedId!==this._selSent){this._selSent=this.state.selectedId;api('/api/select',{id:this.state.selectedId||null}).catch(()=>{});}this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
   // Camera: wheel zooms about the cursor, drag pans, keys + - 0, buttons in the corner. Pure maths lives in OfficeMotion.
   setView(v,sc){const M=window.OfficeMotion,vp=this.vp||{w:1280,h:800},f=sc||this.fitSc||1;const c=M.clampView(v,vp.w,vp.h,f,1480,920);this.view=c;this.setState({view:c});window.OfficeWorld&&OfficeWorld.setScale(f*c.z);}
@@ -873,12 +898,25 @@ class Component extends DCLogic {
       partyEmpty:on&&!(P.members||[]).length,partyChat:(P.chat||[]).map(l=>({name:l.mine?'You':l.name,text:l.text,col:l.mine?'#ffcf6b':'#8fd3ff'})),
       chatDraft:s.chatDraft||'',onChatDraft:e=>this.setState({chatDraft:e.target.value}),onChatKey:e=>{if(e.key==='Enter')this.sendChat();},sendChat:()=>this.sendChat(),
       partyLeave:()=>{this.goHome();api('/api/party/leave').then(j=>this.setState({party:j.party})).catch(e=>this.showToast(e.message));},
-      visiting:!!s.visit,visitName:s.visit?s.visit.name:'',goHome:()=>this.goHome()};}
+      visiting:!!s.visit,visitName:s.visit?s.visit.name:'',goHome:()=>this.goHome(),g:this.gamesView(s,P)};}
   // Who of the party is standing in the office on screen: the friend we visit (in their own office) and anyone in the same room.
   syncGuests(P=this.state.party,v=this.state.visit){const W=window.OfficeWorld;if(!W||!W.setGuests)return;
     if(!P||!P.connected){W.setGuests([]);return;}
     const here=v?'office:'+v.id:'office:'+(P.you&&P.you.id);
     W.setGuests((P.members||[]).filter(m=>m.avatar&&(m.avatar.room===here||(v&&m.id===v.id&&m.avatar.room==='home'))).map(m=>({id:m.id,name:m.name,x:m.avatar.x,y:m.avatar.y,presence:m.presence})));}
+  // Mini-games (phase 8): the party server times the race and holds the trivia answers; this only shows and sends.
+  gamesView(s,P){const G=(P&&P.game)||{},R=G.race,Q=G.quiz,now=Date.now(),act=(a,b)=>api('/api/party/game',{action:a,...(b||{})}).then(j=>{if(!j.ok&&j.error)this.showToast(j.error);return j;}).catch(e=>this.showToast(e.message));
+    const typed=s.typed||'',rank=(l,f)=>l.map((r,i)=>({rank:i+1,...f(r)}));
+    const lb=[{name:'You',done:(this.live&&this.live.tasksDone)||0,reports:(this.live&&this.live.doneReports)||0,col:'#ffcf6b'},...((P&&P.members)||[]).map(m=>({name:m.name,done:(m.stats&&m.stats.done)||0,reports:(m.stats&&m.stats.reports)||0,col:'#f0e4d4'}))].sort((a,b)=>b.done-a.done||b.reports-a.reports);
+    const q=Q&&Q.q,submit=()=>{if(!R)return;act('type',{id:R.id,typed}).then(j=>{if(j&&j.ok)this.setState({typed:''});});};
+    return {onRace:()=>act('race'),onQuizGeneral:()=>act('quiz',{pack:'general'}),onQuizTech:()=>act('quiz',{pack:'tech'}),onQuizPinoy:()=>act('quiz',{pack:'pinoy'}),
+      hasRace:!!R,raceText:R?R.text:'',raceHead:!R?'':R.over?'Race over':R.mine!=null?'Finished: '+R.mine+' wpm':now<R.startsAt?'Get ready… '+Math.ceil((R.startsAt-now)/1000):'Go! Type the sentence',
+      raceTyping:!!R&&!R.over&&R.mine==null&&now>=R.startsAt,typed,onTyped:e=>this.setState({typed:e.target.value}),onTypedKey:e=>{if(e.key==='Enter')submit();},noPaste:e=>e.preventDefault(),
+      typedBorder:R&&typed&&!R.text.startsWith(typed)?'#ff7a6b':'#3a2e25',raceRows:rank(R?R.results:[],r=>({name:r.name,wpm:r.wpm,secs:(r.ms/1000).toFixed(1)})),
+      hasQuiz:!!Q,quizHead:!Q?'':Q.over?'Trivia over: final scores':q?'Question '+q.n+' of '+q.of+(q.correct!=null?' · answer shown':' · '+Math.max(0,Math.ceil((q.ends-now)/1000))+'s'):'Trivia ('+Q.pack+') starting…',
+      hasQuestion:!!q,question:q?q.text:'',
+      options:q?q.a.map((t,i)=>({label:String.fromCharCode(65+i)+'. '+t,border:q.correct===i?'#5fd38d':q.mine===i?'#ffcf6b':'#3a2e25',bg:q.correct===i?'#173322':'#0e0b09',on:()=>{if(q.mine==null&&q.correct==null)act('answer',{id:Q.id,n:q.n,choice:i});}})):[],
+      quizRows:rank(Q?Q.scores:[],r=>({name:r.name,points:r.points})),board:rank(lb,r=>r)};}
   partyJoin(){const f=this.state.pf||{};this.setState({partyBusy:true,partyErr:''});api('/api/party/join',{url:f.url,code:f.code,name:f.name}).then(j=>this.setState({party:j.party,partyBusy:false})).catch(e=>this.setState({partyBusy:false,partyErr:e.message}));}
   sendChat(){const t=(this.state.chatDraft||'').trim();if(!t)return;api('/api/party/chat',{text:t}).then(()=>this.setState({chatDraft:''})).catch(e=>this.showToast(e.message));}
   // A friend's office: their layout (checked by WorldModel.validate, else the default office), their looks, and their

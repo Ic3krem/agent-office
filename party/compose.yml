@@ -15,6 +15,9 @@ services:
       PARTY_TUNNEL_METRICS: http://cloudflared:2000
     ports:
       - "${PARTY_PORT:-4880}:4880"
+    mem_limit: 256m
+    pids_limit: 64
+    cpus: 1.0
     restart: unless-stopped
   cloudflared:
     image: cloudflare/cloudflared:2026.10.7

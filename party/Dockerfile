@@ -1,7 +1,7 @@
 # Agent Office party server: zero dependencies, runs as the unprivileged node user, nothing written to disk.
 FROM node:24-alpine
 WORKDIR /party
-COPY protocol.mjs server.mjs ./
+COPY protocol.mjs games.mjs server.mjs ./
 USER node
 ENV PARTY_PORT=4880
 EXPOSE 4880

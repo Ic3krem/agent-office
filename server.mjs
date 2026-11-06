@@ -750,10 +750,11 @@ async function handle(req, res) {
       case '/api/names/set': { try { nameBox.set(String(b.key), b.name); } catch (e) { return json(res, 400, { error: e.message }); } bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }
       case '/api/party/join': { try { await partyClient.join(b.url, b.code, b.name); } catch (e) { return json(res, 400, { error: String(e.message || e).slice(0, 160) }); } return json(res, 200, { party: partyClient.view() }); }
       case '/api/party/leave': { await partyClient.leave(); partyAvatar = null; return json(res, 200, { party: partyClient.view() }); }
+      case '/api/party/game': { if (!['race', 'type', 'quiz', 'answer'].includes(b.action)) return json(res, 400, { error: 'unknown game action' }); const { action, ...rest } = b; try { return json(res, 200, await partyClient.game(action, rest)); } catch (e) { return json(res, 502, { error: 'party server unreachable' }); } }
       case '/api/party/chat': return json(res, (await partyClient.say(b.text)) ? 200 : 400, {});
       case '/api/party/presence': return json(res, (await partyClient.setPresence(b.presence)) ? 200 : 400, { party: partyClient.view() });
       case '/api/party/avatar': { partyAvatar = cleanAvatar(b); return json(res, 200, {}); }
-      case '/api/party/office': { const o = partyClient.office(String(b.id || '')); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'not in the party' }); }
+      case '/api/party/office': { const o = await partyClient.office(String(b.id || '')).catch(() => null); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'not in the party' }); }
       case '/api/looks/set': { try { lookBox.set(String(b.key), b.costume); } catch (e) { return json(res, 400, { error: e.message }); } bump(); return json(res, 200, { looks: lookBox.get() }); }
       case '/api/names/reset': { if (b.key) nameBox.set(String(b.key), ''); else nameBox.reset(); bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }
       case '/api/hire/decide': { if (!hires.decide(String(b.id), !!b.approve, String(b.note || '').slice(0, 200))) return json(res, 404, { error: 'That request was already answered.' }); bump(); return json(res, 200, { ok: true }); }

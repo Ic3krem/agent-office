@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import dns from 'node:dns/promises';
 import { LIMITS, cleanName, cleanChat, cleanOffice, cleanAvatar } from './protocol.mjs';
+import { createGames } from './games.mjs';
 
 const sha = s => crypto.createHash('sha256').update(String(s ?? ''), 'utf8').digest();
 const safeEqual = (a, b) => crypto.timingSafeEqual(sha(a), sha(b));
@@ -30,11 +31,13 @@ export function limiter(rate, burst, now = () => Date.now()) {
 }
 
 // The party itself, without HTTP (tested directly). send(member, event) delivers to that member's stream.
-export function createParty({ code, name = 'Agent Office party', now = () => Date.now() }) {
+export function createParty({ code, name = 'Agent Office party', now = () => Date.now(), gameOpts = {} }) {
   const byToken = new Map(), banned = new Set(), chat = [];
-  const pub = m => ({ id: m.id, name: m.name, office: m.office, avatar: m.avatar });
+  // members as relayed: the office without its layout (that can be 300 KB); a visit asks for it with /office-of
+  const pub = m => ({ id: m.id, name: m.name, office: m.office && { ...m.office, layout: undefined }, avatar: m.avatar });
   const others = (m, ev) => { for (const o of byToken.values()) if (o !== m) o.send && o.send(ev); };
   const all = ev => { for (const o of byToken.values()) o.send && o.send(ev); };
+  const games = createGames({ broadcast: all, now, ...gameOpts });
   const api = {
     name, banned,
     join(body, addr) {
@@ -50,7 +53,19 @@ export function createParty({ code, name = 'Agent Office party', now = () => Dat
       return { status: 200, body: { token: m.token, id: m.id, name: m.name, party: name } };
     },
     member: token => (typeof token === 'string' && byToken.get(token)) || null,
-    attach(m, send) { m.send = send; m.last = now(); send({ t: 'hello', you: m.id, party: name, members: [...byToken.values()].filter(o => o !== m).map(pub), chat }); },
+    officeOf: id => { const m = [...byToken.values()].find(x => x.id === id); return m ? m.office : null; },
+    attach(m, send) { if (m.send && m.send !== send) m.send(null); m.send = send; m.last = now(); send({ t: 'hello', you: m.id, party: name, members: [...byToken.values()].filter(o => o !== m).map(pub), chat, game: games.state() }); },
+    // mini-games: b.action race | type | quiz | answer
+    game(m, b) {
+      m.last = now();
+      if (!b || typeof b !== 'object') return { ok: false, error: 'bad request' };
+      if (b.action === 'race') return games.startRace(m);
+      if (b.action === 'type') return games.finishRace(m, String(b.id || ''), typeof b.typed === 'string' ? b.typed.slice(0, 300) : '');
+      if (b.action === 'quiz') return games.startQuiz(m, String(b.pack || ''), [...byToken.values()]);
+      if (b.action === 'answer') return games.answer(m, String(b.id || ''), b.n, b.choice);
+      return { ok: false, error: 'unknown game action' };
+    },
+    stop: () => games.stop(),
     detach(m, send) { if (m.send === send) m.send = null; m.last = now(); },
     office(m, o) { const c = cleanOffice(o); if (!c) return false; m.office = c; m.last = now(); others(m, { t: 'member', m: pub(m) }); return true; },
     avatar(m, a) { const c = cleanAvatar(a); if (!c) return false; m.avatar = c; m.last = now(); others(m, { t: 'avatar', id: m.id, avatar: c }); return true; },
@@ -69,7 +84,8 @@ const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referr
 // that really come from that container's address, so a direct IP:port visitor cannot fake an address to dodge a ban.
 export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name, trustProxy = '' } = {}) {
   const party = createParty({ code, name });
-  const joinLimit = limiter(0.2, 5), msgLimit = limiter(10, 20), chatLimit = limiter(1, 3);
+  const joinLimit = limiter(0.2, 5), badJoins = limiter(0.5, 20), msgLimit = limiter(10, 20), chatLimit = limiter(1, 3), officeLimit = limiter(1, 3), kickLimit = limiter(0.5, 5);
+  const ipKey = a => a.includes(':') ? a.split(':').slice(0, 4).join(':') : a; // IPv6 by /64
   let proxyIps = new Set();
   const resolveProxy = () => trustProxy && dns.lookup(trustProxy, { all: true }).then(r => { proxyIps = new Set(r.map(x => x.address)); }).catch(() => {});
   resolveProxy();
@@ -84,8 +100,9 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
   });
   let streams = 0;
   const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url, 'http://x'), addr = addrOf(req);
+    let url, addr;
     try {
+      url = new URL(req.url, 'http://x'); addr = addrOf(req);
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, party: party.name, members: party.size() });
       const token = (/^Bearer ([a-f0-9]{48})$/.exec(req.headers.authorization || '') || [])[1];
       if (req.method === 'GET' && url.pathname === '/events') {
@@ -93,7 +110,7 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
         if (streams >= LIMITS.members * 2) return json(res, 503, { error: 'busy' });
         streams++;
         res.writeHead(200, { ...SEC, 'content-type': 'text/event-stream', connection: 'keep-alive' });
-        const send = ev => { if (ev === null) return res.end(); res.write('data: ' + JSON.stringify(ev) + '\n\n'); };
+        const send = ev => { if (ev === null || res.writableLength > 1_000_000) return res.end(); res.write('data: ' + JSON.stringify(ev) + '\n\n'); }; // slow reader: hang up
         party.attach(m, send);
         const ping = setInterval(() => res.write(': ping\n\n'), 20_000);
         req.on('close', () => { streams--; clearInterval(ping); party.detach(m, send); });
@@ -102,18 +119,23 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
       if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
       if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] || '')) return json(res, 415, { error: 'send JSON' });
       if (url.pathname === '/join') {
-        if (!joinLimit(addr)) return json(res, 429, { error: 'too many tries; wait a minute' });
-        const r = party.join(await readBody(req, 4096), addr); return json(res, r.status, r.body);
+        if (!joinLimit(ipKey(addr))) return json(res, 429, { error: 'too many tries; wait a minute' });
+        const r = party.join(await readBody(req, 4096), addr);
+        if (r.status === 403 && !badJoins('all')) return json(res, 429, { error: 'too many tries; wait a minute' }); // all wrong codes, from every address
+        return json(res, r.status, r.body);
       }
       if (url.pathname === '/admin/kick') {
+        if (!kickLimit('admin')) return json(res, 429, { error: 'slow down' });
         if (!adminKey || !safeEqual(req.headers['x-admin-key'] || '', adminKey)) return json(res, 403, { error: 'host only' });
         const b = await readBody(req, 4096); return json(res, party.kick(String(b.id || '')) ? 200 : 404, {});
       }
       const m = party.member(token); if (!m) return json(res, 401, { error: 'join first' });
       if (!msgLimit(m.token)) return json(res, 429, { error: 'slow down' });
-      if (url.pathname === '/office') return json(res, party.office(m, (await readBody(req, LIMITS.body)).office) ? 200 : 400, {});
+      if (url.pathname === '/office') { if (!officeLimit(m.token)) return json(res, 429, { error: 'slow down' }); return json(res, party.office(m, (await readBody(req, LIMITS.body)).office) ? 200 : 400, {}); }
+      if (url.pathname === '/office-of') { const o = party.officeOf(String((await readBody(req, 4096)).id || '')); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'no such member' }); }
       if (url.pathname === '/avatar') return json(res, party.avatar(m, (await readBody(req, 4096)).avatar) ? 200 : 400, {});
       if (url.pathname === '/chat') { const b = await readBody(req, 4096); if (!chatLimit(m.token)) return json(res, 429, { error: 'slow down' }); return json(res, party.say(m, b.text) ? 200 : 400, {}); }
+      if (url.pathname === '/game') { const r = party.game(m, await readBody(req, 4096)); return json(res, r.ok ? 200 : 400, r); }
       if (url.pathname === '/leave') { party.leave(m); return json(res, 200, {}); }
       return json(res, 404, { error: 'not found' });
     } catch (e) {
@@ -123,14 +145,17 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
   });
   server.headersTimeout = 10_000; server.requestTimeout = 15_000;
   const reaper = setInterval(() => { party.reap(); resolveProxy(); }, 15_000); reaper.unref();
-  server.on('close', () => clearInterval(reaper));
+  server.on('close', () => { clearInterval(reaper); party.stop(); });
   return new Promise(ok => server.listen(port, host, () => ok({ server, party, port: server.address().port })));
 }
 
 // Run directly (node server.mjs, or the Docker image): settings from the environment.
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  // one bad request must never take the party down
+  process.on('unhandledRejection', e => console.error('unhandled:', e && e.message));
+  process.on('uncaughtException', e => console.error('uncaught:', e && e.message));
   const env = process.env;
-  const code = (env.PARTY_CODE || rand(3)).trim().toUpperCase(), adminKey = env.PARTY_ADMIN_KEY || rand(16);
+  const code = (env.PARTY_CODE || rand(5)).trim().toUpperCase(), adminKey = env.PARTY_ADMIN_KEY || rand(16);
   const { port } = await startParty({ port: +env.PARTY_PORT || 4880, code, adminKey, name: cleanName(env.PARTY_NAME) || 'Agent Office party', trustProxy: env.PARTY_TRUST_PROXY || '' });
   console.log(`Party server on port ${port}. Invite code: ${code}`);
   console.log(`Host key (keep it; kicks people): ${adminKey}`);

@@ -10,8 +10,8 @@ export const LIMITS = { name: 20, chat: 200, agents: 16, members: 16, layoutByte
 const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const KEY = /^[a-z][a-z0-9-]{1,15}$/;
 // Display names: no control characters or markup, single spaces, at most 20 characters.
-export const cleanName = v => String(v ?? '').replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001f\u007f-\u009f<>&"`20282029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, LIMITS.name).trim();
-export const cleanChat = v => String(v ?? '').replace(/[\u0000-\u001f\u007f-\u009f20282029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, LIMITS.chat);
+export const cleanName = v => String(v ?? '').replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001f\u007f-\u009f<>&"`\u2028\u2029\u202a-\u202e\u2066-\u2069\u200e\u200f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, LIMITS.name).trim();
+export const cleanChat = v => String(v ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\u200e\u200f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, LIMITS.chat);
 const int = (v, max) => Number.isInteger(v) && v >= 0 && v <= max ? v : undefined;
 
 export function cleanAgent(a) {
@@ -41,7 +41,8 @@ export function cleanLayout(l) {
 }
 export function cleanOffice(o) {
   if (!plain(o)) return null;
-  return { layout: cleanLayout(o.layout), looks: cleanLooks(o.looks), agents: (Array.isArray(o.agents) ? o.agents : []).slice(0, LIMITS.agents).map(cleanAgent).filter(Boolean) };
+  const st = plain(o.stats) ? o.stats : {};
+  return { stats: { done: int(st.done, 1e6) || 0, reports: int(st.reports, 1e6) || 0 }, layout: cleanLayout(o.layout), looks: cleanLooks(o.looks), agents: (Array.isArray(o.agents) ? o.agents : []).slice(0, LIMITS.agents).map(cleanAgent).filter(Boolean) };
 }
 const coord = v => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(4000, Math.round(v))) : 0;
 export function cleanAvatar(a) {
@@ -67,9 +68,10 @@ export function bubbleOf(a) {
   return 'Thinking…';
 }
 export function feedOf(snapshot, layout, looks, hashId) {
+  let helper = 0;
   const agents = (snapshot && Array.isArray(snapshot.agents) ? snapshot.agents : []).map(a => ({
-    id: hashId(a.id), name: a.name, key: a.isManager ? 'tiro' : (a.profile && a.profile.key) || null,
+    id: hashId(a.id), name: a.isManager || (a.profile && a.profile.key && !a.profile.helper) ? a.name : 'Helper ' + (++helper), key: a.isManager ? 'tiro' : (a.profile && a.profile.key) || null,
     state: STATES.includes(a.status) ? a.status : 'idle', bubble: bubbleOf(a),
   }));
-  return cleanOffice({ layout, looks, agents });
+  return cleanOffice({ stats: { done: snapshot && snapshot.tasksDone, reports: snapshot && snapshot.doneReports }, layout, looks, agents });
 }

@@ -21,11 +21,13 @@ test('the feed carries names, roles, states and generic bubbles, never task text
 
 test('cleaners drop unknown fields and clamp everything', () => {
   const o = cleanOffice({ layout: { a: 1 }, agents: [{ id: 'ab', name: 'X', state: 'hacking', bubble: 'I am reading /etc/passwd', task: 'x', extra: 1 }], prompt: 'x' });
-  assert.deepEqual(o, { layout: { a: 1 }, looks: {}, agents: [{ id: 'ab', name: 'X', key: null, state: 'idle', bubble: 'Idle' }] });
+  assert.deepEqual(o, { stats: { done: 0, reports: 0 }, layout: { a: 1 }, looks: {}, agents: [{ id: 'ab', name: 'X', key: null, state: 'idle', bubble: 'Idle' }] });
   assert.equal(cleanOffice({ layout: { big: 'x'.repeat(LIMITS.layoutBytes) } }).layout, null);
   assert.equal(cleanOffice({ agents: Array.from({ length: 50 }, (_, i) => ({ id: 'a' + i, name: 'n' })) }).agents.length, LIMITS.agents);
   assert.deepEqual(cleanAvatar({ x: 1e9, y: -5, room: 'office:../../etc', presence: 'root' }), { x: 4000, y: 0, room: 'home', presence: 'available' });
   assert.equal(cleanName('  <b>Bo\u0000b</b>  \u2028'), 'Bo b');
+  assert.equal(cleanName('Room 2089 \u202eevil'), 'Room 2089 evil', 'digits survive; bidi overrides do not');
+  assert.equal(cleanChat('call 2028 0829'), 'call 2028 0829');
   assert.equal(cleanChat('x'.repeat(500)).length, LIMITS.chat);
   assert.equal(bubbleOf({ status: 'blocked' }), 'Waiting for approval');
 });
@@ -96,7 +98,7 @@ test('two app clients: join, see each other, share a clean office, chat, get kic
     await A.publish(feedOf(snap, { version: 1, objects: [] }, {}, A.hashId), { x: 100, y: 200, room: 'lounge' });
     const ana = () => B.view().members.find(m => m.name === 'Ana');
     await until(() => ana() && ana().agents === 3 && ana().room === 'lounge');
-    const office = B.office(ana().id);
+    const office = await B.office(ana().id);
     assert.equal(JSON.stringify(office).includes('secret'), false);
     assert.equal(JSON.stringify(B.view()).includes(A.view().you.id) && !JSON.stringify(B.view()).includes('token'), true);
     await B.say('Tara, kain!');
@@ -106,4 +108,61 @@ test('two app clients: join, see each other, share a clean office, chat, get kic
     await until(() => !B.view().connected && /removed you/.test(B.view().error));
     await until(() => A.view().members.length === 0);
   } finally { await A.leave(); await B.leave(); server.close(); server.closeAllConnections(); }
+});
+
+test('games: server-timed typing race and trivia with server-held answers', async () => {
+  const { createGames, TRIVIA } = await import('./party/games.mjs');
+  const ev = [], sleep = ms => new Promise(r => setTimeout(r, ms));
+  const G = createGames({ broadcast: e => ev.push(e), countdownMs: 30, raceMs: 3000, questionMs: 120, revealMs: 20, questions: 2, rand: () => 0.1 });
+  const A = { id: 'aa', name: 'Ana' }, B = { id: 'bb', name: 'Ben' };
+  try {
+    assert.equal(G.startRace(A).ok, true);
+    const r = ev.find(e => e.t === 'race');
+    assert.equal(G.startQuiz(B, 'tech', [A, B]).ok, false, 'one game at a time');
+    assert.match(G.finishRace(A, r.id, r.text).error, /wait for go/, 'no early finish');
+    await sleep(60);
+    assert.match(G.finishRace(B, r.id, r.text + 'x').error, /not quite/);
+    assert.match(G.finishRace(A, r.id, r.text).error, /too fast/, 'no paste-speed finishes');
+    await sleep(r.text.length * 30);
+    const fin = G.finishRace(A, r.id, r.text); assert.equal(fin.ok, true); assert.ok(fin.wpm > 0);
+    assert.match(G.finishRace(A, r.id, r.text).error, /already/);
+    await sleep(3100);
+    assert.deepEqual(ev.find(e => e.t === 'race-end').results.map(x => x.name), ['Ana']);
+    assert.equal(G.startQuiz(A, 'nope', [A, B]).ok, false);
+    assert.equal(G.startQuiz(A, 'tech', [A, B]).ok, true);
+    await sleep(50);
+    const q = ev.find(e => e.t === 'quiz-q'); assert.equal(q.n, 1); assert.equal('c' in q, false, 'the answer is not sent with the question');
+    const right = TRIVIA.tech.find(x => x.q === q.q).c;
+    assert.equal(G.answer(A, q.id, 1, right).ok, true); assert.equal(G.answer(A, q.id, 1, right).ok, false, 'one answer each');
+    assert.equal(G.answer(B, q.id, 1, (right + 1) % 4).ok, true); assert.equal(G.answer(B, q.id, 1, 9).ok, false);
+    await sleep(150);
+    const rv = ev.find(e => e.t === 'quiz-reveal'); assert.equal(rv.correct, right);
+    assert.ok(rv.scores[0].name === 'Ana' && rv.scores[0].points > 100 && rv.scores[1].points === 0, JSON.stringify(rv.scores));
+    assert.equal(G.answer(B, q.id, 1, right).ok, false, 'closed question');
+    await sleep(250);
+    assert.ok(ev.some(e => e.t === 'quiz-end'));
+  } finally { G.stop(); }
+});
+
+test('review fixes: malformed request, helper names, layout-free relays, global join limit', async () => {
+  const net = await import('node:net');
+  // non-roster sessions never share their title, first prompt or folder name
+  const f = feedOf({ agents: [{ id: 'x', name: 'Fix the payroll export for Acme', status: 'idle' }, { id: 'y', name: 'C:\Users\me', status: 'idle', profile: { key: 'forge', helper: true } }] }, null, {}, id => 'h' + id);
+  assert.deepEqual(f.agents.map(a => a.name), ['Helper 1', 'Helper 2']);
+  const { server, port, party } = await startParty({ port: 0, host: '127.0.0.1', code: 'ABCDEF1234', adminKey: 'z'.repeat(32) });
+  const U = p => 'http://127.0.0.1:' + port + p, post = (p, b, h = {}) => fetch(U(p), { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(b) });
+  try {
+    await new Promise(ok => { const s = net.connect(port, '127.0.0.1', () => s.end('POST //[ HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}')); s.on('data', () => {}); s.on('close', ok); s.on('error', ok); });
+    assert.equal((await fetch(U('/health'))).status, 200, 'still up after a malformed request');
+    const a = await (await post('/join', { code: 'ABCDEF1234', name: 'A' })).json(), b = await (await post('/join', { code: 'ABCDEF1234', name: 'B' })).json();
+    await post('/office', { office: { layout: { version: 1, big: 'x'.repeat(1000) }, agents: [] } }, { authorization: 'Bearer ' + a.token });
+    const ac = new AbortController(), es = await fetch(U('/events'), { headers: { authorization: 'Bearer ' + b.token }, signal: ac.signal });
+    const hello = new TextDecoder().decode((await es.body.getReader().read()).value);
+    assert.ok(hello.includes('"hello"') && !hello.includes('xxxx'), 'hello carries offices without layouts');
+    const full = await (await post('/office-of', { id: a.id }, { authorization: 'Bearer ' + b.token })).json();
+    assert.equal(full.office.layout.big.length, 1000, 'a visitor fetches the layout on demand');
+    ac.abort();
+    let last = 0; for (let i = 0; i < 25; i++) last = (await post('/join', { code: 'WRONG' + i, name: 'x' }, { 'cf-connecting-ip': '1.2.3.' + i })).status;
+    assert.equal(last, 429);
+  } finally { server.close(); server.closeAllConnections(); }
 });
