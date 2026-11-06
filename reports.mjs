@@ -10,6 +10,10 @@ const NAME = /^\d{4}-\d\d-\d\d\/[a-z0-9-]+\.md$/;
 const slug = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'report';
 const cell = t => String(t ?? '').replace(/\|/g, '\\|').replace(/\n+/g, ' ');
 const today = () => new Date().toLocaleDateString('en-CA');
+const badReport = m => Object.assign(new Error(m), { status: 400 }); // the server answers 400 with this message, no stack
+// Excel cells: always plain text (an object would become a formula or link), and text that Excel would read as a formula
+// (= + - @, tab, CR) starts with an apostrophe.
+const xcell = v => { const s = String(v ?? ''); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; };
 
 export function reportMarkdown(r) {
   const [label, , icon] = OUTCOMES[r.outcome] || OUTCOMES.info;
@@ -27,9 +31,13 @@ export function reportStore(dir) {
   fs.mkdirSync(dir, { recursive: true });
   let cache = null, cachedAt = 0; // listing reads every report; snapshots ask often
   const meta = file => {
-    try { return JSON.parse(fs.readFileSync(path.join(dir, file.replace(/\.md$/, '.json')), 'utf8')); } catch {}
-    const text = fs.readFileSync(path.join(dir, file), 'utf8'); // older free-form reports
-    return { title: (text.match(/^# (.+)/m) || [, file])[1], outcome: (text.match(/^outcome: (\w+)/m) || [, 'info'])[1], summary: '', legacy: true, body: text };
+    let m = null; try { m = JSON.parse(fs.readFileSync(path.join(dir, file.replace(/\.md$/, '.json')), 'utf8')); } catch {}
+    if (!m || typeof m !== 'object' || Array.isArray(m)) {
+      let text; try { text = fs.readFileSync(path.join(dir, file), 'utf8'); } catch { throw badReport('no such report'); } // older free-form reports
+      m = { title: (text.match(/^# (.+)/m) || [, file])[1], outcome: (text.match(/^outcome: (\w+)/m) || [, 'info'])[1], summary: '', legacy: true, body: text };
+    }
+    // a hand-edited .json may hold anything: title and summary are always strings
+    return { ...m, title: typeof m.title === 'string' && m.title.trim() ? m.title : file, summary: typeof m.summary === 'string' ? m.summary : '' };
   };
   return {
     dir,
@@ -54,8 +62,8 @@ export function reportStore(dir) {
       }).sort((a, b) => b.at - a.at)));
     },
     // Only names this store produced: no path traversal from the browser.
-    read(file) { if (!NAME.test(file)) throw new Error('bad report name'); return fs.readFileSync(path.join(dir, file), 'utf8'); },
-    meta(file) { if (!NAME.test(file)) throw new Error('bad report name'); return meta(file); },
+    read(file) { if (typeof file !== 'string' || !NAME.test(file)) throw badReport('bad report name'); try { return fs.readFileSync(path.join(dir, file), 'utf8'); } catch { throw badReport('no such report'); } },
+    meta(file) { if (typeof file !== 'string' || !NAME.test(file)) throw badReport('bad report name'); return meta(file); },
   };
 }
 
@@ -126,12 +134,12 @@ export async function reportXlsx(m) {
   const wb = new ExcelJS.Workbook();
   const s = wb.addWorksheet('Summary');
   s.columns = [{ header: 'Field', width: 16 }, { header: 'Value', width: 100 }];
-  s.addRows([['Title', m.title], ['Outcome', (OUTCOMES[m.outcome] || OUTCOMES.info)[0]], ['Date', `${m.date || ''} ${m.time || ''}`], ['Goal', m.goalId || ''], ['Summary', m.summary || (m.legacy ? m.body : '')], ['Next steps', (m.nextSteps || []).map((x, i) => `${i + 1}. ${x}`).join('\n')]]);
+  s.addRows([['Title', m.title], ['Outcome', (OUTCOMES[m.outcome] || OUTCOMES.info)[0]], ['Date', `${m.date || ''} ${m.time || ''}`], ['Goal', m.goalId || ''], ['Summary', m.summary || (m.legacy ? m.body : '')], ['Next steps', (Array.isArray(m.nextSteps) ? m.nextSteps : []).map((x, i) => `${i + 1}. ${x}`).join('\n')]].map(r => r.map(xcell)));
   style(s);
-  if (m.findings?.length) {
+  if (Array.isArray(m.findings) && m.findings.length) {
     const f = wb.addWorksheet('Findings');
     f.columns = [{ header: 'Status', width: 10 }, { header: 'Item', width: 40 }, { header: 'Detail', width: 90 }];
-    m.findings.forEach(x => f.addRow([(FIND[x.status] || FIND.info)[0], x.item, x.detail]));
+    m.findings.forEach(x => f.addRow([(FIND[x?.status] || FIND.info)[0], x?.item, x?.detail].map(xcell)));
     style(f);
   }
   return wb.xlsx.writeBuffer();
@@ -140,15 +148,15 @@ export async function dailyXlsx({ day, goals, reports, usageDays }) {
   const wb = new ExcelJS.Workbook();
   const g = wb.addWorksheet('Goals');
   g.columns = [{ header: 'Goal', width: 60 }, { header: 'Status', width: 12 }, { header: 'Result / note', width: 80 }, { header: 'Report', width: 50 }];
-  goals.filter(x => x.status !== 'dismissed').forEach(x => g.addRow([x.text, x.status, x.note || '', reports.find(r => r.goalId === x.id)?.title || '']));
+  goals.filter(x => x.status !== 'dismissed').forEach(x => g.addRow([x.text, x.status, x.note || '', reports.find(r => r.goalId === x.id)?.title || ''].map(xcell)));
   style(g);
   const r = wb.addWorksheet('Reports');
   r.columns = [{ header: 'Date', width: 12 }, { header: 'Title', width: 60 }, { header: 'Outcome', width: 14 }, { header: 'Summary', width: 90 }];
-  reports.forEach(x => r.addRow([x.day, x.title, (OUTCOMES[x.outcome] || OUTCOMES.info)[0], x.summary || '']));
+  reports.forEach(x => r.addRow([x.day, x.title, (OUTCOMES[x.outcome] || OUTCOMES.info)[0], x.summary || ''].map(xcell)));
   style(r);
   const u = wb.addWorksheet('Usage');
   u.columns = [{ header: 'Day', width: 12 }, { header: 'Tokens', width: 14 }, { header: 'API value (USD, not billed)', width: 26 }, { header: 'Extra credits (USD)', width: 18 }];
-  (usageDays || []).forEach(x => u.addRow([x.day, x.tokens, +x.cost.toFixed(2), +(x.credits || 0).toFixed(2)]));
+  (usageDays || []).forEach(x => u.addRow([xcell(x.day), Number(x.tokens) || 0, +(Number(x.cost) || 0).toFixed(2), +(Number(x.credits) || 0).toFixed(2)]));
   style(u);
   wb.creator = 'Agent Office'; wb.title = 'Daily report ' + day;
   return wb.xlsx.writeBuffer();

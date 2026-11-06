@@ -564,7 +564,21 @@ every(10 * 60e3, () => { if (pruneIdle({ agents, files, keep: a => a.isManager |
 
 // ---------- http ----------
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
-const readBody = req => new Promise((ok, bad) => { let s = ''; req.on('data', d => { s += d; if (s.length > 1e6) req.destroy(); }); req.on('end', () => { try { ok(s ? JSON.parse(s) : {}); } catch { bad(Object.assign(new Error('bad request'), { status: 400 })); } }); });
+// A JSON object body (null, numbers and strings read as {}; an array is a bad request). Over 1 MB, or a client that goes away
+// mid-body, rejects: the promise always settles.
+const readBody = req => new Promise((ok, bad) => {
+  const fail = (status, msg) => bad(Object.assign(new Error(msg), { status }));
+  let s = '', over = false;
+  req.on('data', d => { if (over) return; s += d; if (s.length > 1e6) { over = true; fail(413, 'request body too large'); req.destroy(); } });
+  req.on('end', () => {
+    if (over) return;
+    let v; try { v = s ? JSON.parse(s) : {}; } catch { return fail(400, 'bad request'); }
+    if (Array.isArray(v)) return fail(400, 'bad request');
+    ok(v && typeof v === 'object' ? v : {});
+  });
+  req.on('error', () => fail(400, 'bad request'));
+  req.on('close', () => fail(400, 'request closed')); // no-op once settled
+});
 // Error text may carry file paths: only plain messages go to the client, the rest is logged here.
 const publicMessage = e => { const m = String(e?.message || 'error'); return /[\\/]|ENOENT|EACCES|EPERM|\bat \w+/.test(m) ? 'internal error' : m.slice(0, 160); };
 const STATIC = { '/': ['Agent Office.html', 'text/html'], '/office-objects.js': ['office-objects.js', 'text/javascript'], '/office-motion.js': ['office-motion.js', 'text/javascript'], '/office-sprites.js': ['office-sprites.js', 'text/javascript'], '/office-furniture.js': ['office-furniture.js', 'text/javascript'], '/role-catalog.js': ['role-catalog.js', 'text/javascript'], '/world-path.js': ['world-path.js', 'text/javascript'], '/world-model.js': ['world-model.js', 'text/javascript'], '/world-edit.js': ['world-edit.js', 'text/javascript'], '/world-player.js': ['world-player.js', 'text/javascript'], '/office-world.js': ['office-world.js', 'text/javascript'], '/support.js': ['support.js', 'text/javascript'], '/agent-history.js': ['agent-history.js', 'text/javascript'], '/vendor/react.production.min.js': ['vendor/react.production.min.js', 'text/javascript'], '/vendor/react-dom.production.min.js': ['vendor/react-dom.production.min.js', 'text/javascript'], '/vendor/babel.min.js': ['vendor/babel.min.js', 'text/javascript'], '/kiro': ['kiro.html', 'text/html'], '/kiro-art.js': ['kiro-art.js', 'text/javascript'], '/island': ['island.html', 'text/html'] };
@@ -581,7 +595,8 @@ const bridgeBound = (sid, req) => { const cur = bridgeSessions.get(String(sid));
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   // Localhost only: refuse other Host headers (DNS rebinding) and requests without the key.
-  if (!/^(localhost|127\.0\.0\.1):\d+$/.test(req.headers.host || '')) return json(res, 403, { error: 'bad host' });
+  // Localhost only, on the port we bound: refuse other Host headers (DNS rebinding) and other ports.
+  if (req.headers.host !== 'localhost:' + PORT && req.headers.host !== '127.0.0.1:' + PORT) return json(res, 403, { error: 'bad host' });
   for (const [h, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(h, v);
   const uiOk = AUTH.isUi(req);
   // Standalone runs: the one-time bootstrap URL printed at start sets the UI cookie once, then the key is gone from the URL.
@@ -808,8 +823,9 @@ async function handle(req, res) {
 const server = http.createServer((req, res) => {
   res.setHeader(MARKER, '1');
   handle(req, res).catch(e => {
-    console.error('request failed:', e?.status === 400 ? 'bad request' : e);
-    try { if (!res.headersSent) json(res, e?.status === 400 ? 400 : 500, { error: e?.status === 400 ? 'bad request' : publicMessage(e) }); else res.end(); } catch {}
+    const client = e?.status === 400 || e?.status === 413; // our own plain messages for bad input: no stack in the log or the answer
+    console.error('request failed:', client ? e.message : e);
+    try { if (!res.headersSent) json(res, client ? e.status : 500, { error: publicMessage(e) }); else res.end(); } catch {}
   });
 });
 
