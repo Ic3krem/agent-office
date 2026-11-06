@@ -18,4 +18,6 @@ inbox-feed.json
 .DS_Store
 Thumbs.db
 art/.raw/
+perf/results/*
+!perf/results/.gitkeep
 __pycache__/
