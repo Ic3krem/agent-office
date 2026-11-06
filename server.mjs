@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
+import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -95,6 +95,7 @@ if (!fs.readdirSync(V.dirs.memory).length) SEEDED = seedMemory(V, path.join(PROJ
 // until you save it in the app. Hashes of the notes you last saved are pinned in sop-pins.json; first run pins what is there
 // (role notes excepted: see seedRoleSops). Loaded before the brief migration below, which drops the brief's pin.
 const PIN_FILE = path.join(CFG_DIR, 'sop-pins.json');
+const AUTO_PIN = new Set(['kiro-brief']); // the one non-role note the app writes (V.sop below)
 let PINS = {}; try { PINS = JSON.parse(fs.readFileSync(PIN_FILE, 'utf8')); } catch {}
 const sopHash = t => crypto.createHash('sha256').update(String(t).replace(/\r\n/g, '\n'), 'utf8').digest('hex');
 // The filing cabinet: Tiro's brief and each specialist's instructions, editable as vault notes.
@@ -109,7 +110,9 @@ const pinSop = name => { const x = V.sops().find(y => y.name === name); if (x) {
 // Role notes: missing ones are written from the built-in text and pinned; planted ones stay untrusted (company.mjs seedRoleSops).
 const seedSops = (keys = currentKeys()) => { seedRoleSops(keys, { pins: PINS, sops: V.sops(), write: (n, t) => V.sop(n, t), hash: sopHash }); savePins(); };
 seedSops(Object.keys(ROSTER));
-for (const x of V.sops()) if (!PINS[x.name] && !isRoleSop(x.name)) PINS[x.name] = sopHash(x.text);
+// Only notes the app itself seeds are pinned on sight (role notes: seedRoleSops above); any other planted note stays unpinned.
+// Pins already in sop-pins.json are kept.
+for (const x of V.sops()) if (!PINS[x.name] && AUTO_PIN.has(x.name)) PINS[x.name] = sopHash(x.text);
 savePins();
 const sopTrusted = x => PINS[x.name] === sopHash(x.text);
 const trustedSops = () => V.sops().filter(sopTrusted);

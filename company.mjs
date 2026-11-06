@@ -362,9 +362,9 @@ export function narrowTools(field, builtin) {
 export function teamFromSops(sops, keys = BUILTIN) {
   const base = specialists(keys), team = { ...base };
   for (const { name, text } of sops) {
-    const m = name.match(/^specialist-([a-z0-9-]+)$/); if (!m || !(m[1] in base)) continue;
+    const m = name.match(/^specialist-([a-z0-9-]+)$/); if (!m || !Object.hasOwn(base, m[1])) continue; // hasOwn: specialist-constructor is not a role
     const fmm = text.match(/^---\n([\s\S]*?)\n---\n?/), head = fmm ? fmm[1] : '', body = (fmm ? text.slice(fmm[0].length) : text).trim();
-    const field = k => (head.match(new RegExp('^' + k + ':\s*(.+)$', 'm')) || [])[1]?.trim();
+    const field = k => (head.match(new RegExp('^' + k + ':\\s*(.+)$', 'm')) || [])[1]?.trim();
     if (!body) continue; // an emptied note falls back to the built-in role
     const was = base[m[1]] || {};
     const firstLine = body.split('\n').find(l => l.trim())?.replace(/^#+\s*/, '').replace(/\*\*/g, '').slice(0, 200);
