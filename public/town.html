@@ -4,10 +4,71 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office - Town</title>
-<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}a{position:fixed;top:12px;left:12px;color:#e8e6df}</style>
+<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}</style>
 </head>
 <body>
 <a href="/">Back to the office</a>
-<canvas id="town"></canvas>
+<canvas id="town" tabindex="0"></canvas>
+<div id="err" role="alert"><div id="errmsg"></div><a href="/">Back to the office</a></div>
+<script src="/vendor/pixi.min.js"></script>
+<script src="/office-objects.js"></script>
+<script src="/role-catalog.js"></script>
+<script src="/world-path.js"></script>
+<script src="/office-motion.js"></script>
+<script src="/office-sprites.js"></script>
+<script src="/office-furniture.js"></script>
+<script src="/world-model.js"></script>
+<script src="/world-player.js"></script>
+<script src="/town-map.js"></script>
+<script src="/town-render.js"></script>
+<script>
+(async function () {
+  const canvas = document.getElementById('town'), WP = WorldPlayer;
+  const fail = e => { document.getElementById('errmsg').textContent = 'The town could not load: ' + (e && e.message || e); document.getElementById('err').style.display = 'block'; };
+  try {
+    // ?failgl=1 is only for perf/town-check.cjs: it makes WebGL setup fail so the error box can be checked.
+    if (/[?&]failgl=1/.test(location.search)) PIXI.Application.prototype.init = () => Promise.reject(new Error('WebGL unavailable'));
+    const map = await TownMap.load('/town/town.json'), grid = TownMap.grid(map);
+    const api = await TownRender.mount(canvas, { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json' });
+    const p = WP.unstick(WP.create(map.spawn.x, map.spawn.y), grid);
+    let look = OfficeSprites.lookOf({ look: 'ceo' }), pose = 'stand', frame = 0;
+    const draw = () => { api.setPlayer({ x: p.x, y: p.y, face: p.face, pose, frame, look }); api.setCamera(p.x, p.y); };
+    draw();
+    try { // the CEO's saved wardrobe: first stream message, then done
+      const es = new EventSource('/api/stream');
+      es.onmessage = ev => { es.close(); try { OfficeSprites.setCostumes(JSON.parse(ev.data).looks); look = OfficeSprites.lookOf({ look: 'ceo' }); draw(); } catch (e) {} };
+      es.onerror = () => es.close();
+    } catch (e) {}
+    window.__town = { api, p, grid, map, toWorld: api.toWorld }; // handle for perf/town-check.cjs
+
+    const keys = new Set();
+    let raf = 0, last = 0;
+    const input = () => { let dx = 0, dy = 0; for (const k of keys) { const d = WP.DIRS[k]; if (d) { dx += d[0]; dy += d[1]; } } return { dx: Math.sign(dx), dy: Math.sign(dy) }; };
+    function tick(now) {
+      raf = 0;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      WP.step(p, dt, input(), grid);
+      pose = p.moving ? 'walk' : 'stand'; frame = p.moving ? 1 + (Math.floor(now / 1000 * 6) % 2) : 0;
+      draw();
+      if (keys.size || p.moving || p.pi < p.path.length) raf = requestAnimationFrame(tick);
+    }
+    const go = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } };
+    const state = e => ({ shown: true, canvas });
+    addEventListener('keydown', e => {
+      if (WP.takesKey(e, state(e)) !== 'move') return;
+      e.preventDefault(); keys.add(WP.keyOf(e)); go();
+    });
+    addEventListener('keyup', e => { keys.delete(WP.keyOf(e)); });
+    const release = () => keys.clear(); // a key released while unfocused never sends keyup
+    addEventListener('blur', release);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
+    canvas.addEventListener('pointerdown', e => {
+      const r = canvas.getBoundingClientRect(), [x, y] = api.toWorld(e.clientX - r.left, e.clientY - r.top);
+      if (WP.walkTo(p, { x, y }, grid)) go();
+    });
+    addEventListener('resize', () => { api.resize(); draw(); });
+  } catch (e) { fail(e); }
+})();
+</script>
 </body>
 </html>

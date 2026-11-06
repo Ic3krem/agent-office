@@ -29,5 +29,6 @@ test('town: page, pixi and art routes are served to the UI only, with strict nam
   assert.equal(pixi.status, 200); assert.ok(pixi.body.includes('8.22.0'));
   const paths = ['/art/../server.mjs', '/art/..%2fserver.mjs', '/art/x.exe', '/art/missing.png', '/town/missing.json'];
   for (const p of paths) assert.equal((await get(port, p, ck)).status, 404, p);
-  for (const p of ['/town', '/vendor/pixi.min.js', ...paths]) assert.equal((await get(port, p)).status, 401, 'no cookie ' + p);
+  for (const j of ['/town-map.js', '/town-render.js', '/world-player.js']) assert.equal((await get(port, j, ck)).status, 200, j);
+  for (const p of ['/town', '/vendor/pixi.min.js', '/town-map.js', '/town-render.js', ...paths]) assert.equal((await get(port, p)).status, 401, 'no cookie ' + p);
 });

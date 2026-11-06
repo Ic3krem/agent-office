@@ -34,11 +34,12 @@
     return p;
   }
 
-  // The 3rd parameter is ignored (kept so callers passing OfficeMotion.pathTo still work): the route comes from findPath,
-  // which returns [] when unreachable instead of pathTo's straight-line fallback.
-  function walkTo(p, target, _pathTo) {
+  // The 3rd parameter is an optional grid to path on (the town passes its own); anything else (callers passing
+  // OfficeMotion.pathTo) is ignored and the office grid is used. The route comes from findPath, which returns []
+  // when unreachable instead of pathTo's straight-line fallback.
+  function walkTo(p, target, grid) {
     const OM = root.OfficeMotion, B = typeof target === 'string' ? OM.SPOTS[target] : target;
-    const pts = B ? root.WorldPath.findPath(OM.grid(), { x: p.x, y: p.y }, { x: B.x, y: B.y }) : [];
+    const pts = B ? root.WorldPath.findPath(grid && grid.blocked ? grid : OM.grid(), { x: p.x, y: p.y }, { x: B.x, y: B.y }) : [];
     if (!pts.length) { p.path = []; p.pi = 0; return false; }
     p.path = pts.filter((q, i) => i === 0 || Math.hypot(q.x - pts[i - 1].x, q.y - pts[i - 1].y) > 0.5);
     p.pi = 1;

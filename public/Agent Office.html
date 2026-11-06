@@ -182,6 +182,7 @@ button:disabled{opacity:.45;cursor:default}
       <button class="pill sm" onClick="{{ toggleParty }}" title="Party: share your office with friends (generic status only, never prompts or commands)" style="border-color:{{ partyBorder }}; color:{{ partyColor }};">{{ partyLabel }}</button>
       <button class="pill sm" onClick="{{ toggleLegend }}" title="Show or hide the zone labels" style="border-color:{{ legendBorder }};">Labels</button>
       <button class="pill sm" onClick="{{ toggleSaver }}" title="Power saver: the office redraws slowly while nothing moves and not at all when hidden. Turn off for a constant 30 fps." aria-pressed="{{ saverOn }}" style="border-color:{{ saverBorder }};">Power saver</button>
+      <a class="pill sm" href="/town" title="Walk the town (preview)" style="text-decoration:none;">Town (preview)</a>
       <button class="pill sm" onClick="{{ toggleBuild }}" aria-pressed="{{ buildPressed }}" title="Build mode: move, add and remove furniture and zones" style="display:{{ buildPillDisp }}; border-color:{{ buildBorder }}; color:{{ buildColor }};">Build</button>
       <button class="pill sm" onClick="{{ cycleDemo }}" title="Preview every state (work, think, blocked, report, empty board) without live agents" style="border-color:{{ demoBorder }}; color:{{ demoColor }};">{{ demoLabel }}</button>
     </div>

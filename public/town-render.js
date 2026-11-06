@@ -12,6 +12,8 @@
   let O = [961, 4]; // terrain.json originPx; mount() replaces it with the loaded value
 
   const project = (x, y, z) => [O[0] + K * (x - y), O[1] + K2 * (x + y) - z];
+  // Inverse of project at z = 0: terrain px -> world units.
+  const unproject = (sx, sy) => { const u = (sx - O[0]) / K, v = (sy - O[1]) / K2; return [(u + v) / 2, (v - u) / 2]; };
   const depthOf = (x, y) => x + y;
 
   function zoomFor(viewW, viewH, dpr, preset) {
@@ -48,6 +50,7 @@
 
     const urls = [colourUrl, shadowUrl];
     for (let r = 0; r < terrain.rows; r++) for (let c = 0; c < terrain.cols; c++) urls.push(chunkUrl(r, c));
+    P.Assets.setPreferences({ preferWorkers: false }); // the server's CSP has no worker-src, so Pixi's blob decode worker is blocked
     const tex = await P.Assets.load(urls);
     let textureBytes = 0;
     for (const u of urls) textureBytes += tex[u].source.pixelWidth * tex[u].source.pixelHeight * 4;
@@ -110,13 +113,13 @@
     }
 
     let camX = map.spawn.x, camY = map.spawn.y, zoom = 1, viewW = 1, viewH = 1;
-    let dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, dead = false;
+    let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, dead = false;
     const view = new P.Rectangle();
 
     function layout() {
       const [px, py] = project(camX, camY, 0), vw = viewW / zoom, vh = viewH / zoom, [tw, th] = terrain.size;
       const cl = (v, half, size) => size <= half * 2 ? size / 2 : Math.min(size - half, Math.max(half, v));
-      const left = cl(px, vw / 2, tw) - vw / 2, top = cl(py, vh / 2, th) - vh / 2;
+      left = cl(px, vw / 2, tw) - vw / 2; top = cl(py, vh / 2, th) - vh / 2;
       cam.scale.set(zoom);
       cam.position.set(-Math.round(left * zoom), -Math.round(top * zoom));
       const on = new Set(visibleChunks({ x: left, y: top }, { w: vw, h: vh }, terrain).map(o => o.r * 100 + o.c));
@@ -159,6 +162,8 @@
         player.visible = true;
         mark();
       },
+      // css px inside the canvas -> world x,y at ground level (uses the last laid-out camera, so call after a render)
+      toWorld(cx, cy) { layout(); const k = viewW / canvas.clientWidth; return unproject(left + cx * k / zoom, top + cy * k / zoom); },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
       setShadows(mode) { shade.visible = mode !== 'off'; mark(); },
@@ -177,5 +182,5 @@
     };
   }
 
-  root.TownRender = { project, zoomFor, visibleChunks, depthOf, mount };
+  root.TownRender = { project, unproject, zoomFor, visibleChunks, depthOf, mount };
 })(globalThis);

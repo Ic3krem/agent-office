@@ -52,3 +52,10 @@ test('depthOf draws a tree behind a player standing in front of it', () => {
   assert.ok(R.depthOf(tree.x, tree.y) < R.depthOf(player.x, player.y));
   assert.equal(R.depthOf(3, 4), 7);
 });
+
+test('unproject inverts project at ground level', () => {
+  for (const [x, y] of [[0, 0], [1085, 585], [300, 900]]) {
+    const [sx, sy] = R.project(x, y, 0), [ux, uy] = R.unproject(sx, sy);
+    assert.ok(Math.abs(ux - x) < 1e-6 && Math.abs(uy - y) < 1e-6);
+  }
+});

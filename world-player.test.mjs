@@ -165,3 +165,11 @@ test('open windows block CEO keys and only unreachable floor clicks toast', () =
   const html = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
   assert.match(html, /role="dialog" aria-modal="true" aria-label="Usage"/);
 });
+
+test('walkTo paths on a custom grid and goes around its wall', () => {
+  const grid = WP.buildGrid({ w: 100, h: 100, cell: 10, blocks: [[50, 0, 60, 80]], costs: [] }); // wall at column 5, open at rows 8-9
+  const p = P.create(15, 15);
+  assert.equal(P.walkTo(p, { x: 85, y: 15 }, grid), true);
+  assert.ok(p.path.some(q => q.y > 75), 'detours through the gap');
+  assert.ok(p.path.every(q => !grid.blocked[WP.cellOf(grid, q)]));
+});
