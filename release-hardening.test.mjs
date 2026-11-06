@@ -189,3 +189,20 @@ test('M2: the default layout and the built-in templates still validate, under th
     }
   });
 });
+
+// ---------------------------------------------------------------- M4 the approval card shows the whole prompt
+test('M4: the hire card carries the full prompt the hash covers (up to 20 000 characters) with its length', () => {
+  const srv = fs.readFileSync(path.join(ROOT, 'server.mjs'), 'utf8');
+  const tool = srv.slice(srv.indexOf("tool('request_hire'"), srv.indexOf("tool('scheduler_inbox'"));
+  assert.match(srv, /const HIRE_PROMPT_MAX = 20000;/);
+  assert.match(tool, /String\(prompt\)\.trim\(\)\.length > HIRE_PROMPT_MAX\) return deny\('The prompt is longer than '/);
+  assert.match(tool, /prompt: String\(prompt\)\.trim\(\), promptHash: promptHash\(prompt\)/, 'not shortened');
+  assert.doesNotMatch(tool, /prompt\)\.trim\(\)\.slice/);
+  const page = fs.readFileSync(path.join(ROOT, 'public', 'Agent Office.html'), 'utf8');
+  assert.match(page, /full request: \{\{ h\.promptN \}\} characters/);
+  assert.match(page, /promptN:String\(\(h\.prompt\|\|''\)\.length\)/);
+  assert.match(page, /max-height:180px; overflow:auto;[^>]*>\{\{ h\.prompt \}\}<\/div>/, 'scrollable box with the whole text');
+  const island = fs.readFileSync(path.join(ROOT, 'public', 'island.html'), 'utf8');
+  assert.match(island, /Full request: \$\{h\.prompt\.length\} characters/);
+  assert.match(island, /Prompt: \$\{esc\(h\.prompt\)\}/, 'island shows it all too');
+});

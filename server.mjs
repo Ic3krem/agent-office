@@ -351,11 +351,12 @@ const officeTools = () => createSdkMcpServer({
       if (!g || !['todo', 'doing'].includes(g.status)) return deny('goal_id must be an open goal (todo or doing) on the board.');
       if (String(why).trim().length < 25) return deny('Give a concrete justification (at least a sentence): what needs a sub-agent and why you cannot do it yourself.');
       if (String(prompt || '').trim().length < 20) return deny('Give the exact first prompt you will send to the specialist (at least a sentence).');
+      if (String(prompt).trim().length > HIRE_PROMPT_MAX) return deny('The prompt is longer than ' + HIRE_PROMPT_MAX + ' characters. Shorten it (put details in a memory note and point to it), then ask again.');
       if (boss.running >= MAX_SPECIALISTS) return deny(MAX_SPECIALISTS + ' specialists are already working. Wait for a report first.');
       const idle = [...agents.values()].find(a => !a.isManager && a.parent === boss.id && a.profile?.key === key && statusOf(a, Date.now()) === 'idle' && sdk.has(a.id));
       if (idle) return deny(dnames()[key] + ' is already on the team and idle. Reuse them with SendMessage instead of hiring again.');
       if (hires.pending().some(p => p.key === key && p.goalId === goal_id)) return deny('A hire request for this specialist and goal is already waiting for the user.');
-      const { promise } = hires.request({ key, name: dnames()[key], role: r.role, goalId: goal_id, goalText: g.text, why: String(why).trim().slice(0, 400), prompt: String(prompt).trim().slice(0, 1500), promptHash: promptHash(prompt) });
+      const { promise } = hires.request({ key, name: dnames()[key], role: r.role, goalId: goal_id, goalText: g.text, why: String(why).trim().slice(0, 400), prompt: String(prompt).trim(), promptHash: promptHash(prompt) }); // the card shows the whole prompt the hash covers
       bump(); say('Hire request: ' + dnames()[key] + ' for ' + g.text);
       const res = await promise; bump();
       return { content: [{ type: 'text', text: res.approved ? 'approved. You may now hire ' + key + ' once with the Agent tool (run_in_background: true), using exactly the prompt you submitted.' : res.reason }], isError: !res.approved };
@@ -409,6 +410,7 @@ const denyClaudeLaunch = { matcher: 'Bash|PowerShell', hooks: [async input => (l
 // The hire gate, Agent side. A hire it lets through counts as working (boss.running, AH.start) until SubagentStop. A call the SDK
 // then fails or denies before the subagent starts (PostToolUseFailure / PermissionDenied, no SubagentStart, no SubagentStop) is
 // counted back by hireUndone, so the restart and the retire check are not blocked forever.
+const HIRE_PROMPT_MAX = 20000; // the user reads (and approves) every character of a hire prompt
 const starting = new Map(); // tool_use_id -> roster key of a counted hire whose subagent has not started yet
 const hireHook = async input => {
   let pace = null; // the approved goal's Boost/Speed choice, set once the grant is used
