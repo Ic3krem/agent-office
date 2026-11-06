@@ -92,6 +92,24 @@
     DEFAULTS.push(p);
   };
   const homeOf = (T, p) => T.home ? T.home(p) : p.home || T.anchor;
+  // Sprite painters. useAtlas({image, frames: {name: {x, y, w, h, ax, ay}}, glow?}) registers the office atlas once its image
+  // has loaded. Frame names: '<type>' for a type whose build calls add() once, '<type>.<part>' otherwise, where part is the
+  // 0-based add() index within the build (dept-desk.0 the desk, dept-desk.1 the chair). sprite() puts the frame's (ax, ay)
+  // on P(x, y, 0). spriteOr(name, fn), called inside a build, returns a painter that draws the frame at the build's home
+  // (a moved copy shifts through add()'s CUR translate) when the atlas has it, else the procedural fn exactly as before.
+  // Footprints never come from the art: while measure()/footprints() record (REC), the sprite painter also runs fn on the
+  // no-op context, so a piece blocks, sorts and nofp/floor/gaps exactly as fixtures/office-footprints.json froze it.
+  let ATLAS = null, HOME = null; // HOME: [x, y] of the piece being built
+  function useAtlas(a) { ATLAS = a; measured = false; } // re-measure: click silhouettes follow the sprites
+  function sprite(g, name, x, y, a) {
+    const f = ATLAS && ATLAS.frames[name]; if (!f) return false;
+    const p = P(x, y, 0);
+    if (a != null) { g.save(); g.globalAlpha *= a; }
+    g.drawImage(ATLAS.image, f.x, f.y, f.w, f.h, Math.round(p[0] - f.ax), Math.round(p[1] - f.ay), f.w, f.h);
+    if (a != null) g.restore();
+    return true;
+  }
+  const spriteOr = (name, fn) => { const [x, y] = HOME; return g => { if (!(ATLAS && ATLAS.frames[name])) return fn(g); if (REC) fn(NUL); sprite(g, name, x, y); }; };
   const fixture = (name, build) => { def('fixture-' + name, [0, 0], build); put(name, 'fixture-' + name, 0, 0); };
 
   const COL = { wood: '#b98a57', dwood: '#7a5230', ink: '#1b1220', metal: '#8a909c', dmetal: '#4a4f5c', paper: '#f3ede2', glass: 'rgba(170,215,240,.22)', wallL: '#2e3058', wallR: '#25274a' };
@@ -925,7 +943,7 @@
     const fl = P(1190, 732, up ? 58 : 40); g.fillStyle = '#e0573f'; g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 3, up ? 14 : 5); g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 7, 4);
   }, { fp: [1166, 724, 1190, 746] });
   reg('mailbox', 'Mailbox: scheduler check-ins', [1166, 726, 0, 24, 20, 58], mailboxItem); });
-  def('tires', [1022, 760], (p, x, y) => add(x + y, g => { cyl(g, x, y, 0, 8, 6, '#2a2a30'); cyl(g, x, y, 6, 8, 6, '#34343c'); }));
+  def('tires', [1022, 760], (p, x, y) => add(x + y, spriteOr('tires', g => { cyl(g, x, y, 0, 8, 6, '#2a2a30'); cyl(g, x, y, 6, 8, 6, '#34343c'); })));
   // the garage is listed after the bench and mailbox so the click objects keep their 1.2.9 order
   put('mail-bench', 'mail-bench', 1068, 704); put('mailbox', 'mailbox', 1166, 726); put('garage', 'garage', 1030, 590);
   put('tires-1', 'tires', 1022, 760); put('tires-2', 'tires', 1034, 766);
@@ -1069,10 +1087,10 @@
     try {
       for (const p of instances) {
         const T = CATALOG[p.type]; if (!T) continue; // unknown types are WorldModel.validate's job
-        const [hx, hy] = homeOf(T, p); CUR = { dx: p.x - hx, dy: p.y - hy }; INST = p.id;
+        const [hx, hy] = homeOf(T, p); CUR = { dx: p.x - hx, dy: p.y - hy }; INST = p.id; HOME = [hx, hy];
         T.build(p, hx, hy);
       }
-    } finally { CUR = null; INST = null; IT = items; OB = objects; }
+    } finally { CUR = null; INST = null; HOME = null; IT = items; OB = objects; }
   }
   // Rebuild the painters and click objects from instances (in place: the world holds these arrays).
   function place(instances) {
@@ -1083,13 +1101,13 @@
   // stands on. Walkable types give none; a type with `gaps` (the gate posts) keeps one rect per box so its opening stays open.
   const NUL = new Proxy(function () {}, { get: () => NUL, apply: () => NUL, set: () => true }); // a 2D context that does nothing
   const union = rs => rs.reduce((a, q) => [Math.min(a[0], q[0]), Math.min(a[1], q[1]), Math.max(a[2], q[2]), Math.max(a[3], q[3])], [1e9, 1e9, -1e9, -1e9]);
+  // One instance's painters in add() order (the part index), each with the boxes it stands on.
+  function parts(p) { const its = []; build([p], its, []); return its.map(it => ({ it, rec: scanTight(NUL, it.fn, null, true).rec })); }
   function footprints(instances) {
     const out = [];
     for (const p of instances) {
       const T = CATALOG[p.type]; if (!T || T.walkable) continue;
-      const its = []; build([p], its, []);
-      for (const it of its) {
-        const { rec } = scanTight(NUL, it.fn, null, true);
+      for (const { it, rec } of parts(p)) {
         if (T.gaps && rec.length) out.push(...rec); else if (it.fp) out.push(it.fp); else if (rec.length) out.push(union(rec));
       }
     }
@@ -1109,5 +1127,5 @@
   const defaultInstances = () => JSON.parse(JSON.stringify(DEFAULTS));
   place(defaultInstances());
 
-  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, zoneColor, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
+  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, parts, homeOf, useAtlas, sprite, spriteOr, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, zoneColor, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

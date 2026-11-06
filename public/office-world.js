@@ -727,6 +727,16 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden) { keys.clear(); joy = { dx: 0, dy: 0 }; stop(); } else { running = false; dirty = true; start(); } });
     root.addEventListener('focus', wake); root.addEventListener('blur', wake);
     if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => { dirty = true; render(); schedule(); });
+    loadAtlas();
+  }
+  // Office art (/art/office/atlas.json + atlas.png). Missing, which is normal until the art ships, or broken: the drawn
+  // furniture stays, with one log line.
+  function loadAtlas() {
+    if (typeof fetch !== 'function' || typeof Image !== 'function') return;
+    fetch('/art/office/atlas.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(a => new Promise((ok, no) => { const image = new Image(); image.onload = () => ok(Object.assign({}, a, { image })); image.onerror = () => no(new Error('atlas.png did not load')); image.src = '/art/office/atlas.png'; }))
+      .then(a => { F.useAtlas(a); rebuildObjects(); wake(); })
+      .catch(e => console.info('Office art not loaded, drawing the furniture instead:', e.message));
   }
   function setScale(s) { // css scale of the stage * device pixel ratio -> internal canvas resolution
     scaleCss = s; const r = Math.max(1, Math.min(3, Math.round(s * (root.devicePixelRatio || 1) * 4) / 4)); if (!cv) return;
