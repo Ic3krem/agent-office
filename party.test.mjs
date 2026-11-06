@@ -82,3 +82,28 @@ test('http: auth, content type, size, rate limits, spoofed proxy header, host-on
     assert.equal(last, 429, 'join attempts are rate limited');
   } finally { server.close(); server.closeAllConnections(); }
 });
+
+test('two app clients: join, see each other, share a clean office, chat, get kicked', async () => {
+  const { createPartyClient, partyUrl } = await import('./party-client.mjs');
+  assert.equal(partyUrl('javascript:alert(1)'), null); assert.equal(partyUrl('http://u:p@x.test'), null); assert.equal(partyUrl('https://a.trycloudflare.com/'), 'https://a.trycloudflare.com');
+  const { server, port } = await startParty({ port: 0, host: '127.0.0.1', code: 'KAIN99', adminKey: 'a'.repeat(32) });
+  const until = async (f, ms = 4000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise(r => setTimeout(r, 20)); } };
+  const A = createPartyClient(), B = createPartyClient(), url = 'http://127.0.0.1:' + port;
+  try {
+    await assert.rejects(A.join(url, 'WRONG', 'Ana'), /wrong invite code/);
+    await A.join(url, 'kain99', 'Ana'); await B.join(url, 'KAIN99', 'Ben');
+    await until(() => A.view().live && B.view().live && A.view().members.length === 1 && B.view().members.length === 1);
+    await A.publish(feedOf(snap, { version: 1, objects: [] }, {}, A.hashId), { x: 100, y: 200, room: 'lounge' });
+    const ana = () => B.view().members.find(m => m.name === 'Ana');
+    await until(() => ana() && ana().agents === 3 && ana().room === 'lounge');
+    const office = B.office(ana().id);
+    assert.equal(JSON.stringify(office).includes('secret'), false);
+    assert.equal(JSON.stringify(B.view()).includes(A.view().you.id) && !JSON.stringify(B.view()).includes('token'), true);
+    await B.say('Tara, kain!');
+    await until(() => A.view().chat.some(l => l.text === 'Tara, kain!' && l.name === 'Ben'));
+    const r = await fetch(url + '/admin/kick', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': 'a'.repeat(32) }, body: JSON.stringify({ id: B.view().you.id }) });
+    assert.equal(r.status, 200);
+    await until(() => !B.view().connected && /removed you/.test(B.view().error));
+    await until(() => A.view().members.length === 0);
+  } finally { await A.leave(); await B.leave(); server.close(); server.closeAllConnections(); }
+});

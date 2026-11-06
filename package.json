@@ -51,6 +51,8 @@
       "office.mjs",
       "world-store.mjs",
       "world-vm.mjs",
+      "party-client.mjs",
+      "party/protocol.mjs",
       "public/**",
       "desktop/**",
       "package.json",

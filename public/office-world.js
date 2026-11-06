@@ -181,7 +181,7 @@
 
   // ---------- simulation tick ----------
   function currentSnap() {
-    if (demo) return M.demoSnapshot(demo.scene, (clock - demo.t0) / 1000);
+    if (demo) return demo.snap || M.demoSnapshot(demo.scene, (clock - demo.t0) / 1000);
     return live;
   }
   function tick(dt) {
@@ -254,6 +254,7 @@
   const npcBody = (a, x, y) => Object.assign(WPL().create(x, y), { id: a.id, hip: 18, alpha: 1, fade: 1, look: SP.lookOf(a) });
   function stepNpcs(dt) {
     if (build || !SP) { npcs = {}; return; }
+    stepGuests(dt);
     const k1 = M.SPOTS['npc:cook'], b = M.SPOTS['npc:sweeper'], CH = root.Chismis;
     if (k1 && !npcs.cook) npcs.cook = { kind: 'cook', a: COOK_A, w: npcBody(COOK_A, k1.x, k1.y) };
     if (!k1) delete npcs.cook;
@@ -272,6 +273,28 @@
       npcChat = clock + 14000 + Math.random() * 10000;
       const who = npcs.cook && eaters().length ? npcs.cook : npcs.sweep && Math.random() < .5 ? npcs.sweep : null;
       if (who) { const l = who.kind === 'cook' ? CH.COOK : CH.SWEEP; who.line = l[Math.random() * l.length | 0]; who.lineUntil = clock + 4000; }
+    }
+  }
+  // Party guests (phase 7): friends whose avatar is in the office on screen. They glide to the position their app reports
+  // and carry a name tag with their presence. list: [{id, name, x, y, presence}].
+  const GUEST_COL = ['#3f5f8a', '#8a3f6b', '#3e7d55', '#a0643a', '#5a4a8a', '#2f7f86'];
+  function setGuests(list) {
+    const keep = new Set();
+    for (const gq of (Array.isArray(list) ? list : []).slice(0, 16)) {
+      const k = 'guest:' + gq.id; keep.add(k);
+      let n = npcs[k];
+      if (!n) { const a = { id: 'guest-' + gq.id, name: gq.name, pose: 'stand', color: GUEST_COL[hashId(gq.id) % GUEST_COL.length], accent: '#ffd23f' }; n = npcs[k] = { kind: 'guest', a, w: npcBody(a, gq.x, gq.y) }; }
+      n.tx = gq.x; n.ty = gq.y; n.line = gq.name + ' · ' + gq.presence; n.lineUntil = Infinity;
+    }
+    for (const k of Object.keys(npcs)) if (k.startsWith('guest:') && !keep.has(k)) delete npcs[k];
+    wake();
+  }
+  function stepGuests(dt) {
+    for (const n of Object.values(npcs)) if (n.kind === 'guest') {
+      const dx = n.tx - n.w.x, dy = n.ty - n.w.y, d = Math.hypot(dx, dy), st = 170 * dt;
+      if (d > 400) { n.w.x = n.tx; n.w.y = n.ty; n.w.moving = false; } // far jump (room change): appear there
+      else if (d > 1) { const k = Math.min(1, st / d); n.w.x += dx * k; n.w.y += dy * k; n.w.moving = true; n.w.face = M.faceOf(dx, dy, n.w.face); }
+      else n.w.moving = false;
     }
   }
   function dust(w) { // little puffs at the broom
@@ -410,7 +433,7 @@
     for (const a of order) { const p = posOf.get(a.id), nw = Math.ceil(g.measureText(clip(a.name || 'Helper', 14)).width), mb = MODEL[a.model] ? 17 : 0, w = nw + 21 + mb; const x = Math.round(p.sx - w / 2); let y = Math.round(p.top - 17); for (let k = 0; k < 4 && placed.some(b => x < b.x + b.w && x + w > b.x && y < b.y + 17 && y + 15 > b.y - 2); k++) y -= 17; placed.push({ x, y, w }); p.tagY = y; p.tagW = w; }
     for (const a of frame.agents) { const p = posOf.get(a.id); if (!p) continue; const w = walkers.get(a.id); g.save(); g.globalAlpha = Math.max(0, Math.min(1, (w.alpha == null ? 1 : w.alpha)) * (w.fadeDir || w.fade < 1 ? w.fade : 1)); const r = drawTag(a, p, hover && hover.kind === 'agent' && hover.id === a.id); g.restore(); if (r.nudge) nudgeBoxes[a.id] = r.nudge; }
     if (npcPos) { g.save(); g.font = '11px ' + FONT; bubble(npcPos.sx, Math.round(npcPos.top - 6), schedLine(), '#f4efe4', '#2a2420', '#4a86c9'); g.restore(); }
-    for (const n of Object.values(npcs)) if (n.pos && n.line && n.lineUntil > clock) { g.save(); g.font = '11px ' + FONT; bubble(n.pos.sx, Math.round(n.pos.top - 6), n.line, '#f4efe4', '#2a2420', n.kind === 'cook' ? '#c0392b' : '#e8c53a'); g.restore(); }
+    for (const n of Object.values(npcs)) if (n.pos && n.line && n.lineUntil > clock) { g.save(); g.font = '11px ' + FONT; bubble(n.pos.sx, Math.round(n.pos.top - 6), n.line, '#f4efe4', '#2a2420', n.kind === 'cook' ? '#c0392b' : n.kind === 'guest' ? '#5fd38d' : '#e8c53a'); g.restore(); }
     if (ceoPos) { ceoPos.tagY = Math.round(ceoPos.top - 17); drawTag(CEO_AGENT, ceoPos, false); }
     drawPrompt(posOf);
     hits.nudge = nudgeBoxes;
@@ -747,6 +770,9 @@
       if (!demo) reset(); demo = { scene, t0: clock }; lastDemoSig = ''; brain.cfg.idleDelay = 3000;
     },
     demoScene: () => demo && demo.scene,
+    // A party visit: a ready snapshot of a friend's office (generic bubbles only), drawn like a preview scene.
+    setGuests,
+    setVisit(snap) { wake(); if (!snap) { demo = null; reset(); lastDemoSig = ''; return; } if (!demo) reset(); demo = { scene: 'visit', snap, t0: clock }; lastDemoSig = ''; brain.cfg.idleDelay = 3000; },
     debug() { return frame && { agents: frame.agents.map(a => { const w = walkers.get(a.id) || {}; return { id: a.id, name: a.name, state: a.state, spot: a.spot, pose: a.pose, badge: a.badge, x: Math.round(w.x), y: Math.round(w.y), moving: !!w.moving, face: w.face }; }), board: frame.board, reporter: frame.reporter, reps: frame.reps, reportIcon: frame.reportIcon, clock }; },
     pointOf(id) { const p = frame && frame.agents.find(a => a.id === id) && walkers.get(id); if (!p || !cv) return null; const [sx, sy] = P(p.x, p.y, 30), r = cv.getBoundingClientRect(); return { x: r.left + sx / STW * r.width, y: r.top + sy / STH * r.height }; },
     render,

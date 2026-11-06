@@ -1,0 +1,92 @@
+// The app's side of a party (phase 7): joins a party server, keeps one SSE stream open, publishes this office's feed
+// (party/protocol.mjs feedOf: no task text, prompts, commands or paths) and the CEO avatar, and keeps what the others
+// share. Everything that arrives is re-cleaned with the same protocol cleaners; party data is never trusted.
+import crypto from 'node:crypto';
+import { cleanName, cleanChat, cleanOffice, cleanAvatar, PRESENCE, LIMITS } from './party/protocol.mjs';
+
+const STREAM_MAX = 2_000_000; // one SSE event bigger than this ends the connection
+
+// Party link: http(s) only, no credentials in it, trailing slash trimmed.
+export function partyUrl(v) {
+  let u; try { u = new URL(String(v || '').trim()); } catch { return null; }
+  if (!/^https?:$/.test(u.protocol) || u.username || u.password) return null;
+  return u.origin + u.pathname.replace(/\/+$/, '');
+}
+
+export function createPartyClient({ onChange = () => {}, fetchImpl = fetch } = {}) {
+  let st = null; // { base, token, you, name, members: Map, chat: [], presence, ctrl, retry, lastOffice, avatar }
+  let error = '';
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hashId = id => crypto.createHash('sha256').update(salt + String(id)).digest('hex').slice(0, 12);
+  const call = async (p, body) => {
+    const r = await fetchImpl(st.base + p, { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + st.token }, body: JSON.stringify(body || {}), signal: AbortSignal.timeout(10_000) });
+    if (r.status === 401) { drop('The party no longer knows you (it may have restarted).'); }
+    return r.ok;
+  };
+  function drop(why) { if (st) { try { st.ctrl.abort(); } catch {} clearTimeout(st.retry); } st = null; error = why || ''; onChange(); }
+
+  function onEvent(ev) {
+    if (!st || !ev || typeof ev !== 'object') return;
+    const upsert = m => { if (!m || typeof m.id !== 'string' || !/^[a-f0-9]{1,16}$/.test(m.id) || m.id === st.you) return;
+      const cur = st.members.get(m.id) || {}; st.members.set(m.id, { id: m.id, name: cleanName(m.name) || cur.name || 'Guest', office: m.office !== undefined ? cleanOffice(m.office) : cur.office || null, avatar: m.avatar !== undefined ? cleanAvatar(m.avatar) : cur.avatar || null }); };
+    if (ev.t === 'hello') { st.members.clear(); (Array.isArray(ev.members) ? ev.members : []).slice(0, LIMITS.members).forEach(upsert); st.chat = []; (Array.isArray(ev.chat) ? ev.chat : []).forEach(addChat); }
+    else if (ev.t === 'member') upsert(ev.m);
+    else if (ev.t === 'avatar') { const m = st.members.get(ev.id); if (m) m.avatar = cleanAvatar(ev.avatar); }
+    else if (ev.t === 'leave') st.members.delete(ev.id);
+    else if (ev.t === 'chat') addChat(ev.line);
+    else if (ev.t === 'kicked') return drop('The host removed you from the party.');
+    onChange();
+  }
+  function addChat(l) { if (!l || typeof l !== 'object') return; const text = cleanChat(l.text); if (!text) return; st.chat.push({ name: cleanName(l.name) || 'Guest', text, mine: l.id === st.you, at: Number.isFinite(l.at) ? l.at : Date.now() }); if (st.chat.length > LIMITS.chatKeep) st.chat.shift(); }
+
+  async function stream(me, tries = 0) {
+    try {
+      const r = await fetchImpl(me.base + '/events', { headers: { authorization: 'Bearer ' + me.token }, redirect: 'error', signal: me.ctrl.signal });
+      if (r.status === 401) return st === me && drop('The party no longer knows you (it may have restarted).');
+      if (!r.ok || !r.body) throw new Error('stream ' + r.status);
+      tries = 0; me.live = true; onChange();
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        if (buf.length > STREAM_MAX) throw new Error('event too large');
+        let i; while ((i = buf.indexOf('\n\n')) >= 0) { const chunk = buf.slice(0, i); buf = buf.slice(i + 2); const line = chunk.split('\n').find(l => l.startsWith('data: ')); if (line) { try { onEvent(JSON.parse(line.slice(6))); } catch {} } }
+      }
+    } catch (e) { if (me.ctrl.signal.aborted) return; }
+    if (st !== me) return;
+    me.live = false; onChange();
+    me.retry = setTimeout(() => stream(me, tries + 1), Math.min(30_000, 1000 * 2 ** tries)); // reconnect with backoff
+  }
+
+  return {
+    hashId,
+    async join(url, code, name) {
+      const base = partyUrl(url); if (!base) throw new Error('Paste the party link (http:// or https://).');
+      if (st) drop();
+      const r = await fetchImpl(base + '/join', { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: String(code || '').slice(0, 64), name: cleanName(name) || 'Guest' }), signal: AbortSignal.timeout(10_000) });
+      let j = {}; try { j = await r.json(); } catch {}
+      if (!r.ok) throw new Error(typeof j.error === 'string' ? j.error.slice(0, 120) : 'Could not join (' + r.status + ').');
+      if (typeof j.token !== 'string' || !/^[a-f0-9]{48}$/.test(j.token)) throw new Error('That does not look like a party server.');
+      st = { base, token: j.token, you: String(j.id || ''), name: cleanName(j.name) || 'Guest', party: cleanName(j.party) || 'Party', members: new Map(), chat: [], presence: 'available', ctrl: new AbortController(), live: false, lastOffice: '', avatar: '' };
+      error = ''; stream(st); onChange(); return true;
+    },
+    async leave() { if (!st) return; const me = st; try { await call('/leave'); } catch {} if (st === me) drop(); },
+    async say(text) { const t = cleanChat(text); if (!st || !t) return false; return call('/chat', { text: t }); },
+    async setPresence(p) { if (!st || !PRESENCE.includes(p)) return false; st.presence = p; onChange(); st.avatar = ''; return true; },
+    // feed: () => feedOf(...) from the server; avatar: {x, y, room}. Each is sent only when it changed.
+    async publish(feed, avatar) {
+      if (!st || !st.live) return;
+      const me = st;
+      const o = JSON.stringify(feed); if (o !== me.lastOffice) { me.lastOffice = o; try { await call('/office', { office: feed }); } catch { me.lastOffice = ''; } }
+      if (avatar && st === me) { const a = cleanAvatar({ ...avatar, presence: me.presence }), k = JSON.stringify(a); if (k !== me.avatar) { me.avatar = k; try { await call('/avatar', { avatar: a }); } catch { me.avatar = ''; } } }
+    },
+    office: id => (st && st.members.get(id) || {}).office || null,
+    // What the page sees: no token, no offices (those are fetched one at a time when visiting).
+    view() {
+      if (!st) return { connected: false, error };
+      return { connected: true, live: st.live, host: new URL(st.base).host, party: st.party, you: { id: st.you, name: st.name, presence: st.presence }, error,
+        members: [...st.members.values()].map(m => ({ id: m.id, name: m.name, presence: (m.avatar && m.avatar.presence) || 'available', room: (m.avatar && m.avatar.room) || 'home', agents: m.office ? m.office.agents.length : 0, working: m.office ? m.office.agents.filter(a => a.state === 'working').length : 0, avatar: m.avatar })),
+        chat: st.chat.slice(-30) };
+    },
+  };
+}
