@@ -1,5 +1,8 @@
 // Town renderer: draws the pre-rendered town (terrain chunks + atlas sprites + the player) with PixiJS v8, only when
 // something changed. Classic script: root.TownRender. The pure helpers never touch PIXI, so tests load this without it.
+// Contract: input is DOM events only. While mounted, PIXI.Ticker.system is stopped (Pixi's scheduler and pointer-move
+// ticking would otherwise run a rAF loop forever), so Pixi pointer events, AnimatedSprite and video textures do not tick.
+// destroy() restores the ticker's previous state.
 (function (root) {
   'use strict';
   const K = 0.7071, K2 = 0.3536;
@@ -39,8 +42,9 @@
     P.TextureStyle.defaultOptions.scaleMode = 'nearest';
     const app = new P.Application();
     await app.init({ canvas, preference: 'webgl', antialias: false, autoStart: false, resolution: 1, backgroundAlpha: 0 });
-    // No frame loop: Pixi's own tickers (app, shared, and the system one its event plugin uses) stay stopped.
-    for (const t of [app.ticker, P.Ticker.shared, P.Ticker.system]) { t.autoStart = false; t.stop(); }
+    // No frame loop (see header): app.ticker never starts (autoStart false); the system ticker is paused until destroy().
+    const sys = P.Ticker.system, sysWas = { autoStart: sys.autoStart, started: sys.started };
+    sys.autoStart = false; sys.stop();
 
     const urls = [colourUrl, shadowUrl];
     for (let r = 0; r < terrain.rows; r++) for (let c = 0; c < terrain.cols; c++) urls.push(chunkUrl(r, c));
@@ -125,7 +129,7 @@
       const t0 = performance.now();
       layout();
       view.width = viewW; view.height = viewH;
-      P.Culler.shared.cull(app.stage, view);
+      P.Culler.shared.cull(app.stage, view, false); // false: cull with this frame's transforms, not the last render's
       drawCalls = 0;
       app.render();
       lastDraws = drawCalls; dirty = false; frames_++;
@@ -168,6 +172,7 @@
         charTex.clear();
         app.destroy({ removeView: false }, { children: true });
         P.Assets.unload(urls);
+        sys.autoStart = sysWas.autoStart; if (sysWas.started) sys.start();
       },
     };
   }
