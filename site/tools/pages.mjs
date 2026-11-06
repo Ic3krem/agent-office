@@ -24,6 +24,8 @@ export function downloadPage() {
 <p class="meta"><a data-release-link href="${esc(r.releaseUrl || r.url)}">Release page on GitHub</a>${r.checksumsUrl ? ` &middot; <a data-checksums-link href="${esc(r.checksumsUrl)}">SHA256SUMS.txt</a>` : ''} &middot; <a href="changelog.html">Changelog</a></p>
 </div>
 
+<div class="notice"><p><strong>Coming soon: Tiro Workspace (v2).</strong> The next major version renames Agent Office to Tiro Workspace and adds build mode, department desks and walking the office as the CEO. It is not released yet; the installer above is the current version. <a href="changelog.html#unreleased-tiro-workspace-v2">See what's coming</a>.</p></div>
+
 <details id="dl-previous" class="faq-like" hidden><summary>Previous versions</summary><ul></ul></details>
 
 <h2 id="verify">Verify the download</h2>

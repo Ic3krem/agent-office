@@ -3,6 +3,18 @@
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
 
+## Unreleased — Tiro Workspace (v2)
+
+The next major version, coming soon. Agent Office is being renamed **Tiro Workspace**, after Tiro, the manager agent. Everything below is built and tested on the development branch and not released yet; the current download stays 1.2.8.
+
+- **Build mode.** A Gather.town-style editor for the office: drag, add, duplicate and delete furniture, paint and resize zones, undo and redo, and start from a workspace template (Startup Loft, Agency Floor, Hotel Back-Office). Works with mouse and touch.
+- **Department desks.** Place desks to choose Tiro's team. New roles: IT (Byte), Accounting (Ledger), Marketing (Spark), Auditor (Vera) and Notetaker (Memo), alongside the original eight. Removing a desk retires the role and keeps its memory.
+- **Walk the office as the CEO.** Move with the keyboard, click-to-walk or an on-screen joystick. Walk up to Tiro for Chat, Prioritize, Boost (the strongest model, with a cost confirmation and plan-limit checks) or Speed (the fastest model); walk up to a desk to see what a specialist is doing.
+- **Security hardening for release.** Every write needs the session token; transcripts, notes and layouts are checked so malformed files cannot break the office; secret redaction is better; hire approvals show the full request.
+
+**Planned after v2** (not built yet): a wardrobe with costumes; zero-token NPCs and a karinderya break room; a self-hosted party server to visit friends' offices; mini-games.
+
+
 ## Unreleased (release/1.2.9)
 
 - **Open source: Apache License 2.0.** Agent Office is now licensed under Apache-2.0 (`LICENSE`, `NOTICE`), replacing the proprietary draft licence of 1.2.8. Contributions are welcome under the same licence (see `CONTRIBUTING.md`). Releases are downloadable from GitHub Releases; the install scripts and README no longer describe distribution by invitation. `@anthropic-ai/claude-agent-sdk` stays Anthropic's proprietary dependency under its own terms.

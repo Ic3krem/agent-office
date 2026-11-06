@@ -32,6 +32,15 @@ const security = [
   ['Security Guard', 'An ask-only layer that watches for secrets leaving the machine, unwanted scripts and persistence, credential stores and untrusted instructions. A safety net, not a boundary. <a href="docs/security-guard.html">How it works</a>.'],
 ];
 
+const v2 = [
+  ['Build mode', 'A Gather.town-style editor: drag, add, duplicate and delete furniture, paint and resize zones, undo and redo, and workspace templates (Startup Loft, Agency Floor, Hotel Back-Office). Mouse and touch.'],
+  ['Department desks', 'Place desks to choose Tiro\'s team: IT (Byte), Accounting (Ledger), Marketing (Spark), Auditor (Vera) and Notetaker (Memo), plus the original eight. Removing a desk retires the role and keeps its memory.'],
+  ['Walk the office as the CEO', 'Keyboard, click-to-walk or an on-screen joystick. Walk up to Tiro for Chat, Prioritize, Boost (strongest model, with a cost confirmation and plan-limit checks) or Speed (fastest model). Walk up to a desk to see what a specialist is doing.'],
+  ['Security hardening for release', 'Every write needs the session token, malformed transcripts, notes and layouts cannot break the office, secret redaction is better, and hire approvals show the full request.'],
+];
+
+const roadmap = ['A wardrobe with costumes', 'Zero-token NPCs and a karinderya break room', 'A self-hosted party server to visit friends\' offices', 'Mini-games'];
+
 const faq = [
   ['Does the office cost tokens?', 'No. Only agents that are working cost tokens, and only on your Claude Code plan.'],
   ['Which systems does it run on?', 'Windows 10 or later today. macOS and Linux builds are not published yet.'],
@@ -90,6 +99,19 @@ export function homePage() {
 <div class="section-head"><h2>A tour of the office</h2><p>Everything runs locally on top of the Claude Code you already have. Your settings, permissions, hooks and MCP servers apply unchanged.</p></div>
 ${panels.map(([img, t, d, href, linkText, alt], i) => `<div class="panel${i % 2 ? ' flip' : ''}"><div class="panel-text"><h3>${esc(t)}</h3><p>${esc(d)}</p><p><a href="${href}">${esc(linkText)}</a></p></div><div class="panel-shot">${picture('', img, esc(alt), { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>`).join('\n')}
 <div class="panel"><div class="panel-text"><h3>Breaker box and Security Guard</h3><p>Hard switches for Tiro, autopilot, hiring and terminal approvals, plus a subscription guard that stops at your plan limit instead of spending extra-usage credits. The ask-only Security Guard asks before secrets leave your computer or a downloaded script runs.</p><p><a href="docs/breaker-box.html">Breaker box</a> &middot; <a href="docs/security-guard.html">Security Guard</a></p></div><div class="panel-shot"><div class="card"><h3>What the Guard asks about</h3><ul><li>Secrets leaving this computer</li><li>Downloaded scripts and persistence</li><li>Credential stores</li><li>Untrusted instructions in web or mail text</li></ul></div></div></div>
+</div>
+</section>
+
+<section class="block" id="next">
+<div class="wrap">
+<div class="section-head"><p><span class="badge">Coming soon</span></p><h2>Coming soon: Tiro Workspace (v2)</h2><p>The next major version renames Agent Office to Tiro Workspace, after Tiro, the manager agent. These features are built and tested on the development branch but not released yet. Today's download is v${release.version}. <a href="changelog.html#unreleased-tiro-workspace-v2">Read the changelog</a>.</p></div>
+<div class="panel"><div class="panel-text"><h3>${esc(v2[0][0])}</h3><p>${esc(v2[0][1])}</p></div><div class="panel-shot">${picture('', '18-build-mode', 'Build mode: the furniture palette on the left, the office floor with zones painted on it and the Undo, Redo, Delete, Duplicate, Templates and Save toolbar on top', { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>
+<div class="panel flip"><div class="panel-text"><h3>${esc(v2[2][0])}</h3><p>${esc(v2[2][1])}</p></div><div class="panel-shot">${picture('', '19-ceo-radial-menu', 'The CEO standing next to Tiro, with the Chat, Prioritize, Boost and Speed menu around Tiro', { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>
+<div class="grid">${[v2[1], v2[3]].map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>
+<h3>Planned after v2</h3>
+<p class="meta">Ideas on the roadmap, not built yet.</p>
+<ul>${roadmap.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+<div class="btn-row">${dlButton({ id: '', label: `Get v${release.version} today` })}<a class="btn secondary" href="changelog.html#unreleased-tiro-workspace-v2">What's coming</a></div>
 </div>
 </section>
 
