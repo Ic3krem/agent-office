@@ -5,4 +5,6 @@ public/vendor/* binary
 docs/images/*.png binary
 public/fonts/*.woff2 binary
 public/art/** binary
+public/art/**/*.json -text diff
 art/palette.json binary
+art/palette.json -text diff

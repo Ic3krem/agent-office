@@ -141,6 +141,8 @@
     const mark = () => { dirty = true; if (!raf && !dead && !document.hidden) raf = requestAnimationFrame(render); };
     const onVis = () => { if (!document.hidden && dirty) mark(); };
     document.addEventListener('visibilitychange', onVis);
+    canvas.addEventListener('webglcontextrestored', mark);
+    app.stage.eventMode = 'none'; // input is DOM-only: skip Pixi's per-move hit-testing
 
     function resize() {
       const dpr = root.devicePixelRatio || 1;
@@ -173,6 +175,7 @@
         dead = true;
         if (raf) cancelAnimationFrame(raf);
         document.removeEventListener('visibilitychange', onVis);
+        canvas.removeEventListener('webglcontextrestored', mark);
         for (const t of charTex.values()) t.destroy(true);
         charTex.clear();
         app.destroy({ removeView: false }, { children: true });

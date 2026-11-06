@@ -18,6 +18,7 @@ const run = (cmd, args) => {
   const r = spawnSync(cmd, args, { stdio: 'inherit', cwd: ROOT });
   if (r.status !== 0) { console.error(`${path.basename(cmd)} failed (${r.status ?? r.error})`); process.exit(1); }
 };
+fs.rmSync(RAW, { recursive: true, force: true }); // full build: stale raw renders must not ship
 fs.mkdirSync(RAW, { recursive: true });
 run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/town_terrain.py'), '--', TOWN, RAW]);
 run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/town_assets.py'), '--', TOWN, RAW]);

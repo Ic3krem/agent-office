@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { createNowPlaying } from './nowplaying.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
 import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
+import { officeNav } from './office-nav.mjs';
 import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
 import { candidatePorts, publishedPort, isAgentOffice } from '../ports.mjs';
 import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
@@ -128,7 +129,12 @@ function openOffice(view) {
     office.webContents.on('will-prevent-unload', e => { if (quitting) return e.preventDefault(); if (dialog.showMessageBoxSync(office, { type: 'question', buttons: ['Leave', 'Stay'], defaultId: 1, cancelId: 1, message: 'You have unsaved layout changes.' }) === 0) e.preventDefault(); });
     office.on('closed', () => { office = null; });
     office.once('ready-to-show', () => office.show());
-  } else { office.show(); if (view) office.webContents.executeJavaScript(`location.hash=${JSON.stringify(view)}`).catch(() => {}); }
+  } else {
+    office.show();
+    const nav = officeNav(office.webContents.getURL(), view);
+    if (nav.load) office.loadURL(url('/') + (nav.hash ? '#' + nav.hash : ''));
+    else if (nav.hash) office.webContents.executeJavaScript(`location.hash=${JSON.stringify(nav.hash)}`).catch(() => {});
+  }
   office.focus();
 }
 

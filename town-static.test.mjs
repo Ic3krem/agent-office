@@ -19,7 +19,7 @@ test('town: page, pixi and art routes are served to the UI only, with strict nam
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-town-')), port = 4797, key = crypto.randomBytes(24).toString('hex');
   const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
     env: { ...process.env, USERPROFILE: tmp, HOME: tmp, APPDATA: tmp, LOCALAPPDATA: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: key, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-  t.after(() => { try { child.kill(); } catch {} });
+  t.after(() => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} });
   let out = ''; child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
   const t0 = Date.now(); while (!/running on/.test(out)) { if (Date.now() - t0 > 20000) throw new Error('server did not start: ' + out.slice(0, 400)); await new Promise(r => setTimeout(r, 150)); }
   const ck = 'ao_ui=' + key;

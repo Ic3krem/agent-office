@@ -5,12 +5,14 @@ const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
 const root = path.join(__dirname, '..'), port = 4798, base = 'http://127.0.0.1:' + port, key = crypto.randomBytes(24).toString('hex');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-towncheck-'));
+app.setPath('userData', path.join(tmp, 'electron'));
 const child = spawn(process.execPath, [path.join(root, 'server.mjs')], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', USERPROFILE: tmp, HOME: tmp, APPDATA: path.join(tmp, 'AppData'), LOCALAPPDATA: path.join(tmp, 'Local'), AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: key, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 let log = ''; child.stdout.on('data', d => log += d); child.stderr.on('data', d => log += d);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, info) => { if (!ok) failed++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (info !== undefined ? '  ' + JSON.stringify(info) : '')); };
-const done = code => { try { child.kill(); } catch {} app.exit(code); };
+const done = code => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); };
+setTimeout(() => { console.log('FAIL watchdog: harness exceeded 90 s'); done(1); }, 90000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 
 app.whenReady().then(async () => {
