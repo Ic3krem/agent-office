@@ -160,5 +160,22 @@
     return out;
   }
 
-  root.WorldPath = { buildGrid, findPath, cellOf, lineClear };
+  // One flood fill from `from` with findPath's moves (8 ways, no corner cutting). Returns to => true when findPath(g, from, to)
+  // would find a path: answers many "reachable?" questions for the price of one search.
+  function reachFrom(g, from) {
+    const { cols, rows } = g, seen = new Uint8Array(cols * rows), q = freeCellsFor(g, cellOf(g, from));
+    for (const c of q) seen[c] = 1;
+    for (let k = 0; k < q.length; k++) {
+      const i = q[k], r = (i / cols) | 0, c = i % cols;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        const rr = r + dr, cc = c + dc, j = rr * cols + cc;
+        if ((!dr && !dc) || rr < 0 || rr >= rows || cc < 0 || cc >= cols || seen[j] || g.blocked[j]) continue;
+        if (dr && dc && (g.blocked[r * cols + cc] || g.blocked[rr * cols + c])) continue;
+        seen[j] = 1; q.push(j);
+      }
+    }
+    return to => freeCellsFor(g, cellOf(g, to)).some(c => seen[c]);
+  }
+
+  root.WorldPath = { buildGrid, findPath, cellOf, lineClear, reachFrom };
 })(globalThis);

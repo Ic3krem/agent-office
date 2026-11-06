@@ -72,7 +72,8 @@
   const num = v => typeof v === 'number' && isFinite(v);
   const MAX = 4000; // ponytail: arbitrary cap so a PUT body cannot ask for a huge grid; today's world is 1240x780
   const rect = r => Array.isArray(r) && r.length === 4 && r.every(num);
-  const LIST_MAX = 2000, ZONE_TYPES = new Set([...ZONES.map(q => q.type), 'lounge']);
+  // List caps bound the work validate does on untrusted input (today's world: about 40 zones, 160 objects, 70 spots).
+  const LIST_MAX = { zones: 2000, objects: 1000, spots: 300 }, MAX_ERRORS = 10, ZONE_TYPES = new Set([...ZONES.map(q => q.type), 'lounge']);
   const inside = (x, y, l) => num(x) && num(y) && x >= 0 && x <= l.size.w && y >= 0 && y <= l.size.h;
   const short = v => typeof v === 'string' && v.length <= 64;
   // Values each param may take (painters loop over w and scale by s, so these bound the work validate does).
@@ -86,7 +87,7 @@
     if (!obj(l.spawn) || !inside(l.spawn.x, l.spawn.y, l)) return 'spawn needs numeric x and y inside the world';
     for (const k of ['zones', 'objects', 'spots']) {
       if (!Array.isArray(l[k])) return k + ' is not a list';
-      if (l[k].length > LIST_MAX) return k + ' has more than ' + LIST_MAX + ' entries';
+      if (l[k].length > LIST_MAX[k]) return k + ' has more than ' + LIST_MAX[k] + ' entries';
       for (const e of l[k]) {
         if (!obj(e) || typeof e.id !== 'string') return k + ' has an entry without a string id';
         const at = k + ' entry ' + e.id;
@@ -140,7 +141,7 @@
     if (nDesks > MAX_DESKS) errors.push('too many desks');
     if (errors.length) return { ok: false, errors }; // the checks below draw the objects
     try { geometry(layout, errors, spotId, extra); } catch (e) { errors.push('malformed: ' + e.message); } // bad params can break a painter
-    return { ok: !errors.length, errors };
+    return { ok: !errors.length, errors: errors.slice(0, MAX_ERRORS) };
   }
 
   function geometry(layout, errors, spotId, extra) {
@@ -151,10 +152,12 @@
     const sp0 = layout.spawn;
     requiredSpots(layout).forEach(id => spots[id] || errors.push('missing spot ' + id)); // every spot the agent brain reads must exist
     if (grid.blocked[W.cellOf(grid, sp0)]) errors.push('spawn (' + sp0.x + ',' + sp0.y + ') is blocked');
+    const reach = W.reachFrom(grid, sp0); // one flood fill, not one A* per spot
     for (const s of Object.values(spots)) {
+      if (errors.length >= MAX_ERRORS) break;
       if (!(s.x >= 0 && s.x <= w && s.y >= 0 && s.y <= h)) { errors.push('spot ' + s.id + ' is outside the world'); continue; }
       if (water.some(([x0, y0, x1, y1]) => s.x > x0 && s.x < x1 && s.y > y0 && s.y < y1)) errors.push('spot ' + s.id + ' is in water');
-      else if (!W.findPath(grid, sp0, s).length) errors.push('spot ' + s.id + ' is unreachable from spawn');
+      else if (!reach(s)) errors.push('spot ' + s.id + ' is unreachable from spawn');
     }
   }
 

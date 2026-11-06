@@ -145,3 +145,47 @@ test('M1: every client POST to /api sends the nonce and JSON', () => {
   assert.doesNotMatch(main, /fetch\(BASE \+ '\/api\//, 'the desktop app posts through uiPost (nonce included)');
   assert.match(main, /uiPost\('\/api\/roster'/); assert.match(main, /uiPost\('\/api\/visibility'/);
 });
+
+// ---------------------------------------------------------------- M2 layout validation cost
+test('M2: a walled-off pocket full of spots is rejected fast (one flood fill), with at most 10 errors; caps hold', async () => {
+  const { loadWorld } = await import('./world-vm.mjs');
+  const { WorldModel: WM, WorldPath: W } = loadWorld();
+  const J = v => JSON.parse(JSON.stringify(v));
+  const pocket = n => {
+    const L = J(WM.defaultLayout());
+    L.size = { w: 4000, h: 4000 };
+    L.zones.push({ id: 'wl', type: 'water', rect: [3900, 3900, 3940, 4000] }, { id: 'wt', type: 'water', rect: [3900, 3900, 4000, 3940] });
+    for (let i = 0; i < n; i++) L.spots.push({ id: 'p' + i, x: 3970, y: 3970, face: 'n' });
+    return L;
+  };
+  const free = 300 - J(WM.defaultLayout()).spots.length;
+  let r; const t0 = performance.now(); r = WM.validate(pocket(free)); const ms = performance.now() - t0;
+  assert.equal(r.ok, false);
+  assert.ok(ms < 500, 'validate took ' + Math.round(ms) + ' ms');
+  assert.ok(r.errors.length <= 10, r.errors.length + ' errors');
+  assert.match(r.errors.join('\n'), /p0 is unreachable from spawn/);
+  assert.match(WM.validate(pocket(free + 1)).errors.join('\n'), /spots has more than 300/);
+  const many = J(WM.defaultLayout()); many.objects = Array.from({ length: 1001 }, (_, i) => ({ id: 'p' + i, type: 'plant', x: 10, y: 10 }));
+  assert.match(WM.validate(many).errors.join('\n'), /objects has more than 1000/);
+  // reachFrom agrees with findPath on the default world
+  const L = J(WM.defaultLayout()), g = WM.gridOf(L), reach = W.reachFrom(g, L.spawn);
+  for (const s of Object.values(WM.spotsOf(L))) assert.equal(reach(s), W.findPath(g, L.spawn, s).length > 0, s.id);
+  const walled = W.buildGrid({ w: 100, h: 100, cell: 10, blocks: [[40, 0, 50, 100]] });
+  assert.equal(W.reachFrom(walled, { x: 5, y: 5 })({ x: 95, y: 5 }), false);
+  assert.equal(W.findPath(walled, { x: 5, y: 5 }, { x: 95, y: 5 }).length, 0);
+  assert.equal(W.reachFrom(walled, { x: 5, y: 5 })({ x: 45, y: 50 }), true, 'a blocked target is entered from its free ring, like findPath');
+});
+
+test('M2: the default layout and the built-in templates still validate, under the caps', () => {
+  return import('./world-vm.mjs').then(({ loadWorld }) => {
+    const { WorldModel: WM } = loadWorld();
+    const dir = path.join(ROOT, 'public', 'world-templates');
+    const layouts = [WM.defaultLayout(), ...fs.readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')))];
+    assert.ok(layouts.length >= 4);
+    for (const l of layouts) {
+      const r = WM.validate(JSON.parse(JSON.stringify(l)));
+      assert.deepEqual(JSON.parse(JSON.stringify(r.errors)), []);
+      assert.ok(l.spots.length <= 300 && l.objects.length <= 1000);
+    }
+  });
+});

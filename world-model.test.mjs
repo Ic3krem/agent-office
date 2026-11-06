@@ -85,7 +85,7 @@ test('validate checks param values and list sizes, and answers fast', () => {
     [(l) => { l.spots[0].face = 'x'; }, /face/],
     [(l) => { l.spots[0].face = { n: 1 }; }, /face/],
     [(l) => { l.zones[0].type = 'lava'; }, /unknown zone type/],
-    [(l) => { l.objects = Array.from({ length: 2001 }, (_, i) => ({ id: 'p' + i, type: 'plant', x: 10, y: 10 })); }, /more than 2000/],
+    [(l) => { l.objects = Array.from({ length: 2001 }, (_, i) => ({ id: 'p' + i, type: 'plant', x: 10, y: 10 })); }, /more than 1000/],
     [(l) => { l.objects[0].x = -5; }, /outside the world/],
     [(l) => { l.objects.find((o) => o.type === 'beanbag').col = 'red'; }, /bad col/],
     [(l) => { l.spots[0].seat = 'yes'; }, /seat must be/],
