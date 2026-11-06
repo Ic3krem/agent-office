@@ -99,6 +99,10 @@
   // (a moved copy shifts through add()'s CUR translate) when the atlas has it, else the procedural fn exactly as before.
   // Footprints never come from the art: while measure()/footprints() record (REC), the sprite painter also runs fn on the
   // no-op context, so a piece blocks, sorts and nofp/floor/gaps exactly as fixtures/office-footprints.json froze it.
+  // o (optional): o.under(g) draws first, inside a save that also wraps the frame (a contact shadow, or a shadowBlur glow
+  // that should light the frame); o.over(g) draws the live bits (LEDs, screens, steam, team colour) over the frame. fn
+  // stays the whole procedural piece, so the fallback draws exactly as before; under/over boxes are not recorded twice.
+  // A variant of a type (desk partition height, plant scale or growth) adds '@<variant>' to the frame name.
   let ATLAS = null, HOME = null; // HOME: [x, y] of the piece being built
   function useAtlas(a) { ATLAS = a; measured = false; } // re-measure: click silhouettes follow the sprites
   // t: the [tx, ty] canvas translate add() wraps a moved copy in; the destination is rounded with it so the frame lands on
@@ -111,9 +115,15 @@
     g.restore();
     return true;
   }
-  const spriteOr = (name, fn) => {
+  const spriteOr = (name, fn, o) => {
     const [x, y] = HOME, t = CUR ? [K * (CUR.dx - CUR.dy), K2 * (CUR.dx + CUR.dy)] : null; // the same translate add() applies
-    return g => { if (!(ATLAS && ATLAS.frames[name])) return fn(g); if (REC) fn(NUL); sprite(g, name, x, y, null, t); };
+    return g => {
+      if (!(ATLAS && ATLAS.frames[name])) return fn(g);
+      if (REC) fn(NUL); const n = REC ? REC.length : 0;
+      if (o && o.under) { g.save(); o.under(g); sprite(g, name, x, y, null, t); g.restore(); } else sprite(g, name, x, y, null, t);
+      if (o && o.over) o.over(g);
+      if (REC) REC.length = n;
+    };
   };
   const fixture = (name, build) => { def('fixture-' + name, [0, 0], build); put(name, 'fixture-' + name, 0, 0); };
 
@@ -327,13 +337,16 @@
     cyl(g, x, y, 10, 14, 5, col || '#3d4560');
     if (!o.noBack) box(g, x - 12, y + 12, 15, 24, 3, o.h || 22, sh(col || '#3d4560', .85));
   }
-  function mug(g, x, y, z, col, steam) { cyl(g, x, y, z, 3.2, 5, col || '#f3ede2'); const c = P(x + 3.2, y, z + 3); g.strokeStyle = col || '#f3ede2'; g.lineWidth = 1.2; g.beginPath(); g.arc(c[0] + 1, c[1], 2, -1.4, 1.4); g.stroke(); if (steam) { const t = ST.T, c2 = P(x, y, z + 6); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(c2[0], c2[1]); g.quadraticCurveTo(c2[0] + 2 * Math.sin(t * 2), c2[1] - 4, c2[0], c2[1] - 8 - (t * 6 % 3)); g.stroke(); } }
+  function mug(g, x, y, z, col, steam) { cyl(g, x, y, z, 3.2, 5, col || '#f3ede2'); const c = P(x + 3.2, y, z + 3); g.strokeStyle = col || '#f3ede2'; g.lineWidth = 1.2; g.beginPath(); g.arc(c[0] + 1, c[1], 2, -1.4, 1.4); g.stroke(); if (steam) steamOf(g, x, y, z); }
+  function steamOf(g, x, y, z) { const t = ST.T, c2 = P(x, y, z + 6); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(c2[0], c2[1]); g.quadraticCurveTo(c2[0] + 2 * Math.sin(t * 2), c2[1] - 4, c2[0], c2[1] - 8 - (t * 6 % 3)); g.stroke(); }
   function lamp(g, x, y, z, on, col) {
     cyl(g, x, y, z, 4, 2, '#2b2b36'); const a = P(x, y, z + 2), b = P(x - 4, y + 2, z + 26);
     g.strokeStyle = '#3a3a44'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
     cyl(g, x - 5, y + 2, z + 24, 5.5, 4, on ? (col || '#ffd36b') : '#6b6b74', { stroke: false });
-    if (on) { const c = P(x - 5, y + 2, z + 20); const gr = g.createRadialGradient(c[0], c[1], 1, c[0], c[1] + 6, 30); gr.addColorStop(0, 'rgba(255,225,150,.35)'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(c[0] - 32, c[1] - 6, 64, 40); }
+    if (on) lampLight(g, x, y, z);
   }
+  function lampLight(g, x, y, z) { const c = P(x - 5, y + 2, z + 20); const gr = g.createRadialGradient(c[0], c[1], 1, c[0], c[1] + 6, 30); gr.addColorStop(0, 'rgba(255,225,150,.35)'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(c[0] - 32, c[1] - 6, 64, 40); }
+  const contact = (x, y, r) => g => gell(g, x, y, 0, r, 'rgba(10,5,20,.25)'); // a chair's ground shadow, under its sprite
   function led(g, x, y, z, col, blink) { const c = P(x, y, z); g.fillStyle = col; g.globalAlpha = blink ? .55 + .45 * Math.sin(ST.T * 7 + x) : 1; g.fillRect(c[0] - 1.5, c[1] - 1.5, 3, 3); g.globalAlpha = 1; }
 
   // monitor with a drawn screen. x,y = left/back corner of the panel on the desk top.
@@ -366,7 +379,7 @@
   function deskBase(g, d, t, st) {
     const { cx, rect: r, block: b } = d, y0 = r.y0, acc = t.accent, wall = '#3a3d66', top = '#d8c19a';
     // partition panels in the accent colour: back panel + left side panel
-    const bz = d.key === 'tally' ? 96 : d.key === 'atlas' ? 0 : 62;
+    const bz = deskBz(d);
     if (bz) { box(g, cx - 95, y0 - 14, 0, 190, 5, bz, wall); box(g, cx - 95, y0 - 14, bz - 5, 190, 5, 5, acc, { t: sh(acc, 1.1) }); box(g, cx - 95, y0 - 14, 0, 190, 5, 8, '#262846', { t: '#262846' }); }
     box(g, cx - 97, y0 - 14, 0, 6, d.top ? 106 : 112, 48, wall); box(g, cx - 97, y0 - 14, 43, 6, d.top ? 106 : 112, 5, acc, { t: sh(acc, 1.1) });
     // desk: top, drawers on the right, open knee space on the left
@@ -375,6 +388,16 @@
     Fy(g, y0 + 48, 31, () => { g.translate(cx + 6, 0); for (let i = 0; i < 3; i++) { g.fillStyle = i % 2 ? '#b08556' : '#b88c5b'; g.fillRect(2, 2 + i * 9.5, 36, 8.5); g.fillStyle = '#e8d8b8'; g.fillRect(16, 5 + i * 9.5, 8, 1.6); } });
     box(g, cx - 54, y0 - 2, 31, 108, 56, 4, '#c9a878', { t: top, l: '#a98960', r: '#8d6f4d' });
     Fg(g, 35, () => { g.strokeStyle = 'rgba(80,50,20,.18)'; g.lineWidth = .8; g.beginPath(); for (let i = 1; i < 6; i++) { g.moveTo(cx - 50, y0 - 2 + i * 9.5); g.lineTo(cx + 54, y0 - 2 + i * 9.5); } g.stroke(); g.fillStyle = alpha(acc, .55); g.fillRect(cx - 54, y0 - 2, 108, 1.6); });
+    nameplate(g, d, t, st); ledFront(g, d, st);
+    mug(g, cx + 30, y0 + 36, 35, st.present ? '#f3ede2' : '#8a8a92', st.present && !st.working);
+    lamp(g, cx + 44, y0 + 6, 35, st.present && st.working);
+  }
+  const deskBz = d => d.key === 'tally' ? 96 : d.key === 'atlas' ? 0 : 62; // back partition height
+  function deskLive(g, d, t, st) { // deskBase's live bits over its sprite: team accents, name plate, LED, mug, lamp
+    const { cx, rect: r } = d, y0 = r.y0, acc = t.accent, bz = deskBz(d);
+    if (bz) box(g, cx - 95, y0 - 14, bz - 5, 190, 5, 5, acc, { t: sh(acc, 1.1) });
+    box(g, cx - 97, y0 - 14, 43, 6, d.top ? 106 : 112, 5, acc, { t: sh(acc, 1.1) });
+    Fg(g, 35, () => { g.fillStyle = alpha(acc, .55); g.fillRect(cx - 54, y0 - 2, 108, 1.6); });
     nameplate(g, d, t, st); ledFront(g, d, st);
     mug(g, cx + 30, y0 + 36, 35, st.present ? '#f3ede2' : '#8a8a92', st.present && !st.working);
     lamp(g, cx + 44, y0 + 6, 35, st.present && st.working);
@@ -528,10 +551,10 @@
       Fy(g, y0 + 22, 35 + 22, () => { g.translate(cx - 20, 0); g.fillStyle = on ? '#112a3a' : '#10163a'; g.fillRect(1.5, 1.5, 29, 19); g.fillStyle = t.accent; g.fillRect(4, 5, 16, 1.6); g.fillRect(4, 9, 22, 1.6); });
     },
   };
-  function drawDesk(g, d) {
+  function drawDesk(g, d, base) { // base: the desk's sprite painter (deskBase as its fallback)
     const t = teamOf(d.key), st = dstate(d.id);
     g.save(); if (!st.present) g.globalAlpha = .55;
-    deskBase(g, d, t, st); (PROPS[d.key] || PROPS.laptop)(g, d, t, st);
+    base(g); (PROPS[d.key] || PROPS.laptop)(g, d, t, st);
     g.restore();
     if (!st.present) { const c = P(d.cx, d.rect.y0 + 20, 36); g.save(); g.fillStyle = 'rgba(20,16,40,.28)'; poly(g, [P(d.block.x0, d.block.y0, 0), P(d.block.x1, d.block.y0, 0), P(d.block.x1, d.block.y1, 0), P(d.block.x0, d.block.y1, 0)], 'rgba(20,16,40,.22)'); g.restore(); void c; }
   }
@@ -542,59 +565,76 @@
   };
   def('dept-desk', [155, 352], p => { // a department desk with its chair; anchored at the seat
     const d = deskOf(p);
-    const deskItem = add(d.cx + d.rect.y0 + 30 + (d.top ? 0 : 0), g => drawDesk(g, d));
-    add(d.cx + d.seat.y - 8, g => { const st = dstate(d.id); g.save(); if (!st.present) g.globalAlpha = .5; chair(g, d.seat.x, d.seat.y, sh(teamOf(d.key).color, .6)); g.restore(); });
+    const base = spriteOr('dept-desk.0@' + deskBz(d) + (d.top ? 't' : 'b'), g => deskBase(g, d, teamOf(d.key), dstate(d.id)), { over: g => deskLive(g, d, teamOf(d.key), dstate(d.id)) });
+    const deskItem = add(d.cx + d.rect.y0 + 30 + (d.top ? 0 : 0), g => drawDesk(g, d, base));
+    const { x: sx, y: sy } = d.seat, seat = spriteOr('dept-desk.1', g => chair(g, sx, sy, sh(teamOf(d.key).color, .6)), {
+      under: contact(sx, sy, 15), over: g => box(g, sx - 12, sy + 12, 31, 24, 3, 6, sh(teamOf(d.key).color, .85)) }); // team colour on the backrest top
+    add(d.cx + d.seat.y - 8, g => { const st = dstate(d.id); g.save(); if (!st.present) g.globalAlpha = .5; seat(g); g.restore(); });
     reg('desk', teamOf(d.key).name + "'s desk", [d.block.x0, d.block.y0, 0, d.block.x1 - d.block.x0, d.block.y1 - d.block.y0, 70], deskItem, { desk: d.id });
   }, { home: p => { const d = deskOf(p); return [d.seat.x, d.seat.y]; }, spots: [{ id: p => p.desk, dx: 0, dy: 0, face: 'n', zone: 'focus', seat: true, desk: true }] });
   M.DESKS.forEach(d => put(d.id, 'dept-desk', d.seat.x, d.seat.y, { desk: d.id }));
 
   // ---------- manager's office ----------
   def('tiro-desk', [150, 46], () => { const tiroObj = reg('desk', "Tiro's desk", [150, 14, 0, 150, 84, 64], null, { desk: 'office' });
-  tiroObj.src = add(340, g => { // Tiro's desk, trophy shelf, rug items, plant, glass walls are separate items
+  tiroObj.src = add(340, spriteOr('tiro-desk', g => { // Tiro's desk, trophy shelf, rug items, plant, glass walls are separate items
     const D = M.TIRO_DESK; const dx = D.x0, dy = D.y0, w = D.x1 - D.x0, dd = D.y1 - D.y0;
     box(g, dx + 4, dy + 2, 0, w - 8, dd - 4, 28, '#5e3a1e'); box(g, dx, dy, 28, w, dd, 6, '#7d5230', { t: '#9a6a3c' });
     Fy(g, dy + dd, 28, () => { g.translate(dx + 4, 0); g.fillStyle = '#4a2c14'; g.fillRect(2, 2, w - 12, 20); g.fillStyle = '#6e4624'; for (let i = 0; i < 6; i++) g.fillRect(4 + i * 23, 4, 21, 16); g.fillStyle = '#d6b13a'; for (let i = 0; i < 6; i++) g.fillRect(12 + i * 23, 11, 5, 1.6); });
     // two monitors (we see their backs), nameplate faces the guests
     box(g, dx + 8, dy + 12, 34, 38, 3, 24, '#20222a'); box(g, dx + 104, dy + 12, 34, 38, 3, 24, '#20222a'); box(g, dx + 24, dy + 14, 34, 6, 2, 3, '#3a3a44'); box(g, dx + 120, dy + 14, 34, 6, 2, 3, '#3a3a44'); // monitors flank the chair so Tiro stays visible between them
-    const on = ST.tiroBusy; if (on) { const c = P(dx + 27, dy + 26, 50), c2 = P(dx + 123, dy + 26, 50); [c, c2].forEach(q => { const gr = g.createRadialGradient(q[0], q[1], 2, q[0], q[1], 26); gr.addColorStop(0, 'rgba(120,240,170,.16)'); gr.addColorStop(1, 'rgba(120,240,170,0)'); g.fillStyle = gr; g.fillRect(q[0] - 28, q[1] - 24, 56, 48); }); }
-    box(g, dx + 60, dy + dd - 10, 34, 34, 4, 9, '#20202a'); Fy(g, dy + dd - 6, 43, () => { g.translate(dx + 60, 0); g.fillStyle = '#ffcf6b'; g.fillRect(2, 1.5, 30, 5.5); txt(g, 'TIRO · MANAGER', 17, 6.2, 5.2, '#1b1220', 'center'); });
+    tiroGlow(g); tiroPlate(g);
     mug(g, dx + 132, dy + 34, 34, '#ffcf6b', true); lamp(g, dx + 140, dy + 8, 34, true);
     box(g, dx + 10, dy + 30, 34, 14, 11, 1, '#f3ede2'); box(g, dx + 12, dy + 32, 35, 14, 11, 1, '#e9e4d6');
-  }); }); // Tiro sits behind his desk: the desk has a footprint now, so its top and front panel draw over his lower body
+  }, { over: g => { const D = M.TIRO_DESK; tiroGlow(g); tiroPlate(g); steamOf(g, D.x0 + 132, D.y0 + 34, 34); lampLight(g, D.x0 + 140, D.y0 + 8, 34); } })); }); // Tiro sits behind his desk: the desk has a footprint now, so its top and front panel draw over his lower body
   put('tiro-desk', 'tiro-desk', 150, 46);
+  function tiroGlow(g) { // Tiro's two monitors light up while he works
+    const D = M.TIRO_DESK, dx = D.x0, dy = D.y0;
+    const on = ST.tiroBusy; if (on) { const c = P(dx + 27, dy + 26, 50), c2 = P(dx + 123, dy + 26, 50); [c, c2].forEach(q => { const gr = g.createRadialGradient(q[0], q[1], 2, q[0], q[1], 26); gr.addColorStop(0, 'rgba(120,240,170,.16)'); gr.addColorStop(1, 'rgba(120,240,170,0)'); g.fillStyle = gr; g.fillRect(q[0] - 28, q[1] - 24, 56, 48); }); }
+  }
+  function tiroPlate(g) {
+    const D = M.TIRO_DESK, dx = D.x0, dy = D.y0, dd = D.y1 - D.y0;
+    box(g, dx + 60, dy + dd - 10, 34, 34, 4, 9, '#20202a'); Fy(g, dy + dd - 6, 43, () => { g.translate(dx + 60, 0); g.fillStyle = '#ffcf6b'; g.fillRect(2, 1.5, 30, 5.5); txt(g, 'TIRO · MANAGER', 17, 6.2, 5.2, '#1b1220', 'center'); });
+  }
   fixture('wall-boards', () => {
     reg('usage', 'Usage and plan limits', [355, 0, 58, 100, 4, 62], usageBoard, { clip: true });
     reg('today', 'Today board', [132, 0, 54, 180, 4, 74], todayBoard, { clip: true });
   });
   // Inbox tray (approvals) on the desk, and the report icon
-  def('inbox', [158, 70], () => { const inboxItem = add(95, g => {
+  const inboxGlow = g => { if (ST.ex.pending) g.shadowColor = '#ffcf6b', g.shadowBlur = 6 + 6 * Math.sin(ST.T * 5); };
+  function inboxLive(g) { // paper waiting in the tray, and the report icon over the desk
     const D = M.TIRO_DESK, tx = D.x0 + 8, ty = D.y1 - 24, pend = ST.ex.pending || 0;
-    const hov = ST.hover === 'inbox'; g.save(); if (pend) g.shadowColor = '#ffcf6b', g.shadowBlur = 6 + 6 * Math.sin(ST.T * 5);
-    box(g, tx, ty, 34, 26, 16, 5, '#7a5a3a'); box(g, tx + 2, ty + 2, 35, 22, 12, 1, '#5e4228'); g.restore();
     if (pend) { box(g, tx + 4, ty + 3, 36, 18, 10, 1.6, '#fff7e0'); box(g, tx + 5, ty + 4, 37.6, 17, 9, 1.4, '#f3ede2'); }
     if (ST.reportIcon) { const c = P(D.x1 - 12, D.y1 - 24, 44 + Math.sin(ST.T * 4) * 2); g.fillStyle = '#fff'; g.strokeStyle = '#1b1220'; g.lineWidth = 1; g.fillRect(c[0] - 6, c[1] - 8, 12, 15); g.strokeRect(c[0] - 6, c[1] - 8, 12, 15); g.fillStyle = '#3f9f68'; g.fillRect(c[0] - 4, c[1] - 5, 8, 1.4); g.fillRect(c[0] - 4, c[1] - 2, 8, 1.4); g.fillRect(c[0] - 4, c[1] + 1, 5, 1.4); }
-    void hov;
-  });
+  }
+  def('inbox', [158, 70], () => { const inboxItem = add(95, spriteOr('inbox', g => {
+    const D = M.TIRO_DESK, tx = D.x0 + 8, ty = D.y1 - 24, pend = ST.ex.pending || 0;
+    g.save(); if (pend) g.shadowColor = '#ffcf6b', g.shadowBlur = 6 + 6 * Math.sin(ST.T * 5);
+    box(g, tx, ty, 34, 26, 16, 5, '#7a5a3a'); box(g, tx + 2, ty + 2, 35, 22, 12, 1, '#5e4228'); g.restore();
+    inboxLive(g);
+  }, { under: inboxGlow, over: inboxLive }));
   reg('inbox', 'Inbox tray: approvals', [158, 70, 34, 26, 16, 6], inboxItem); });
   put('inbox', 'inbox', 158, 70);
-  def('tiro-chair', [225, 26], () => add(26, g => { // Tiro's leather chair behind the desk
+  def('tiro-chair', [225, 26], () => add(26, spriteOr('tiro-chair', g => { // Tiro's leather chair behind the desk
     gell(g, 225, 26, 0, 17, 'rgba(10,5,20,.25)'); cyl(g, 225, 26, 0, 2.4, 11, '#2b2b36'); cyl(g, 225, 26, 11, 15, 6, '#6e2f2a'); box(g, 213, 12, 14, 24, 4, 34, '#5a2420'); box(g, 211, 12, 40, 28, 4, 6, '#6e2f2a');
-  }, { nofp: true }), { spots: [{ id: 'tiro:seat', dx: 0, dy: 4, face: 's', zone: 'office', seat: true, desk: true }] });
+  }, { under: contact(225, 26, 17) }), { nofp: true }), { spots: [{ id: 'tiro:seat', dx: 0, dy: 4, face: 's', zone: 'office', seat: true, desk: true }] });
   put('tiro-chair', 'tiro-chair', 225, 26);
-  def('guest-chair', [170, 152], (p, x, y) => add(x + y, g => chair(g, x, y, '#4a5a7a', { noBack: false, h: 18 })));
+  def('guest-chair', [170, 152], (p, x, y) => add(x + y, spriteOr('guest-chair', g => chair(g, x, y, '#4a5a7a', { noBack: false, h: 18 }), { under: contact(x, y, 15) })));
   [[170, 152], [284, 152]].forEach(([x, y], i) => put('guest-chair-' + (i + 1), 'guest-chair', x, y));
-  def('trophy-shelf', [20, 0], () => add(120, g => { // trophy shelf on the back wall, fills as goals finish
-    const n = Math.min(6, ST.board.done);
+  def('trophy-shelf', [20, 0], () => add(120, spriteOr('trophy-shelf', g => { // trophy shelf on the back wall, fills as goals finish
     box(g, 20, 0, 0, 96, 12, 20, '#5e3a1e'); box(g, 20, 0, 70, 96, 12, 3, '#7d5230'); box(g, 20, 0, 40, 96, 12, 3, '#7d5230');
+    trophies(g);
+  }, { over: trophies })));
+  function trophies(g) { // the trophies and the GOALS DONE plaque
+    const n = Math.min(6, ST.board.done);
     Fy(g, 12, 73, () => { g.translate(20, 0); for (let i = 0; i < 6; i++) { const x = 8 + i * 15, y = 24; if (i < n) { g.fillStyle = '#ffd23f'; g.fillRect(x, y - 14, 8, 9); g.fillRect(x + 2.5, y - 5, 3, 4); g.fillRect(x - 1, y - 1, 10, 2); g.fillStyle = '#fff3a0'; g.fillRect(x + 1, y - 13, 2, 5); } else { g.strokeStyle = 'rgba(255,255,255,.18)'; g.strokeRect(x, y - 9, 8, 8); } } g.fillStyle = '#d9d2c3'; g.fillRect(0, 36, 96, 1); g.fillStyle = '#2b2b36'; g.fillRect(24, 48, 48, 20); txt(g, 'GOALS DONE', 48, 56, 6, '#ffd23f', 'center'); txt(g, String(ST.board.done), 48, 66, 9, '#5ef0a0', 'center'); });
-  }));
+  }
   put('trophy-shelf', 'trophy-shelf', 20, 0);
   // potted plant; p.s = scale, p.dd = depth tweak against x + y (each copy was hand-tuned)
-  def('plant', [445, 38], (p, x, y) => add(x + y + (p.dd || 0), g => plant(g, x, y, p.s)));
+  def('plant', [445, 38], (p, x, y) => add(x + y + (p.dd || 0), spriteOr('plant@' + (p.s || 1), g => plant(g, x, y, p.s))));
   put('plant-1', 'plant', 445, 38, { s: 1.15, dd: -13 });
-  def('side-table', [22, 190], () => add(150, g => { // window seat cushion area: a small side table with a cup near the window
+  def('side-table', [22, 190], () => add(150, spriteOr('side-table', g => { // window seat cushion area: a small side table with a cup near the window
     cyl(g, 22, 190, 0, 9, 22, '#7a5230'); mug(g, 22, 190, 22, '#ffcf6b', true);
-  }));
+  }, { over: g => steamOf(g, 22, 190, 22) })));
   put('side-table', 'side-table', 22, 190);
 
   // glass walls round the manager's office: east wall (x=470) and south wall (y=230) with a door gap
@@ -649,7 +689,9 @@
   // tree; p.s = scale, p.dd = depth tweak against x + y + 4
   def('tree', [560, 36], (p, x, y) => add(x + y + 4 + (p.dd || 0), g => tree(g, x, y, p.s)));
   put('tree-1', 'tree', 560, 36, { s: 1.05 }); put('tree-2', 'tree', 950, 44, { s: 1.2, dd: -4 });
-  def('server-plant', [945, 196], () => { const plantItem = add(940 + 190, g => plant(g, 945, 196, 1.1 + Math.min(6, ST.ex.plantLevel || 0) * .07));
+  def('server-plant', [945, 196], () => { // grows a size per three filed reports: one frame per level
+    const lv = () => Math.min(6, ST.ex.plantLevel || 0), grown = [0, 1, 2, 3, 4, 5, 6].map(l => spriteOr('server-plant@' + l, g => plant(g, 945, 196, 1.1 + l * .07)));
+    const plantItem = add(940 + 190, g => grown[lv()] ? grown[lv()](g) : plant(g, 945, 196, 1.1 + lv() * .07));
     reg('plant', 'Server plant', [938, 190, 0, 14, 14, 70], plantItem); });
   put('server-plant', 'server-plant', 945, 196);
   def('bird-feeder', [930, 100], () => add(930 + 100, g => { // bird feeder on a pole
@@ -727,21 +769,23 @@
   fixture('pennants', () => add(10, g => { const a = P(480, 560, 108), b = P(990, 560, 108); g.strokeStyle = '#2b2b36'; g.lineWidth = 1; g.beginPath(); g.moveTo(a[0], a[1]); g.quadraticCurveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + 26, b[0], b[1]); g.stroke(); for (let i = 1; i < 16; i++) { const t = i / 16, x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * ((a[0] + b[0]) / 2) + t * t * b[0], y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * ((a[1] + b[1]) / 2 + 26) + t * t * b[1]; g.fillStyle = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0'][i % 5]; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y); g.lineTo(x, y + 9); g.fill(); } }));
 
   // ---------- utility strip ----------
-  def('filing-cabinet', [4, 596], () => { const sopItem = add(26 + 620, g => { // filing cabinet: SOPs
+  def('filing-cabinet', [4, 596], () => { const sopItem = add(26 + 620, spriteOr('filing-cabinet', g => { // filing cabinet: SOPs
     box(g, 4, 596, 0, 46, 48, 72, '#8a909c', { t: '#a9afba', l: '#8a909c', r: '#6b717d' });
     Fx(g, 50, 644, 72, () => { for (let i = 0; i < 3; i++) { g.fillStyle = i % 2 ? '#7d838f' : '#848a96'; g.fillRect(2, 2 + i * 23, 44, 21); g.fillStyle = '#d9d2c3'; g.fillRect(14, 6 + i * 23, 20, 7); g.fillStyle = '#2b2b36'; g.fillRect(18, 16 + i * 23, 12, 2.4); txt(g, 'SOP', 24, 12 + i * 23, 5, '#3a3a44', 'center'); } });
-  });
+  }));
   reg('sops', 'Filing cabinet: SOPs', [4, 596, 0, 46, 48, 72], sopItem); });
   put('filing-cabinet', 'filing-cabinet', 4, 596);
-  def('server-rack', [4, 650], () => { const rackItem = add(26 + 668, g => { // server rack (existing)
+  const rackLed = () => (ST.ex.rack || {}).led === 'red' ? '#ff5a4a' : (ST.ex.rack || {}).led === 'amber' ? '#ffb547' : '#5ef0a0';
+  const rackLeds = g => { const ledc = rackLed(); Fx(g, 44, 688, 108, () => { for (let i = 0; i < 7; i++) for (let k = 0; k < 4; k++) { const f = Math.sin(ST.T * (3 + k * 1.7) + i * 2.1) > -.3; g.fillStyle = f ? (k % 3 === 0 ? ledc : k % 3 === 1 ? '#7cc4ff' : '#ffb547') : '#2a2f3a'; g.fillRect(22 + k * 3.6, 6 + i * 14.5, 2, 2); } }); };
+  def('server-rack', [4, 650], () => { const rackItem = add(26 + 668, spriteOr('server-rack', g => { // server rack (existing)
     box(g, 4, 650, 0, 40, 38, 108, '#2b2f3a'); const ledc = (ST.ex.rack || {}).led === 'red' ? '#ff5a4a' : (ST.ex.rack || {}).led === 'amber' ? '#ffb547' : '#5ef0a0';
     Fx(g, 44, 688, 108, () => { for (let i = 0; i < 7; i++) { g.fillStyle = '#1c1f28'; g.fillRect(2, 3 + i * 14.5, 34, 12.5); g.fillStyle = '#3a4050'; g.fillRect(3, 4 + i * 14.5, 18, 1); for (let k = 0; k < 4; k++) { const f = Math.sin(ST.T * (3 + k * 1.7) + i * 2.1) > -.3; g.fillStyle = f ? (k % 3 === 0 ? ledc : k % 3 === 1 ? '#7cc4ff' : '#ffb547') : '#2a2f3a'; g.fillRect(22 + k * 3.6, 6 + i * 14.5, 2, 2); } } g.fillStyle = '#d9d2c3'; g.fillRect(4, 104, 30, 3); });
-  });
+  }, { over: rackLeds }));
   reg('rack', 'Server rack', [4, 650, 0, 40, 38, 108], rackItem); });
   put('server-rack', 'server-rack', 4, 650);
-  def('bookshelf', [4, 696], () => { const shelfItem = add(26 + 740, g => { // bookshelf: reports
+  def('bookshelf', [4, 696], () => { const shelfItem = add(26 + 740, spriteOr('bookshelf', g => { // bookshelf: reports
     box(g, 4, 696, 0, 38, 80, 128, '#6b4220'); Fx(g, 42, 776, 128, () => { g.fillStyle = '#3a2412'; g.fillRect(2, 2, 76, 124); const q = rnd(77); for (let row = 0; row < 5; row++) { g.fillStyle = '#5a3a1c'; g.fillRect(2, 24 + row * 25, 76, 2.5); let x = 4; while (x < 76) { const w = 3 + q() * 4, h = 14 + q() * 8; g.fillStyle = ['#8f3b2e', '#3f6b4a', '#c99a3c', '#2f4a72', '#6b3a5a', '#d8cdb5', '#3fb0b8'][(q() * 7) | 0]; g.fillRect(x, 24 + row * 25 - h, w, h); x += w + .5; } } txt(g, 'REPORTS ' + (ST.ex.reportsN || 0), 40, 122, 6.5, '#ffdca0', 'center'); });
-  });
+  }, { over: g => Fx(g, 42, 776, 128, () => txt(g, 'REPORTS ' + (ST.ex.reportsN || 0), 40, 122, 6.5, '#ffdca0', 'center')) }));
   reg('reports', 'Bookshelf: reports', [4, 696, 0, 38, 80, 128], shelfItem); });
   put('bookshelf', 'bookshelf', 4, 696);
   const cork = g => { // corkboard (memory) and breaker box on the left wall
@@ -841,33 +885,38 @@
     cyl(g, 404, 384, 0, 7, 12, '#e8c53a', { top: '#5a7fa8' }); box(g, 397, 383, 12, 14, 2, 2, '#9a9aa6');
     poly(g, [P(414, 380, 0), P(416, 380, 0), P(416, 380, 46), P(414, 380, 46)], '#a0643a'); poly(g, [P(411, 378, 0), P(419, 382, 0), P(417, 382, 9), P(413, 378, 9)], '#d9b45a', EDGE, .6);
   }), { spots: [{ id: 'npc:sweeper', dx: 10, dy: 26, face: 's', zone: 'utility' }] });
-  def('water-cooler', [446, 596], () => add(290 + 590, g => { // water cooler (rate-limit corner)
+  def('water-cooler', [446, 596], () => add(290 + 590, spriteOr('water-cooler', g => { // water cooler (rate-limit corner)
     box(g, 446, 596, 0, 20, 18, 44, '#e8e4dc'); cyl(g, 456, 605, 44, 8, 22, 'rgba(120,190,240,.75)', { top: 'rgba(170,220,250,.85)' }); box(g, 452, 614, 22, 8, 2, 4, '#3a8ae0'); Fy(g, 614, 40, () => { g.translate(446, 0); g.fillStyle = '#7ad0ff'; g.fillRect(6, 6, 4, 4); g.fillStyle = '#ff7a6b'; g.fillRect(12, 6, 4, 4); });
-  }));
+  })));
   put('water-cooler', 'water-cooler', 446, 596);
-  def('coffee-counter', [360, 592], () => { const coffeeItem = add(400 + 600, g => { // coffee counter with the espresso machine
+  const espresso = () => !!(ST.ex.switches || {}).espresso;
+  function coffeeSteam(g) { if (espresso()) { const c = P(381, 612, 40); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.2; for (let i = 0; i < 2; i++) { g.beginPath(); g.moveTo(c[0] + i * 5, c[1]); g.quadraticCurveTo(c[0] + i * 5 + 3, c[1] - 6, c[0] + i * 5, c[1] - 12 - (ST.T * 8 % 4)); g.stroke(); } } }
+  const coffeeLive = g => { Fy(g, 616, 64, () => { g.fillStyle = espresso() ? '#5fd38d' : '#555'; g.beginPath(); g.arc(380, 8.5, 1.6, 0, 6.2832); g.fill(); }); coffeeSteam(g); };
+  def('coffee-counter', [360, 592], () => { const coffeeItem = add(400 + 600, spriteOr('coffee-counter', g => { // coffee counter with the espresso machine
     box(g, 360, 592, 0, 76, 30, 34, '#8d6840', { t: '#d8d2c6' }); Fy(g, 622, 34, () => { g.translate(360, 0); g.fillStyle = '#6b4a2a'; g.fillRect(3, 3, 32, 26); g.fillRect(41, 3, 32, 26); g.fillStyle = '#c9a878'; g.fillRect(14, 12, 10, 2); g.fillRect(52, 12, 10, 2); });
     const on = !!(ST.ex.switches || {}).espresso;
     box(g, 372, 596, 34, 30, 20, 30, '#3b3f45'); Fy(g, 616, 64, () => { g.translate(372, 0); g.fillStyle = '#1f2125'; g.fillRect(4, 4, 22, 9); g.fillStyle = on ? '#5fd38d' : '#555'; g.beginPath(); g.arc(8, 8.5, 1.6, 0, 6.2832); g.fill(); g.fillStyle = '#f3ede2'; g.fillRect(11, 20, 9, 8); });
-    if (on) { const c = P(381, 612, 40); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.2; for (let i = 0; i < 2; i++) { g.beginPath(); g.moveTo(c[0] + i * 5, c[1]); g.quadraticCurveTo(c[0] + i * 5 + 3, c[1] - 6, c[0] + i * 5, c[1] - 12 - (ST.T * 8 % 4)); g.stroke(); } }
+    coffeeSteam(g);
     mug(g, 414, 604, 34, '#ffcf6b'); mug(g, 424, 610, 34, '#f3ede2');
-  });
+  }, { over: coffeeLive }));
   reg('coffee', 'Coffee machine', [372, 596, 34, 30, 20, 30], coffeeItem, { clip: true }); });
   put('coffee-counter', 'coffee-counter', 360, 592);
-  def('printer', [204, 592], () => add(225 + 600, g => { // printer: animates when a report is filed
+  function printerPaper(g) { if (ST.printer > 0) { const t = ST.printer; box(g, 218, 598, 39 + Math.min(10, (3 - t) * 6), 20, 12, 1, '#fff'); led(g, 238, 612, 30, '#5ef0a0', true); } }
+  const printerLive = g => { Fy(g, 616, 36, () => { g.fillStyle = ST.printer > 0 ? '#5fd38d' : '#7a7a86'; g.fillRect(242, 9, 3, 2); }); printerPaper(g); };
+  def('printer', [204, 592], () => add(225 + 600, spriteOr('printer', g => { // printer: animates when a report is filed
     box(g, 204, 592, 0, 50, 26, 22, '#8d6840'); box(g, 206, 594, 22, 46, 22, 14, '#d8d2c6'); box(g, 208, 596, 36, 40, 18, 3, '#b9b3a6');
     Fy(g, 616, 36, () => { g.translate(206, 0); g.fillStyle = '#2b2b36'; g.fillRect(4, 4, 38, 4); g.fillStyle = ST.printer > 0 ? '#5fd38d' : '#7a7a86'; g.fillRect(36, 9, 3, 2); });
-    if (ST.printer > 0) { const t = ST.printer; box(g, 218, 598, 39 + Math.min(10, (3 - t) * 6), 20, 12, 1, '#fff'); led(g, 238, 612, 30, '#5ef0a0', true); }
-  }));
+    printerPaper(g);
+  }, { over: printerLive })));
   put('printer', 'printer', 204, 592);
-  def('recycling-bin', [468, 618], () => add(466 + 646, g => { // recycling bin
+  def('recycling-bin', [468, 618], () => add(466 + 646, spriteOr('recycling-bin', g => { // recycling bin
     box(g, 468, 618, 0, 14, 14, 20, '#3a8a5a'); Fy(g, 632, 20, () => { g.translate(468, 0); g.fillStyle = '#e8f5ec'; g.fillRect(3, 3, 8, 8); });
-  }));
+  })));
   put('recycling-bin', 'recycling-bin', 468, 618);
   // hot desks for visitors (spill desks): two small tables
-  def('hot-desk', [98, 600], (p, x) => add(x + 36 + 612, g => { box(g, x, 600, 0, 74, 28, 30, '#8d6840', { t: '#d8d2c6' }); box(g, x + 8, 606, 30, 24, 14, 1.5, '#2b2f3a'); box(g, x + 42, 606, 30, 24, 14, 1.5, '#2b2f3a'); Fg(g, 32, () => { g.fillStyle = '#7cc4ff'; g.fillRect(x + 12, 609, 16, 7); g.fillRect(x + 46, 609, 16, 7); }); }));
+  def('hot-desk', [98, 600], (p, x) => add(x + 36 + 612, spriteOr('hot-desk', g => { box(g, x, 600, 0, 74, 28, 30, '#8d6840', { t: '#d8d2c6' }); box(g, x + 8, 606, 30, 24, 14, 1.5, '#2b2f3a'); box(g, x + 42, 606, 30, 24, 14, 1.5, '#2b2f3a'); Fg(g, 32, () => { g.fillStyle = '#7cc4ff'; g.fillRect(x + 12, 609, 16, 7); g.fillRect(x + 46, 609, 16, 7); }); })));
   [98, 290].forEach((x, i) => put('hot-desk-' + (i + 1), 'hot-desk', x, 600));
-  def('hot-chair', [118, 654], (p, x) => add(x + 645, g => chair(g, x, 654, '#6b6b78', { h: 16 })));
+  def('hot-chair', [118, 654], (p, x) => add(x + 645, spriteOr('hot-chair', g => chair(g, x, 654, '#6b6b78', { h: 16 }), { under: contact(x, 654, 15) })));
   [118, 152, 306, 346].forEach((x, i) => put('hot-chair-' + (i + 1), 'hot-chair', x, 654));
   walls.push(g => { Fg(g, 0.3, () => { if (ST.labels > 0.02) { g.globalAlpha = ST.labels; g.fillStyle = 'rgba(255,255,255,.55)'; g.font = "700 15px 'Pixelify Sans',monospace"; g.textAlign = 'center';
       const L = (s, x, y, c) => { g.fillStyle = c || 'rgba(255,255,255,.55)'; g.fillText(s, x, y); };

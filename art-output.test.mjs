@@ -7,7 +7,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const TOWN = path.join(ROOT, 'public/art/town');
+const TOWN = path.join(ROOT, 'public/art/town'), OFFICE = path.join(ROOT, 'public/art/office');
 const readJson = p => JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8'));
 const pngSize = f => { const b = fs.readFileSync(f); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
@@ -74,10 +74,30 @@ test('office styles share the office-modern footprint and are distinct renders',
 
 test('every shipped art file is in art/MANIFEST.json with a matching sha256', () => {
   const m = readJson('art/MANIFEST.json'), byFile = new Map(m.files.map(f => [f.file, f]));
-  for (const f of walk(TOWN)) {
+  for (const f of [...walk(TOWN), ...walk(OFFICE)]) {
     const rel = path.relative(ROOT, f).split(path.sep).join('/'), e = byFile.get(rel);
     assert.ok(e, 'not in manifest: ' + rel);
     assert.equal(e.sha256, crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex'), rel);
     assert.equal(e.license, 'Apache-2.0 (original)');
   }
+});
+
+test('office atlas: frames inside it, colour/shadow/glow sheets share its size, <= 2048', () => {
+  const atlas = readJson('public/art/office/atlas.json'), [W, H] = atlas.size;
+  assert.ok(W <= 2048 && H <= 2048);
+  for (const f of ['atlas.png', 'atlas-shadow.png', 'atlas-glow.png']) assert.deepEqual(pngSize(path.join(OFFICE, f)), [W, H], f);
+  for (const [n, r] of Object.entries(atlas.frames)) {
+    assert.ok(r.x >= 0 && r.y >= 0 && r.w > 0 && r.h > 0 && r.x + r.w <= W && r.y + r.h <= H, n);
+    assert.ok(Number.isInteger(r.ax) && Number.isInteger(r.ay), n + ' anchor');
+  }
+});
+
+test('every frame a converted office painter asks for is in the office atlas', async () => {
+  const { loadWorld } = await import('./world-vm.mjs');
+  const w = loadWorld(), F = w.OfficeFurniture, asked = new Set(), real = readJson('public/art/office/atlas.json').frames;
+  const NUL = new Proxy(function () {}, { get: () => NUL, apply: () => NUL, set: () => true });
+  F.useAtlas({ image: {}, frames: new Proxy({}, { get: (_, n) => { if (typeof n === 'string') asked.add(n); return { x: 0, y: 0, w: 1, h: 1, ax: 0, ay: 0 }; } }) });
+  for (let lv = 0; lv <= 6; lv++) { F.state.ex.plantLevel = lv; for (const p of F.defaultInstances()) for (const { it } of F.parts(p)) it.fn(NUL); }
+  assert.ok(asked.size > 20, 'painters asked for ' + asked.size + ' frames');
+  for (const n of asked) assert.ok(real[n], 'missing office frame ' + n);
 });

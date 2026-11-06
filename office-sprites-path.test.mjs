@@ -58,3 +58,41 @@ test('sprite() applies an optional alpha and reports a missing frame', () => {
   assert.deepEqual(calls.map(c => c[0]), ['save', '=', '=', 'drawImage', 'restore']);
   assert.equal(F.sprite(recorder([]), 'nope', 0, 0), false);
 });
+
+// ---------- the shipped office atlas (batch A: modern-cozy work furniture) ----------
+const REAL = () => JSON.parse(fs.readFileSync(new URL('./public/art/office/atlas.json', import.meta.url), 'utf8'));
+const BATCH_A = ['dept-desk', 'tiro-desk', 'tiro-chair', 'guest-chair', 'hot-desk', 'hot-chair', 'inbox', 'side-table', 'filing-cabinet',
+  'bookshelf', 'server-rack', 'printer', 'recycling-bin', 'water-cooler', 'coffee-counter', 'trophy-shelf', 'plant', 'server-plant'];
+const usesAtlas = calls => calls.some(c => c[0] === 'drawImage' && c[1] === 'IMG');
+
+test('the shipped atlas changes no walk cell, footprint or depth order', () => {
+  const a = boot(), b = boot({ image: IMG, frames: REAL().frames });
+  const grid = w => Array.from(w.WorldModel.gridOf(w.WorldModel.defaultLayout()).blocked);
+  assert.deepEqual(grid(b), grid(a));
+  const fa = a.OfficeFurniture, fb = b.OfficeFurniture;
+  assert.deepEqual(J(fb.footprints(fb.defaultInstances())), J(fa.footprints(fa.defaultInstances())));
+  assert.deepEqual(J(fb.items.map(i => [i.d, i.fp])), J(fa.items.map(i => [i.d, i.fp])));
+});
+
+test('every batch A piece draws from a frame the shipped atlas has (default copies, desk variants, plant growth)', () => {
+  const w = boot({ image: IMG, frames: REAL().frames }), F = w.OfficeFurniture;
+  const inst = F.defaultInstances().filter(p => BATCH_A.includes(p.type));
+  assert.deepEqual([...new Set(inst.map(p => p.type))].sort(), [...BATCH_A].sort());
+  // every role's partition height on both desk rows
+  for (const role of ['tally', 'atlas', 'pixel']) for (const y of [352, 516]) inst.push({ id: role + y, type: 'dept-desk', desk: 'desk-1', role, x: 155, y });
+  for (const p of inst) for (const { it } of F.parts(p)) assert.ok(usesAtlas(draw(it)), p.id + ' draws its sprite');
+  const sp = F.parts(inst.find(p => p.type === 'server-plant'))[0].it;
+  for (let lv = 0; lv <= 6; lv++) { F.state.ex.plantLevel = lv; assert.ok(usesAtlas(draw(sp)), 'server plant level ' + lv); }
+});
+
+test('live bits stay procedural over the sprites', () => {
+  const w = boot({ image: IMG, frames: REAL().frames }), F = w.OfficeFurniture, ST = F.state;
+  const part = (id, i = 0) => F.parts(F.defaultInstances().find(p => p.id === id))[i].it;
+  assert.ok(draw(part('desk-1')).some(c => c[0] === 'fillText'), 'desk name plate');
+  const chair = draw(part('desk-1', 1));
+  assert.ok(usesAtlas(chair) && chair.some(c => c[0] === 'fill' || c[0] === 'fillRect'), 'chair team accent');
+  const n0 = draw(part('printer')).length; ST.printer = 2; assert.ok(draw(part('printer')).length > n0, 'printer paper'); ST.printer = 0;
+  const c0 = draw(part('coffee-counter')).length; ST.ex.switches = { espresso: true }; assert.ok(draw(part('coffee-counter')).length > c0, 'coffee steam');
+  const t0 = draw(part('trophy-shelf')); assert.ok(t0.some(c => c[0] === 'fillText'), 'goals plaque');
+  const i0 = draw(part('inbox')).length; ST.ex.pending = 2; assert.ok(draw(part('inbox')).length > i0, 'inbox paper');
+});

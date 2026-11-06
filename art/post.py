@@ -1,6 +1,7 @@
-# Post-process the raw Blender renders into the shipped town art. Original art, Apache-2.0.
-#   python art/post.py <raw dir> <out dir>          palette, atlases, terrain chunks
-#   python art/post.py --preview <out dir> <png>    compose terrain + every sprite at its town.json spot, 2x
+# Post-process the raw Blender renders into the shipped town and office art. Original art, Apache-2.0.
+#   python art/post.py <raw dir> <out dir> [<office out dir>]   palette, atlases, terrain chunks; office atlas from <raw>/office
+#   python art/post.py --preview <out dir> <png>                 compose terrain + every sprite at its town.json spot, 2x
+#   python art/post.py --office-preview <office out> <png>       compose the default office's sprites (art/.raw/catalog.json), 2x
 import sys, os, json, glob
 from collections import Counter
 from PIL import Image, ImageEnhance, ImageFilter, ImageChops
@@ -47,38 +48,22 @@ def to_palette(im, pal, ncols):
 def save_p(im, path): im.save(path, optimize=True, transparency=im.info['transparency'])
 
 
-def build(raw, out):
-    town_assets = sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(raw, '*.json')) if not p.endswith('terrain.json'))
+def load(raw, skip=(), snap=1):
+    """Every <name>.json render set in raw: name -> [colour, shadow, anchor, footprint, glow alpha or None]."""
     sprites = {}
-    for n in town_assets:
+    for n in sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(raw, '*.json')) if os.path.basename(p) not in skip):
         meta = json.load(open(os.path.join(raw, n + '.json')))
         col = look(Image.open(os.path.join(raw, n + '.png')).convert('RGBA'))
+        if snap > 1: a = col.getchannel('A'); col = col.convert('RGB').point(lambda v: min(255, (v + snap // 2) // snap * snap)); col.putalpha(a)
         sh = shadow(col, Image.open(os.path.join(raw, n + '.ground.png')).convert('RGBA'), Image.open(os.path.join(raw, n + '.noshadow.png')).convert('RGBA'))
-        sprites[n] = [col, sh, meta['anchor'], meta['footprint']]
-    terrain = look(Image.open(os.path.join(raw, 'terrain.png')).convert('RGBA'))
-    tmeta = json.load(open(os.path.join(raw, 'terrain.json')))
+        gp = os.path.join(raw, n + '.glow.png')
+        glow = Image.open(gp).convert('RGBA') if os.path.exists(gp) else None
+        sprites[n] = [col, sh, meta['anchor'], meta['footprint'], glow]
+    return sprites
 
-    # shared palette: median cut (k-means refined) over the opaque pixels of every colour render and the terrain;
-    # each colour's weight is capped so big flat areas (grass) don't starve small accents (pavers, glass, awnings)
-    cnt = Counter(p for im in [s[0] for s in sprites.values()] + [terrain]
-                  for p, a in zip(im.convert('RGB').get_flattened_data(), im.getchannel('A').get_flattened_data()) if a)
-    allpx = [c for c, k in cnt.items() for _ in range(min(k, CAP))]
-    sample = Image.new('RGB', (len(allpx), 1)); sample.putdata(allpx)
-    pq = sample.quantize(colors=NCOL, method=Image.Quantize.MEDIANCUT, kmeans=4, dither=Image.Dither.NONE)
-    cols = [tuple(pq.getpalette()[i * 3:i * 3 + 3]) for _, i in pq.getcolors()]
-    cols = sorted(set(cols)) + [OUTLINE]
-    if len(cols) > 64: print('palette has', len(cols), 'colours (> 64)'); sys.exit(1)
-    pal = palette_image(cols)
-    json.dump({'colors': ['#%02x%02x%02x' % c for c in cols], 'outline': '#%02x%02x%02x' % OUTLINE}, open(os.path.join(HERE, 'palette.json'), 'w', newline='\n'), indent=1)
 
-    # map sprites to the palette, add the outline, crop colour+shadow to their union
-    frames = {}
-    for n, (col, sh, (ax, ay), fp) in sprites.items():
-        col = outline(to_palette(col, pal, len(cols)).convert('RGBA'))
-        u = ImageChops.lighter(col.getchannel('A'), sh.getchannel('A')).getbbox()
-        frames[n] = (col.crop(u), sh.crop(u), ax - u[0], ay - u[1], fp)
-
-    # shelf packer, tallest first, 2 px padding
+def pack(frames):
+    """Shelf packer, tallest first, 2 px padding: (W, H, {name: (x, y)})."""
     order = sorted(frames, key=lambda n: (-frames[n][0].height, n))
     for W in (512, 1024, 2048):
         x = y = shelf = 0; rects = {}
@@ -89,9 +74,43 @@ def build(raw, out):
         H = y + shelf + 2 * PAD
         if H <= W: break
     if W > MAXA or H > MAXA: print('atlas too big', W, H); sys.exit(1)
+    return W, H, rects
+
+
+def cut(sprites, pal, ncols):
+    """Map each sprite to the palette, add the outline, crop colour+shadow(+glow) to their union."""
+    frames = {}
+    for n, (col, sh, (ax, ay), fp, glow) in sprites.items():
+        col = outline(to_palette(col, pal, ncols).convert('RGBA'))
+        u = ImageChops.lighter(col.getchannel('A'), sh.getchannel('A')).getbbox()
+        frames[n] = (col.crop(u), sh.crop(u), ax - u[0], ay - u[1], fp, glow.crop(u) if glow else None)
+    return frames
+
+
+def build(raw, out, office_out=None):
+    sprites = load(raw, ('terrain.json', 'catalog.json'))
+    office = load(os.path.join(raw, 'office'), snap=8) if office_out else {}  # snap: the small interior renders carry +-1 shading noise that would speckle flat faces
+    terrain = look(Image.open(os.path.join(raw, 'terrain.png')).convert('RGBA'))
+    tmeta = json.load(open(os.path.join(raw, 'terrain.json')))
+
+    # shared palette: median cut (k-means refined) over the opaque pixels of every colour render and the terrain;
+    # each colour's weight is capped so big flat areas (grass) don't starve small accents (pavers, glass, awnings)
+    cnt = Counter(p for im in [s[0] for s in sprites.values()] + [s[0] for s in office.values()] + [terrain]
+                  for p, a in zip(im.convert('RGB').get_flattened_data(), im.getchannel('A').get_flattened_data()) if a)
+    allpx = [c for c, k in cnt.items() for _ in range(min(k, CAP))]
+    sample = Image.new('RGB', (len(allpx), 1)); sample.putdata(allpx)
+    pq = sample.quantize(colors=NCOL, method=Image.Quantize.MEDIANCUT, kmeans=4, dither=Image.Dither.NONE)
+    cols = [tuple(pq.getpalette()[i * 3:i * 3 + 3]) for _, i in pq.getcolors()]
+    cols = sorted(set(cols)) + [OUTLINE]
+    if len(cols) > 64: print('palette has', len(cols), 'colours (> 64)'); sys.exit(1)
+    pal = palette_image(cols)
+    json.dump({'colors': ['#%02x%02x%02x' % c for c in cols], 'outline': '#%02x%02x%02x' % OUTLINE}, open(os.path.join(HERE, 'palette.json'), 'w', newline='\n'), indent=1)
+
+    frames = cut(sprites, pal, len(cols))
+    W, H, rects = pack(frames)
     atlas, atlas_sh, meta = Image.new('RGBA', (W, H), (0, 0, 0, 0)), Image.new('RGBA', (W, H), SHADOW + (0,)), {}
     for n in sorted(frames):
-        c, s, ax, ay, fp = frames[n]; x, y = rects[n]
+        c, s, ax, ay, fp, _ = frames[n]; x, y = rects[n]
         atlas.paste(c, (x, y)); atlas_sh.paste(s, (x, y))
         meta[n] = {'x': x, 'y': y, 'w': c.width, 'h': c.height, 'ax': ax, 'ay': ay, 'footprint': fp}
     os.makedirs(os.path.join(out, 'terrain'), exist_ok=True)
@@ -110,6 +129,26 @@ def build(raw, out):
             save_p(ch, os.path.join(out, 'terrain', f'r{r}c{c}.png'))
     json.dump({'originPx': tmeta['originPx'], 'chunk': CHUNK, 'cols': cols_n, 'rows': rows_n, 'size': [TW, TH]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'), indent=1)
     print(f'palette {len(cols)} colours; atlas {W}x{H}; terrain {TW}x{TH} in {cols_n}x{rows_n} chunks')
+    if office_out: build_office(office, pal, len(cols), office_out)
+
+
+def build_office(sprites, pal, ncols, out):
+    """public/art/office: atlas.png (shared palette), atlas-shadow.png, atlas-glow.png (lit parts, same rects), atlas.json."""
+    frames = cut(sprites, pal, ncols)
+    W, H, rects = pack(frames)
+    atlas, atlas_sh, atlas_gl, meta = Image.new('RGBA', (W, H), (0, 0, 0, 0)), Image.new('RGBA', (W, H), SHADOW + (0,)), Image.new('RGBA', (W, H), (0, 0, 0, 0)), {}
+    for n in sorted(frames):
+        c, s, ax, ay, fp, gl = frames[n]; x, y = rects[n]
+        atlas.paste(c, (x, y)); atlas_sh.paste(s, (x, y))
+        if gl: atlas_gl.paste(look(gl), (x, y), gl.getchannel('A').point(lambda v: 255 if v > 100 else 0))
+        meta[n] = {'x': x, 'y': y, 'w': c.width, 'h': c.height, 'ax': ax, 'ay': ay}
+        if gl: meta[n]['glow'] = True
+    os.makedirs(out, exist_ok=True)
+    save_p(to_palette(atlas, pal, ncols), os.path.join(out, 'atlas.png'))
+    atlas_sh.save(os.path.join(out, 'atlas-shadow.png'), optimize=True)
+    atlas_gl.save(os.path.join(out, 'atlas-glow.png'), optimize=True)
+    json.dump({'frames': meta, 'size': [W, H]}, open(os.path.join(out, 'atlas.json'), 'w', newline='\n'), indent=1)
+    print(f'office atlas {W}x{H}, {len(frames)} frames')
 
 
 def preview(out, png):
@@ -132,6 +171,31 @@ def preview(out, png):
     print('preview', png)
 
 
+def office_preview(out, png):
+    """Default office floor (wall line, zones as flat tones) with every batch sprite at its home, depth-sorted, 2x."""
+    cat = json.load(open(os.path.join(HERE, '.raw', 'catalog.json'), encoding='utf8'))
+    aj = json.load(open(os.path.join(out, 'atlas.json')))
+    atlas, atlas_sh = Image.open(os.path.join(out, 'atlas.png')).convert('RGBA'), Image.open(os.path.join(out, 'atlas-shadow.png')).convert('RGBA')
+    from PIL import ImageDraw
+    P = lambda x, y, z=0: (575 + 0.70710678 * (x - y), 175 + 0.35355339 * (x + y) - z)
+    canvas = Image.new('RGBA', (1480, 920), (30, 26, 34, 255)); d = ImageDraw.Draw(canvas)
+    for (x0, y0, x1, y1, c) in [(0, 0, 470, 230, '#c9a57a'), (470, 0, 1240, 230, '#7da05e'), (0, 230, 1000, 550, '#d8ccb8'), (1000, 230, 1240, 780, '#7da05e'),
+                                (0, 550, 470, 780, '#e6dfd2'), (470, 550, 1000, 780, '#cdb8a0'), (1000, 550, 1240, 780, '#a7a9ad')]:
+        d.polygon([P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)], fill=c)
+    d.polygon([P(0, 0), P(1240, 0), P(1240, 0, 150), P(0, 0, 150)], fill='#e9e1d2'); d.polygon([P(0, 0), P(0, 780), P(0, 780, 150), P(0, 0, 150)], fill='#ddd3c1')
+    items = [(q['d'], q['frame'], *q['home']) for q in cat['placed'] if q['frame']]
+    items.sort()
+    for src in (atlas_sh, atlas):
+        for (_, n, x, y) in items:
+            fr = aj['frames'].get(n)
+            if not fr: continue
+            spr = src.crop((fr['x'], fr['y'], fr['x'] + fr['w'], fr['y'] + fr['h']))
+            px, py = P(x, y); canvas.alpha_composite(spr, (round(px) - fr['ax'], round(py) - fr['ay']))
+    canvas.resize((canvas.width * 2, canvas.height * 2), Image.NEAREST).save(png)
+    print('office preview', png, len(items), 'pieces')
+
+
 if __name__ == '__main__':
     if sys.argv[1] == '--preview': preview(sys.argv[2], sys.argv[3])
-    else: build(sys.argv[1], sys.argv[2])
+    elif sys.argv[1] == '--office-preview': office_preview(sys.argv[2], sys.argv[3])
+    else: build(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
