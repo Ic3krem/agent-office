@@ -86,10 +86,12 @@ def blob(x, y, z, r, col):
     bmesh.ops.create_icosphere(_bm(col), subdivisions=1, radius=r, matrix=_at(x, y, z) @ Matrix.Diagonal((1, 1, ZS * 0.85, 1)))
 
 
-def prism(pts, x0, x1, col):
-    """Extrude the polygon pts [(y, z)...] along x from x0 to x1 (gable ends, awnings)."""
+def prism(pts, x0, x1, col, axis='x'):
+    """Extrude the polygon pts [(y, z)...] along x from x0 to x1 (gable ends, awnings).
+    axis='y': pts are [(x, z)...] and x0/x1 run along y (gables and awnings facing east)."""
     bm = _bm(col)
-    a = [bm.verts.new((yy, x0, zz * ZS)) for yy, zz in pts]; b = [bm.verts.new((yy, x1, zz * ZS)) for yy, zz in pts]
+    P = (lambda u, zz, a: (u, a, zz * ZS)) if axis == 'x' else (lambda u, zz, a: (a, u, zz * ZS))
+    a = [bm.verts.new(P(u, zz, x0)) for u, zz in pts]; b = [bm.verts.new(P(u, zz, x1)) for u, zz in pts]
     fs = [bm.faces.new(a), bm.faces.new(b[::-1])]
     n = len(pts)
     for i in range(n): fs.append(bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i])))

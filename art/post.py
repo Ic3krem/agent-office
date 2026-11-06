@@ -54,13 +54,13 @@ def build(raw, out):
         meta = json.load(open(os.path.join(raw, n + '.json')))
         col = look(Image.open(os.path.join(raw, n + '.png')).convert('RGBA'))
         sh = shadow(col, Image.open(os.path.join(raw, n + '.ground.png')).convert('RGBA'), Image.open(os.path.join(raw, n + '.noshadow.png')).convert('RGBA'))
-        sprites[n] = [col, sh, meta['anchor']]
+        sprites[n] = [col, sh, meta['anchor'], meta['footprint']]
     terrain = look(Image.open(os.path.join(raw, 'terrain.png')).convert('RGBA'))
     tmeta = json.load(open(os.path.join(raw, 'terrain.json')))
 
     # shared palette: median cut (k-means refined) over the opaque pixels of every colour render and the terrain;
     # each colour's weight is capped so big flat areas (grass) don't starve small accents (pavers, glass, awnings)
-    cnt = Counter(p for im in [c for c, _, _ in sprites.values()] + [terrain]
+    cnt = Counter(p for im in [s[0] for s in sprites.values()] + [terrain]
                   for p, a in zip(im.convert('RGB').get_flattened_data(), im.getchannel('A').get_flattened_data()) if a)
     allpx = [c for c, k in cnt.items() for _ in range(min(k, CAP))]
     sample = Image.new('RGB', (len(allpx), 1)); sample.putdata(allpx)
@@ -73,10 +73,10 @@ def build(raw, out):
 
     # map sprites to the palette, add the outline, crop colour+shadow to their union
     frames = {}
-    for n, (col, sh, (ax, ay)) in sprites.items():
+    for n, (col, sh, (ax, ay), fp) in sprites.items():
         col = outline(to_palette(col, pal, len(cols)).convert('RGBA'))
         u = ImageChops.lighter(col.getchannel('A'), sh.getchannel('A')).getbbox()
-        frames[n] = (col.crop(u), sh.crop(u), ax - u[0], ay - u[1])
+        frames[n] = (col.crop(u), sh.crop(u), ax - u[0], ay - u[1], fp)
 
     # shelf packer, tallest first, 2 px padding
     order = sorted(frames, key=lambda n: (-frames[n][0].height, n))
@@ -91,9 +91,9 @@ def build(raw, out):
     if W > MAXA or H > MAXA: print('atlas too big', W, H); sys.exit(1)
     atlas, atlas_sh, meta = Image.new('RGBA', (W, H), (0, 0, 0, 0)), Image.new('RGBA', (W, H), SHADOW + (0,)), {}
     for n in sorted(frames):
-        c, s, ax, ay = frames[n]; x, y = rects[n]
+        c, s, ax, ay, fp = frames[n]; x, y = rects[n]
         atlas.paste(c, (x, y)); atlas_sh.paste(s, (x, y))
-        meta[n] = {'x': x, 'y': y, 'w': c.width, 'h': c.height, 'ax': ax, 'ay': ay}
+        meta[n] = {'x': x, 'y': y, 'w': c.width, 'h': c.height, 'ax': ax, 'ay': ay, 'footprint': fp}
     os.makedirs(os.path.join(out, 'terrain'), exist_ok=True)
     save_p(to_palette(atlas, pal, len(cols)), os.path.join(out, 'atlas.png'))
     atlas_sh.save(os.path.join(out, 'atlas-shadow.png'), optimize=True)

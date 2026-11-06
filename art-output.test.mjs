@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +43,33 @@ test('terrain chunks: cols * rows files of at most 512 px', () => {
 test('shipped art is under 8 MB', () => {
   const total = walk(path.join(ROOT, 'public/art')).reduce((s, f) => s + fs.statSync(f).size, 0);
   assert.ok(total < 8 * 1024 * 1024, 'art is ' + total + ' bytes');
+});
+
+// Minimal decoder for the 8-bit palette atlas.png: returns {w, h, row(y) -> Buffer of palette indices}.
+function decodeIndexedPng(file) {
+  const b = fs.readFileSync(file), w = b.readUInt32BE(16), h = b.readUInt32BE(20);
+  assert.equal(b[24], 8, 'bit depth'); assert.equal(b[25], 3, 'colour type (palette)'); assert.equal(b[28], 0, 'not interlaced');
+  const idat = [];
+  for (let o = 8; o < b.length;) { const n = b.readUInt32BE(o), t = b.toString('latin1', o + 4, o + 8); if (t === 'IDAT') idat.push(b.subarray(o + 8, o + 8 + n)); o += 12 + n; }
+  const raw = zlib.inflateSync(Buffer.concat(idat)), px = Buffer.alloc(w * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (w + 1)], src = raw.subarray(y * (w + 1) + 1, (y + 1) * (w + 1)), cur = px.subarray(y * w, (y + 1) * w), up = y ? px.subarray((y - 1) * w, y * w) : Buffer.alloc(w);
+    for (let x = 0; x < w; x++) {
+      const a = x ? cur[x - 1] : 0, u = up[x], c = x ? up[x - 1] : 0;
+      const p = a + u - c, pa = Math.abs(p - a), pb = Math.abs(p - u), pc = Math.abs(p - c);
+      cur[x] = src[x] + [0, a, u, (a + u) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? u : c][f];
+    }
+  }
+  return { w, h, row: y => px.subarray(y * w, (y + 1) * w) };
+}
+
+test('office styles share the office-modern footprint and are distinct renders', () => {
+  const atlas = readJson('public/art/town/atlas.json'), png = decodeIndexedPng(path.join(TOWN, 'atlas.png'));
+  const styles = ['office-modern', 'office-country', 'office-japanese'];
+  const crop = n => { const r = atlas.frames[n], h = crypto.createHash('sha256'); h.update(`${r.w}x${r.h}`); for (let y = r.y; y < r.y + r.h; y++) h.update(png.row(y).subarray(r.x, r.x + r.w)); return h.digest('hex'); };
+  for (const n of styles) assert.deepEqual(atlas.frames[n].footprint, atlas.frames['office-modern'].footprint, n + ' footprint');
+  assert.deepEqual(atlas.frames['office-modern'].footprint, [-90, -50, 90, 50]);
+  assert.equal(new Set(styles.map(crop)).size, 3, 'office style frames must differ');
 });
 
 test('every shipped art file is in art/MANIFEST.json with a matching sha256', () => {

@@ -179,13 +179,133 @@ def lot_empty():
     return w, d
 
 
-def greybox(kind):
-    def build():
-        w, d = FOOT[kind]
-        box(-w / 2, -d / 2, 0, w, d, 6, '#9a9a9a'); box(-w / 2 - .4, -d / 2 - .4, 6, w + .8, d + .8, .5, '#7a7a7a'); box(-w / 2 + 1, -d / 2 + 1, 6.5, w - 2, d - 2, 2.5, '#8a8a8a')
-        box(-1.5, d / 2, 0, 3, 0.15, 3, '#5a5a5a')
-        return w, d
-    return build
+def sill_flowers(x, y, z, w, face='y'):
+    """Window box under a window on the +y or +x wall: planter plus a row of flowers."""
+    if face == 'y':
+        box(x - 0.2, y + 0.1, z - 0.8, w + 0.4, 0.55, 0.45, '#7a4a2a')
+        for i in range(int((w + 0.2) / 0.35)): box(x - 0.1 + i * 0.35, y + 0.2, z - 0.4, 0.3, 0.35, 0.3, R().choice(FLOWERS))
+    else:
+        box(x + 0.1, y - 0.2, z - 0.8, 0.55, w + 0.4, 0.45, '#7a4a2a')
+        for i in range(int((w + 0.2) / 0.35)): box(x + 0.2, y - 0.1 + i * 0.35, z - 0.4, 0.35, 0.3, 0.3, R().choice(FLOWERS))
+
+
+def office_country():
+    # rustic farmhouse: tall stone base, honey clapboard, one storey under a steep shingle roof with a dormer,
+    # a stone chimney up the east gable, a porch with posts round the door, window boxes and green shutters
+    w, d = FOOT['office-country']; OX, OY, OW, OD = -w / 2, -d / 2, w, d
+    fy, ex, WT = OY + OD, OX + OW, 5.6  # front wall, east wall, wall top
+    stones_base(OX, OY, OW, OD, 1.2)
+    for k in range(int((WT - 1.2) / 0.4)):  # horizontal clapboard, each board lapped a little proud of the one above
+        box(OX - 0.04 * (k % 2), OY - 0.04 * (k % 2), 1.2 + k * 0.4, OW + 0.08 * (k % 2), OD + 0.08 * (k % 2), 0.4, ['#d9a066', '#c98f58', '#e0aa70'][k % 3])
+    for (x, y) in [(OX - 0.1, fy - 0.15), (ex - 0.15, fy - 0.15), (ex - 0.15, OY - 0.1)]: box(x, y, 1.2, 0.25, 0.25, WT - 1.2, '#f3e3c3')  # corner boards
+    roof(OX, OY, WT, OW, OD, 6.6, ['#8a4a36', '#9c5640', '#7a4030'], over=0.7, rows=11, trim='#d39a5e', ridge='#5a2e22')
+    # dormer on the front slope: box, warm window, its own little gable facing south
+    box(-1.8, -0.6, 8.0, 3.6, 3.2, 2.6, '#e0aa70'); window(-0.9, 2.62, 8.7, 1.8, 1.4)
+    prism([(-1.9, 10.3), (1.9, 10.3), (0, 11.7)], -0.6, 2.65, '#d39a5e', 'y')
+    prism([(-2.3, 10.2), (0, 12.1), (2.3, 10.2), (1.9, 10.2), (0, 11.7), (-1.9, 10.2)], -0.8, 3.0, '#8a4a36', 'y')
+    # stone chimney climbing the east gable
+    box(ex, -1.1, 0, 1.4, 2.2, 13.4, '#8d8a86'); box(ex - 0.1, -1.2, 13.4, 1.6, 2.4, 0.35, '#6f6b66')
+    for _ in range(40):
+        z = R().uniform(0, 13.0)
+        if R().random() < .5: box(ex + 1.42, R().uniform(-1.1, 0.4), z, 0.06, R().uniform(0.5, 0.8), 0.32, R().choice(kit.STONES))
+        else: box(ex + R().uniform(0, 0.8), 1.12, z, R().uniform(0.4, 0.6), 0.06, 0.32, R().choice(kit.STONES))
+    # porch: plank deck, steps, four posts, rail, shingle lean-to roof
+    PX0, PX1, PD = -4.6, 4.6, 2.6
+    planks(PX0, fy, 0, PX1 - PX0, PD, 1.1, ['#a8693a', '#b07a45'], 'x', 0.45)
+    box(-1.3, fy + PD, 0, 2.6, 0.7, 0.75, '#9a958d'); box(-1.3, fy + PD + 0.7, 0, 2.6, 0.6, 0.4, '#a39f99')
+    for x in (PX0, -1.6, 1.4, PX1 - 0.2): box(x, fy + PD - 0.25, 1.1, 0.2, 0.2, 3.5, '#f3e3c3')
+    for (x0, x1) in [(PX0, -1.6), (1.6, PX1)]:
+        box(x0, fy + PD - 0.2, 2.1, x1 - x0, 0.12, 0.15, '#f3e3c3')
+        for i in range(int((x1 - x0) / 0.5)): box(x0 + 0.2 + i * 0.5, fy + PD - 0.2, 1.1, 0.1, 0.1, 1.0, '#f3e3c3')
+    for i in range(int((PX1 - PX0 + 1.0) / 0.55)):
+        prism([(fy, 5.4), (fy + PD + 0.4, 4.6), (fy + PD + 0.4, 4.4), (fy, 5.2)], PX0 - 0.5 + i * 0.55, PX0 + 0.05 + i * 0.55, ['#8a4a36', '#9c5640'][i % 2])
+    # door (with a little lit window) and windows: two on the porch, two outside it with shutters and window boxes
+    box(-1.0, fy + 0.02, 1.1, 2.0, 0.16, 3.0, '#7a3f24'); box(-0.5, fy + 0.1, 3.0, 1.0, 0.12, 0.8, '#ffd98a', 1.4)
+    box(0.5, fy + 0.18, 2.3, 0.15, 0.1, 0.15, '#e3b23c')
+    for x in (-3.6, 2.2): window(x, fy + 0.02, 2.2, 1.4, 1.6)
+    for x in (-8.0, 5.6):
+        window(x, fy + 0.02, 2.4, 2.4, 2.0); sill_flowers(x, fy, 2.4, 2.4)
+        for sx in (x - 0.75, x + 2.45): box(sx, fy + 0.04, 2.25, 0.3, 0.12, 2.3, '#4f7a52')
+    for y in (OY + 1.2, OY + 6.6):
+        window(ex + 0.02, y, 2.4, 2.2, 2.0, 'x'); sill_flowers(ex, y, 2.4, 2.2, 'x')
+        for sy in (y - 0.75, y + 2.25): box(ex + 0.04, sy, 2.25, 0.12, 0.3, 2.3, '#4f7a52')
+    window(ex + 0.12, -0.9, 7.2, 1.8, 1.6, 'x')  # attic window in the gable, beside the chimney
+    bush(OX + 1.0, fy + 1.0, .7, True); bush(PX1 + 0.9, fy + 1.0, .6); flowerbox(PX0 - 1.8, fy + 1.4, 1.4)
+    return w, d
+
+
+def office_japanese():
+    # machiya/minka house: dark timber frame over light plaster, low grey tiled hip roof with upturned eaves,
+    # a tiled pent roof over the engawa (veranda), indigo noren at the door, a stone lantern and a cloud-pruned pine
+    w, d = FOOT['office-japanese']; JX, JY = -w / 2, -d / 2
+    fy, ex, WT = JY + d, JX + w, 7.0
+    TIM, PL, TILE = '#3b2a22', '#f3e2bf', ['#6b717a', '#7d838c']
+    box(JX - 0.1, JY - 0.1, 0, w + 0.2, d + 0.2, 0.6, '#8d8a86')
+    box(JX, JY, 0.6, w, d, WT - 0.6, PL)
+    # timber frame on the two walls the camera sees
+    posts = [-9, -6.5, -4, -1.5, 1.5, 4, 6.5, 9]
+    for x in posts: box(min(max(x - 0.15, JX - 0.05), ex - 0.25), fy - 0.05, 0.6, 0.3, 0.2, WT - 0.6, TIM)
+    for y in (JY, JY + 2.5, JY + 5, JY + 7.5): box(ex - 0.05, y, 0.6, 0.2, 0.3, WT - 0.6, TIM)
+    for (z, h) in [(0.6, 0.35), (3.9, 0.4), (WT - 0.35, 0.35)]:
+        box(JX - 0.05, fy - 0.05, z, w + 0.1, 0.2, h, TIM); box(ex - 0.05, JY, z, 0.2, d, h, TIM)
+    # ground floor: lattice (koshi) bays glowing warm, plaster at the ends
+    for x0 in (-6.5, -4, 1.5, 4):
+        box(x0 + 0.25, fy + 0.02, 1.2, 2.0, 0.08, 2.4, '#ffd98a', 1.4)
+        for i in range(7): box(x0 + 0.3 + i * 0.3, fy + 0.08, 1.2, 0.12, 0.1, 2.4, TIM)
+        box(x0 + 0.2, fy + 0.06, 1.05, 2.1, 0.12, 0.15, TIM); box(x0 + 0.2, fy + 0.06, 3.6, 2.1, 0.12, 0.15, TIM)
+    # door with the noren: three indigo strips hung from a rod, a white crest on the middle one
+    box(-1.3, fy + 0.02, 0.95, 2.6, 0.08, 2.9, '#2a1c16'); box(-1.1, fy + 0.04, 0.95, 2.2, 0.06, 1.4, '#ffd98a', 1.2)
+    box(-1.45, fy + 0.15, 3.55, 2.9, 0.12, 0.12, TIM)
+    for i in range(3): box(-1.35 + i * 0.92, fy + 0.2, 1.9, 0.86, 0.06, 1.65, '#3f62a0')
+    box(-0.25, fy + 0.24, 2.6, 0.5, 0.04, 0.4, '#f3ede2')
+    cyl(2.0, fy + 0.6, 2.4, 0.3, 0.7, '#d8543c', 10, 1.2); box(1.97, fy + 0.57, 3.1, 0.06, 0.06, 0.45, TIM)  # red paper lantern
+    # upper floor: slatted mushiko windows (front), shoji grids (east)
+    for x0 in (-6.5, -4, 1.5, 4):
+        box(x0 + 0.35, fy + 0.02, 5.0, 1.8, 0.08, 1.3, '#ffe0a0', 1.3)
+        for i in range(5): box(x0 + 0.4 + i * 0.42, fy + 0.08, 5.0, 0.18, 0.1, 1.3, TIM)
+    for y0 in (JY + 0.4, JY + 5.4):
+        for z0, h in ((1.3, 2.2), (4.9, 1.4)):
+            box(ex + 0.02, y0 + 0.3, z0, 0.08, 1.9, h, '#ffe6b0', 1.3)
+            for i in range(4): box(ex + 0.08, y0 + 0.3 + i * 0.6, z0, 0.1, 0.1, h, TIM)
+            for k in range(int(h / 0.55) + 1): box(ex + 0.08, y0 + 0.3, z0 + k * 0.55, 0.1, 1.9, 0.1, TIM)
+    # engawa: raised plank veranda along the front, a step stone at the door, two posts holding the pent roof
+    planks(JX + 0.4, fy, 0, w - 0.8, 1.8, 0.75, ['#b07a45', '#a06a3c', '#b8844e'], 'x', 0.5)
+    for x in (JX + 0.5, -1.5, 1.3, ex - 0.7): box(x, fy + 1.5, 0, 0.2, 0.2, 0.75, TIM)
+    box(-1.0, fy + 1.8, 0, 2.0, 0.9, 0.35, '#a39f99')
+    for x in (JX + 0.4, ex - 0.6): box(x, fy + 1.5, 0.75, 0.2, 0.2, 3.6, TIM)
+    # tiled pent roofs (hisashi) over the engawa and the east wall, tile columns in two greys
+    n = int((w + 1.0) / 0.45)
+    for i in range(n): prism([(fy, 5.0), (fy + 1.9, 4.45), (fy + 1.9, 4.25), (fy, 4.8)], JX - 0.5 + i * 0.45, JX - 0.05 + i * 0.45, TILE[i % 2])
+    box(JX - 0.5, fy + 1.8, 4.2, n * 0.45, 0.25, 0.3, '#4a4e56')
+    for i in range(int((d + 0.5) / 0.45)): prism([(ex, 4.9), (ex + 1.6, 4.3), (ex + 1.6, 4.1), (ex, 4.7)], JY - 0.5 + i * 0.45, JY - 0.05 + i * 0.45, TILE[i % 2], 'y')
+    # main hip roof: tile courses stepping in on all four sides, dark fascia, ridge with raised ends, upturned corners
+    O = 1.0; X0, Y0, W, D = JX - O, JY - O, w + 2 * O, d + 2 * O
+    box(X0 + 0.1, Y0 + 0.1, WT - 0.15, W - 0.2, D - 0.2, 0.25, TIM)
+    s = i = 0
+    while D - 2 * s > 1.0:
+        z = WT + 0.1 + i * 0.42
+        box(X0 + s, Y0 + s, z, W - 2 * s, D - 2 * s, 0.5, TILE[i % 2])
+        for k in range(int((W - 2 * s) / 0.5)): box(X0 + s + 0.2 + k * 0.5, Y0 + D - s, z, 0.08, 0.04, 0.5, '#565b63')
+        for k in range(int((D - 2 * s) / 0.5)): box(X0 + W - s, Y0 + s + 0.2 + k * 0.5, z, 0.04, 0.08, 0.5, '#565b63')
+        s += 0.55; i += 1
+    zt = WT + 0.1 + i * 0.42
+    box(X0 + s - 0.3, Y0 + D / 2 - 0.35, zt - 0.1, W - 2 * s + 0.6, 0.7, 0.4, '#4a4e56')
+    for x in (X0 + s - 0.5, X0 + W - s - 0.1): box(x, Y0 + D / 2 - 0.4, zt - 0.1, 0.6, 0.8, 0.9, '#4a4e56')
+    for (x, y) in [(X0 - 0.3, Y0 - 0.3), (X0 + W - 0.5, Y0 - 0.3), (X0 - 0.3, Y0 + D - 0.5), (X0 + W - 0.5, Y0 + D - 0.5)]:
+        box(x, y, WT + 0.55, 0.8, 0.8, 0.3, '#4a4e56')
+    # stone lantern (toro) by the east end of the veranda
+    LX, LY = 7.4, fy + 3.0
+    box(LX - 0.5, LY - 0.5, 0, 1.0, 1.0, 0.3, '#8f8b85'); cyl(LX, LY, 0.3, 0.2, 1.2, '#a39f99', 8)
+    box(LX - 0.45, LY - 0.45, 1.5, 0.9, 0.9, 0.2, '#8f8b85'); box(LX - 0.35, LY - 0.35, 1.7, 0.7, 0.7, 0.7, '#a39f99')
+    box(LX - 0.2, LY + 0.3, 1.8, 0.4, 0.1, 0.45, '#ffcf6b', 3.0); box(LX + 0.3, LY - 0.2, 1.8, 0.1, 0.4, 0.45, '#ffcf6b', 3.0)
+    box(LX - 0.65, LY - 0.65, 2.4, 1.3, 1.3, 0.2, '#8f8b85'); cone(LX, LY, 2.6, 0.75, 0.5, '#a39f99', 4); blob(LX, LY, 3.2, 0.2, '#a39f99')
+    # cloud-pruned pine in a gravel bed at the west end
+    TX, TY = -7.3, fy + 3.0
+    cyl(TX, TY, 0, 1.4, 0.12, '#cfc8bb', 12)
+    for (dx, dy, z) in [(0, 0, 0), (0.2, 0, 0.8), (0.4, 0.1, 1.6), (0.3, 0, 2.4)]: box(TX + dx - 0.15, TY + dy - 0.15, z, 0.3, 0.3, 0.9, '#5a3a22')
+    for (dx, dy, z, r) in [(-0.6, 0.2, 1.4, 0.9), (0.9, 0, 2.2, 0.85), (-0.2, 0.1, 3.0, 0.8), (0.4, 0.1, 3.6, 0.55)]:
+        cyl(TX + dx, TY + dy, z, r, 0.4, '#2f5e3a', 10); cyl(TX + dx, TY + dy, z + 0.3, r * 0.75, 0.25, '#3f7f52', 10)
+    return w, d
 
 
 def well():
@@ -220,7 +340,7 @@ def sign():
 
 
 ASSETS = {
-    'office-modern': office_modern, 'office-country': greybox('office-country'), 'office-japanese': greybox('office-japanese'),
+    'office-modern': office_modern, 'office-country': office_country, 'office-japanese': office_japanese,
     'karinderya': karinderya, 'gamehall': gamehall, 'lot-empty': lot_empty,
     'tree-round': lambda: (tree(0, 0, 1.05), (1, 1))[1], 'tree-pine': lambda: (pine(0, 0, 1.05), (1, 1))[1],
     'bush': lambda: (bush(0, 0, 0.8, True), (1, 1))[1], 'bench': bench, 'lamp': lambda: (lamp(0, 0), (1, 1))[1], 'well': well,
