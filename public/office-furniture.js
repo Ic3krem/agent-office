@@ -101,15 +101,20 @@
   // no-op context, so a piece blocks, sorts and nofp/floor/gaps exactly as fixtures/office-footprints.json froze it.
   let ATLAS = null, HOME = null; // HOME: [x, y] of the piece being built
   function useAtlas(a) { ATLAS = a; measured = false; } // re-measure: click silhouettes follow the sprites
-  function sprite(g, name, x, y, a) {
+  // t: the [tx, ty] canvas translate add() wraps a moved copy in; the destination is rounded with it so the frame lands on
+  // whole pixels after the translate (a fractional offset would resample the art soft).
+  function sprite(g, name, x, y, a, t) {
     const f = ATLAS && ATLAS.frames[name]; if (!f) return false;
-    const p = P(x, y, 0);
-    if (a != null) { g.save(); g.globalAlpha *= a; }
-    g.drawImage(ATLAS.image, f.x, f.y, f.w, f.h, Math.round(p[0] - f.ax), Math.round(p[1] - f.ay), f.w, f.h);
-    if (a != null) g.restore();
+    const p = P(x, y, 0), tx = t ? t[0] : 0, ty = t ? t[1] : 0;
+    g.save(); g.imageSmoothingEnabled = false; if (a != null) g.globalAlpha *= a;
+    g.drawImage(ATLAS.image, f.x, f.y, f.w, f.h, Math.round(p[0] - f.ax + tx) - tx, Math.round(p[1] - f.ay + ty) - ty, f.w, f.h);
+    g.restore();
     return true;
   }
-  const spriteOr = (name, fn) => { const [x, y] = HOME; return g => { if (!(ATLAS && ATLAS.frames[name])) return fn(g); if (REC) fn(NUL); sprite(g, name, x, y); }; };
+  const spriteOr = (name, fn) => {
+    const [x, y] = HOME, t = CUR ? [K * (CUR.dx - CUR.dy), K2 * (CUR.dx + CUR.dy)] : null; // the same translate add() applies
+    return g => { if (!(ATLAS && ATLAS.frames[name])) return fn(g); if (REC) fn(NUL); sprite(g, name, x, y, null, t); };
+  };
   const fixture = (name, build) => { def('fixture-' + name, [0, 0], build); put(name, 'fixture-' + name, 0, 0); };
 
   const COL = { wood: '#b98a57', dwood: '#7a5230', ink: '#1b1220', metal: '#8a909c', dmetal: '#4a4f5c', paper: '#f3ede2', glass: 'rgba(170,215,240,.22)', wallL: '#2e3058', wallR: '#25274a' };

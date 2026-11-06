@@ -30,15 +30,19 @@ test('a sprite frame changes no footprint, walk cell or depth order', () => {
   assert.deepEqual(J(fb.items.map(i => [i.d, i.fp])), J(fa.items.map(i => [i.d, i.fp])));
 });
 
-test('the frame is drawn with its anchor on the home point; a moved copy draws through the translate', () => {
+const crisp = (dx, dy) => [['save'], ['=', 'imageSmoothingEnabled', false], ['drawImage', 'IMG', 1, 2, 20, 12, dx, dy, 20, 12], ['restore']];
+const r2 = v => Math.round(v * 100) / 100;
+test('the frame is drawn crisp with its anchor on the home point; a moved copy lands on whole pixels after the translate', () => {
   const w = boot({ image: IMG, frames: { tires: FRAME } }), F = w.OfficeFurniture;
   for (const [x, y] of [[1022, 760], [1034, 766]]) { // the anchor copy and the second copy (its own home)
     const p = F.P(x, y, 0);
-    assert.deepEqual(draw(tiresAt(w, x, y)), [['drawImage', 'IMG', 1, 2, 20, 12, Math.round(p[0] - 10), Math.round(p[1] - 8), 20, 12]]);
+    assert.deepEqual(draw(tiresAt(w, x, y)), crisp(Math.round(p[0] - 10), Math.round(p[1] - 8)));
   }
   F.place([{ id: 't', type: 'tires', x: 1062, y: 760 }]);
-  const p = F.P(1022, 760, 0);
-  assert.deepEqual(draw(F.items[0]), [['translate', 28.28, 14.14], ['drawImage', 'IMG', 1, 2, 20, 12, Math.round(p[0] - 10), Math.round(p[1] - 8), 20, 12], ['translate', -28.28, -14.14]]);
+  const p = F.P(1022, 760, 0), tx = F.K * 40, ty = F.K2 * 40;
+  const calls = draw(F.items[0]), dst = calls[3].slice(6, 8);
+  assert.deepEqual(calls, [['translate', r2(tx), r2(ty)], ...crisp(r2(Math.round(p[0] - 10 + tx) - tx), r2(Math.round(p[1] - 8 + ty) - ty)), ['translate', r2(-tx), r2(-ty)]]);
+  for (const [v, o] of [[dst[0], tx], [dst[1], ty]]) assert.ok(Math.abs(v + r2(o) - Math.round(v + o)) < 0.011, 'translate + destination is a whole pixel'); // r2 rounding only
   assert.deepEqual(J(F.footprints([{ id: 't', type: 'tires', x: 1062, y: 760 }])), [[1054, 752, 1070, 768]]);
 });
 
@@ -51,6 +55,6 @@ test('no frame for the type, or no atlas: the procedural painter draws exactly a
 test('sprite() applies an optional alpha and reports a missing frame', () => {
   const w = boot({ image: IMG, frames: { tires: FRAME } }), F = w.OfficeFurniture, calls = [];
   assert.equal(F.sprite(recorder(calls), 'tires', 0, 0, 0.5), true);
-  assert.deepEqual(calls.map(c => c[0]), ['save', '=', 'drawImage', 'restore']);
+  assert.deepEqual(calls.map(c => c[0]), ['save', '=', '=', 'drawImage', 'restore']);
   assert.equal(F.sprite(recorder([]), 'nope', 0, 0), false);
 });
