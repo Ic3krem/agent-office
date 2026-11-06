@@ -593,7 +593,8 @@ const readBody = req => new Promise((ok, bad) => {
 });
 // Error text may carry file paths: only plain messages go to the client, the rest is logged here.
 const publicMessage = e => { const m = String(e?.message || 'error'); return /[\\/]|ENOENT|EACCES|EPERM|\bat \w+/.test(m) ? 'internal error' : m.slice(0, 160); };
-const STATIC = { '/': ['Agent Office.html', 'text/html'], '/office-objects.js': ['office-objects.js', 'text/javascript'], '/office-motion.js': ['office-motion.js', 'text/javascript'], '/office-sprites.js': ['office-sprites.js', 'text/javascript'], '/office-furniture.js': ['office-furniture.js', 'text/javascript'], '/role-catalog.js': ['role-catalog.js', 'text/javascript'], '/world-path.js': ['world-path.js', 'text/javascript'], '/world-model.js': ['world-model.js', 'text/javascript'], '/world-edit.js': ['world-edit.js', 'text/javascript'], '/world-player.js': ['world-player.js', 'text/javascript'], '/office-world.js': ['office-world.js', 'text/javascript'], '/chismis-tl.js': ['chismis-tl.js', 'text/javascript'], '/support.js': ['support.js', 'text/javascript'], '/agent-history.js': ['agent-history.js', 'text/javascript'], '/vendor/react.production.min.js': ['vendor/react.production.min.js', 'text/javascript'], '/vendor/react-dom.production.min.js': ['vendor/react-dom.production.min.js', 'text/javascript'], '/vendor/babel.min.js': ['vendor/babel.min.js', 'text/javascript'], '/kiro': ['kiro.html', 'text/html'], '/kiro-art.js': ['kiro-art.js', 'text/javascript'], '/island': ['island.html', 'text/html'] };
+const STATIC = { '/': ['Agent Office.html', 'text/html'], '/office-objects.js': ['office-objects.js', 'text/javascript'], '/office-motion.js': ['office-motion.js', 'text/javascript'], '/office-sprites.js': ['office-sprites.js', 'text/javascript'], '/office-furniture.js': ['office-furniture.js', 'text/javascript'], '/role-catalog.js': ['role-catalog.js', 'text/javascript'], '/world-path.js': ['world-path.js', 'text/javascript'], '/world-model.js': ['world-model.js', 'text/javascript'], '/world-edit.js': ['world-edit.js', 'text/javascript'], '/world-player.js': ['world-player.js', 'text/javascript'], '/office-world.js': ['office-world.js', 'text/javascript'], '/chismis-tl.js': ['chismis-tl.js', 'text/javascript'], '/support.js': ['support.js', 'text/javascript'], '/agent-history.js': ['agent-history.js', 'text/javascript'], '/vendor/react.production.min.js': ['vendor/react.production.min.js', 'text/javascript'], '/vendor/react-dom.production.min.js': ['vendor/react-dom.production.min.js', 'text/javascript'], '/vendor/babel.min.js': ['vendor/babel.min.js', 'text/javascript'], '/kiro': ['kiro.html', 'text/html'], '/kiro-art.js': ['kiro-art.js', 'text/javascript'], '/island': ['island.html', 'text/html'], '/town': ['town.html', 'text/html'], '/vendor/pixi.min.js': ['vendor/pixi.min.js', 'text/javascript'] };
+const TOWN_GATED = new Set(['/town', '/vendor/pixi.min.js']); // town assets need the UI cookie, unlike the older pages
 
 // Pages load only local scripts, styles and fonts (fonts are vendored in public/fonts). No remote host at all, no framing, no plugins, no base-tag tricks.
 const SECURITY_HEADERS = {
@@ -619,6 +620,15 @@ async function handle(req, res) {
   }
   const fontFile = req.method === 'GET' && /^\/fonts\/[A-Za-z0-9_.-]+\.(woff2|css|txt)$/.exec(url.pathname) ? path.basename(url.pathname) : '';
   if (fontFile && fs.existsSync(path.join(ROOT, 'public', 'fonts', fontFile))) { res.writeHead(200, { 'content-type': fontFile.endsWith('.woff2') ? 'font/woff2' : fontFile.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=86400' }); return fs.createReadStream(path.join(ROOT, 'public', 'fonts', fontFile)).pipe(res); }
+  const rawPath = req.url.split('?')[0]; // not normalized, so /art/../x is judged as written
+  if (req.method === 'GET' && (TOWN_GATED.has(url.pathname) || /^\/(art|town)\//.test(rawPath)) && !uiOk) return json(res, 401, { error: 'not signed in' });
+  // Art and town data: strict names, resolved inside public/, so no traversal and nothing but png/json.
+  const artM = req.method === 'GET' && /^\/(art|town)\/(.+)$/.exec(rawPath);
+  if (artM) {
+    const rel = rawPath.slice(1), base = path.join(ROOT, 'public', artM[1]), f = path.join(ROOT, 'public', rel);
+    if (!/^[a-z0-9][a-z0-9/_-]*\.(png|json)$/.test(artM[2]) || rel.includes('..') || !f.startsWith(base + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) return json(res, 404, { error: 'not found' });
+    res.writeHead(200, { 'content-type': f.endsWith('.png') ? 'image/png' : 'application/json', 'cache-control': 'no-cache' }); return fs.createReadStream(f).pipe(res);
+  }
   const s = STATIC[url.pathname];
   if (s && req.method === 'GET') { res.writeHead(200, { 'content-type': s[1] + '; charset=utf-8', ...(uiOk ? { 'set-cookie': AUTH.nonceCookie() } : {}) }); return fs.createReadStream(path.join(ROOT, 'public', s[0])).pipe(res); }
   if (url.pathname.startsWith('/bridge/')) { if (!AUTH.isBridge(req)) return json(res, 401, { error: 'bad key' }); }
