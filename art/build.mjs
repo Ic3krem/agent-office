@@ -1,0 +1,35 @@
+// npm run art: Blender terrain + asset renders -> art/.raw, then art/post.py -> public/art/town, then art/MANIFEST.json.
+// Developer-only (needs Blender, Python 3 and Pillow); npm test and packaging use the committed PNG/JSON.
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const RAW = path.join(ROOT, 'art/.raw'), OUT = path.join(ROOT, 'public/art/town'), TOWN = path.join(ROOT, 'public/town/town.json');
+const works = cmd => { try { return spawnSync(cmd, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; } };
+const blender = [process.env.BLENDER, 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe'].find(p => p && fs.existsSync(p)) || (works('blender') ? 'blender' : null);
+if (!blender) { console.error('Blender not found: set BLENDER to blender.exe, or put blender on PATH.'); process.exit(2); }
+const python = process.env.PYTHON || 'python';
+
+const run = (cmd, args) => {
+  console.log('>', path.basename(cmd), args.map(a => path.relative(ROOT, a) || a).join(' '));
+  const r = spawnSync(cmd, args, { stdio: 'inherit', cwd: ROOT });
+  if (r.status !== 0) { console.error(`${path.basename(cmd)} failed (${r.status ?? r.error})`); process.exit(1); }
+};
+fs.mkdirSync(RAW, { recursive: true });
+run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/town_terrain.py'), '--', TOWN, RAW]);
+run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/town_assets.py'), '--', TOWN, RAW]);
+run(python, [path.join(ROOT, 'art/post.py'), RAW, OUT]);
+
+const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+const date = new Date().toISOString().slice(0, 10), license = 'Apache-2.0 (original)';
+const scriptOf = rel => rel === 'art/palette.json' ? 'art/post.py'
+  : rel.includes('/terrain') ? 'art/blender/town_terrain.py + art/post.py' : 'art/blender/town_assets.py + art/post.py';
+const files = [...walk(OUT), path.join(ROOT, 'art/palette.json')].map(f => {
+  const rel = path.relative(ROOT, f).split(path.sep).join('/');
+  return { file: rel, sha256: crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex'), script: scriptOf(rel), date, license };
+}).sort((a, b) => a.file.localeCompare(b.file));
+fs.writeFileSync(path.join(ROOT, 'art/MANIFEST.json'), JSON.stringify({ license, files }, null, 1) + '\n');
+console.log(`art: ${files.length} files in art/MANIFEST.json`);

@@ -17,3 +17,5 @@ scheduler*.json
 inbox-feed.json
 .DS_Store
 Thumbs.db
+art/.raw/
+__pycache__/

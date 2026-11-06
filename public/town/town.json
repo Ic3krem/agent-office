@@ -199,8 +199,8 @@
   },
   {
    "type": "barrel",
-   "x": 1500,
-   "y": 740
+   "x": 1632,
+   "y": 690
   },
   {
    "type": "crate",
@@ -354,8 +354,8 @@
   },
   {
    "type": "tree-pine",
-   "x": 35,
-   "y": 375
+   "x": 38,
+   "y": 369
   },
   {
    "type": "tree-round",
@@ -1039,298 +1039,298 @@
   },
   {
    "type": "tree-pine",
-   "x": 45,
-   "y": 35
+   "x": 54,
+   "y": 32
   },
   {
    "type": "tree-round",
-   "x": 45,
-   "y": 1315
+   "x": 56,
+   "y": 1323
   },
   {
    "type": "tree-pine",
-   "x": 135,
-   "y": 35
+   "x": 147,
+   "y": 44
   },
   {
    "type": "tree-round",
-   "x": 135,
-   "y": 1315
+   "x": 141,
+   "y": 1317
   },
   {
    "type": "tree-pine",
+   "x": 211,
+   "y": 47
+  },
+  {
+   "type": "tree-round",
    "x": 225,
+   "y": 1325
+  },
+  {
+   "type": "tree-pine",
+   "x": 308,
+   "y": 41
+  },
+  {
+   "type": "tree-round",
+   "x": 302,
+   "y": 1329
+  },
+  {
+   "type": "tree-pine",
+   "x": 396,
+   "y": 24
+  },
+  {
+   "type": "tree-round",
+   "x": 402,
+   "y": 1316
+  },
+  {
+   "type": "tree-pine",
+   "x": 508,
+   "y": 28
+  },
+  {
+   "type": "tree-round",
+   "x": 493,
+   "y": 1318
+  },
+  {
+   "type": "tree-pine",
+   "x": 664,
+   "y": 39
+  },
+  {
+   "type": "tree-round",
+   "x": 668,
+   "y": 1301
+  },
+  {
+   "type": "tree-pine",
+   "x": 774,
+   "y": 27
+  },
+  {
+   "type": "tree-pine",
+   "x": 854,
+   "y": 29
+  },
+  {
+   "type": "tree-round",
+   "x": 846,
+   "y": 1328
+  },
+  {
+   "type": "tree-pine",
+   "x": 955,
+   "y": 33
+  },
+  {
+   "type": "tree-round",
+   "x": 936,
+   "y": 1325
+  },
+  {
+   "type": "tree-pine",
+   "x": 1046,
+   "y": 23
+  },
+  {
+   "type": "tree-round",
+   "x": 1025,
+   "y": 1320
+  },
+  {
+   "type": "tree-pine",
+   "x": 1130,
    "y": 35
   },
   {
    "type": "tree-round",
-   "x": 225,
-   "y": 1315
+   "x": 1115,
+   "y": 1305
   },
   {
    "type": "tree-pine",
-   "x": 315,
-   "y": 35
-  },
-  {
-   "type": "tree-round",
-   "x": 315,
-   "y": 1315
+   "x": 1201,
+   "y": 48
   },
   {
    "type": "tree-pine",
-   "x": 405,
-   "y": 35
+   "x": 1291,
+   "y": 27
   },
   {
    "type": "tree-round",
-   "x": 405,
-   "y": 1315
+   "x": 1315,
+   "y": 1307
   },
   {
    "type": "tree-pine",
-   "x": 495,
-   "y": 35
+   "x": 1386,
+   "y": 48
   },
   {
    "type": "tree-round",
-   "x": 495,
-   "y": 1315
+   "x": 1386,
+   "y": 1310
+  },
+  {
+   "type": "tree-round",
+   "x": 1481,
+   "y": 1307
   },
   {
    "type": "tree-pine",
-   "x": 675,
-   "y": 35
+   "x": 1578,
+   "y": 49
   },
   {
    "type": "tree-round",
-   "x": 675,
-   "y": 1315
+   "x": 1582,
+   "y": 1321
+  },
+  {
+   "type": "tree-round",
+   "x": 1657,
+   "y": 1306
+  },
+  {
+   "type": "tree-round",
+   "x": 1763,
+   "y": 1307
   },
   {
    "type": "tree-pine",
-   "x": 765,
-   "y": 35
+   "x": 1949,
+   "y": 33
+  },
+  {
+   "type": "tree-round",
+   "x": 1930,
+   "y": 1301
+  },
+  {
+   "type": "tree-round",
+   "x": 2022,
+   "y": 1314
   },
   {
    "type": "tree-pine",
-   "x": 855,
-   "y": 35
+   "x": 2106,
+   "y": 25
   },
   {
    "type": "tree-round",
-   "x": 855,
-   "y": 1315
+   "x": 2109,
+   "y": 1303
   },
   {
    "type": "tree-pine",
-   "x": 945,
-   "y": 35
+   "x": 2124,
+   "y": 95
   },
   {
    "type": "tree-round",
-   "x": 945,
-   "y": 1315
+   "x": 38,
+   "y": 194
   },
   {
    "type": "tree-pine",
-   "x": 1035,
-   "y": 35
-  },
-  {
-   "type": "tree-round",
-   "x": 1035,
-   "y": 1315
+   "x": 2119,
+   "y": 285
   },
   {
    "type": "tree-pine",
-   "x": 1125,
-   "y": 35
+   "x": 2129,
+   "y": 378
   },
   {
    "type": "tree-round",
-   "x": 1125,
-   "y": 1315
+   "x": 34,
+   "y": 448
   },
   {
    "type": "tree-pine",
-   "x": 1215,
-   "y": 35
+   "x": 2123,
+   "y": 457
   },
   {
    "type": "tree-pine",
-   "x": 1305,
-   "y": 35
+   "x": 2123,
+   "y": 551
   },
   {
    "type": "tree-round",
-   "x": 1305,
-   "y": 1315
+   "x": 40,
+   "y": 636
   },
   {
    "type": "tree-pine",
-   "x": 1395,
-   "y": 35
+   "x": 2121,
+   "y": 641
   },
   {
    "type": "tree-round",
-   "x": 1395,
-   "y": 1315
-  },
-  {
-   "type": "tree-round",
-   "x": 1485,
-   "y": 1315
+   "x": 36,
+   "y": 738
   },
   {
    "type": "tree-pine",
-   "x": 1575,
-   "y": 35
+   "x": 2121,
+   "y": 717
   },
   {
    "type": "tree-round",
-   "x": 1575,
-   "y": 1315
-  },
-  {
-   "type": "tree-round",
-   "x": 1665,
-   "y": 1315
-  },
-  {
-   "type": "tree-round",
-   "x": 1755,
-   "y": 1315
+   "x": 33,
+   "y": 806
   },
   {
    "type": "tree-pine",
-   "x": 1935,
-   "y": 35
-  },
-  {
-   "type": "tree-round",
-   "x": 1935,
-   "y": 1315
-  },
-  {
-   "type": "tree-round",
-   "x": 2025,
-   "y": 1315
-  },
-  {
-   "type": "tree-pine",
-   "x": 2115,
-   "y": 35
-  },
-  {
-   "type": "tree-round",
-   "x": 2115,
-   "y": 1315
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 100
+   "x": 2130,
+   "y": 817
   },
   {
    "type": "tree-round",
    "x": 35,
-   "y": 190
+   "y": 896
   },
   {
    "type": "tree-pine",
-   "x": 2125,
-   "y": 280
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 370
+   "x": 2127,
+   "y": 921
   },
   {
    "type": "tree-round",
    "x": 35,
-   "y": 460
+   "y": 1087
   },
   {
    "type": "tree-pine",
    "x": 2125,
-   "y": 460
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 550
+   "y": 1094
   },
   {
    "type": "tree-round",
-   "x": 35,
-   "y": 640
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 640
-  },
-  {
-   "type": "tree-round",
-   "x": 35,
-   "y": 730
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 730
-  },
-  {
-   "type": "tree-round",
-   "x": 35,
-   "y": 820
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 820
-  },
-  {
-   "type": "tree-round",
-   "x": 35,
-   "y": 910
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 910
-  },
-  {
-   "type": "tree-round",
-   "x": 35,
-   "y": 1090
-  },
-  {
-   "type": "tree-pine",
-   "x": 2125,
-   "y": 1090
-  },
-  {
-   "type": "tree-round",
-   "x": 35,
+   "x": 29,
    "y": 1180
   },
   {
    "type": "tree-pine",
-   "x": 2125,
-   "y": 1180
+   "x": 2119,
+   "y": 1188
   },
   {
    "type": "tree-round",
-   "x": 35,
-   "y": 1270
+   "x": 31,
+   "y": 1275
   },
   {
    "type": "tree-pine",
-   "x": 2125,
-   "y": 1270
+   "x": 2122,
+   "y": 1259
   }
  ]
 }
