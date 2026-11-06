@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadWorld } from './world-vm.mjs';
+import fs from 'node:fs';
 
 const { WorldModel: WM, WorldPlayer: P, WorldPath: WP, OfficeMotion: OM } = loadWorld();
 const layout = WM.defaultLayout();
@@ -154,4 +155,13 @@ test('takesKey: player keys only outside Build, dialogs and text fields; arrows 
   assert.equal(P.takesKey({ key: 'w', target: body }, { ...s, build: true }), null);
   assert.equal(P.takesKey({ key: 'w', target: body }, { ...s, dialog: true }), null);
   assert.equal(P.takesKey({ key: 'w', target: body }, { ...s, shown: false }), null);
+});
+
+test('open windows block CEO keys and only unreachable floor clicks toast', () => {
+  const src = fs.readFileSync(new URL('./public/office-world.js', import.meta.url), 'utf8');
+  assert.match(src, /\[role=dialog\]\[aria-modal=true\], \.oo-win/);
+  assert.match(src, /return onFloor \? 'blocked' : false/);
+  assert.match(src, /=== 'blocked'\) opts\.onToast/);
+  const html = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
+  assert.match(html, /role="dialog" aria-modal="true" aria-label="Usage"/);
 });

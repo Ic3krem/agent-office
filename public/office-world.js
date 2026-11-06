@@ -138,11 +138,12 @@
     const n = WPL().nearest(p, cands), k = n ? n.kind + ':' + n.id : '';
     near = n; if (k !== nearKey) { nearKey = k; opts.onNear && opts.onNear(n); }
   }
-  // Click-to-walk to a ground point. Off the floor -> false. findPath ends on the exact point even inside furniture or
+  // Click-to-walk to a ground point. Off the floor or already there -> false; on the floor but unreachable -> 'blocked' (the only toast case). findPath ends on the exact point even inside furniture or
   // water (so seats work); a clicked spot inside a blocked cell stops at the nearest free cell instead.
   function walkCeo(gp) {
     const gr = M.grid(), p = ceoPlayer();
-    if (!(gp.x >= 0 && gp.y >= 0 && gp.x <= gr.cols * gr.cell && gp.y <= gr.rows * gr.cell) || !WPL().walkTo(p, gp)) return false;
+    const onFloor = gp.x >= 0 && gp.y >= 0 && gp.x <= gr.cols * gr.cell && gp.y <= gr.rows * gr.cell;
+    if (!onFloor || !WPL().walkTo(p, gp)) return onFloor ? 'blocked' : false;
     if (gr.blocked[root.WorldPath.cellOf(gr, gp)] && p.path.length > 1) p.path.pop();
     if (p.pi >= p.path.length) { p.path = []; p.pi = 0; return false; } // already there: nothing to walk
     lastInput = nowMs(); wake(); return true;
@@ -156,7 +157,7 @@
   }
   function onPlayerKey(e) {
     if (e.type === 'keyup') { if (keys.delete(WPL().keyOf(e))) wake(); return; } // always release, whatever has focus now
-    const act = WPL().takesKey(e, { build: !!build, shown: ceoOn(), dialog: !!document.querySelector('[role=dialog][aria-modal=true]'), canvas: cv });
+    const act = WPL().takesKey(e, { build: !!build, shown: ceoOn(), dialog: !!document.querySelector('[role=dialog][aria-modal=true], .oo-win'), canvas: cv });
     if (act === 'move') { keys.add(WPL().keyOf(e)); lastInput = nowMs(); wake(); e.preventDefault(); }
     else if (act === 'interact' && interact()) e.preventDefault();
   }
@@ -443,7 +444,7 @@
     if (b && px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h && interact()) return;
     const h = pick(px, py);
     if (!h) { // empty ground: walk there
-      if (ceoOn() && root.WorldEdit && !walkCeo(root.WorldEdit.toGround(px, py))) opts.onToast && opts.onToast("Can't walk there");
+      if (ceoOn() && root.WorldEdit && walkCeo(root.WorldEdit.toGround(px, py)) === 'blocked') opts.onToast && opts.onToast("Can't walk there");
       return;
     }
     if (h.kind === 'nudge') { opts.onNudge && opts.onNudge(h.id); return; }

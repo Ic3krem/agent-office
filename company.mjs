@@ -50,16 +50,16 @@ export const PRIORITIES = ['high', 'normal'];
 export const goalError = goal => (['todo', 'doing', 'blocked'].includes(goal.status) ? null : { status: 409, error: 'Only an open goal (todo, doing or blocked) can change priority or pace.' });
 // Why /api/goal/pace refuses a change: { status, error } or null. hasOwn: prototype keys like 'constructor' are not paces.
 export function paceError(goal, pace) {
-  if (pace !== null && !Object.hasOwn(PACES, pace)) return { status: 400, error: 'pace must be boost, speed or null' };
+  if (pace !== null && (typeof pace !== 'string' || !Object.hasOwn(PACES, pace))) return { status: 400, error: 'pace must be boost, speed or null' };
   return goalError(goal);
 }
 export function priorityError(goal, priority) {
-  if (!PRIORITIES.includes(priority)) return { status: 400, error: 'priority must be high or normal' };
+  if (typeof priority !== 'string' || !PRIORITIES.includes(priority)) return { status: 400, error: 'priority must be high or normal' };
   return goalError(goal);
 }
 // Boost never forces a hire through a breaker: it gives way to the hiring switch, the subscription guard and a full Opus window.
 export function paceFor(goal, sw, limits, overLimit) {
-  if (!goal || !Object.hasOwn(PACES, goal.pace)) return null;
+  if (!goal || typeof goal.pace !== 'string' || !Object.hasOwn(PACES, goal.pace)) return null; // typeof: ['boost'] coerces to a key but is not === 'boost'
   const p = PACES[goal.pace];
   if (goal.pace === 'boost') {
     if (!sw.hiring) return { skip: 'Hiring is switched off: Boost will apply when hiring is back on' };
@@ -70,8 +70,8 @@ export function paceFor(goal, sw, limits, overLimit) {
 }
 
 // What a pending hire shows on its approval card: the goal's pace and, live, the model it would run on (or why Boost is skipped).
-export function hirePace(goal, sw, limits, overLimit) {
-  const r = paceFor(goal, sw, limits, overLimit);
+export function hirePace(goal, sw, limits, overLimit, type) {
+  const r = type === 'fork' ? null : paceFor(goal, sw, limits, overLimit); // fork hires ignore model (SDK): no pace line
   return { pace: r ? goal.pace : null, ...(r?.model ? { model: r.model } : r?.skip ? { paceSkip: r.skip } : {}) };
 }
 

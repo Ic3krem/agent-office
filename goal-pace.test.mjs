@@ -67,7 +67,7 @@ test('a hire request for a boosted goal exposes its pace and model on the approv
   assert.match(hirePace({ pace: 'boost' }, ON, null, true).paceSkip, /plan limit/);
   assert.deepEqual(hirePace(undefined, ON, null, false), { pace: null });
   const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
-  assert.match(src, /hires: hires\.pending\(\)\.map\(h => \(\{ \.\.\.h, \.\.\.hirePace\(goals\.list\(\)\.find\(g => g\.id === h\.goalId\), sw\(\), limits, overLimit\(\)\) \}\)\)/);
+  assert.match(src, /hires: hires\.pending\(\)\.map\(h => \(\{ \.\.\.h, \.\.\.hirePace\(goals\.list\(\)\.find\(g => g\.id === h\.goalId\), sw\(\), limits, overLimit\(\), h\.key\) \}\)\)/);
 });
 
 test('hireHook applies pace to updatedInput for that goal only', async () => {
@@ -111,4 +111,33 @@ test('hireHook applies pace to updatedInput for that goal only', async () => {
   assert.equal(r5.hookSpecificOutput.updatedInput.model, 'haiku');
   assert.match(r5.hookSpecificOutput.additionalContext, /^Boost skipped: /);
   assert.equal(espresso, false, 'the cup is used up');
+});
+
+test('array/object/number pace and priority are rejected; a coerced pace never reaches Boost', () => {
+  for (const bad of [['boost'], { x: 1 }, 1, true]) {
+    assert.equal(paceError({ status: 'doing' }, bad).status, 400);
+    assert.equal(priorityError({ status: 'doing' }, bad).status, 400);
+  }
+  assert.equal(paceError({ status: 'doing' }, null), null);
+  const full = { models: [{ name: 'Opus', pct: 100 }] };
+  assert.equal(paceFor({ pace: ['boost'] }, ON, full, false), null);
+  assert.equal(hirePace({ pace: ['boost'] }, ON, full, false).pace, null);
+});
+
+test('fork hires show no pace line', () => {
+  assert.deepEqual(hirePace({ pace: 'boost' }, ON, null, false, 'fork'), { pace: null });
+  assert.equal(hirePace({ pace: 'boost' }, ON, null, false, 'general-purpose').model, 'opus');
+});
+
+test('priority and pace clicks never start a Tiro session; list_goals sorts high first', () => {
+  const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  const pace = src.slice(src.indexOf("case '/api/goal/pace'"), src.indexOf("case '/api/scheduler'"));
+  assert.doesNotMatch(pace, /tellBoss/);
+  const pri = src.slice(src.indexOf("case '/api/goal/priority'"), src.indexOf("case '/api/goal/pace'"));
+  assert.doesNotMatch(pri, /tellBoss/);
+  assert.match(pri, /if \(boss\.id && boss\.push && /, 'note only pushed into a running session');
+  assert.match(src, /\.sort\(\(a, b\) => \(b\.priority === 'high'\) - \(a\.priority === 'high'\)\)/);
+  const t = [{ id: 1 }, { id: 2, priority: 'high' }, { id: 3, priority: 'normal' }, { id: 4, priority: 'high' }]
+    .map(g => ({ priority: 'normal', ...g })).sort((a, b) => (b.priority === 'high') - (a.priority === 'high')).map(g => g.id);
+  assert.deepEqual(t, [2, 4, 1, 3], 'stable');
 });

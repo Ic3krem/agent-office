@@ -307,7 +307,7 @@ const officeTools = () => createSdkMcpServer({
   name: 'office',
   tools: [
     tool('list_goals', "List today's goals with id, status (proposed, todo, doing, blocked, done, dismissed), note, priority (high goals first) and pace (boost or speed: the model the user chose for its next hires).", {}, async () =>
-      ({ content: [{ type: 'text', text: JSON.stringify(goals.list().map(g => ({ priority: 'normal', pace: null, ...g }))) }] })),
+      ({ content: [{ type: 'text', text: JSON.stringify(goals.list().map(g => ({ priority: 'normal', pace: null, ...g })).sort((a, b) => (b.priority === 'high') - (a.priority === 'high'))) }] })),
     tool('update_goal', 'Set a goal to doing, blocked or done, with a one-line note.', { id: z.string(), status: z.enum(['doing', 'blocked', 'done']), note: z.string() }, async ({ id, status, note }) => {
       try { const g = goals.update(id, { status, note }); boss.progress = true; say('Goal ' + status + ': ' + g.text); return { content: [{ type: 'text', text: 'ok' }] }; }
       catch (e) { return { content: [{ type: 'text', text: e.message }], isError: true }; }
@@ -511,7 +511,7 @@ function snapshot() {
   const shown = list.slice(0, deskCap).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   return {
     worldVersion: worldStore.version(),
-    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit()) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
+    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => ({
       isManager: !!a.isManager,
       id: a.id, name: a.isManager ? dn.tiro : helpers.get(a.id)?.helper ? helpers.get(a.id).label : dn[a.profile?.key] || a.title || a.name || a.firstPrompt || path.basename(a.cwd || '') || a.id.slice(0, 8),
@@ -674,7 +674,7 @@ async function handle(req, res) {
         if (!cur) return json(res, 404, { error: 'no such goal' });
         const bad = priorityError(cur, b.priority); if (bad) return json(res, bad.status, { error: bad.error });
         const g = goals.update(cur.id, { priority: b.priority }); bump();
-        tellBoss(b.priority === 'high' ? `The user marked goal ${g.id} as high priority: work on it first.` : `The user put goal ${g.id} back to normal priority.`);
+        if (boss.id && boss.push && sw().kiro && !(sw().guard && overLimit())) boss.push(b.priority === 'high' ? `The user marked goal ${g.id} as high priority: work on it first.` : `The user put goal ${g.id} back to normal priority.`);
         return json(res, 200, { ok: true, priority: g.priority });
       }
       case '/api/goal/pace': {
@@ -683,7 +683,7 @@ async function handle(req, res) {
         if (!cur) return json(res, 404, { error: 'no such goal' });
         const bad = paceError(cur, pace); if (bad) return json(res, bad.status, { error: bad.error });
         const g = goals.update(cur.id, { pace }); bump();
-        tellBoss(pace ? `The user set goal ${g.id} to ${pace === 'boost' ? 'Boost: strongest model' : 'Speed: fastest model'} for its next hires.` : `The user cleared the pace of goal ${g.id}: its next hires use their own model.`);
+        // no note to Tiro: the PreToolUse hook enforces pace and list_goals shows it, so a click never starts a paid turn
         const skip = paceFor(g, sw(), limits, overLimit())?.skip;
         return json(res, 200, { ok: true, pace: g.pace, ...(skip ? { warning: skip } : {}) });
       }

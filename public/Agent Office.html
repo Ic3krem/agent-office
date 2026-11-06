@@ -252,7 +252,7 @@ button:disabled{opacity:.45;cursor:default}
 
     <sc-if value="{{ usageOpen }}" hint-placeholder-val="{{ false }}">
       <div onClick="{{ closeUsage }}" style="position:fixed; inset:0; z-index:4500; background:rgba(8,5,4,.6);"></div>
-      <div style="position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:4501; width:min(720px,96vw); max-height:88vh; display:flex; flex-direction:column; background:#1a1512; border:1px solid #4a3a2c; border-radius:12px; box-shadow:0 30px 80px rgba(0,0,0,.6); overflow:hidden;">
+      <div role="dialog" aria-modal="true" aria-label="Usage" style="position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:4501; width:min(720px,96vw); max-height:88vh; display:flex; flex-direction:column; background:#1a1512; border:1px solid #4a3a2c; border-radius:12px; box-shadow:0 30px 80px rgba(0,0,0,.6); overflow:hidden;">
         <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #33281f;">
           <span style="flex:1; font-family:'Pixelify Sans',sans-serif; font-size:19px; color:#ffdca0;">Usage</span>
           <button class="sbtn" onClick="{{ refreshLimits }}">↻ Refresh limits</button>
