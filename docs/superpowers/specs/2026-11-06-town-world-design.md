@@ -71,8 +71,14 @@ Anti-goals (this would be a failure even if it works):
   At a door, an "Enter" prompt (E, or a tap) fades into the interior. Leaving through the interior door puts you back
   outside that door.
 - **Camera.** It follows the avatar and is clamped to the map. Zoom works as today.
-- **Your building's look.** Your office lot can use one of a few building variants (my call: 3 at first) so friends'
-  offices differ. Friends see the variant you chose.
+- **Your building's look (user's call).** You choose your office building's style. First three styles:
+  **countryside** (a rustic farmhouse), **Japanese** (machiya/minka-style with a tiled roof and engawa) and **modern**
+  (a simple, clean house). More styles can be added later through the same pipeline. Friends see the style you chose.
+  Inside, you arrange the office in build mode as today. In the party, that is your showcase: friends walk into your
+  building and see your layout and design.
+- **The town is the heart of multiplayer (user's call).** In a party everyone shares one town square. Each friend's
+  office building stands on a friend lot in their chosen style. You walk over, go inside and look around their
+  interior as they designed it (view only).
 
 ## 5. Interiors
 
@@ -110,7 +116,7 @@ inside.
 ## 7. Art pipeline (developer-time only)
 
 - **Source:** Blender Python scripts in `art/` build each asset from parts. The approved spike (`blender_cozy.py`)
-  is the starting point. Assets: buildings (exterior variants), interior furniture (every catalog type), terrain
+  is the starting point. Assets: buildings (one exterior per office style, plus the karinderya and game hall), interior furniture (every catalog type), terrain
   pieces, props, NPC props.
 - **Render:** an orthographic camera that matches the app projection (2:1 ground, heights 1:1), a warm sun, a cool
   sky, no anti-aliasing. It renders a fixed number of pixels per world unit, with a transparent background.
@@ -174,10 +180,9 @@ regression:
 ## 9. Party (max 4)
 
 - `LIMITS.members` becomes 4 everywhere: server, client and UI. "The party is full" is shown at the 5th join.
-- Friend lots fill in join order. A friend's lot shows their chosen building variant and their name sign.
+- Friend lots fill in join order. A friend's lot shows their chosen building style (countryside, Japanese, modern) and their name sign.
 - **Entering a friend's building** is today's view-only visit, now with their interior art. Their agents show generic
-  bubbles only. The privacy boundary in `party/protocol.mjs` is unchanged: no new fields beyond the building variant
-  (a small integer).
+  bubbles only. The privacy boundary in `party/protocol.mjs` is unchanged: no new fields beyond the building style (one of a fixed list).
 - Friends' avatars walk the town and their interiors as today's guests.
 
 ## 10. Constraints
@@ -199,7 +204,7 @@ regression:
    transitions; layout migration.
 3. **Agents across buildings.** Travellers, karinderya trips, chismis, NPCs in the new art.
 4. **Graphics settings.** Presets, auto-detect, Canvas2D fallback, shadows and day/night layers.
-5. **Party lots.** Max 4, building variants, friends' buildings, games in the game hall.
+5. **Party lots.** Max 4, office building styles (countryside, Japanese, modern), friends' buildings, games in the game hall.
 
 Each step ships behind the existing app until step 2 is complete. My call: the town only becomes the default view once
 the office interior has all of today's features.
@@ -216,8 +221,7 @@ the office interior has all of today's features.
   - `room` gains one value, `town`, using the town map's coordinates. Friends on the plaza are shown in real time as
     guests, like today.
   - Friends' agents never travel in your town. They stay inside their own office and are seen only when visiting.
-  - The shared layout is still the office interior only, under the 300 KB cap, plus the building variant (an integer
-    0–2).
+  - The shared layout is still the office interior only, under the 300 KB cap, plus the building style (`country` | `japanese` | `modern`).
   - The share-ready, protocol and party tests are updated with the change.
 - **"Idle" in the budgets** means no characters moving, with the preset's ambient animation running.
   - Ambient animation redraws only small dirty areas, at its own low rate (water and fire at 8 fps). It never forces a
