@@ -1,0 +1,23 @@
+# docker compose up        -> party server on port 4880 (IP:port) plus a Cloudflare quick-tunnel link
+# The log prints the invite code, the host key and "Share this link: https://....trycloudflare.com".
+# Set PARTY_CODE / PARTY_NAME / PARTY_PORT in a .env file next to this one to choose them.
+services:
+  party:
+    build: .
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      PARTY_CODE: ${PARTY_CODE:-}
+      PARTY_NAME: ${PARTY_NAME:-Agent Office party}
+      PARTY_ADMIN_KEY: ${PARTY_ADMIN_KEY:-}
+      PARTY_TRUST_PROXY: cloudflared   # believe CF-Connecting-IP only from the tunnel container
+      PARTY_TUNNEL_METRICS: http://cloudflared:2000
+    ports:
+      - "${PARTY_PORT:-4880}:4880"
+    restart: unless-stopped
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 --url http://party:4880
+    depends_on: [party]
+    restart: unless-stopped

@@ -1,0 +1,143 @@
+// Agent Office party server (phase 7). Zero dependencies: JSON over HTTP plus one Server-Sent Events stream per member,
+// so it runs from a plain `node server.mjs` or the Docker image, behind a Cloudflare quick tunnel or on IP:port.
+// Everything lives in memory; nothing is written to disk. Every message goes through party/protocol.mjs.
+//
+//   POST /join   {code, name}          -> {token, id, name, party}   (invite code; 16 members at most)
+//   GET  /events  Authorization: Bearer <token>   SSE: hello, member, leave, chat, kicked
+//   POST /office {office}  /avatar {avatar}  /chat {text}  /leave        (Bearer token)
+//   POST /admin/kick {id}  x-admin-key: <key>                              (host only; also bans that address)
+//   GET  /health
+import http from 'node:http';
+import crypto from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import dns from 'node:dns/promises';
+import { LIMITS, cleanName, cleanChat, cleanOffice, cleanAvatar } from './protocol.mjs';
+
+const sha = s => crypto.createHash('sha256').update(String(s ?? ''), 'utf8').digest();
+const safeEqual = (a, b) => crypto.timingSafeEqual(sha(a), sha(b));
+const rand = n => crypto.randomBytes(n).toString('hex');
+
+// Token bucket per key: `rate` per second, bursts up to `burst`.
+export function limiter(rate, burst, now = () => Date.now()) {
+  const b = new Map();
+  return key => {
+    const t = now(), s = b.get(key) || { n: burst, t };
+    s.n = Math.min(burst, s.n + (t - s.t) / 1000 * rate); s.t = t;
+    if (b.size > 5000) b.clear(); // bounded memory under a flood of addresses
+    if (s.n < 1) { b.set(key, s); return false; }
+    s.n -= 1; b.set(key, s); return true;
+  };
+}
+
+// The party itself, without HTTP (tested directly). send(member, event) delivers to that member's stream.
+export function createParty({ code, name = 'Agent Office party', now = () => Date.now() }) {
+  const byToken = new Map(), banned = new Set(), chat = [];
+  const pub = m => ({ id: m.id, name: m.name, office: m.office, avatar: m.avatar });
+  const others = (m, ev) => { for (const o of byToken.values()) if (o !== m) o.send && o.send(ev); };
+  const all = ev => { for (const o of byToken.values()) o.send && o.send(ev); };
+  const api = {
+    name, banned,
+    join(body, addr) {
+      if (banned.has(addr)) return { status: 403, body: { error: 'banned from this party' } };
+      if (!body || typeof body.code !== 'string' || !safeEqual(body.code.trim().toUpperCase(), code)) return { status: 403, body: { error: 'wrong invite code' } };
+      if (byToken.size >= LIMITS.members) return { status: 409, body: { error: 'party is full' } };
+      let nm = cleanName(body.name) || 'Guest';
+      const taken = new Set([...byToken.values()].map(m => m.name.toLowerCase()));
+      for (let i = 2; taken.has(nm.toLowerCase()); i++) nm = cleanName(nm.slice(0, 16)) + ' ' + i;
+      const m = { token: rand(24), id: rand(6), name: nm, addr, office: null, avatar: null, last: now(), send: null };
+      byToken.set(m.token, m);
+      others(m, { t: 'member', m: pub(m) });
+      return { status: 200, body: { token: m.token, id: m.id, name: m.name, party: name } };
+    },
+    member: token => (typeof token === 'string' && byToken.get(token)) || null,
+    attach(m, send) { m.send = send; m.last = now(); send({ t: 'hello', you: m.id, party: name, members: [...byToken.values()].filter(o => o !== m).map(pub), chat }); },
+    detach(m, send) { if (m.send === send) m.send = null; m.last = now(); },
+    office(m, o) { const c = cleanOffice(o); if (!c) return false; m.office = c; m.last = now(); others(m, { t: 'member', m: pub(m) }); return true; },
+    avatar(m, a) { const c = cleanAvatar(a); if (!c) return false; m.avatar = c; m.last = now(); others(m, { t: 'avatar', id: m.id, avatar: c }); return true; },
+    say(m, text) { const t = cleanChat(text); if (!t) return false; const line = { id: m.id, name: m.name, text: t, at: now() }; chat.push(line); if (chat.length > LIMITS.chatKeep) chat.shift(); m.last = now(); all({ t: 'chat', line }); return true; },
+    leave(m, why = 'left') { if (!byToken.delete(m.token)) return; if (why === 'kicked' && m.send) m.send({ t: 'kicked' }); m.send && m.send(null); others(m, { t: 'leave', id: m.id }); },
+    kick(id) { const m = [...byToken.values()].find(x => x.id === id); if (!m) return false; banned.add(m.addr); api.leave(m, 'kicked'); return true; },
+    // members without a stream for 90 s are gone
+    reap() { const t = now(); for (const m of [...byToken.values()]) if (!m.send && t - m.last > 90_000) api.leave(m, 'timeout'); },
+    size: () => byToken.size,
+  };
+  return api;
+}
+
+const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'none'" };
+// trustProxy: the host name of the tunnel container (cloudflared). Its CF-Connecting-IP header is believed only on requests
+// that really come from that container's address, so a direct IP:port visitor cannot fake an address to dodge a ban.
+export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name, trustProxy = '' } = {}) {
+  const party = createParty({ code, name });
+  const joinLimit = limiter(0.2, 5), msgLimit = limiter(10, 20), chatLimit = limiter(1, 3);
+  let proxyIps = new Set();
+  const resolveProxy = () => trustProxy && dns.lookup(trustProxy, { all: true }).then(r => { proxyIps = new Set(r.map(x => x.address)); }).catch(() => {});
+  resolveProxy();
+  const peer = req => String(req.socket.remoteAddress || '?').replace(/^::ffff:/, '');
+  const addrOf = req => (proxyIps.has(peer(req)) && typeof req.headers['cf-connecting-ip'] === 'string' && req.headers['cf-connecting-ip'].slice(0, 64)) || peer(req);
+  const json = (res, status, body) => { res.writeHead(status, { ...SEC, 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+  const readBody = (req, max) => new Promise((ok, bad) => {
+    let n = 0; const chunks = [];
+    req.on('data', c => { n += c.length; if (n > max) { if (n - c.length <= max) bad(Object.assign(new Error('too large'), { status: 413 })); } else chunks.push(c); });
+    req.on('end', () => { if (n > max) return; try { ok(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); } catch { bad(Object.assign(new Error('bad JSON'), { status: 400 })); } });
+    req.on('error', bad);
+  });
+  let streams = 0;
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://x'), addr = addrOf(req);
+    try {
+      if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, party: party.name, members: party.size() });
+      const token = (/^Bearer ([a-f0-9]{48})$/.exec(req.headers.authorization || '') || [])[1];
+      if (req.method === 'GET' && url.pathname === '/events') {
+        const m = party.member(token); if (!m) return json(res, 401, { error: 'join first' });
+        if (streams >= LIMITS.members * 2) return json(res, 503, { error: 'busy' });
+        streams++;
+        res.writeHead(200, { ...SEC, 'content-type': 'text/event-stream', connection: 'keep-alive' });
+        const send = ev => { if (ev === null) return res.end(); res.write('data: ' + JSON.stringify(ev) + '\n\n'); };
+        party.attach(m, send);
+        const ping = setInterval(() => res.write(': ping\n\n'), 20_000);
+        req.on('close', () => { streams--; clearInterval(ping); party.detach(m, send); });
+        return;
+      }
+      if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
+      if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] || '')) return json(res, 415, { error: 'send JSON' });
+      if (url.pathname === '/join') {
+        if (!joinLimit(addr)) return json(res, 429, { error: 'too many tries; wait a minute' });
+        const r = party.join(await readBody(req, 4096), addr); return json(res, r.status, r.body);
+      }
+      if (url.pathname === '/admin/kick') {
+        if (!adminKey || !safeEqual(req.headers['x-admin-key'] || '', adminKey)) return json(res, 403, { error: 'host only' });
+        const b = await readBody(req, 4096); return json(res, party.kick(String(b.id || '')) ? 200 : 404, {});
+      }
+      const m = party.member(token); if (!m) return json(res, 401, { error: 'join first' });
+      if (!msgLimit(m.token)) return json(res, 429, { error: 'slow down' });
+      if (url.pathname === '/office') return json(res, party.office(m, (await readBody(req, LIMITS.body)).office) ? 200 : 400, {});
+      if (url.pathname === '/avatar') return json(res, party.avatar(m, (await readBody(req, 4096)).avatar) ? 200 : 400, {});
+      if (url.pathname === '/chat') { const b = await readBody(req, 4096); if (!chatLimit(m.token)) return json(res, 429, { error: 'slow down' }); return json(res, party.say(m, b.text) ? 200 : 400, {}); }
+      if (url.pathname === '/leave') { party.leave(m); return json(res, 200, {}); }
+      return json(res, 404, { error: 'not found' });
+    } catch (e) {
+      if (e.status === 413) { res.setHeader('connection', 'close'); res.on('finish', () => req.destroy()); } // answer first, then drop the rest of the upload
+      if (!res.headersSent) json(res, e.status || 500, { error: e.status ? e.message : 'server error' });
+    }
+  });
+  server.headersTimeout = 10_000; server.requestTimeout = 15_000;
+  const reaper = setInterval(() => { party.reap(); resolveProxy(); }, 15_000); reaper.unref();
+  server.on('close', () => clearInterval(reaper));
+  return new Promise(ok => server.listen(port, host, () => ok({ server, party, port: server.address().port })));
+}
+
+// Run directly (node server.mjs, or the Docker image): settings from the environment.
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  const env = process.env;
+  const code = (env.PARTY_CODE || rand(3)).trim().toUpperCase(), adminKey = env.PARTY_ADMIN_KEY || rand(16);
+  const { port } = await startParty({ port: +env.PARTY_PORT || 4880, code, adminKey, name: cleanName(env.PARTY_NAME) || 'Agent Office party', trustProxy: env.PARTY_TRUST_PROXY || '' });
+  console.log(`Party server on port ${port}. Invite code: ${code}`);
+  console.log(`Host key (keep it; kicks people): ${adminKey}`);
+  console.log(`Friends on your network: http://<this machine's IP>:${port}  (this shows your IP to whoever you give it to)`);
+  // With the cloudflared container: ask its metrics endpoint for the quick-tunnel name and print the shareable link.
+  if (env.PARTY_TUNNEL_METRICS) for (let i = 0; i < 30; i++) {
+    try { const j = await (await fetch(env.PARTY_TUNNEL_METRICS + '/quicktunnel')).json(); if (j.hostname) { console.log(`Share this link: https://${j.hostname}  with code ${code}`); break; } } catch {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
