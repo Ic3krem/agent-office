@@ -88,5 +88,5 @@ for (x0, y0, x1, y1) in BRIDGES:
 kit.flush('terrain')
 w, h, ox, oy = kit.frame(kit.bounds(), 3)
 kit.render(os.path.join(out, 'terrain.png'))
-json.dump({'originPx': [ox, oy]}, open(os.path.join(out, 'terrain.json'), 'w'))
+json.dump({'originPx': [ox, oy]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'))
 print('TERRAIN', w, h, ox, oy)

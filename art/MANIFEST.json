@@ -3,7 +3,7 @@
  "files": [
   {
    "file": "art/palette.json",
-   "sha256": "6ed1ae734dd5e0f5f71d4adc43e1c78731ecb846df050a58250db4a9e8be2db0",
+   "sha256": "9a2d8f73aa5223e71e42199f1fc781978fea91a09f6dac99de41aae58f276dff",
    "script": "art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
@@ -17,7 +17,7 @@
   },
   {
    "file": "public/art/town/atlas.json",
-   "sha256": "c8574905dd6805ab96e2e7e49bac9c9953dd89bee1c519e9a073a4499f8e1c22",
+   "sha256": "d6d3fe9f4f3dce119d868d6172ad3d4ce461a6d4ca3508a9faf78ba5da5ffbc6",
    "script": "art/blender/town_assets.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
@@ -31,7 +31,7 @@
   },
   {
    "file": "public/art/town/terrain.json",
-   "sha256": "b85d036e13e1ac084fb9d2b3ee9ba8375c75f548c5d3bbfcd715547ee10e8531",
+   "sha256": "c133b3b3391d2bec530557368f069c4f97a52628de0aabbd1abebe25eb6e0c2e",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"

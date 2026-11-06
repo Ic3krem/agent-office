@@ -251,6 +251,6 @@ for i, (name, build) in enumerate(ASSETS.items()):
     kit.render(os.path.join(out, name + '.ground.png'))
     sun.use_shadow = False
     kit.render(os.path.join(out, name + '.noshadow.png'))
-    json.dump({'anchor': [ox, oy], 'footprint': [-w * 5, -d * 5, w * 5, d * 5]}, open(os.path.join(out, name + '.json'), 'w'))
+    json.dump({'anchor': [ox, oy], 'footprint': [-w * 5, -d * 5, w * 5, d * 5]}, open(os.path.join(out, name + '.json'), 'w', newline='\n'))
     print('ASSET', name, bw, bh, ox, oy)
 print('DONE')

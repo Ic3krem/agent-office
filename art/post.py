@@ -69,7 +69,7 @@ def build(raw, out):
     cols = sorted(set(cols)) + [OUTLINE]
     if len(cols) > 64: print('palette has', len(cols), 'colours (> 64)'); sys.exit(1)
     pal = palette_image(cols)
-    json.dump({'colors': ['#%02x%02x%02x' % c for c in cols], 'outline': '#%02x%02x%02x' % OUTLINE}, open(os.path.join(HERE, 'palette.json'), 'w'), indent=1)
+    json.dump({'colors': ['#%02x%02x%02x' % c for c in cols], 'outline': '#%02x%02x%02x' % OUTLINE}, open(os.path.join(HERE, 'palette.json'), 'w', newline='\n'), indent=1)
 
     # map sprites to the palette, add the outline, crop colour+shadow to their union
     frames = {}
@@ -97,7 +97,7 @@ def build(raw, out):
     os.makedirs(os.path.join(out, 'terrain'), exist_ok=True)
     save_p(to_palette(atlas, pal, len(cols)), os.path.join(out, 'atlas.png'))
     atlas_sh.save(os.path.join(out, 'atlas-shadow.png'), optimize=True)
-    json.dump({'frames': meta, 'size': [W, H]}, open(os.path.join(out, 'atlas.json'), 'w'), indent=1)
+    json.dump({'frames': meta, 'size': [W, H]}, open(os.path.join(out, 'atlas.json'), 'w', newline='\n'), indent=1)
 
     # terrain: palette + outline round the whole block (not per chunk), cut into 512 px chunks
     t = outline(to_palette(terrain, pal, len(cols)).convert('RGBA'))
@@ -108,7 +108,7 @@ def build(raw, out):
         for c in range(cols_n):
             ch = tp.crop((c * CHUNK, r * CHUNK, min(TW, (c + 1) * CHUNK), min(TH, (r + 1) * CHUNK))); ch.info['transparency'] = len(cols)
             save_p(ch, os.path.join(out, 'terrain', f'r{r}c{c}.png'))
-    json.dump({'originPx': tmeta['originPx'], 'chunk': CHUNK, 'cols': cols_n, 'rows': rows_n, 'size': [TW, TH]}, open(os.path.join(out, 'terrain.json'), 'w'), indent=1)
+    json.dump({'originPx': tmeta['originPx'], 'chunk': CHUNK, 'cols': cols_n, 'rows': rows_n, 'size': [TW, TH]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'), indent=1)
     print(f'palette {len(cols)} colours; atlas {W}x{H}; terrain {TW}x{TH} in {cols_n}x{rows_n} chunks')
 
 

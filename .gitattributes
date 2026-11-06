@@ -4,3 +4,5 @@
 public/vendor/* binary
 docs/images/*.png binary
 public/fonts/*.woff2 binary
+public/art/** binary
+art/palette.json binary
