@@ -96,3 +96,31 @@ test('live bits stay procedural over the sprites', () => {
   const t0 = draw(part('trophy-shelf')); assert.ok(t0.some(c => c[0] === 'fillText'), 'goals plaque');
   const i0 = draw(part('inbox')).length; ST.ex.pending = 2; assert.ok(draw(part('inbox')).length > i0, 'inbox paper');
 });
+
+// ---------- batch B: play, lounge and break pieces (the karinderya and broom corner are built at their anchors) ----------
+const BATCH_B = ['arcade', 'arcade-race', 'jukebox', 'sofa3', 'snack-table', 'beanbag', 'ball-pit', 'hoop', 'dartboard', 'toy-bin', 'karinderya', 'broom-corner'];
+const withB = F => { const inst = F.defaultInstances().filter(p => BATCH_B.includes(p.type));
+  for (const t of ['karinderya', 'broom-corner']) inst.push({ id: t, type: t, x: F.CATALOG[t].anchor[0], y: F.CATALOG[t].anchor[1] });
+  return inst; };
+
+test('every batch B part draws from a frame the shipped atlas has, with unchanged footprints and depths', () => {
+  const a = boot(), b = boot({ image: IMG, frames: REAL().frames }), Fa = a.OfficeFurniture, Fb = b.OfficeFurniture, inst = withB(Fb);
+  assert.deepEqual([...new Set(inst.map(p => p.type))].sort(), [...BATCH_B].sort());
+  for (const p of inst) Fb.parts(p).forEach(({ it }, i) => assert.ok(usesAtlas(draw(it)), p.id + '.' + i + ' draws its sprite'));
+  assert.equal(Fb.parts(inst.find(p => p.type === 'karinderya')).length, 14, 'all karinderya parts');
+  const shape = F => J(withB(F).map(p => F.parts(p).map(({ it, rec }) => [it.d, it.fp, rec, !!it.o.floor, !!it.o.nofp])));
+  assert.deepEqual(shape(Fb), shape(Fa));
+});
+
+test('batch B live bits stay procedural over the sprites', () => {
+  const w = boot({ image: IMG, frames: REAL().frames }), F = w.OfficeFurniture, ST = F.state;
+  const kar = F.parts({ id: 'karinderya', type: 'karinderya', x: 1010, y: 370 }).map(q => q.it);
+  const part = id => F.parts(F.defaultInstances().find(p => p.id === id))[0].it;
+  const at = (it, T) => { ST.T = T; return JSON.stringify(draw(it)); };
+  for (const [name, it] of [['arcade attract mode', part('arcade')], ['pugon fire', kar[3]], ['counter fan', kar[4]], ['cat tail', kar[13]]])
+    assert.notEqual(at(it, 0.1), at(it, 0.9), name + ' moves with time');
+  ST.ex.music = 0; const quiet = draw(part('jukebox')); ST.ex.music = 1; const loud = draw(part('jukebox'));
+  assert.ok(loud.some(c => c[0] === 'fillText') && !quiet.some(c => c[0] === 'fillText'), 'jukebox notes follow the music'); ST.ex.music = 0;
+  assert.ok(draw(kar[1]).some(c => c[0] === 'fillText'), 'karinderya sign lettering');
+  assert.ok(draw(kar[6]).filter(c => c[0] === 'ellipse').length >= 9, 'plates and food on the long table');
+});

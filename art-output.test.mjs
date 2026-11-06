@@ -97,7 +97,9 @@ test('every frame a converted office painter asks for is in the office atlas', a
   const w = loadWorld(), F = w.OfficeFurniture, asked = new Set(), real = readJson('public/art/office/atlas.json').frames;
   const NUL = new Proxy(function () {}, { get: () => NUL, apply: () => NUL, set: () => true });
   F.useAtlas({ image: {}, frames: new Proxy({}, { get: (_, n) => { if (typeof n === 'string') asked.add(n); return { x: 0, y: 0, w: 1, h: 1, ax: 0, ay: 0 }; } }) });
-  for (let lv = 0; lv <= 6; lv++) { F.state.ex.plantLevel = lv; for (const p of F.defaultInstances()) for (const { it } of F.parts(p)) it.fn(NUL); }
+  const inst = F.defaultInstances(), had = new Set(inst.map(p => p.type));
+  for (const [type, T] of Object.entries(F.CATALOG)) if (!had.has(type)) inst.push({ id: type, type, x: T.anchor[0], y: T.anchor[1] }); // karinderya, broom corner
+  for (let lv = 0; lv <= 6; lv++) { F.state.ex.plantLevel = lv; for (const p of inst) for (const { it } of F.parts(p)) it.fn(NUL); }
   assert.ok(asked.size > 20, 'painters asked for ' + asked.size + ' frames');
   for (const n of asked) assert.ok(real[n], 'missing office frame ' + n);
 });

@@ -707,62 +707,69 @@
   for (let x = 545; x < 1000; x += 36) put('hedge-' + ((x - 545) / 36 + 1), 'hedge', x, 222);
 
   // ---------- playroom ----------
-  def('arcade', [880, 600], () => { const arcadeItem = add(897 + 612 + 2, g => arcade(g, 880, 600, true, 'BUGS', '#ff6a6a'));
+  def('arcade', [880, 600], () => { const arcadeItem = add(897 + 612 + 2, spriteOr('arcade', g => arcade(g, 880, 600, true, 'BUGS', '#ff6a6a'), { over: g => arcadeLive(g, 880, 600, true, 'BUGS', '#ff6a6a') }));
     reg('arcade', 'Arcade: Bug Squasher', [880, 600, 0, 34, 28, 82], arcadeItem); }, { spots: [{ id: 'play:arcade1', dx: 54, dy: 18, face: 'w', zone: 'play', game: true }] });
   put('arcade', 'arcade', 880, 600);
-  def('arcade-race', [820, 600], () => add(837 + 612 + 2, g => arcade(g, 820, 600, false, 'RACE', '#3dd6ff')), { spots: [{ id: 'play:arcade2', dx: 30, dy: 54, face: 'n', zone: 'play', game: true }] });
+  def('arcade-race', [820, 600], () => add(837 + 612 + 2, spriteOr('arcade-race', g => arcade(g, 820, 600, false, 'RACE', '#3dd6ff'), { over: g => arcadeLive(g, 820, 600, false, 'RACE', '#3dd6ff') })), { spots: [{ id: 'play:arcade2', dx: 30, dy: 54, face: 'n', zone: 'play', game: true }] });
   put('arcade-race', 'arcade-race', 820, 600);
   function arcade(g, x, y, live, name, col) {
     box(g, x, y, 0, 34, 28, 82, '#2a1f4a', { t: '#3a2c66', l: '#2a1f4a', r: '#1c1533' }); box(g, x + 3, y + 22, 40, 28, 7, 4, '#3a2a6a');
+    arcadeLive(g, x, y, live, name, col, true);
+  }
+  // the cabinet front: marquee, screen (attract mode on the live one), the control panel (procedural only: the sprite has it), the glow
+  function arcadeLive(g, x, y, live, name, col, panel) {
     Fy(g, y + 28, 82, () => { g.translate(x, 0); g.fillStyle = col; g.fillRect(3, 2, 28, 9); txt(g, name, 17, 9.2, 7, '#1b1220', 'center'); g.fillStyle = '#0d1a10'; g.fillRect(4, 14, 26, 22); g.strokeStyle = '#3dff8f'; g.strokeRect(4.5, 14.5, 25, 21);
       if (live) { const t = ST.T; g.fillStyle = '#ff6a6a'; g.fillRect(8 + (t * 20 % 18), 20 + Math.sin(t * 3) * 3, 4, 4); g.fillStyle = '#3dff8f'; g.fillRect(24 - (t * 14 % 16), 28, 3, 3); g.fillStyle = '#ffd23f'; g.fillRect(16, 30, 2, 2); } else { g.fillStyle = '#7cc4ff'; g.fillRect(6, 30, 22, 2); g.fillRect(10, 24, 4, 4); }
-      g.fillStyle = '#3a2a6a'; g.fillRect(3, 40, 28, 13); g.fillStyle = '#ff4d6d'; g.beginPath(); g.arc(10, 47, 2.4, 0, 6.2832); g.fill(); g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(18, 47, 2.4, 0, 6.2832); g.fill(); g.fillStyle = '#3dd6ff'; g.beginPath(); g.arc(25, 47, 2.4, 0, 6.2832); g.fill(); });
+      if (panel) { g.fillStyle = '#3a2a6a'; g.fillRect(3, 40, 28, 13); g.fillStyle = '#ff4d6d'; g.beginPath(); g.arc(10, 47, 2.4, 0, 6.2832); g.fill(); g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(18, 47, 2.4, 0, 6.2832); g.fill(); g.fillStyle = '#3dd6ff'; g.beginPath(); g.arc(25, 47, 2.4, 0, 6.2832); g.fill(); } });
     const c = P(x + 17, y + 34, 50); const gr = g.createRadialGradient(c[0], c[1], 3, c[0], c[1], 38); gr.addColorStop(0, alpha(col, .22)); gr.addColorStop(1, alpha(col, 0)); g.fillStyle = gr; g.fillRect(c[0] - 40, c[1] - 30, 80, 70);
   }
-  def('jukebox', [520, 598], () => { const jukeItem = add(538 + 608, g => { // jukebox
-    const x = 520, y = 598, play = !!ST.ex.music;
-    box(g, x, y, 0, 38, 22, 52, '#7a3a1c', { t: '#9a4a24' }); cyl(g, x + 19, y + 11, 52, 19, 14, '#7a3a1c');
-    Fy(g, y + 22, 54, () => { g.translate(x, 0); g.fillStyle = '#3b1a0a'; g.fillRect(4, 8, 30, 38); g.fillStyle = play ? '#ffb547' : '#a8742a'; g.fillRect(6, 10, 26, 24); for (let i = 0; i < 5; i++) { g.fillStyle = '#ffd36b'; const hh = play ? 4 + Math.abs(Math.sin(ST.T * 6 + i * 1.3)) * 12 : 4; g.fillRect(8 + i * 5, 34 - hh, 3.4, hh); } g.fillStyle = '#ffd36b'; g.fillRect(8, 38, 22, 3); });
+  const jukeLive = (g, x, y, all) => { const play = !!ST.ex.music; // all: also the static inset and strip (procedural only)
+    Fy(g, y + 22, 54, () => { g.translate(x, 0); if (all) { g.fillStyle = '#3b1a0a'; g.fillRect(4, 8, 30, 38); } g.fillStyle = play ? '#ffb547' : '#a8742a'; g.fillRect(6, 10, 26, 24); for (let i = 0; i < 5; i++) { g.fillStyle = '#ffd36b'; const hh = play ? 4 + Math.abs(Math.sin(ST.T * 6 + i * 1.3)) * 12 : 4; g.fillRect(8 + i * 5, 34 - hh, 3.4, hh); } if (all) { g.fillStyle = '#ffd36b'; g.fillRect(8, 38, 22, 3); } });
     if (play) [0, 1].forEach(i => { const q = (ST.T * .6 + i * .5) % 1, c = P(x + 28 + i * 6, y, 60 + q * 34); g.globalAlpha = 1 - q; g.fillStyle = '#ffd36b'; g.font = '13px sans-serif'; g.fillText(i ? '♫' : '♪', c[0], c[1]); g.globalAlpha = 1; });
-  });
+  };
+  def('jukebox', [520, 598], () => { const jukeItem = add(538 + 608, spriteOr('jukebox', g => { // jukebox
+    const x = 520, y = 598;
+    box(g, x, y, 0, 38, 22, 52, '#7a3a1c', { t: '#9a4a24' }); cyl(g, x + 19, y + 11, 52, 19, 14, '#7a3a1c');
+    jukeLive(g, x, y, true);
+  }, { over: g => jukeLive(g, 520, 598) }));
   reg('jukebox', 'Jukebox', [520, 598, 0, 38, 22, 62], jukeItem); }, { spots: [{ id: 'play:juke', dx: 25, dy: 42, face: 'n', zone: 'play' }] });
   put('jukebox', 'jukebox', 520, 598);
-  def('sofa3', [598, 598], () => add(686 + 610, g => { // three-seat sofa facing +y
+  def('sofa3', [598, 598], () => add(686 + 610, spriteOr('sofa3', g => { // three-seat sofa facing +y
     const x = 598, y = 598, w = 176, col = '#c0627a';
     box(g, x, y, 0, w, 10, 44, sh(col, .85)); box(g, x - 4, y, 0, 10, 42, 26, sh(col, .75)); box(g, x + w - 6, y, 0, 10, 42, 26, sh(col, .75));
     box(g, x + 6, y + 8, 0, w - 12, 34, 16, col); [0, 1, 2].forEach(i => box(g, x + 8 + i * 55, y + 10, 16, 53, 30, 8, sh(col, 1.08), { st: 'rgba(60,10,30,.45)' }));
     [0, 1, 2].forEach(i => box(g, x + 8 + i * 55, y + 6, 24, 53, 6, 18, sh(col, .98)));
-  }), { spots: [30, 88, 146].map((dx, i) => ({ id: 'play:sofa' + (i + 1), dx, dy: 18, face: 's', zone: 'play', seat: true })) });
+  })), { spots: [30, 88, 146].map((dx, i) => ({ id: 'play:sofa' + (i + 1), dx, dy: 18, face: 's', zone: 'play', seat: true })) });
   put('sofa3', 'sofa3', 598, 598);
-  def('snack-table', [624, 672], () => add(660 + 690, g => { // low table with snacks
+  def('snack-table', [624, 672], () => add(660 + 690, spriteOr('snack-table', g => { // low table with snacks
     box(g, 628, 676, 0, 3, 3, 14, '#3a2a18'); box(g, 680, 676, 0, 3, 3, 14, '#3a2a18'); box(g, 628, 700, 0, 3, 3, 14, '#3a2a18'); box(g, 680, 700, 0, 3, 3, 14, '#3a2a18');
     box(g, 624, 672, 14, 62, 34, 4, '#b98a57'); cyl(g, 640, 686, 18, 8, 3, '#e8e4dc'); [['#ffd23f', 0], ['#ff7aa8', 4], ['#7cf29a', 8]].forEach(([c, d]) => { cyl(g, 637 + d, 685 + d / 2, 21, 2.2, 3, c, { stroke: false }); });
     box(g, 662, 684, 18, 18, 14, 3, '#d35a4a'); box(g, 663, 685, 21, 16, 12, 1.4, '#f3d9a0'); cyl(g, 712 - 20, 700, 18, 3, 6, '#3dd6ff');
-  }), { spots: [{ id: 'play:table', dx: 81, dy: 18, face: 'w', zone: 'play' }] });
+  })), { spots: [{ id: 'play:table', dx: 81, dy: 18, face: 'w', zone: 'play' }] });
   put('snack-table', 'snack-table', 624, 672);
   function bean(g, x, y, col) { gell(g, x, y, 0, 26, 'rgba(10,5,20,.25)'); const c = P(x, y, 0); g.fillStyle = sh(col, .72); g.beginPath(); g.ellipse(c[0], c[1] - 4, 25, 15, 0, 0, 6.2832); g.fill(); g.fillStyle = col; g.beginPath(); g.ellipse(c[0] - 1, c[1] - 11, 22, 13, 0, 0, 6.2832); g.fill(); g.fillStyle = sh(col, 1.25); g.beginPath(); g.ellipse(c[0] - 5, c[1] - 14, 9, 4, -.2, 0, 6.2832); g.fill(); }
-  def('beanbag', [775, 715], (p, x, y) => add(x + y, g => bean(g, x, y, p.col)), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 's', zone: 'play', seat: true }] }); // p.col colour, p.spot seat id
+  def('beanbag', [775, 715], (p, x, y) => add(x + y, spriteOr('beanbag@' + String(p.col).slice(1), g => bean(g, x, y, p.col))), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 's', zone: 'play', seat: true }] }); // p.col colour, p.spot seat id
   put('beanbag-1', 'beanbag', 775, 715, { col: '#3dd6e8', spot: 'play:bean1' }); put('beanbag-2', 'beanbag', 850, 748, { col: '#ffb547', spot: 'play:bean2' });
-  def('ball-pit', [935, 725], () => add(935 + 725 - 12, g => { // ball pit
+  def('ball-pit', [935, 725], () => add(935 + 725 - 12, spriteOr('ball-pit', g => { // ball pit
     const c = P(935, 725, 0); g.fillStyle = '#2a5a8a'; g.beginPath(); g.ellipse(c[0], c[1], 48, 24, 0, 0, 6.2832); g.fill();
     const q = rnd(9); for (let i = 0; i < 60; i++) { const a = q() * 6.2832, r = Math.sqrt(q()) * 38; g.fillStyle = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0', '#ff9a4a'][i % 6]; g.beginPath(); g.arc(c[0] + Math.cos(a) * r, c[1] - 3 + Math.sin(a) * r / 2, 4.4, 0, 6.2832); g.fill(); }
     cyl(g, 935, 725, 0, 49, 0.1, '#2a5a8a', { stroke: false }); g.strokeStyle = '#1f4a78'; g.lineWidth = 6; g.beginPath(); g.ellipse(c[0], c[1] - 6, 48, 24, 0, 0, 6.2832); g.stroke(); g.strokeStyle = '#3a7ab8'; g.lineWidth = 2; g.beginPath(); g.ellipse(c[0], c[1] - 9, 48, 24, 0, 0, 6.2832); g.stroke();
-  }), { walkable: true, spots: [{ id: 'play:pit', dx: 0, dy: 0, face: 's', zone: 'play', seat: true }] });
+  })), { walkable: true, spots: [{ id: 'play:pit', dx: 0, dy: 0, face: 's', zone: 'play', seat: true }] });
   put('ball-pit', 'ball-pit', 935, 725);
-  def('hoop', [520, 748], () => add(528 + 735, g => { // basketball hoop
+  def('hoop', [520, 748], () => add(528 + 735, spriteOr('hoop', g => { // basketball hoop
     cyl(g, 520, 748, 0, 8, 3, '#3a3a44'); cyl(g, 520, 748, 3, 2, 76, '#8a909c'); box(g, 516, 734, 76, 3, 28, 30, '#f3ede2'); Fx(g, 519, 762, 106, () => { g.strokeStyle = '#d35a4a'; g.lineWidth = 1.4; g.strokeRect(8, 8, 12, 10); });
     const r = P(530, 748, 82); g.strokeStyle = '#ff7a2a'; g.lineWidth = 2; g.beginPath(); g.ellipse(r[0], r[1], 8, 4, 0, 0, 6.2832); g.stroke(); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = .8; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(r[0] + i * 3.5, r[1]); g.lineTo(r[0] + i * 1.8, r[1] + 11); g.stroke(); }
     ball(g, 548, 760, 0, 5, '#ff8a2a');
-  }), { spots: [{ id: 'play:hoop', dx: 48, dy: -13, face: 'w', zone: 'play', game: true }] });
+  })), { spots: [{ id: 'play:hoop', dx: 48, dy: -13, face: 'w', zone: 'play', game: true }] });
   put('hoop', 'hoop', 520, 748);
-  def('dartboard', [512, 676], () => add(512 + 686, g => { // dartboard on a stand
+  def('dartboard', [512, 676], () => add(512 + 686, spriteOr('dartboard', g => { // dartboard on a stand
     box(g, 512, 676, 0, 3, 3, 52, '#3a2a18'); box(g, 505, 672, 0, 17, 11, 3, '#3a2a18'); Fx(g, 515, 688, 68, () => { g.fillStyle = '#1b1220'; g.beginPath(); g.arc(14, 14, 14, 0, 6.2832); g.fill(); [[12, '#d35a4a'], [8, '#f3ede2'], [4, '#2f9f68'], [1.6, '#d35a4a']].forEach(([r, c]) => { g.fillStyle = c; g.beginPath(); g.arc(14, 14, r, 0, 6.2832); g.fill(); }); g.fillStyle = '#7cc4ff'; g.fillRect(20, 10, 1.6, 6); });
-  }), { spots: [{ id: 'play:dart', dx: 48, dy: 14, face: 'w', zone: 'play', game: true }] });
+  })), { spots: [{ id: 'play:dart', dx: 48, dy: 14, face: 'w', zone: 'play', game: true }] });
   put('dartboard', 'dartboard', 512, 676);
-  def('toy-bin', [495, 650], () => add(512 + 668, g => { // toy bin
+  def('toy-bin', [495, 650], () => add(512 + 668, spriteOr('toy-bin', g => { // toy bin
     box(g, 495, 650, 0, 30, 24, 20, '#ff8a4a', { t: '#ffa86a' }); Fy(g, 674, 20, () => { g.translate(495, 0); g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(2, 8, 26, 2); });
     ball(g, 505, 660, 20, 5, '#3dd6ff'); box(g, 512, 664, 20, 6, 6, 6, '#ffd23f'); ball(g, 517, 656, 20, 4, '#7cf29a');
-  }), { spots: [{ id: 'play:toy', dx: 50, dy: 18, face: 's', zone: 'play' }] });
+  })), { spots: [{ id: 'play:toy', dx: 50, dy: 18, face: 's', zone: 'play' }] });
   put('toy-bin', 'toy-bin', 495, 650);
   put('plant-2', 'plant', 976, 604, { s: 1.2, dd: -5 }); put('plant-3', 'plant', 486, 768, { s: 1, dd: 4 });
   // pennant string over the playroom
@@ -810,12 +817,14 @@
   const KSEATS = [80, 120, 160].map(dx => ({ dx, dy: 78, face: 's' })).concat([84, 120, 156].map(dx => ({ dx, dy: 120, face: 'n' })));
   const plates = (g, list) => list.forEach(([c, u, v]) => { g.fillStyle = c; if (c === '#f3ede2') { g.beginPath(); g.arc(u + 2, v + 4, 3.4, 0, 6.2832); g.fill(); } else { g.fillRect(u, v, 6, 8); g.fillStyle = '#5a2e19'; g.fillRect(u, v - 1, 6, 1.5); } });
   def('karinderya', [KX, KY], () => {
-    add(0, g => { // checkered tile floor, warm window light and a rug
+    const sunPatch = g => flat(g, KX + 4, KY + 66, 54, 40, 'rgba(255,214,140,.3)', .6);
+    add(0, spriteOr('karinderya.0', g => { // checkered tile floor, warm window light and a rug
       Fg(g, .3, () => { for (let i = 0; i < KW / 10; i++) for (let j = 0; j < KD / 10; j++) { g.fillStyle = KTILE[(i + j) & 1]; g.fillRect(KX + i * 10, KY + j * 10, 10, 10); } });
-      flat(g, KX + 4, KY + 66, 54, 40, 'rgba(255,214,140,.3)', .6);
+      sunPatch(g);
       flat(g, KX + 96, KY + 140, 46, 20, '#a8452f', .7); flat(g, KX + 99, KY + 142, 40, 16, '#c86a45', .8); flat(g, KX + 106, KY + 148, 26, 4, '#e8b07a', .9);
-    }, { floor: true });
-    add(KX + KY + KW / 2, g => { // back wall (along x): planks, sign, shelves with plates, jars and a plant
+    }, { over: sunPatch }), { floor: true });
+    const signText = g => Fy(g, KY, 70, () => { g.translate(KX, 0); txt(g, 'KARINDERYA', 116, 13.5, 10, '#fff3c4', 'center'); });
+    add(KX + KY + KW / 2, spriteOr('karinderya.1', g => { // back wall (along x): planks, sign, shelves with plates, jars and a plant
       box(g, KX, KY - 4, 0, KW, 4, 70, KWOOD, { t: KTRIM });
       Fy(g, KY, 70, () => { g.translate(KX, 0);
         g.fillStyle = KPLANK; for (let u = 6; u < KW; u += 9) g.fillRect(u, 0, 1, 70);
@@ -825,8 +834,8 @@
         plates(g, [['#f3ede2', 68, 26], ['#f3ede2', 75, 26], ['#7fb8d8', 88, 26], ['#e3b23c', 98, 26], ['#c0392b', 108, 26], ['#f3ede2', 124, 26], ['#9cc06a', 136, 26], ['#f3ede2', 150, 26], ['#f3ede2', 157, 26], ['#7fb8d8', 188, 18], ['#f3ede2', 200, 18], ['#e3b23c', 190, 36], ['#c0392b', 202, 36]]);
         g.fillStyle = '#7a3b1c'; g.fillRect(14, 30, 10, 7); g.fillStyle = '#3e7d55'; g.beginPath(); g.arc(16, 29, 5, 0, 6.2832); g.arc(23, 27, 4, 0, 6.2832); g.fill(); g.fillStyle = '#5aa86e'; g.fillRect(12, 36, 2, 8); g.fillRect(24, 36, 2, 10);
       });
-    });
-    add(KX + KY + KD / 2, g => { // left wall (along y): planks, sunny window, calendar
+    }, { over: signText }));
+    add(KX + KY + KD / 2, spriteOr('karinderya.2', g => { // left wall (along y): planks, sunny window, calendar
       box(g, KX - 4, KY - 4, 0, 4, KD + 4, 70, KWOOD, { t: KTRIM });
       Fx(g, KX, KY + KD, 70, () => {
         g.fillStyle = KPLANK; for (let u = 6; u < KD; u += 9) g.fillRect(u, 0, 1, 70);
@@ -835,56 +844,63 @@
         g.fillStyle = '#4a2614'; g.fillRect(91, 15, 2, 28); g.fillRect(77, 28, 30, 2); g.fillStyle = '#b0683a'; g.fillRect(72, 45, 40, 3);
         g.fillStyle = '#f3ede2'; g.fillRect(132, 18, 12, 15); g.fillStyle = '#c0392b'; g.fillRect(132, 18, 12, 4); g.fillStyle = '#9aa'; for (let k = 0; k < 3; k++) g.fillRect(134, 24 + k * 3, 8, 1);
       });
-    });
-    add(KX + 16 + KY + 19, g => { // brick pugon with a fire, chimney up the corner
+    }));
+    const fire = g => Fy(g, KY + 34, 46, () => { g.translate(KX + 4, 0); const f = Math.sin(ST.T * 9) * 1.5; g.fillStyle = '#ff7a2a'; g.fillRect(7, 32 - f, 10, 8 + f); g.fillStyle = '#ffd23f'; g.fillRect(9, 35 - f, 6, 5 + f); });
+    add(KX + 16 + KY + 19, spriteOr('karinderya.3', g => { // brick pugon with a fire, chimney up the corner
       box(g, KX + 4, KY + 4, 0, 24, 30, 46, '#a2492f'); box(g, KX + 8, KY + 10, 46, 14, 16, 40, '#9a4430');
       Fy(g, KY + 34, 46, () => { g.translate(KX + 4, 0); g.fillStyle = 'rgba(70,20,10,.45)'; for (let v = 6; v < 46; v += 6) { g.fillRect(0, v, 24, .8); for (let u = (v / 6) % 2 ? 4 : 0; u < 24; u += 8) g.fillRect(u, v - 6, .8, 6); }
         g.fillStyle = '#2a1410'; g.fillRect(5, 20, 14, 20); g.beginPath(); g.arc(12, 20, 7, Math.PI, 0); g.fill();
         const f = Math.sin(ST.T * 9) * 1.5; g.fillStyle = '#ff7a2a'; g.fillRect(7, 32 - f, 10, 8 + f); g.fillStyle = '#ffd23f'; g.fillRect(9, 35 - f, 6, 5 + f); });
-    });
-    add(KX + 116 + KY + 40, g => { // turo-turo counter: five trays of ulam under a glass guard, electric fan at the end
-      box(g, KX + 56, KY + 30, 0, 120, 18, 30, '#9c5530', { t: '#d9b98a' });
-      Fy(g, KY + 48, 30, () => { g.translate(KX + 56, 0); g.fillStyle = '#7a3e20'; for (let u = 4; u < 116; u += 28) g.fillRect(u, 5, 24, 21); g.fillStyle = '#b0683a'; for (let u = 4; u < 116; u += 28) g.fillRect(u + 10, 14, 4, 2); });
+    }, { over: fire }));
+    const counterLive = (g, pole) => {
       [['#7a3b1c', '#5a2a12'], ['#e3b23c', '#c48a1c'], ['#9cc06a', '#d7c79a'], ['#c98d3a', '#8a5a2a'], ['#f6f1e3', '#ddd5c2']].forEach(([food, bit], i) => { // adobo, pancit, sinigang, lumpia, kanin
         const tx = KX + 60 + i * 23; flat(g, tx, KY + 33, 20, 12, '#b8bec8', 30.5, 'rgba(40,40,60,.45)'); flat(g, tx + 2, KY + 35, 16, 8, food, 31);
         for (let k = 0; k < 3; k++) { const c = P(tx + 4 + k * 5, KY + 37 + (k % 2) * 2, 32); g.fillStyle = bit; g.fillRect(c[0], c[1], 2, 1.5); } });
       poly(g, [P(KX + 58, KY + 32, 31), P(KX + 174, KY + 32, 31), P(KX + 174, KY + 32, 46), P(KX + 58, KY + 32, 46)], 'rgba(190,225,245,.16)', 'rgba(220,240,255,.45)', .6);
-      cyl(g, KX + 188, KY + 36, 0, 2.5, 36, '#4a4f5c');
+      if (pole) cyl(g, KX + 188, KY + 36, 0, 2.5, 36, '#4a4f5c');
       const c = P(KX + 188, KY + 36, 42); g.fillStyle = 'rgba(200,215,230,.55)'; g.beginPath(); g.ellipse(c[0], c[1], 9, 9, 0, 0, 6.2832); g.fill();
       g.strokeStyle = '#3a8ae0'; g.lineWidth = 1.4; const a0 = ST.T * 14; for (let k = 0; k < 3; k++) { const a = a0 + k * 2.094; g.beginPath(); g.moveTo(c[0], c[1]); g.lineTo(c[0] + Math.cos(a) * 8, c[1] + Math.sin(a) * 8); g.stroke(); }
-    });
-    add(KX + 14 + KY + 131, g => { // fridge by the left wall
+    };
+    add(KX + 116 + KY + 40, spriteOr('karinderya.4', g => { // turo-turo counter: five trays of ulam under a glass guard, electric fan at the end
+      box(g, KX + 56, KY + 30, 0, 120, 18, 30, '#9c5530', { t: '#d9b98a' });
+      Fy(g, KY + 48, 30, () => { g.translate(KX + 56, 0); g.fillStyle = '#7a3e20'; for (let u = 4; u < 116; u += 28) g.fillRect(u, 5, 24, 21); g.fillStyle = '#b0683a'; for (let u = 4; u < 116; u += 28) g.fillRect(u + 10, 14, 4, 2); });
+      counterLive(g, true);
+    }, { over: g => counterLive(g) }));
+    add(KX + 14 + KY + 131, spriteOr('karinderya.5', g => { // fridge by the left wall
       box(g, KX + 4, KY + 120, 0, 20, 22, 52, '#ddd6c4'); Fy(g, KY + 142, 52, () => { g.translate(KX + 4, 0); g.fillStyle = '#b9b2a0'; g.fillRect(0, 19, 20, 1); g.fillStyle = '#8a8478'; g.fillRect(16, 8, 1.5, 7); g.fillRect(16, 25, 1.5, 11); g.fillStyle = '#e74c3c'; g.fillRect(4, 4, 4, 4); g.fillStyle = '#f1c40f'; g.fillRect(9, 6, 4, 3); });
-    });
-    add(KX + 120 + KY + 98, g => { // long table: rice pot, plates, pancit and adobo
+    }));
+    const meal = g => { KSEATS.forEach(st => gell(g, KX + st.dx, KY + (st.face === 's' ? 92 : 104), 18.5, 4.5, '#f3ede2'));
+      gell(g, KX + 140, KY + 98, 19, 4.5, '#e3b23c'); gell(g, KX + 100, KY + 98, 19, 4, '#7a3b1c'); gell(g, KX + 160, KY + 99, 19, 3, '#c0392b'); };
+    add(KX + 120 + KY + 98, spriteOr('karinderya.6', g => { // long table: rice pot, plates, pancit and adobo
       box(g, KX + 60, KY + 86, 0, 120, 24, 18, '#a85a2e', { t: '#c4743d' });
       Fg(g, 18.2, () => { g.fillStyle = 'rgba(90,40,15,.35)'; for (let u = KX + 70; u < KX + 180; u += 10) g.fillRect(u, KY + 86, .7, 24); });
       cyl(g, KX + 120, KY + 98, 18, 6, 7, '#5a5f6a', { top: '#f6f1e3' });
-      KSEATS.forEach(st => gell(g, KX + st.dx, KY + (st.face === 's' ? 92 : 104), 18.5, 4.5, '#f3ede2'));
-      gell(g, KX + 140, KY + 98, 19, 4.5, '#e3b23c'); gell(g, KX + 100, KY + 98, 19, 4, '#7a3b1c'); gell(g, KX + 160, KY + 99, 19, 3, '#c0392b');
-    });
-    KSEATS.filter(st => st.face === 's').forEach(st => add(KX + st.dx + KY + st.dy - 1, g => { // chairs on the far side (backs behind the sitter)
+      meal(g);
+    }, { over: meal }));
+    KSEATS.filter(st => st.face === 's').forEach((st, i) => add(KX + st.dx + KY + st.dy - 1, spriteOr('karinderya.' + (7 + i), g => { // chairs on the far side (backs behind the sitter)
       const x = KX + st.dx, y = KY + st.dy; // z 1: chairs are not walking obstacles, so the seats stay reachable
       box(g, x - 6, y - 7, 1, 12, 2, 29, '#7a3e20'); box(g, x - 6, y - 5, 1, 12, 10, 11, '#9c5530', { t: '#b0683a' });
       Fy(g, y - 5, 30, () => { g.fillStyle = '#5a2e19'; g.fillRect(x - 4, 4, 1.5, 12); g.fillRect(x - .7, 4, 1.5, 12); g.fillRect(x + 2.5, 4, 1.5, 12); });
-    }, { nofp: true }));
-    add(KX + 84 + KY + 120 - 1, g => box(g, KX + 66, KY + 115, 0, 108, 9, 12, '#9c5530', { t: '#b8703c' }), { nofp: true }); // bangko (bench)
-    add(KX + 204 + KY + 164, g => { // floor lamp with a warm glow
+    }), { nofp: true }));
+    add(KX + 84 + KY + 120 - 1, spriteOr('karinderya.10', g => box(g, KX + 66, KY + 115, 0, 108, 9, 12, '#9c5530', { t: '#b8703c' })), { nofp: true }); // bangko (bench)
+    const lampGlow = g => gell(g, KX + 204, KY + 164, 48, 15, 'rgba(255,214,140,.18)');
+    add(KX + 204 + KY + 164, spriteOr('karinderya.11', g => { // floor lamp with a warm glow
       cyl(g, KX + 204, KY + 164, 0, 4, 2, '#5a2e19'); box(g, KX + 203, KY + 163, 2, 2, 2, 42, '#5a2e19');
-      gell(g, KX + 204, KY + 164, 48, 15, 'rgba(255,214,140,.18)'); cyl(g, KX + 204, KY + 164, 42, 7, 10, '#f3e3c3', { top: '#fff4dc' });
-    });
-    add(KX + 12 + KY + 166, g => plant(g, KX + 12, KY + 166, .9));
-    add(KX + 190 + KY + 150, g => { // the karinderya cat, tail flicking
+      lampGlow(g); cyl(g, KX + 204, KY + 164, 42, 7, 10, '#f3e3c3', { top: '#fff4dc' });
+    }, { under: lampGlow }));
+    add(KX + 12 + KY + 166, spriteOr('karinderya.12', g => plant(g, KX + 12, KY + 166, .9)));
+    const tail = g => { const x = KX + 190, y = KY + 150, t = P(x + 5, y + 3, 2), w = Math.sin(ST.T * 3) * 3; g.strokeStyle = '#4a4550'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(t[0], t[1]); g.quadraticCurveTo(t[0] + 5, t[1] - 2, t[0] + 4 + w, t[1] - 8); g.stroke(); };
+    add(KX + 190 + KY + 150, spriteOr('karinderya.13', g => { // the karinderya cat, tail flicking
       const x = KX + 190, y = KY + 150; box(g, x - 3, y - 2, 0, 7, 5, 6, '#4a4550'); box(g, x - 2, y - 1, 6, 5, 4, 5, '#4a4550');
       const c = P(x, y + 2, 9); g.fillStyle = '#4a4550'; g.fillRect(c[0] - 3, c[1] - 7, 2, 2); g.fillRect(c[0] + 2, c[1] - 7, 2, 2); g.fillStyle = '#f3ede2'; g.fillRect(c[0] - 1.5, c[1] - 2, 3, 2); g.fillStyle = '#ffd23f'; g.fillRect(c[0] - 2.5, c[1] - 4, 1.2, 1.2); g.fillRect(c[0] + 1.5, c[1] - 4, 1.2, 1.2);
-      const t = P(x + 5, y + 3, 2), w = Math.sin(ST.T * 3) * 3; g.strokeStyle = '#4a4550'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(t[0], t[1]); g.quadraticCurveTo(t[0] + 5, t[1] - 2, t[0] + 4 + w, t[1] - 8); g.stroke();
-    });
+      tail(g);
+    }, { over: tail }));
   }, { spots: [...KSEATS.map((st, i) => ({ id: 'kain:' + (i + 1), dx: st.dx, dy: st.dy, face: st.face, zone: 'kain', seat: true })), { id: 'npc:cook', dx: 116, dy: 16, face: 's', zone: 'kain' }] });
   // Broom corner (phase 6): a mop bucket and broom; placing one adds the sweeper NPC, who starts from its npc:sweeper spot.
-  def('broom-corner', [400, 380], () => add(400 + 380 + 8, g => {
+  def('broom-corner', [400, 380], () => add(400 + 380 + 8, spriteOr('broom-corner', g => {
     cyl(g, 404, 384, 0, 7, 12, '#e8c53a', { top: '#5a7fa8' }); box(g, 397, 383, 12, 14, 2, 2, '#9a9aa6');
     poly(g, [P(414, 380, 0), P(416, 380, 0), P(416, 380, 46), P(414, 380, 46)], '#a0643a'); poly(g, [P(411, 378, 0), P(419, 382, 0), P(417, 382, 9), P(413, 378, 9)], '#d9b45a', EDGE, .6);
-  }), { spots: [{ id: 'npc:sweeper', dx: 10, dy: 26, face: 's', zone: 'utility' }] });
+  })), { spots: [{ id: 'npc:sweeper', dx: 10, dy: 26, face: 's', zone: 'utility' }] });
   def('water-cooler', [446, 596], () => add(290 + 590, spriteOr('water-cooler', g => { // water cooler (rate-limit corner)
     box(g, 446, 596, 0, 20, 18, 44, '#e8e4dc'); cyl(g, 456, 605, 44, 8, 22, 'rgba(120,190,240,.75)', { top: 'rgba(170,220,250,.85)' }); box(g, 452, 614, 22, 8, 2, 4, '#3a8ae0'); Fy(g, 614, 40, () => { g.translate(446, 0); g.fillStyle = '#7ad0ff'; g.fillRect(6, 6, 4, 4); g.fillStyle = '#ff7a6b'; g.fillRect(12, 6, 4, 4); });
   })));

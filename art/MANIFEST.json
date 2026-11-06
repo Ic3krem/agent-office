@@ -3,35 +3,35 @@
  "files": [
   {
    "file": "art/palette.json",
-   "sha256": "e1fbd8e7544030e8a3aafa3fa0968d22cc6ca611375ded8200a30635a247aa28",
+   "sha256": "65ef3ffd88328c697ee39a42278858bae38ba00d8fd0238788d952128f047529",
    "script": "art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/office/atlas-glow.png",
-   "sha256": "b93e66fc2bc0a5e2f759a2f70d6ddf425ab3391005e11394fe66ae9d52a04c6d",
+   "sha256": "b8ba455567797d5579b0c25b02b9913eca5184cb00d068bed2b236a40f760431",
    "script": "art/blender/office_assets.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/office/atlas-shadow.png",
-   "sha256": "1f7e2d24cbb8a189228a0a7fa1af20edd11d838d1bff0be0c70431cd9483a066",
+   "sha256": "e965c68e71b4558083e25bc6af8320a4c1affd1adafd2ba8c391d2066f8727d9",
    "script": "art/blender/office_assets.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/office/atlas.json",
-   "sha256": "7f22a17b151e31f3ce70d0c9834b2577dee7ca84bd6e7b9dd2b75cf9844280c8",
+   "sha256": "aa5e4b04bc52405d85177891aaee8132c3b18a1d9df6caa1b0eb9d6c182ee1a7",
    "script": "art/blender/office_assets.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/office/atlas.png",
-   "sha256": "d3692863d230c758fb33451c02f172b84a346ea47acba0443220512351e459fa",
+   "sha256": "091b66f35cd8cd74d1a11cd2397259be021ab5fd56a4605e7e9494a44309d4f3",
    "script": "art/blender/office_assets.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
@@ -52,7 +52,7 @@
   },
   {
    "file": "public/art/town/atlas.png",
-   "sha256": "61d4afdc395f5bdbd68b62fae8457cb30da2a26b903d1f759a93f5e90c47ed0a",
+   "sha256": "3a0595c51441b8052d2dd20846a74b67904d38f9b801981098d40a24f9056193",
    "script": "art/blender/town_assets.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
@@ -66,105 +66,105 @@
   },
   {
    "file": "public/art/town/terrain/r0c0.png",
-   "sha256": "eb42e4d7b14c04eba70414104586550f76935fd862739aff071c6eceec2f44a4",
+   "sha256": "0d09d04e98e3bbe91abde8da2e6f69fab14ae242ed880fa9c716e95882a9f8b3",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r0c1.png",
-   "sha256": "55b77d638079e882dc37976c94e8ffffd958c72474b5315375ef0bbe3fa48989",
+   "sha256": "620673f280b8505c62252edffb111e2ff39a5d39f0d1180e1746b8993e9064ef",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r0c2.png",
-   "sha256": "5c365cdd43b75a8408572263287815327ff5aeae01acd342a29d0a39aa5c6a7c",
+   "sha256": "f7713dab64e68ac691de6edd6dc62d26798fcc9bb08cf5360f067b10ca4460cb",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r0c3.png",
-   "sha256": "4e61e9f61364bcf1496487fb0cf3c48277d44ac85f381df75803e90715fc61a9",
+   "sha256": "76f4daed577a7c28ee5ab1a2239cb624c344017675a17ef167a3fbe05d08a330",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r0c4.png",
-   "sha256": "dfab0d72357bf22736c8b259690d024e26e81e26ba2b9fc8e43a46345e7f82fe",
+   "sha256": "e1ed51f0bbb72c7be82713452eb1fae4c068d940c55f089e53a41a4d0734bd6b",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r1c0.png",
-   "sha256": "44ab9a9a7407ceca8b7a04a81d23b225546f69da4ca667fadb68bfa825389f5f",
+   "sha256": "0c17262e2fb385c5fedfe619d38017392fae2b72926a9324d4ae841252d3c458",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r1c1.png",
-   "sha256": "cb9a306e658e325335589c7c9cd68d81217af654f7df8ad70abcbffd16b6e411",
+   "sha256": "f5216bb659304c081f4ca900f65a9ef5f96a539620d8bcad5fe99bf0ea47e7be",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r1c2.png",
-   "sha256": "7294493cf4533bfb4c9c5741c9416b8501330960009c9cbca07204ef57a89d8b",
+   "sha256": "9e7b164955a96498284ff3ccee23544186685472f7d435b94d7429bb6adb4354",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r1c3.png",
-   "sha256": "e834a9aa486bf13834168eba25caf8e2fd1f5621d003a1a1646fdcadfd2b0b84",
+   "sha256": "746527c44bce1973d98fe7d4611bac71f393c5fee4ebe49be9de1043cfb4f2b8",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r1c4.png",
-   "sha256": "b24df89f9081f304d15772e9b606697f231ed38edc58dabde265d679b37a7190",
+   "sha256": "d985f82b873c8f783b8be9578e5354a09592a4923413d5e5792009c10c4ab644",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r2c0.png",
-   "sha256": "82f8cb62ff111b32a842f32df9d26924fcdd7fffe14477956e1c1c86eba33bfa",
+   "sha256": "f61fc93dc21ed04839b99b8ed0b001578205e97034943f5c28c6d4dcd3e43317",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r2c1.png",
-   "sha256": "3478e4fc1a50757e36bec103e9dc60984d408b2cf9295a6a8e7adbf2394680f3",
+   "sha256": "d32d1512cde9a25fe0a753b7a56f36564f0dfecef0304b299e0b5581c4118f5d",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r2c2.png",
-   "sha256": "3a73c704dfcc58c06677459205122b5d5ffd18602ea624613c871ec2c675b684",
+   "sha256": "ffbf21e908c5eeae87ba79d34b791f4fdaaddc296e99aa3958de008a5f4293ac",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r2c3.png",
-   "sha256": "91f78b2114e48974b26ed064142e22aacd0451bf1a94cd6c98e39ea56b4cc443",
+   "sha256": "414b6e7e834d4d527ade27cf1bc5a4a5431a113d05d4244729dcccfd1dd9db0a",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/terrain/r2c4.png",
-   "sha256": "80883b9102946e708a68c5a5273b6214695c4fcdf3c8b4b9084e74428a996a5d",
+   "sha256": "9a246556fa5cf00b830a5e0993b2d1897eaed2befec3c0c0e70d71a8e464e5af",
    "script": "art/blender/town_terrain.py + art/post.py",
    "date": "2026-11-06",
    "license": "Apache-2.0 (original)"

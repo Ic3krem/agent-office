@@ -1,4 +1,5 @@
-# Office interior sprites, modern-cozy (light oak, warm white, sage/terracotta/mustard accents). Original art, Apache-2.0.
+# Office interior sprites: modern-cozy work furniture (light oak, warm white, sage/terracotta/mustard accents), a fun and cozy
+# playroom, and the rustic karinderya. Original art, Apache-2.0.
 # Run: blender -b -P art/blender/office_assets.py -- <catalog.json> <office-footprints.json> <out raw dir> [frame,frame]
 # catalog.json (scripts/export-catalog.mjs) names every frame the painters ask for, with its instance's home anchor and
 # footprint. Each frame is modelled in world units around that home (x east, y south, z up; 1 world unit = 1 px, so
@@ -23,9 +24,22 @@ TERRA, TERRA_L, MUST, COGNAC = '#c4704a', '#d88a62', '#d9a441', '#a8643c'
 LEAVES = ['#3f7a3c', '#4f8f45', '#63a453', '#7dba5e']
 
 
-def B(x, y, z, w, d, h, col, glow=0.0): kit.box(x / 10, y / 10, z / 10, w / 10, d / 10, h / 10, col, glow)
-def C(x, y, z, r, h, col, v=14, glow=0.0): kit.cyl(x / 10, y / 10, z / 10, r / 10, h / 10, col, v, glow)
-def blob(x, y, z, r, col): kit.blob(x / 10, y / 10, z / 10, r / 10, col)
+OFF = [0, 0]  # world offset added to every primitive (a part modelled by a helper built around its own origin)
+def B(x, y, z, w, d, h, col, glow=0.0): kit.box((x + OFF[0]) / 10, (y + OFF[1]) / 10, z / 10, w / 10, d / 10, h / 10, col, glow)
+def C(x, y, z, r, h, col, v=14, glow=0.0): kit.cyl((x + OFF[0]) / 10, (y + OFF[1]) / 10, z / 10, r / 10, h / 10, col, v, glow)
+def blob(x, y, z, r, col): kit.blob((x + OFF[0]) / 10, (y + OFF[1]) / 10, z / 10, r / 10, col)
+def ball(x, y, z, r, col, squash=1.0, seg=12):
+    """Smooth sphere (blob() is a faceted icosphere): balls, beanbags. squash flattens it vertically."""
+    kit.bmesh.ops.create_uvsphere(kit._bm(col), u_segments=seg, v_segments=max(6, seg * 2 // 3), radius=r / 10,
+                                  matrix=kit._at((x + OFF[0]) / 10, (y + OFF[1]) / 10, z / 10) @ kit.Matrix.Diagonal((1, 1, kit.ZS * squash, 1)))
+def archy(cx, cz, r, y0, y1, col, n=10):
+    """Half-disc in the x-z plane (centre cx, cz; radius r), from y0 to y1: arched tops and oven mouths."""
+    pts = [((cx + OFF[0] + r * math.cos(math.pi * i / n)) / 10, (cz + r * math.sin(math.pi * i / n)) / 10) for i in range(n + 1)]
+    kit.prism(pts, (y0 + OFF[1]) / 10, (y1 + OFF[1]) / 10, col, axis='y')
+def at(x, y, f, *a):
+    OFF[0], OFF[1] = x, y
+    try: f(*a)
+    finally: OFF[0] = OFF[1] = 0
 
 
 # ---------------- pieces ----------------
@@ -167,6 +181,198 @@ def tires(_):
     C(0, 0, 0, 8, 6, '#2c2c31', 16); C(0, 0, 6, 8, 6, '#36363d', 16); C(0, 0, 11.8, 4, .4, '#1d1d21', 12)
 
 
+
+# ---------------- batch B: playroom (fun and cozy) ----------------
+WALNUT, WALNUT_D, PLUM, PLUM_D, ROSE, ROSE_D = '#8a5a36', '#6b4226', '#3a2c66', '#2a1f4a', '#e08a94', '#c4707e'
+CHERRY, CHERRY_L, CHROME, AMBER = '#8b3a1e', '#a8562a', '#c9ccd2', '#ffb547'
+TOYS = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0', '#ff9a4a']
+
+
+def arcade(col):
+    """Cabinet 34 x 28 x 82; the front (y 28) marquee and screen are live, drawn over the frame."""
+    B(3, 0, 0, 28, 27, 82, PLUM_D)
+    for x in (0, 31): B(x, 0, 0, 3, 28, 82, WALNUT); B(x - .2, 27.4, 0, 3.4, .8, 82, WALNUT_D)  # wood side panels, front edge
+    B(31 + 3, 4, 46, .3, 20, 4, col); B(34, 6, 40, .3, 16, 3, col)  # side art stripes
+    B(-.5, -.5, 80, 35, 29, 3, WALNUT_D)  # top cap
+    B(3, 28, 70, 28, .6, 12, PLUM); B(3, 28, 45, 28, .6, 24, '#0d1a10')  # marquee and screen bezels (art drawn live)
+    B(3, 22, 40, 28, 7, 4, '#3a2a6a'); B(3, 28.8, 29, 28, .4, 11, '#3a2a6a')  # control deck and panel
+    for (u, c) in ((10, '#ff4d6d'), (18, '#ffd23f'), (25, '#3dd6ff')): C(u, 25, 44, 1.8, 1.2, c, 8)
+    C(7, 25, 44, .7, 4, CHAR, 6); blob(7, 25, 48.5, 1.4, '#ff4d6d')  # joystick
+    B(13, 28, 10, 8, .5, 12, STEEL); B(15, 28.5, 18, 1, .3, 2, INK); B(18, 28.5, 18, 1, .3, 2, INK)  # coin door
+    B(2, 27, 0, 30, 1.5, 4, WALNUT_D)  # kick plate
+
+
+def jukebox(_):
+    """Body 38 x 22 x 52 with an arched top; the front panel, equaliser bars and notes are live."""
+    B(0, 0, 0, 38, 22, 52, CHERRY); B(-.5, -.5, 0, 39, 23, 3, WALNUT_D)
+    archy(19, 52, 19, 0, 22, CHERRY_L); archy(19, 52, 15, 21.8, 22.4, '#3b1a0a'); archy(19, 52, 12, 22.2, 22.6, AMBER, 8)
+    for x in (0, 35): B(x, 21.6, 3, 3, 1, 49, CHROME)  # chrome front edges
+    for x in (1, 35.6): B(x, 22.6, 10, 1.4, .6, 38, AMBER, glow=1.6)  # bubble tubes
+    B(4, 22, 8, 30, .5, 38, '#3b1a0a'); B(8, 22.5, 13, 22, .3, 3, '#ffd36b')  # inset, strip (the lit panel is live)
+    for z in (4, 6): B(8, 22.2, z, 22, .4, .8, CHROME)  # speaker grille
+
+
+def sofa3(_):
+    """Three-seat sofa 176 wide (arms -4..180), back along y 0..10, facing +y."""
+    for x in (0, 168): B(x, 36, 0, 3, 3, 3, WALNUT_D); B(x, 2, 0, 3, 3, 3, WALNUT_D)
+    B(0, 0, 3, 176, 10, 41, ROSE_D); B(-4, 0, 3, 10, 42, 23, ROSE_D); B(170, 0, 3, 10, 42, 23, ROSE_D)
+    B(-4.5, -.5, 26, 11, 43, 3, ROSE); B(169.5, -.5, 26, 11, 43, 3, ROSE)  # rolled arm tops
+    B(6, 8, 3, 164, 34, 13, ROSE_D)
+    for i in range(3):
+        B(8 + i * 55, 10, 16, 53, 31, 8, ROSE); B(8 + i * 55, 6, 24, 53, 6, 18, '#d47d89')
+    B(14, 12, 24, 14, 5, 13, MUST); B(152, 12, 24, 14, 5, 13, SAGE)  # throw cushions
+
+
+def snack_table(_):
+    for (x, y) in [(4, 4), (56, 4), (4, 28), (56, 28)]: B(x, y, 0, 3, 3, 14, WALNUT_D)
+    B(0, 0, 14, 62, 34, 4, OAK); B(.5, 33.6, 14.4, 61, .4, 1, OAK_L)
+    C(16, 14, 18, 8, 3, CREAM, 14)
+    for (c, d) in (('#ffd23f', 0), ('#ff7aa8', 4), ('#7cf29a', 8)): ball(13 + d, 13 + d / 2, 22, 2.2, c, 1, 8)
+    B(38, 12, 18, 18, 14, 3, '#d35a4a'); B(39, 13, 21, 16, 12, 1.4, '#f3d9a0')  # pizza box
+    C(68, 28, 18, 3, 6, '#3dd6ff', 10)  # soda can
+
+
+def beanbag(v):
+    col = '#' + v; dark = {'3dd6e8': '#2aa5b8', 'ffb547': '#d98f2a'}.get(v, col)
+    C(0, 0, 0, 21, 5, dark, 18); ball(0, 0, 6, 22, col, .55, 16); ball(-3, -3, 13, 11, col, .6, 12)  # slumped bag with a dent where you sit
+
+
+def ball_pit(_):
+    import random
+    q = random.Random(9)
+    C(0, 0, 0, 47, 9, '#2a5a8a', 24); C(0, 0, 9, 43, 1, '#1f4a78', 24)
+    for k in range(32): a = k * 2 * math.pi / 32; C(45 * math.cos(a), 45 * math.sin(a), 8, 3.6, 4, '#3a7ab8', 8)  # padded rim
+    for i in range(110):
+        a, r = q.random() * 2 * math.pi, math.sqrt(q.random()) * 38
+        ball(r * math.cos(a), r * math.sin(a), 10 + q.random() * 2.5, 4, TOYS[i % 6], 1, 8)
+
+
+def hoop(_):
+    C(0, 0, 0, 8, 3, '#3a3a44', 14); C(0, 0, 3, 2, 76, '#8a909c', 8)
+    B(-4, -14, 76, 3, 28, 30, '#f3ede2'); B(-4.4, -14.4, 75.6, 3.8, 28.8, 1, STEEL); B(-4.4, -14.4, 105.4, 3.8, 28.8, 1, STEEL)
+    for (y, z, w, h) in ((-6, 97, 12, 1.4), (-6, 88, 12, 1.4), (-6, 88, 1.4, 10.4), (4.6, 88, 1.4, 10.4)): B(-1, y, z, .4, w, h, '#d35a4a')
+    B(-1, -1, 82, 4, 2, 1, '#ff7a2a')  # rim bracket
+    for k in range(16): a = k * 2 * math.pi / 16; C(10 + 8 * math.cos(a), 8 * math.sin(a), 81.5, .8, 1, '#ff7a2a', 6)
+    for k in range(8): a = k * 2 * math.pi / 8; B(10 + 6 * math.cos(a), 6 * math.sin(a), 71, .5, .5, 10, '#e9e4dc')  # net
+    ball(28, 12, 5, 5, '#ff8a2a', 1, 10)  # ball on the floor
+
+
+def dartboard(_):
+    B(0, 0, 0, 3, 3, 52, WALNUT_D); B(-7, -4, 0, 17, 11, 3, WALNUT_D)
+    for (r, c, dx) in ((15.5, WALNUT, 0), (14, '#1b1220', .6), (12, '#d35a4a', .8), (8, '#f3ede2', 1), (4, '#2f9f68', 1.2), (1.6, '#d35a4a', 1.4)):
+        for dz in range(-int(r), int(r)):
+            z = dz + .5; w = 2 * math.sqrt(max(0, r * r - z * z))
+            B(3, -2 - w / 2, 54 + dz, dx + 1, w, 1, c)
+    B(4.4, -8, 56, 2, 1.6, 1.6, '#7cc4ff')  # a dart
+
+
+def toy_bin(_):
+    B(0, 0, 0, 30, 24, 20, '#ff8a4a'); B(-.5, -.5, 18, 31, 25, 2.5, '#ffa86a'); B(2, 24, 10, 26, .4, 2, '#ffd9c0')
+    ball(10, 10, 24, 5, '#3dd6ff', 1, 10); B(17, 14, 20, 6, 6, 6, '#ffd23f'); ball(22, 6, 23, 4, '#7cf29a', 1, 10)
+    B(4, 4, 20, 2, 2, 9, '#c9b0f0')  # a toy sword handle peeking out
+
+
+def broom_corner(_):
+    C(4, 4, 0, 7, 12, '#e8c53a', 14); C(4, 4, 11.6, 6, .6, '#5a7fa8', 14); B(-3, 3, 12, 14, 2, 2, '#9a9aa6')  # mop bucket
+    B(14, -.5, 9, 2, 1, 37, '#a0643a'); B(12, -2, 6, 6, 4, 3, '#8a5a36'); B(11, -2, 0, 8, 4, 6, '#d9b45a')  # broom
+
+
+# ---------------- batch B: the karinderya (rustic-cozy), parts at their place around its anchor ----------------
+KWOOD, KPLANK, KTRIM, KDARK = '#8b4a2b', '#6e3a21', '#b0683a', '#5a2e19'
+KTILE = ['#ecc49a', '#d9a273']
+
+
+def k_floor():
+    for i in range(22):
+        for j in range(18): B(i * 10, j * 10, 0, 10, 10, .3, KTILE[(i + j) & 1])
+    B(96, 140, .3, 46, 20, .4, '#a8452f'); B(99, 142, .7, 40, 16, .3, '#c86a45'); B(106, 148, 1, 26, 4, .2, '#e8b07a')
+
+
+def k_jars(items, z):
+    for (c, u) in items:
+        if c == '#f3ede2': B(u - 1.4, .6, z, 6.8, 1, 6.8, c)  # a plate on its edge
+        else: C(u + 3, 3, z, 3, 7, c, 10); C(u + 3, 3, z + 7, 3.2, 1.5, KDARK, 10)
+
+
+def k_back():
+    B(0, -4, 0, 220, 4, 70, KWOOD); B(-.5, -4.5, 69, 221, 5, 2, KTRIM)
+    for u in range(6, 220, 9): B(u, 0, 3, 1, .3, 66, KPLANK)
+    B(0, 0, 0, 220, .6, 3, KDARK)
+    B(60, 0, 54, 112, 1, 12, '#b3261e'); B(60, 0, 52.5, 112, 1.2, 1.5, '#f1c40f')  # sign board (lettering is live)
+    B(64, 0, 34, 104, 6, 2, KDARK); B(184, 0, 42, 30, 6, 2, KDARK); B(184, 0, 24, 30, 6, 2, KDARK)  # shelves
+    k_jars([('#f3ede2', 68), ('#f3ede2', 75), ('#7fb8d8', 88), ('#e3b23c', 98), ('#c0392b', 108), ('#f3ede2', 124), ('#9cc06a', 136), ('#f3ede2', 150), ('#f3ede2', 157)], 36)
+    k_jars([('#7fb8d8', 188), ('#f3ede2', 200)], 44); k_jars([('#e3b23c', 190), ('#c0392b', 202)], 26)
+    B(14, .5, 33, 10, 6, 7, '#7a3b1c'); blob(16, 3, 41, 5, '#3e7d55'); blob(23, 3, 43, 4, '#3e7d55')  # hanging planter
+    B(12, 1, 24, 2, 1, 10, '#5aa86e'); B(24, 1, 22, 2, 1, 12, '#5aa86e')
+
+
+def k_left():
+    B(-4, -4, 0, 4, 184, 70, KWOOD); B(-4.5, -4.5, 69, 5, 185, 2, KTRIM)
+    for u in range(6, 180, 9): B(0, 180 - u, 3, .3, 1, 66, KPLANK)
+    B(0, 0, 0, .6, 180, 3, KDARK)
+    B(0, 70, 24, .5, 36, 34, '#4a2614'); B(0, 73, 27, .8, 30, 28, '#ffd58a', glow=1.2); B(0, 89, 42, .9, 14, 13, '#fff1c9', glow=1.4)  # sunny window
+    B(0, 87, 27, 1.2, 2, 28, '#4a2614'); B(0, 73, 40, 1.2, 30, 2, '#4a2614'); B(0, 68, 22, 4, 40, 3, KTRIM)  # mullions, sill
+    B(0, 36, 37, .5, 12, 15, '#f3ede2'); B(0, 36, 48, .7, 12, 4, '#c0392b')  # calendar
+    for k in range(3): B(0, 38, 44 - k * 3, .7, 8, 1, '#99aaaa')
+
+
+def k_pugon():
+    B(4, 4, 0, 24, 30, 46, '#a2492f'); B(3.5, 3.5, 45, 25, 31, 2, '#8a3a25'); B(8, 10, 46, 14, 16, 40, '#9a4430')
+    for z in range(6, 46, 6):
+        B(4, 34, z, 24, .3, .8, '#6e2a1a'); B(28, 4, z, .3, 30, .8, '#6e2a1a')
+        for u in range(4 if (z // 6) % 2 else 0, 24, 8): B(4 + u, 34, z - 6, .8, .3, 6, '#6e2a1a'); B(28, 4 + u, z - 6, .3, .8, 6, '#6e2a1a')
+    B(9, 34, 6, 14, .5, 20, '#2a1410'); archy(16, 26, 7, 34, 34.5, '#2a1410')  # oven mouth (the fire is live)
+    C(15, 30, 46, 3.6, 4, '#3a3a40', 10); C(15, 30, 49.6, 3, .5, '#5a2a12', 10)  # a kaldero on the hob, by the chimney
+
+
+def k_counter():
+    B(56, 30, 0, 120, 18, 30, '#9c5530'); B(55.5, 29.5, 29, 121, 19, 1.5, '#d9b98a')
+    for k in range(4): B(60 + k * 28, 48, 4, 24, .4, 21, '#7a3e20'); B(70 + k * 28, 48.4, 14, 4, .3, 2, KTRIM)
+    C(188, 36, 0, 5, 1.5, '#4a4f5c', 10); C(188, 36, 0, 2.5, 36, '#4a4f5c', 8)  # fan stand (the spinning head is live)
+
+
+def k_fridge():
+    B(4, 120, 0, 20, 22, 52, '#ddd6c4'); B(4, 142, 32, 20, .3, 1, '#b9b2a0')
+    B(20, 142, 37, 1.5, 1, 7, '#8a8478'); B(20, 142, 16, 1.5, 1, 11, '#8a8478')
+    B(8, 142, 44, 4, .5, 4, '#e74c3c'); B(13, 142, 43, 4, .5, 3, '#f1c40f')
+
+
+def k_table():
+    for (x, y) in [(62, 88), (175, 88), (62, 105), (175, 105)]: B(x, y, 0, 3, 3, 15, '#8a4524')
+    B(62, 88, 11, 116, 20, 4, '#a85a2e'); B(60, 86, 15, 120, 24, 3, '#c4743d')
+    for u in range(70, 180, 10): B(u, 86, 18, .7, 24, .2, '#a85a2e')
+    C(120, 98, 18, 6, 7, '#5a5f6a', 12); C(120, 98, 24.6, 5.4, .6, '#f6f1e3', 12)  # rice pot (plates and food are live)
+
+
+def k_chair(dx):
+    x, y = dx, 78
+    for (u, v) in [(x - 6, y - 5), (x + 4, y - 5), (x - 6, y + 3), (x + 4, y + 3)]: B(u, v, 1, 2, 2, 8, '#7a3e20')
+    B(x - 6, y - 5, 9, 12, 10, 3, KTRIM)
+    for u in (x - 6, x + 4): B(u, y - 7, 1, 2, 2, 29, '#7a3e20')
+    B(x - 6, y - 7, 22, 12, 2, 8, '#9c5530')
+    for u in (x - 3, x + .5): B(u, y - 6.5, 12, 2, 1, 10, '#9c5530')
+
+
+def k_bangko():
+    for x in (68, 118, 169): B(x, 116, 0, 3, 7, 9, '#7a3e20')
+    B(70, 118, 4, 100, 2, 2, '#7a3e20'); B(66, 115, 9, 108, 9, 3, '#b8703c')
+
+
+def k_lamp():
+    C(204, 164, 0, 4, 2, KDARK, 10); B(203, 163, 2, 2, 2, 42, KDARK)
+    C(204, 164, 42, 7, 10, '#f3e3c3', 12, glow=1.0); C(204, 164, 52, 3, 1, '#fff4dc', 10)
+
+
+def k_cat():
+    B(187, 148, 0, 7, 5, 6, '#4a4550'); B(188, 149, 6, 5, 4, 5, '#4a4550')
+    B(188, 149.5, 11, 1.5, 1.5, 2, '#4a4550'); B(191.5, 149.5, 11, 1.5, 1.5, 2, '#4a4550')
+    B(189.5, 153, 6.5, 2, .4, 1.6, '#f3ede2'); B(188.6, 153, 8.8, 1, .3, 1, '#ffd23f'); B(191.4, 153, 8.8, 1, .3, 1, '#ffd23f')
+
+
+KAR = {0: k_floor, 1: k_back, 2: k_left, 3: k_pugon, 4: k_counter, 5: k_fridge, 6: k_table,
+       7: lambda: k_chair(80), 8: lambda: k_chair(120), 9: lambda: k_chair(160), 10: k_bangko, 11: k_lamp,
+       12: lambda: at(12, 166, plant, .9), 13: k_cat}
+
 MODELS = {
     'dept-desk.0': desk, 'dept-desk.1': lambda v: swivel('#d4cec2', '#c9c2b4', 22),
     'tiro-desk': tiro_desk, 'inbox': inbox, 'tiro-chair': tiro_chair,
@@ -175,6 +381,9 @@ MODELS = {
     'bookshelf': bookshelf, 'printer': printer, 'recycling-bin': recycling_bin, 'water-cooler': water_cooler,
     'coffee-counter': coffee_counter, 'trophy-shelf': trophy_shelf, 'tires': tires,
     'plant': lambda v: plant(float(v or 1)), 'server-plant': lambda v: plant(1.1 + int(v) * .07, WHITE, SAGE),
+    'arcade': lambda v: arcade('#ff6a6a'), 'arcade-race': lambda v: arcade('#3dd6ff'), 'jukebox': jukebox, 'sofa3': sofa3,
+    'snack-table': snack_table, 'beanbag': beanbag, 'ball-pit': ball_pit, 'hoop': hoop, 'dartboard': dartboard, 'toy-bin': toy_bin,
+    'broom-corner': broom_corner, **{'karinderya.%d' % k: (lambda f: lambda v: f())(f) for k, f in KAR.items()},
 }
 
 # the fixture is the footprint truth: report any frame whose model sits off its frozen footprint
@@ -195,6 +404,7 @@ for i, (name, f) in enumerate(sorted(cat['frames'].items())):
     if f['base'] not in MODELS: print('NO MODEL', name); sys.exit(1)
     sc = kit.reset_scene(seed=200 + i); HOLD = None
     sun = sc.objects['sun'].data; sun.shadow_maximum_resolution = 0.002; sun.shadow_filter_radius = 0; sun.angle = 0; sun.use_shadow_jitter = False; sc.eevee.shadow_ray_count = 1  # interior pieces are small: finer, crisper shadows
+    sc.render.dither_intensity = 0  # 8-bit output dither is the +-1 noise that speckled flat faces after the palette snap
     MODELS[f['base']](f['variant']); objs = kit.flush(name)
     glows = {m for (col, g), m in kit.MATS.items() if g}
     fp = FROZEN.get((f['id'], f['part']), f['fp'])
