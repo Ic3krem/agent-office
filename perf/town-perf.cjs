@@ -8,7 +8,8 @@ app.setPath('userData', path.join(tmp, 'electron'));
 const child = spawn(process.execPath, [path.join(root, 'server.mjs')], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', USERPROFILE: tmp, HOME: tmp, APPDATA: path.join(tmp, 'AppData'), LOCALAPPDATA: path.join(tmp, 'Local'), AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: key, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 let log = ''; child.stdout.on('data', d => log += d); child.stderr.on('data', d => log += d);
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const done = code => { try { child.kill(); } catch {} app.exit(code); };
+const done = code => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); };
+setTimeout(() => { console.log('FAIL watchdog: harness exceeded 90 s'); done(1); }, 90000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 const MB = 1048576, pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN; };
 
@@ -30,7 +31,7 @@ app.whenReady().then(async () => {
   const fi0 = await frames(), idle = await sampleCpu(), idleFrames = (await frames()) - fi0;
 
   // walking: hold D/S alternately for 5 s, sample lastRenderMs on every animation frame
-  await js(`window.__samples = []; (function s() { window.__samples.push(__town.api.stats().lastRenderMs); window.__walk = requestAnimationFrame(s); })()`);
+  await js(`window.__samples = []; (function s() { const f = __town.api.frameCount(); if (f !== window.__lf) { window.__lf = f; window.__samples.push(__town.api.stats().lastRenderMs); } window.__walk = requestAnimationFrame(s); })()`);
   const fw0 = await frames(); w.webContents.focus();
   const k = (type, keyCode) => w.webContents.sendInputEvent({ type, keyCode });
   const t0 = Date.now(); let dir = 'D';
@@ -40,11 +41,16 @@ app.whenReady().then(async () => {
   const samples = (await js('window.__samples')).filter(x => x > 0);
   await wait(300);
 
+  // hidden: dirty the scene every 100 ms so only the document.hidden guard keeps it from rendering
   w.hide(); await wait(1000);
+  if ((await js('document.hidden')) !== true) throw new Error('window.hide() did not make the document hidden');
+  await js('window.__dirty = setInterval(() => __town.api.setCamera(Math.random() * 4, Math.random() * 4), 100)');
   const fh0 = await frames(), hid = await sampleCpu(), hidFrames = (await frames()) - fh0;
+  await js('clearInterval(window.__dirty)');
   w.show(); await wait(500);
 
   const mem = app.getAppMetrics().find(x => x.pid === pid).memory; // webContents.getProcessMemoryInfo is not in this Electron; same numbers (KB)
+  if (typeof mem.privateBytes !== 'number') throw new Error('privateBytes missing from getAppMetrics');
   const gpu = app.getAppMetrics().find(x => x.type === 'GPU');
   const stats = await js('__town.api.stats()');
   const gpuInfo = await app.getGPUInfo('basic').catch(() => ({}));
@@ -55,7 +61,7 @@ app.whenReady().then(async () => {
     idle: { cpuAvg: idle.avg, cpuMax: idle.max, frameDelta: idleFrames },
     walking: { frames: walkFrames, p50: pct(samples, 0.5), p95: pct(samples, 0.95) },
     hidden: { cpuAvg: hid.avg, cpuMax: hid.max, frameDelta: hidFrames },
-    memory: { rendererPrivateMB: (mem.privateBytes || 0) / 1024, gpuWorkingSetMB: gpu ? gpu.memory.workingSetSize / 1024 : null, textureMB: stats.textureBytes / MB, drawCalls: stats.drawCalls, sprites: stats.sprites },
+    memory: { rendererPrivateMB: mem.privateBytes / 1024, gpuWorkingSetMB: gpu ? gpu.memory.workingSetSize / 1024 : null, textureMB: stats.textureBytes / MB, drawCalls: stats.drawCalls, sprites: stats.sprites },
   };
   const budgets = [
     ['idle CPU < 3%', R.idle.cpuAvg < 3, R.idle.cpuAvg],

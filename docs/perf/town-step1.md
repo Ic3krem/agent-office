@@ -16,4 +16,6 @@ Machine: AMD Ryzen 7 4800H (16 threads), NVIDIA GeForce RTX 3050 Laptop GPU (plu
 | textureBytes | 16.3 MB | < 96 MB |
 | Draw calls / sprites | 2 / 510 | n/a |
 
+Walking time is CPU-side submit time (`lastRenderMs`), sampled once per rendered frame. The hidden test dirties the scene every 100 ms while the window is hidden, so 0 frames proves the hidden guard works.
+
 Numbers are from three consecutive runs; all budgets passed with wide margin.
