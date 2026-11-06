@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { goalStore, paceFor, paceError, priorityError, hirePace, hireGate, promptHash, ALIASES, ROSTER, MAX_SPECIALISTS, hireKey } from './company.mjs';
+import { managerModel, goalStore, paceFor, paceError, priorityError, hirePace, hireGate, promptHash, ALIASES, ROSTER, MAX_SPECIALISTS, hireKey } from './company.mjs';
 
 const ON = { hiring: true, guard: true };
 const boost = { pace: 'boost' };
@@ -80,7 +80,7 @@ test('hireHook applies pace to updatedInput for that goal only', async () => {
   const env = {
     sw: () => ({ hiring: true, guard: true, espresso }), boss: { running: 0, progress: false, keys: [] }, MAX_SPECIALISTS, ALIASES, ROSTER, hireKey,
     currentKeys: () => [], dnames: () => ({}), hires: hireGate(), hireGoal: {}, AH: { start() {} }, bump: () => {}, switches: { set(k, v) { if (k === 'espresso') espresso = v; } },
-    goals: store, paceFor, limits: null, overLimit: () => false, host: { note: t => notes.push(t) },
+    goals: store, paceFor, managerModel, limits: null, overLimit: () => false, host: { note: t => notes.push(t) },
   };
   const { hireHook } = new Function(...Object.keys(env), code + '\nreturn { hireHook };')(...Object.values(env));
   const hire = async (goalId, prompt) => {
@@ -140,4 +140,40 @@ test('priority and pace clicks never start a Tiro session; list_goals sorts high
   const t = [{ id: 1 }, { id: 2, priority: 'high' }, { id: 3, priority: 'normal' }, { id: 4, priority: 'high' }]
     .map(g => ({ priority: 'normal', ...g })).sort((a, b) => (b.priority === 'high') - (a.priority === 'high')).map(g => g.id);
   assert.deepEqual(t, [2, 4, 1, 3], 'stable');
+});
+
+test('M3: the manager\'s own opus/fable model or xhigh/max effort passes the Boost checks, else the role default at medium', () => {
+  const full = { models: [{ name: 'Claude Opus', pct: 100 }] }, open = { models: [{ name: 'Opus', pct: 40 }] };
+  for (const ask of [{ model: 'opus' }, { model: 'claude-fable-5' }, { model: 'sonnet', effort: 'xhigh' }, { effort: 'max' }]) {
+    assert.equal(managerModel({ prompt: 'p', ...ask }, 'sonnet', ON, open, false), null, JSON.stringify(ask) + ' allowed while Boost would be');
+    for (const [sw, lim, over, why] of [[{ hiring: false, guard: true }, open, false, /hiring is switched off/], [ON, open, true, /over the plan limit/], [ON, full, false, /Opus limit is used up/]]) {
+      const r = managerModel({ prompt: 'p', ...ask }, 'haiku', sw, lim, over);
+      assert.deepEqual(r.input, { prompt: 'p', model: 'haiku', effort: 'medium' }, JSON.stringify(ask));
+      assert.match(r.note, /^Opus not available now: /); assert.match(r.note, why);
+    }
+  }
+  assert.equal(managerModel({ prompt: 'p', model: 'sonnet', effort: 'high' }, 'sonnet', ON, full, true), null, 'ordinary asks are untouched');
+  assert.equal(managerModel({ prompt: 'p' }, 'sonnet', ON, full, true), null);
+  assert.equal(managerModel({ model: 'opus' }, undefined, ON, full, false).input.model, 'sonnet', 'no roster role: sonnet');
+});
+
+test('M3: hireHook downgrades a manager-chosen opus while the Opus window is full, and tells Tiro', async () => {
+  const src = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  const code = src.slice(src.indexOf('const starting = new Map()'), src.indexOf('const bossOptions = () =>'));
+  const store = goalStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gp-')), 'goals.json'));
+  const g = store.add('plain'); const notes = [];
+  const env = {
+    sw: () => ({ hiring: true, guard: true, espresso: false }), boss: { running: 0, progress: false, keys: ['forge'] }, MAX_SPECIALISTS, ALIASES, ROSTER, hireKey,
+    currentKeys: () => ['forge'], dnames: () => ({}), hires: hireGate(), hireGoal: {}, AH: { start() {} }, bump: () => {}, switches: { set() {} },
+    goals: store, paceFor, managerModel, limits: { models: [{ name: 'Opus', pct: 100 }] }, overLimit: () => false, host: { note: t => notes.push(t) },
+  };
+  const { hireHook } = new Function(...Object.keys(env), code + '\nreturn { hireHook };')(...Object.values(env));
+  const P = 'Build the thing, carefully please.';
+  { const { id, promise } = env.hires.request({ key: 'forge', goalId: g.id, promptHash: promptHash(P) }); env.hires.decide(id, true); await promise; }
+  const r = await hireHook({ tool_use_id: 't', tool_input: { subagent_type: 'forge', prompt: P, model: 'opus', effort: 'max' } });
+  assert.equal(r.hookSpecificOutput.updatedInput.model, ROSTER.forge.model);
+  assert.equal(r.hookSpecificOutput.updatedInput.effort, 'medium');
+  assert.equal(r.hookSpecificOutput.updatedInput.prompt, P, 'the approved prompt is unchanged');
+  assert.match(r.hookSpecificOutput.additionalContext, /Opus not available now: the Opus limit is used up/);
+  assert.match(notes.at(-1), /^Opus not available now/);
 });

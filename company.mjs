@@ -69,6 +69,17 @@ export function paceFor(goal, sw, limits, overLimit) {
   return { ...p };
 }
 
+// The manager may name its own model or effort in the Agent call. An Opus-class ask (opus or fable, effort xhigh or max) passes
+// the same checks as Boost; when one fails the hire runs on the role's default model at medium effort, and Tiro is told why.
+// Returns null (input stays as it is) or { input, note }.
+export function managerModel(input, roleModel, sw, limits, overLimit) {
+  const big = (typeof input?.model === 'string' && /opus|fable/i.test(input.model)) || ['xhigh', 'max'].includes(input?.effort);
+  if (!big) return null;
+  const why = !sw.hiring ? 'hiring is switched off' : sw.guard && overLimit ? 'over the plan limit'
+    : (limits?.models || []).some(m => /opus/i.test(m.name) && m.pct >= 100) ? 'the Opus limit is used up' : '';
+  return why ? { input: { ...input, model: roleModel || 'sonnet', effort: 'medium' }, note: 'Opus not available now: ' + why } : null;
+}
+
 // What a pending hire shows on its approval card: the goal's pace and, live, the model it would run on (or why Boost is skipped).
 export function hirePace(goal, sw, limits, overLimit, type) {
   const r = type === 'fork' ? null : paceFor(goal, sw, limits, overLimit); // fork hires ignore model (SDK): no pace line

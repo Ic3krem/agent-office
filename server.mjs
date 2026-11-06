@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
+import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, isRoleSop, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -430,8 +430,11 @@ const hireHook = async input => {
   // A skipped Boost: the hire runs on its own model, or espresso's; Tiro and the user are told.
   const out = { hookEventName: 'PreToolUse' };
   if (pace?.skip) { host.note('Boost skipped: ' + pace.skip); out.additionalContext = 'Boost skipped: ' + pace.skip + '.'; }
+  // The manager's own Opus-class model or effort gets the same checks as Boost (else the role's default, medium effort).
+  const mm = managerModel(input.tool_input, ROSTER[k]?.model, sw(), limits, overLimit());
+  if (mm) { host.note(mm.note); out.updatedInput = mm.input; out.additionalContext = [out.additionalContext, mm.note + '.'].filter(Boolean).join(' '); }
   // Espresso: this hire runs on the fast model; the cup is used up.
-  if (sw().espresso) { switches.set('espresso', false); out.updatedInput = { ...input.tool_input, model: 'haiku' }; }
+  if (sw().espresso) { switches.set('espresso', false); out.updatedInput = { ...(out.updatedInput || input.tool_input), model: 'haiku' }; }
   return Object.keys(out).length > 1 ? { hookSpecificOutput: out } : {};
 };
 const hireStarted = async input => { const k = ALIASES[input.agent_type] || input.agent_type; for (const [id, x] of starting) if (x === k) { starting.delete(id); break; } return {}; };
