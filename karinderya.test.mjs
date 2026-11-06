@@ -14,7 +14,10 @@ const snap = agents => ({ agents, goals: [{ id: 'g1', text: 'g1', status: 'doing
 
 function withPieces() {
   const s = E.createSession(WM.defaultLayout());
-  assert.equal(s.add('karinderya', 1080, 460).ok, true);
+  // the room needs the east park: two trees go, the two park benches move to the garden
+  for (const id of ['tree-5', 'tree-6']) assert.equal(s.remove(id).ok, true);
+  assert.equal(s.move('bench-3', 560, 20).ok, true); assert.equal(s.move('bench-4', 620, 20).ok, true);
+  assert.equal(s.add('karinderya', 1010, 370).ok, true);
   assert.equal(s.add('broom-corner', 240, 240).ok, true);
   return J(s.layout());
 }
@@ -22,8 +25,9 @@ function withPieces() {
 test('karinderya and broom corner are addable, valid, and carry their spots', () => {
   const l = withPieces(), spots = J(WM.spotsOf(l));
   assert.deepEqual(J(WM.validate(l).errors), []);
-  for (const id of ['kain:1', 'kain:2', 'kain:3', 'kain:4', 'npc:sweeper']) assert.ok(spots[id], id);
-  assert.ok(spots['kain:1'].seat && spots['kain:1'].face === 'n');
+  for (const id of ['kain:1', 'kain:2', 'kain:3', 'kain:4', 'kain:5', 'kain:6', 'npc:sweeper']) assert.ok(spots[id], id);
+  assert.ok(spots['kain:1'].seat && spots['kain:1'].face === 's' && spots['kain:4'].face === 'n');
+  assert.ok(spots['npc:cook'], 'the cook has a spot behind the counter');
   const cat = J(E.catalog()).filter(c => ['karinderya', 'broom-corner'].includes(c.type));
   assert.deepEqual(cat.map(c => c.addable), [true, true]);
 });

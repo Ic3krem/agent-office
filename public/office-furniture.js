@@ -733,24 +733,86 @@
     reg('memory', 'Corkboard: memory notes', [0, 600, 78, 4, 92, 56], cork, { clip: true });
     reg('breaker', 'Breaker box: switches', [0, 560, 62, 4, 38, 52], cork, { clip: true });
   });
-  // Karinderya (phase 6): turo-turo counter with four plastic stools. Not in the default office; added from Build. Agents at
-  // their plan limit eat here (stools are kain:* spots) instead of standing at the water cooler.
-  const KX = 640, KY = 380, STOOLS = [14, 38, 62, 86];
+  // Karinderya (phase 6): a cosy wood-panelled eatery. Two back walls with planks, shelves and a sunny window, checkered
+  // tiles, a brick pugon, a turo-turo counter (the cook stands behind it at npc:cook), a long table with three chairs and
+  // a bangko (the six kain:* seats), fridge, plant, lamp, rug and a cat. Not in the default office (it needs about
+  // 230 x 190 of clear floor, e.g. the east park); added from Build. Agents at their plan limit eat here instead of
+  // standing at the water cooler. Each part is its own painter so people inside sort correctly against walls and table.
+  const KX = 1010, KY = 370, KW = 220, KD = 180;
+  const KWOOD = '#8b4a2b', KPLANK = '#6e3a21', KTRIM = '#b0683a', KTILE = ['#ecc49a', '#d9a273'];
+  const KSEATS = [80, 120, 160].map(dx => ({ dx, dy: 78, face: 's' })).concat([84, 120, 156].map(dx => ({ dx, dy: 120, face: 'n' })));
+  const plates = (g, list) => list.forEach(([c, u, v]) => { g.fillStyle = c; if (c === '#f3ede2') { g.beginPath(); g.arc(u + 2, v + 4, 3.4, 0, 6.2832); g.fill(); } else { g.fillRect(u, v, 6, 8); g.fillStyle = '#5a2e19'; g.fillRect(u, v - 1, 6, 1.5); } });
   def('karinderya', [KX, KY], () => {
-    add(KX + 48 + KY + 11, g => {
-      box(g, KX, KY, 0, 96, 22, 30, '#a0643a', { t: '#e9e1cf' });
-      Fy(g, KY + 22, 30, () => { g.translate(KX, 0); g.fillStyle = '#c0392b'; g.fillRect(4, 4, 88, 10); txt(g, 'KARINDERYA', 48, 12.5, 8, '#fff5d6', 'center'); g.fillStyle = '#f1c40f'; g.fillRect(4, 16, 88, 2); });
-      [['#7a3b1c', '#5a2a12'], ['#e3b23c', '#c48a1c'], ['#9cc06a', '#d7c79a'], ['#f6f1e3', '#ddd5c2']].forEach(([food, bit], i) => { // adobo, pancit, sinigang, kanin
-        const tx = KX + 6 + i * 22; flat(g, tx, KY + 4, 18, 13, '#b8bec8', 30.5, 'rgba(40,40,60,.45)'); flat(g, tx + 2, KY + 6, 14, 9, food, 31);
-        for (let k = 0; k < 3; k++) { const c = P(tx + 4 + k * 4, KY + 8 + (k % 2) * 3, 32); g.fillStyle = bit; g.fillRect(c[0], c[1], 2, 1.5); }
+    add(0, g => { // checkered tile floor, warm window light and a rug
+      Fg(g, .3, () => { for (let i = 0; i < KW / 10; i++) for (let j = 0; j < KD / 10; j++) { g.fillStyle = KTILE[(i + j) & 1]; g.fillRect(KX + i * 10, KY + j * 10, 10, 10); } });
+      flat(g, KX + 4, KY + 66, 54, 40, 'rgba(255,214,140,.3)', .6);
+      flat(g, KX + 96, KY + 140, 46, 20, '#a8452f', .7); flat(g, KX + 99, KY + 142, 40, 16, '#c86a45', .8); flat(g, KX + 106, KY + 148, 26, 4, '#e8b07a', .9);
+    }, { floor: true });
+    add(KX + KY + KW / 2, g => { // back wall (along x): planks, sign, shelves with plates, jars and a plant
+      box(g, KX, KY - 4, 0, KW, 4, 70, KWOOD, { t: KTRIM });
+      Fy(g, KY, 70, () => { g.translate(KX, 0);
+        g.fillStyle = KPLANK; for (let u = 6; u < KW; u += 9) g.fillRect(u, 0, 1, 70);
+        g.fillStyle = '#5a2e19'; g.fillRect(0, 67, KW, 3);
+        g.fillStyle = '#b3261e'; g.fillRect(60, 4, 112, 12); g.fillStyle = '#f1c40f'; g.fillRect(60, 16, 112, 1.5); txt(g, 'KARINDERYA', 116, 13.5, 10, '#fff3c4', 'center');
+        g.fillStyle = '#5a2e19'; g.fillRect(64, 34, 104, 2); g.fillRect(184, 26, 30, 2); g.fillRect(184, 44, 30, 2);
+        plates(g, [['#f3ede2', 68, 26], ['#f3ede2', 75, 26], ['#7fb8d8', 88, 26], ['#e3b23c', 98, 26], ['#c0392b', 108, 26], ['#f3ede2', 124, 26], ['#9cc06a', 136, 26], ['#f3ede2', 150, 26], ['#f3ede2', 157, 26], ['#7fb8d8', 188, 18], ['#f3ede2', 200, 18], ['#e3b23c', 190, 36], ['#c0392b', 202, 36]]);
+        g.fillStyle = '#7a3b1c'; g.fillRect(14, 30, 10, 7); g.fillStyle = '#3e7d55'; g.beginPath(); g.arc(16, 29, 5, 0, 6.2832); g.arc(23, 27, 4, 0, 6.2832); g.fill(); g.fillStyle = '#5aa86e'; g.fillRect(12, 36, 2, 8); g.fillRect(24, 36, 2, 10);
       });
-      poly(g, [P(KX + 2, KY + 2, 31), P(KX + 94, KY + 2, 31), P(KX + 94, KY + 2, 46), P(KX + 2, KY + 2, 46)], 'rgba(190,225,245,.18)', 'rgba(220,240,255,.45)', .6);
-      cyl(g, KX + 88, KY - 8, 0, 3, 34, '#4a4f5c'); // electric fan on a stand, blades spin
-      const c = P(KX + 88, KY - 8, 40); g.fillStyle = 'rgba(200,215,230,.55)'; g.beginPath(); g.ellipse(c[0], c[1], 8, 8, 0, 0, 6.2832); g.fill();
-      g.strokeStyle = '#3a8ae0'; g.lineWidth = 1.4; const a0 = ST.T * 14; for (let k = 0; k < 3; k++) { const a = a0 + k * 2.094; g.beginPath(); g.moveTo(c[0], c[1]); g.lineTo(c[0] + Math.cos(a) * 7, c[1] + Math.sin(a) * 7); g.stroke(); }
     });
-    STOOLS.forEach((dx, i) => add(KX + dx + KY + 40 - 1, g => cyl(g, KX + dx, KY + 40, 0, 6, 12, ['#d63a3a', '#2f78d6', '#d63a3a', '#2f78d6'][i]), { nofp: true }));
-  }, { spots: STOOLS.map((dx, i) => ({ id: 'kain:' + (i + 1), dx, dy: 40, face: 'n', zone: 'kain', seat: true })) });
+    add(KX + KY + KD / 2, g => { // left wall (along y): planks, sunny window, calendar
+      box(g, KX - 4, KY - 4, 0, 4, KD + 4, 70, KWOOD, { t: KTRIM });
+      Fx(g, KX, KY + KD, 70, () => {
+        g.fillStyle = KPLANK; for (let u = 6; u < KD; u += 9) g.fillRect(u, 0, 1, 70);
+        g.fillStyle = '#5a2e19'; g.fillRect(0, 67, KD, 3);
+        g.fillStyle = '#4a2614'; g.fillRect(74, 12, 36, 34); g.fillStyle = '#ffd58a'; g.fillRect(77, 15, 30, 28); g.fillStyle = '#fff1c9'; g.fillRect(77, 15, 14, 13);
+        g.fillStyle = '#4a2614'; g.fillRect(91, 15, 2, 28); g.fillRect(77, 28, 30, 2); g.fillStyle = '#b0683a'; g.fillRect(72, 45, 40, 3);
+        g.fillStyle = '#f3ede2'; g.fillRect(132, 18, 12, 15); g.fillStyle = '#c0392b'; g.fillRect(132, 18, 12, 4); g.fillStyle = '#9aa'; for (let k = 0; k < 3; k++) g.fillRect(134, 24 + k * 3, 8, 1);
+      });
+    });
+    add(KX + 16 + KY + 19, g => { // brick pugon with a fire, chimney up the corner
+      box(g, KX + 4, KY + 4, 0, 24, 30, 46, '#a2492f'); box(g, KX + 8, KY + 10, 46, 14, 16, 40, '#9a4430');
+      Fy(g, KY + 34, 46, () => { g.translate(KX + 4, 0); g.fillStyle = 'rgba(70,20,10,.45)'; for (let v = 6; v < 46; v += 6) { g.fillRect(0, v, 24, .8); for (let u = (v / 6) % 2 ? 4 : 0; u < 24; u += 8) g.fillRect(u, v - 6, .8, 6); }
+        g.fillStyle = '#2a1410'; g.fillRect(5, 20, 14, 20); g.beginPath(); g.arc(12, 20, 7, Math.PI, 0); g.fill();
+        const f = Math.sin(ST.T * 9) * 1.5; g.fillStyle = '#ff7a2a'; g.fillRect(7, 32 - f, 10, 8 + f); g.fillStyle = '#ffd23f'; g.fillRect(9, 35 - f, 6, 5 + f); });
+    });
+    add(KX + 116 + KY + 40, g => { // turo-turo counter: five trays of ulam under a glass guard, electric fan at the end
+      box(g, KX + 56, KY + 30, 0, 120, 18, 30, '#9c5530', { t: '#d9b98a' });
+      Fy(g, KY + 48, 30, () => { g.translate(KX + 56, 0); g.fillStyle = '#7a3e20'; for (let u = 4; u < 116; u += 28) g.fillRect(u, 5, 24, 21); g.fillStyle = '#b0683a'; for (let u = 4; u < 116; u += 28) g.fillRect(u + 10, 14, 4, 2); });
+      [['#7a3b1c', '#5a2a12'], ['#e3b23c', '#c48a1c'], ['#9cc06a', '#d7c79a'], ['#c98d3a', '#8a5a2a'], ['#f6f1e3', '#ddd5c2']].forEach(([food, bit], i) => { // adobo, pancit, sinigang, lumpia, kanin
+        const tx = KX + 60 + i * 23; flat(g, tx, KY + 33, 20, 12, '#b8bec8', 30.5, 'rgba(40,40,60,.45)'); flat(g, tx + 2, KY + 35, 16, 8, food, 31);
+        for (let k = 0; k < 3; k++) { const c = P(tx + 4 + k * 5, KY + 37 + (k % 2) * 2, 32); g.fillStyle = bit; g.fillRect(c[0], c[1], 2, 1.5); } });
+      poly(g, [P(KX + 58, KY + 32, 31), P(KX + 174, KY + 32, 31), P(KX + 174, KY + 32, 46), P(KX + 58, KY + 32, 46)], 'rgba(190,225,245,.16)', 'rgba(220,240,255,.45)', .6);
+      cyl(g, KX + 188, KY + 36, 0, 2.5, 36, '#4a4f5c');
+      const c = P(KX + 188, KY + 36, 42); g.fillStyle = 'rgba(200,215,230,.55)'; g.beginPath(); g.ellipse(c[0], c[1], 9, 9, 0, 0, 6.2832); g.fill();
+      g.strokeStyle = '#3a8ae0'; g.lineWidth = 1.4; const a0 = ST.T * 14; for (let k = 0; k < 3; k++) { const a = a0 + k * 2.094; g.beginPath(); g.moveTo(c[0], c[1]); g.lineTo(c[0] + Math.cos(a) * 8, c[1] + Math.sin(a) * 8); g.stroke(); }
+    });
+    add(KX + 14 + KY + 131, g => { // fridge by the left wall
+      box(g, KX + 4, KY + 120, 0, 20, 22, 52, '#ddd6c4'); Fy(g, KY + 142, 52, () => { g.translate(KX + 4, 0); g.fillStyle = '#b9b2a0'; g.fillRect(0, 19, 20, 1); g.fillStyle = '#8a8478'; g.fillRect(16, 8, 1.5, 7); g.fillRect(16, 25, 1.5, 11); g.fillStyle = '#e74c3c'; g.fillRect(4, 4, 4, 4); g.fillStyle = '#f1c40f'; g.fillRect(9, 6, 4, 3); });
+    });
+    add(KX + 120 + KY + 98, g => { // long table: rice pot, plates, pancit and adobo
+      box(g, KX + 60, KY + 86, 0, 120, 24, 18, '#a85a2e', { t: '#c4743d' });
+      Fg(g, 18.2, () => { g.fillStyle = 'rgba(90,40,15,.35)'; for (let u = KX + 70; u < KX + 180; u += 10) g.fillRect(u, KY + 86, .7, 24); });
+      cyl(g, KX + 120, KY + 98, 18, 6, 7, '#5a5f6a', { top: '#f6f1e3' });
+      KSEATS.forEach(st => gell(g, KX + st.dx, KY + (st.face === 's' ? 92 : 104), 18.5, 4.5, '#f3ede2'));
+      gell(g, KX + 140, KY + 98, 19, 4.5, '#e3b23c'); gell(g, KX + 100, KY + 98, 19, 4, '#7a3b1c'); gell(g, KX + 160, KY + 99, 19, 3, '#c0392b');
+    });
+    KSEATS.filter(st => st.face === 's').forEach(st => add(KX + st.dx + KY + st.dy - 1, g => { // chairs on the far side (backs behind the sitter)
+      const x = KX + st.dx, y = KY + st.dy; // z 1: chairs are not walking obstacles, so the seats stay reachable
+      box(g, x - 6, y - 7, 1, 12, 2, 29, '#7a3e20'); box(g, x - 6, y - 5, 1, 12, 10, 11, '#9c5530', { t: '#b0683a' });
+      Fy(g, y - 5, 30, () => { g.fillStyle = '#5a2e19'; g.fillRect(x - 4, 4, 1.5, 12); g.fillRect(x - .7, 4, 1.5, 12); g.fillRect(x + 2.5, 4, 1.5, 12); });
+    }, { nofp: true }));
+    add(KX + 84 + KY + 120 - 1, g => box(g, KX + 66, KY + 115, 0, 108, 9, 12, '#9c5530', { t: '#b8703c' }), { nofp: true }); // bangko (bench)
+    add(KX + 204 + KY + 164, g => { // floor lamp with a warm glow
+      cyl(g, KX + 204, KY + 164, 0, 4, 2, '#5a2e19'); box(g, KX + 203, KY + 163, 2, 2, 2, 42, '#5a2e19');
+      gell(g, KX + 204, KY + 164, 48, 15, 'rgba(255,214,140,.18)'); cyl(g, KX + 204, KY + 164, 42, 7, 10, '#f3e3c3', { top: '#fff4dc' });
+    });
+    add(KX + 12 + KY + 166, g => plant(g, KX + 12, KY + 166, .9));
+    add(KX + 190 + KY + 150, g => { // the karinderya cat, tail flicking
+      const x = KX + 190, y = KY + 150; box(g, x - 3, y - 2, 0, 7, 5, 6, '#4a4550'); box(g, x - 2, y - 1, 6, 5, 4, 5, '#4a4550');
+      const c = P(x, y + 2, 9); g.fillStyle = '#4a4550'; g.fillRect(c[0] - 3, c[1] - 7, 2, 2); g.fillRect(c[0] + 2, c[1] - 7, 2, 2); g.fillStyle = '#f3ede2'; g.fillRect(c[0] - 1.5, c[1] - 2, 3, 2); g.fillStyle = '#ffd23f'; g.fillRect(c[0] - 2.5, c[1] - 4, 1.2, 1.2); g.fillRect(c[0] + 1.5, c[1] - 4, 1.2, 1.2);
+      const t = P(x + 5, y + 3, 2), w = Math.sin(ST.T * 3) * 3; g.strokeStyle = '#4a4550'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(t[0], t[1]); g.quadraticCurveTo(t[0] + 5, t[1] - 2, t[0] + 4 + w, t[1] - 8); g.stroke();
+    });
+  }, { spots: [...KSEATS.map((st, i) => ({ id: 'kain:' + (i + 1), dx: st.dx, dy: st.dy, face: st.face, zone: 'kain', seat: true })), { id: 'npc:cook', dx: 116, dy: 16, face: 's', zone: 'kain' }] });
   // Broom corner (phase 6): a mop bucket and broom; placing one adds the sweeper NPC, who starts from its npc:sweeper spot.
   def('broom-corner', [400, 380], () => add(400 + 380 + 8, g => {
     cyl(g, 404, 384, 0, 7, 12, '#e8c53a', { top: '#5a7fa8' }); box(g, 397, 383, 12, 14, 2, 2, '#9a9aa6');

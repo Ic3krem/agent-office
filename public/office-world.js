@@ -254,8 +254,8 @@
   const npcBody = (a, x, y) => Object.assign(WPL().create(x, y), { id: a.id, hip: 18, alpha: 1, fade: 1, look: SP.lookOf(a) });
   function stepNpcs(dt) {
     if (build || !SP) { npcs = {}; return; }
-    const k1 = M.SPOTS['kain:1'], b = M.SPOTS['npc:sweeper'], CH = root.Chismis;
-    if (k1 && !npcs.cook) npcs.cook = { kind: 'cook', a: COOK_A, w: npcBody(COOK_A, k1.x + 34, k1.y - 52) };
+    const k1 = M.SPOTS['npc:cook'], b = M.SPOTS['npc:sweeper'], CH = root.Chismis;
+    if (k1 && !npcs.cook) npcs.cook = { kind: 'cook', a: COOK_A, w: npcBody(COOK_A, k1.x, k1.y) };
     if (!k1) delete npcs.cook;
     if (b && !npcs.sweep) { npcs.sweep = { kind: 'sweep', a: SWEEP_A, w: npcBody(SWEEP_A, b.x, b.y), wait: 3 }; WPL().unstick(npcs.sweep.w, M.grid()); }
     if (!b) delete npcs.sweep;
@@ -263,7 +263,7 @@
     if (s && !reduced()) { // sweep a while, then walk to a random open spot (never a seat or a desk)
       WPL().step(s.w, dt, null, M.grid());
       if (!s.w.moving && s.w.pi >= s.w.path.length && (s.wait -= dt) <= 0) {
-        const open = Object.values(M.SPOTS).filter(q => !q.seat && !q.desk && !q.id.startsWith('kain:'));
+        const open = Object.values(M.SPOTS).filter(q => !q.seat && !q.desk && !q.id.startsWith('kain:') && !q.id.startsWith('npc:'));
         if (open.length) WPL().walkTo(s.w, open[Math.random() * open.length | 0]);
         s.wait = 4 + Math.random() * 5;
       }
