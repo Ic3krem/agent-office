@@ -5,8 +5,8 @@ const PATTERNS = [
   // private key blocks (whole block, or to the end of the text when unterminated)
   /-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|$)/g,
   // key = value assignments, also JSON ("password": "x") and env style after an underscore (ANTHROPIC_API_KEY=, GITHUB_TOKEN=):
-  // a lookbehind, not \b, because _ is a word character
-  /(?<![A-Za-z0-9])(?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|token|auth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key)["']?\s*[:=]\s*(?:"[^"\n]{4,200}"|'[^'\n]{4,200}'|["']?[^\s"',;]{4,})/gi,
+  // a lookbehind, not \b, because _ is a word character. The Guard's mask (KEY=•••• (len N)) is not a value.
+  /(?<![A-Za-z0-9])(?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|token|auth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key)["']?\s*[:=]\s*(?:"[^"\n]{4,200}"|'[^'\n]{4,200}'|["']?[^\s"',;•]{4,})/gi,
   // Authorization headers of any scheme (Bearer, Basic, Token, ...)
   /(?<![A-Za-z0-9])(?:proxy-)?authorization["']?\s*[:=]\s*["']?(?:[A-Za-z]+\s+)?[^\s"',;]{8,}/gi,
   // connection strings: scheme://user:pass@host, also an empty user (://:pass@) and a / in the password (bounded: no backtracking blow-up)
