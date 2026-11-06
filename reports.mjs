@@ -77,16 +77,20 @@ export function dailyMarkdown({ day, goals, reports, usage, approvals }) {
 }
 
 // ---------- Markdown to HTML (escaped first: report text can't inject markup) ----------
+const MD_MAX = 256 * 1024; // rendering cap: a huge note or report is shown shortened
 export function mdToHtml(src) {
   const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const inl = t => esc(t).replace(/\[\[([^\]|]+?)(?:\\?\|([^\]]+))?\]\]/g, (_, a, b) => `<span class="wl">${b || a.split('/').pop()}</span>`)
+  // no [ or ] inside a wikilink body, so a line full of '[[' stays linear
+  const inl = t => esc(t).replace(/\[\[([^[\]|]+?)(?:\\?\|([^[\]]+))?\]\]/g, (_, a, b) => `<span class="wl">${b || a.split('/').pop()}</span>`)
     .replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|\s)_([^_]+)_(?=\s|$|[.,;:])/g, '$1<i>$2</i>');
   const out = []; let list = null, code = null, table = null;
   const flush = () => {
     if (list) { out.push(`<${list.t}>` + list.items.map(i => `<li>${inl(i)}</li>`).join('') + `</${list.t}>`); list = null; }
     if (table) { out.push('<div class="tw"><table>' + table.map((r, i) => '<tr>' + r.map(c => `<${i ? 'td' : 'th'}>${inl(c)}</${i ? 'td' : 'th'}>`).join('') + '</tr>').join('') + '</table></div>'); table = null; }
   };
-  const body = String(src).replace(/^---\n[\s\S]*?\n---\n?/, '');
+  let text = String(src ?? '');
+  if (text.length > MD_MAX) text = text.slice(0, MD_MAX) + '\n\n_(Shortened: only the first 256 KB is shown.)_';
+  const body = text.replace(/^---\n[\s\S]*?\n---\n?/, '');
   for (const line of body.split('\n')) {
     if (code !== null) { if (/^```/.test(line)) { out.push(`<pre>${esc(code)}</pre>`); code = null; } else code += (code ? '\n' : '') + line; continue; }
     if (/^```/.test(line)) { flush(); code = ''; continue; }

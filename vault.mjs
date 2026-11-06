@@ -22,7 +22,8 @@ export function findVault(home = os.homedir()) {
 }
 
 const NAME = /^[a-z0-9][a-z0-9-]{1,59}$/;
-const LINK = /\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g;
+// No [ or ] inside a link body: a note full of '[[' stays linear (with them the match backtracks quadratically).
+const LINK = /\[\[([^[\]|#]+)(?:[#|][^[\]]*)?\]\]/g;
 const fm = text => { const m = text.match(/^---\n([\s\S]*?)\n---\n?/); return m ? { head: m[1], body: text.slice(m[0].length) } : { head: '', body: text }; };
 const field = (head, k) => (head.match(new RegExp('^\\s*' + k + ':\\s*(.*)$', 'm')) || [])[1]?.replace(/^["']|["']$/g, '') || '';
 
@@ -36,6 +37,7 @@ export function agentVault(root) {
     return { name, description: field(head, 'description'), type: field(head, 'type'), updated: field(head, 'updated'), body, links: [...new Set([...body.matchAll(LINK)].map(m => m[1].trim()))] };
   });
 
+  const graphCache = { sig: null, value: null };
   if (!fs.existsSync(path.join(base, 'Home.md'))) fs.writeFileSync(path.join(base, 'Home.md'),
     `# Agent Office\n\nLong-term memory for Tiro and the specialists. Edit freely; agents read it before they work.\n\n- **Memory/**: one fact per note, linked with [[note-name]]\n- **Reports/**: what each finished goal produced\n- **Daily/**: one summary per day (written automatically)\n- **SOPs/**: Tiro's brief and the specialists' instructions\n`);
 
@@ -65,9 +67,13 @@ export function agentVault(root) {
       if (text.includes(`[[${to}]]`)) return;
       fs.writeFileSync(file, text.replace(/\n*$/, `\n\nRelated: [[${to}]]\n`));
     },
+    // Every snapshot asks for the graph: re-read the notes only when a file in Memory/ was added, removed or changed.
     graph() {
+      const sig = fs.readdirSync(dirs.memory).filter(n => n.endsWith('.md')).map(n => { const st = fs.statSync(path.join(dirs.memory, n)); return n + ':' + st.mtimeMs + ':' + st.size; }).join('|');
+      if (graphCache.sig === sig) return graphCache.value;
       const all = notes(), names = new Set(all.map(n => n.name));
-      return {
+      graphCache.sig = sig;
+      return graphCache.value = {
         nodes: all.map(n => ({ id: n.name, description: n.description, type: n.type, updated: n.updated })),
         edges: all.flatMap(n => n.links.filter(l => names.has(l) && l !== n.name).map(l => ({ from: n.name, to: l }))),
       };
