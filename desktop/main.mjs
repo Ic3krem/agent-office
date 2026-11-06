@@ -13,15 +13,17 @@ import { createNowPlaying } from './nowplaying.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
 import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
 import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
-import { DEFAULT_PORT, publishedPort, isAgentOffice } from '../ports.mjs';
+import { candidatePorts, publishedPort, isAgentOffice } from '../ports.mjs';
 import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CFG_DIR = path.join(os.homedir(), '.claude', 'agent-office');
 // The server binds 4777 or, when another program holds it, the next free port, and publishes the port in bridge.json.
 const BRIDGE_FILE = path.join(CFG_DIR, 'bridge.json');
-let BASE = `http://localhost:${DEFAULT_PORT}`;
-const followPort = () => { const p = publishedPort(BRIDGE_FILE), prev = BASE; if (p) BASE = `http://localhost:${p}`; return BASE !== prev; };
+// AGENT_OFFICE_PORT pins one port (dev copies): probe that one and ignore the shared bridge.json, which may name another copy.
+const PINNED = candidatePorts().length === 1;
+let BASE = `http://localhost:${candidatePorts()[0]}`;
+const followPort = () => { if (PINNED) return false; const p = publishedPort(BRIDGE_FILE), prev = BASE; if (p) BASE = `http://localhost:${p}`; return BASE !== prev; };
 const KIRO_FILE = path.join(CFG_DIR, 'kiro.json');
 const ICON = nativeImage.createFromPath(path.join(ROOT, 'desktop', 'icon.png'));
 const KIRO_W = 380, KIRO_H = 600;
