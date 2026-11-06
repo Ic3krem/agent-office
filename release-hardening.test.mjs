@@ -229,7 +229,7 @@ test('M5: JSON keys, env names, Authorization schemes, URLs, webhooks, vendor to
   }
   assert.equal(redact('Привет: обычный текст, ｆｕｌｌｗｉｄｔｈ ok'), 'Привет: обычный текст, ｆｕｌｌｗｉｄｔｈ ok', 'non-ASCII text is returned unchanged');
   assert.equal(redact('Пароль p\u0430ssword=Hunter2Hunter2!'), 'Пароль [redacted]', 'the original text is kept around a folded match');
-  for (const s of ['the max_tokens setting', 'Review the password management policy and token usage', 'see https://example.com/a/b?page=2']) assert.equal(redact(s), s, s);
+  for (const s of ['http://localhost:3000/x/@foo', 'see https://example.com:8080/a/b@c for details', 'authorization: required', 'Authorization: required for admin endpoints', 'the max_tokens setting', 'Review the password management policy and token usage', 'see https://example.com/a/b?page=2']) assert.equal(redact(s), s, s);
   for (const s of ['a://x:'.repeat(100000), 'token='.repeat(100000), '-----BEGIN PGP PRIVATE KEY BLOCK-----'.repeat(20000), 'Authorization: '.repeat(50000), 'p\u0430ss '.repeat(100000)]) {
     const t = performance.now(); redact(s); assert.ok(performance.now() - t < 1500, 'slow input: ' + s.slice(0, 20));
   }
@@ -328,4 +328,29 @@ test('L9: safeLocal only allows same-site absolute paths', async () => {
   const { safeLocal } = await import('./auth.mjs');
   for (const bad of ['//evil.com', '/\\evil.com', 'https://evil.com', '/\\/evil.com', '\\\\evil.com', 'javascript:alert(1)', '/%2F%2Fevil.com', ' /x', null, undefined, 5, ['/'], '']) assert.equal(safeLocal(bad), '/', String(bad));
   for (const ok of ['/', '/island', '/kiro', '/a/b-c_d.e']) assert.equal(safeLocal(ok), ok);
+});
+
+// ---------------------------------------------------------------- H1 follow-up: the snapshot still masks other sessions
+test('H1: a non-office Claude session is masked in the snapshot; a throwing agent is filtered out, never null', { timeout: 60000 }, async t => {
+  const src = fs.readFileSync(path.join(ROOT, 'server.mjs'), 'utf8');
+  assert.match(src, /catch \{ return null; \} \}\)\.filter\(Boolean\)\.map\(o => \(SHOW_ALL \|\| o\.isManager \|\| o\.profile \? o : \{ \.\.\.o, logs: \[\], name: 'Claude session '/, 'filter and mask are code, not a comment');
+  const dir = tmp => path.join(tmp, '.claude', 'projects', 'C--private-work');
+  const now = new Date().toISOString();
+  const lines = [{ type: 'user', cwd: 'C:\private\work', timestamp: now, message: { content: 'secret plan for the merger' } },
+    { type: 'assistant', timestamp: now, message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'cat merger.txt' } }] } }].map(j => JSON.stringify(j)).join('\n') + '\n';
+  const s = await startServer(tmp => { fs.mkdirSync(dir(tmp), { recursive: true }); fs.writeFileSync(path.join(dir(tmp), 'bbbbbbbb-0000-0000-0000-000000000001.jsonl'), lines); });
+  t.after(() => { try { s.child.kill(); } catch {} });
+  await sleep(1500);
+  const snap = await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: s.port, path: '/api/stream', headers: { host: `127.0.0.1:${s.port}`, cookie: s.cookie } }, res => {
+      let d = ''; res.on('data', c => { d += c; const m = /^data: (.+)\n\n/.exec(d); if (m) { req.destroy(); resolve(JSON.parse(m[1])); } });
+    });
+    req.on('error', e => { if (e.code !== 'ECONNRESET') reject(e); }); req.end();
+  });
+  assert.ok(!snap.agents.includes(null), 'no null agents on the wire');
+  const a = snap.agents.find(x => x.id === 'bbbbbbbb-0000-0000-0000-000000000001');
+  assert.ok(a, 'the session has a desk');
+  assert.deepEqual(a.logs, []); assert.equal(a.task, ''); assert.equal(a.cwd, ''); assert.equal(a.errText, '');
+  assert.equal(a.name, 'Claude session bbbbbb');
+  assert.doesNotMatch(JSON.stringify(snap), /merger|private/);
 });

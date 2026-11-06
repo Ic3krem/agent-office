@@ -520,6 +520,7 @@ function snapshot() {
   return {
     worldVersion: worldStore.version(),
     guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
+    // one bad agent is dropped (null, then filtered); the rest still stream
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => { try { return {
       isManager: !!a.isManager,
       id: a.id, name: a.isManager ? dn.tiro : helpers.get(a.id)?.helper ? helpers.get(a.id).label : dn[a.profile?.key] || a.title || a.name || a.firstPrompt || path.basename(a.cwd || '') || a.id.slice(0, 8),
@@ -527,7 +528,7 @@ function snapshot() {
       turnTok: a.turnTok || 0, errText: a.apiError ? a.errText : '',
       logs: a.logs.slice(-60), perm: a.perms?.[0] || null,
       canSend: sdk.has(a.id) || (!!a.bridged && now - a.bridged < 10e3),
-    }; } catch { return null; } }) // one bad agent never breaks the stream.filter(Boolean).map(o => (SHOW_ALL || o.isManager || o.profile ? o : { ...o, logs: [], name: 'Claude session ' + String(o.id).slice(0, 6), task: '', cwd: '', errText: '' })),
+    }; } catch { return null; } }).filter(Boolean).map(o => (SHOW_ALL || o.isManager || o.profile ? o : { ...o, logs: [], name: 'Claude session ' + String(o.id).slice(0, 6), task: '', cwd: '', errText: '' })),
   };
 }
 

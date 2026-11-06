@@ -7,10 +7,12 @@ const PATTERNS = [
   // key = value assignments, also JSON ("password": "x") and env style after an underscore (ANTHROPIC_API_KEY=, GITHUB_TOKEN=):
   // a lookbehind, not \b, because _ is a word character. The Guard's mask (KEY=•••• (len N)) is not a value.
   /(?<![A-Za-z0-9])(?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|token|auth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key)["']?\s*[:=]\s*(?:"[^"\n]{4,200}"|'[^'\n]{4,200}'|["']?[^\s"',;•]{4,})/gi,
-  // Authorization headers of any scheme (Bearer, Basic, Token, ...)
-  /(?<![A-Za-z0-9])(?:proxy-)?authorization["']?\s*[:=]\s*["']?(?:[A-Za-z]+\s+)?[^\s"',;]{8,}/gi,
-  // connection strings: scheme://user:pass@host, also an empty user (://:pass@) and a / in the password (bounded: no backtracking blow-up)
-  /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:@\/]{0,200}:[^\s@]{1,200}@[^\s\/]+/gi,
+  // Authorization headers with a scheme word and a token ("authorization: required" in prose stays)
+  /(?<![A-Za-z0-9])(?:proxy-)?authorization["']?\s*[:=]\s*["']?(?:bearer|basic|token|digest|negotiate|ntlm|apikey|hmac|sso-key|aws4-hmac-sha256)\s+[^\s"',;]{8,}/gi,
+  // connection strings: scheme://user:pass@host, also an empty user (://:pass@); bounded lengths (no backtracking blow-up).
+  // A / in the password only for database and queue schemes, so http://localhost:3000/x/@foo stays a URL.
+  /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:@\/]{0,200}:[^\s@\/]{1,200}@[^\s\/]+/gi,
+  /\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?|mssql|sqlserver):\/\/[^\s:@\/]{0,200}:[^\s@]{1,200}@[^\s\/]+/gi,
   // Slack incoming webhooks
   /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9_\/-]{20,}/g,
   // Azure storage / SAS / service bus style
