@@ -74,7 +74,7 @@ export function canon(p, ctx = {}) {
   key = key.length > 1 ? key.replace(/\/$/, '') : key;
   const lower = ctx.os === 'linux' ? false : true;                           // Windows and macOS file systems ignore case
   key = lower ? key.toLowerCase() : key;
-  // 8.3 short names (USER~1): resolve against the home folder name, otherwise treat as a wildcard
+  // 8.3 short names (JOHNSM~1): resolve against the home folder name, otherwise treat as a wildcard
   let wild = false;
   if (/\/[^/~]{1,6}~\d(\/|$)/.test(key)) {
     const homeName = ctx.home ? String(ctx.home).replace(/\\+/g, '/').replace(/\/$/, '').split('/').pop().toLowerCase() : '';
