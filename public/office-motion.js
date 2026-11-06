@@ -216,6 +216,8 @@
     let reps = [], emptySince = null, updateN = 0, lastRotate = 0, rotIdx = 0, lastBackAt = -1e9;
     const reportLog = [];
 
+    // plan limit: agents eat at a karinderya when the layout has one (its stools are kain:* spots), else stand at the cooler
+    const eatSpots = () => { const k = Object.keys(SPOTS).filter(id => id.startsWith('kain:')); return k.length ? k : COOLER; };
     const claim = (map, list, id) => { if (map[id] && list.includes(map[id])) return map[id]; const used = Object.values(map); const s = list.find(x => !used.includes(x)); if (s) map[id] = s; else delete map[id]; return map[id] || null; };
 
     // playroom: take the free spot farthest from everyone already playing (ties keep list order), so the room fills evenly
@@ -322,7 +324,7 @@
         else if (st === S.QUEUE) { const q = reps.filter(r => r.phase === 'wait').findIndex(r => r.agentId === a.id); spotId = 'queue:' + Math.min(3, q + 1); }
         else if (st === S.BACK) { // return by the normal rules, but not the playroom until the walk back finishes
           const back = nextState({ isManager: false, status: a.status, perm: a.perm, quietMs, toolInFlight, prev: null, prevSince: 0, first: false }, board, now);
-          spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claim(coolOf, COOLER, a.id) : home();
+          spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claim(coolOf, eatSpots(), a.id) : home();
         } else if (st === S.THINK) spotId = a.isManager ? 'tiro:window' : (claim(gardenOf, GARDEN, a.id) || home());
         else if (st === S.WINDOW) spotId = 'tiro:window';
         else if (st === S.PLAY) {
@@ -333,7 +335,7 @@
             if (f) { s = f; playOf[a.id] = s; rotated = true; }
           }
           spotId = s || home();
-        } else if (st === S.COOLER) spotId = claim(coolOf, COOLER, a.id) || home();
+        } else if (st === S.COOLER) spotId = claim(coolOf, eatSpots(), a.id) || home();
         else spotId = home();
         if (st !== S.PLAY) delete playOf[a.id];
         if (st !== S.THINK) delete gardenOf[a.id];
@@ -346,7 +348,7 @@
         else if (st === S.THINK) pose = sp.seat ? 'sit-think' : 'think';
         else if (st === S.PLAY) pose = sp.game ? 'play' : sp.seat ? 'sit-play' : 'stand';
         else if (st === S.REPORT || st === S.GO) pose = 'report';
-        else if (st === S.COOLER) pose = 'cooler';
+        else if (st === S.COOLER) pose = sp.seat ? 'sit-front' : 'cooler';
         else if (st === S.WINDOW) pose = 'cup';
         else pose = sp.seat ? 'sit-front' : 'stand';
         const badge = st === S.BLOCKED ? 'perm' : st === S.ERROR ? 'error' : st === S.COOLER || a.status === 'limited' ? 'limited' : null;
@@ -386,6 +388,10 @@
       const thinkers = ['pixel', 'warden', 'atlas', 'scribe'];
       return Object.assign(base, { goals: [goal('gd1', 'Ship the onboarding screen', 'doing')], boss: { active: true, running: 4, max: 8 },
         agents: [boss('working', quiet), ...TEAM.map((m, i) => thinkers.includes(m.key) ? mk(m, i, 'working', quiet) : mk(m, i, i % 2 ? 'working' : 'idle'))] });
+    }
+    if (s === 'limit') { // plan limit: three agents on a lunch break (karinderya if the layout has one, else the cooler)
+      return Object.assign(base, { goals: [goal('gd1', 'Ship the onboarding screen', 'doing')], boss: { active: true, running: 3, max: 8 },
+        agents: [boss('working'), ...TEAM.map((m, i) => [1, 4, 6].includes(i) ? mk(m, i, 'limited', { errText: 'Plan limit reached' }) : mk(m, i, i % 3 ? 'idle' : 'working'))] });
     }
     if (s === 'blocked') {
       return Object.assign(base, { goals: [goal('gd1', 'Deploy the report job', 'doing')], boss: { active: true, running: 4, max: 8 },

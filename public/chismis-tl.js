@@ -1,0 +1,65 @@
+// Zero-token Tagalog small talk for the karinderya (phase 6). Canned lines only: no model ever writes or reads these.
+// SOLO: one agent eating alone. PAIRS: [line, reply] for two agents at the counter. COOK / SWEEP: the NPCs' lines.
+(function (root) {
+  'use strict';
+  const SOLO = [
+    'Sarap ng adobo ngayon!', 'Extra rice nga po.', 'Pahinga muna, naubos ang tokens.', 'Busog na busog na ako.',
+    'Mainit pa ang sabaw, ingat.', 'Isa pang pancit, please.', 'Sulit talaga dito.', 'Kain muna bago code.',
+    'Ang lamig ng hangin dito sa electric fan.', 'Hintay lang ako mag-reset ang limit.', 'Grabe, ang dami kong na-commit kanina.',
+    'Mamaya na ang bugs, kain muna.', 'Sana may leche flan mamaya.', 'Tipid mode muna tayo.', 'Wala pa ring signal ang quota.',
+    'Sarap ng sinigang, asim-kilig!', 'Kanin pa more.', 'Ito ang tunay na break time.', 'Pa-refill ng tubig, ate.',
+    'Busog lusog, ready na ulit maya-maya.', 'Lunch break na, bawal ang terminal.', 'Ang bango ng tinola.',
+    'Nakakaantok pagkatapos kumain.', 'Sana mabilis ang reset.', 'Isa pa nga pong lumpia.', 'Ubos na naman ang budget ko sa tokens.',
+    'Dito muna ako, chill lang.', 'Ang sarap mag-kape pagkatapos nito.', 'Merienda time na yata.', 'Sakto lang ang anghang.',
+  ];
+  const PAIRS = [
+    ['Uy, nabalitaan mo ba?', 'Ano na naman yan? Kwento mo na!'],
+    ['Si Forge daw, nag-push nang walang tests.', 'Hala! Sigurado ka? Lagot kay Probe.'],
+    ['Ang daming PR ni Pixel kanina.', 'Oo nga, parang hindi na natutulog.'],
+    ['Pansin mo, laging naka-headphones si Pixel?', 'Lo-fi daw para focused.'],
+    ['Sino kaya ang magre-review ng code ko?', 'Si Probe, siguradong may comment yan.'],
+    ['Si Tiro, ang strict ngayon.', 'Deadline kasi. Kain na lang tayo.'],
+    ['Na-limit ka rin ba?', 'Oo, sabay-sabay pala tayo.'],
+    ['Ano ulam mo?', 'Adobo, syempre. Ikaw?'],
+    ['Pahingi naman ng toyo.', 'Eto o, wag mong ubusin.'],
+    ['Grabe ang init sa server room.', 'Kaya nga ako tumambay dito, may electric fan.'],
+    ['Narinig mo yung sermon kay Warden?', 'Tungkol sa secrets sa repo? Oo, grabe.'],
+    ['May bagong desk daw sa may bintana.', 'Para yata sa Accounting.'],
+    ['Si Tally, nagbibilang na naman ng gastos.', 'Natural, para hindi tayo maubusan.'],
+    ['Bakit ang tahimik ni Atlas?', 'Nagre-research daw. Ganun talaga yun.'],
+    ['Ang ganda ng report ni Scribe.', 'Oo, ang linis ng pagkakasulat.'],
+    ['Kailan kaya babalik ang quota?', 'Mamaya na raw. Kain muna tayo.'],
+    ['Sino nag-iwan ng kape sa desk ko?', 'Hindi ako ha! Baka si Byte.'],
+    ['Na-try mo na yung arcade?', 'Oo, talo ako kay Pixel.'],
+    ['Ang galing ng bagong layout ng office.', 'Si boss daw ang nag-ayos.'],
+    ['Ang dami kong na-fix na bugs kanina.', 'Weh? Patingin nga ng commits.'],
+    ['Si boss, nag-boost na naman ng task.', 'Kaya pala biglang naging Opus.'],
+    ['Saan ka nag-merienda kahapon?', 'Dito rin. Paborito ko yung turon.'],
+    ['Ang sarap ng pancit nila ngayon.', 'Pampahaba ng buhay daw yan.'],
+    ['Sabi nila may party mamaya.', 'Sana may lechon!'],
+    ['Napagod ka ba sa deploy kanina?', 'Medyo. Buti na lang walang rollback.'],
+    ['Nakita mo yung bagong hire?', 'Si Ledger? Mukhang seryoso.'],
+    ['Si Spark, ang daming idea sa marketing.', 'Basta draft lang, bawal mag-post.'],
+    ['Na-audit ka na ba ni Vera?', 'Hindi pa. Sana wag muna.'],
+    ['Si Memo, ang bilis mag-notes.', 'Kaya walang nakakalimutang action item.'],
+    ['Paano mo natapos agad yung task?', 'Diskarte lang, saka maayos na SOP.'],
+    ['Pa-share naman ng kanin.', 'Sige, basta ikaw sa ulam bukas.'],
+    ['Huy, may tirang leche flan pa ba?', 'Ubos na, ang bagal mo kasi.'],
+    ['Akala ko ba diet ka?', 'Bukas na lang ulit ang diet.'],
+    ['May bagyo daw mamaya.', 'Buti na lang work from office tayo.'],
+    ['Sino may charger dyan?', 'Meron ako, basta ibalik mo.'],
+    ['Ang haba ng pila sa printer.', 'Puro reports kasi ni Scribe.'],
+    ['Nakatulog ka ba kagabi?', 'Hindi, nag-debug ako hanggang madaling-araw.'],
+    ['Bakit ka nakangiti dyan?', 'Pumasa lahat ng tests ko!'],
+    ['Tara, kape tayo pagkatapos.', 'G! Libre mo?'],
+    ['Ano masasabi mo sa bagong guard settings?', 'Mas safe, kahit medyo makulit.'],
+    ['Ang galing ni ate magluto.', 'Kaya dito ako lagi kumakain.'],
+    ['Uy, ang ganda ng outfit mo ngayon.', 'Salamat! Barong day kasi.'],
+    ['Nakakamiss mag-code.', 'Konting tiis, babalik din ang limit.'],
+    ['Ano ang plano mo pagbalik ng quota?', 'Tapusin ang refactor. Promise.'],
+    ['Ikaw ba yung nag-commit ng console.log?', 'Shhh, wag mong sabihin kay Probe.'],
+  ];
+  const COOK = ['Kain na kayo!', 'Bagong luto ang adobo!', 'Ano sa inyo, mga anak?', 'May sinigang pa!', 'Libre ang sabaw.', 'Isa o dalawang kanin?', 'Ubos na ang lumpia!', 'Kumain nang mabuti.'];
+  const SWEEP = ['Walis-walis muna.', 'Ang kalat naman dito!', 'Excuse po, dadaan lang.', 'Malinis na ulit.', 'Sino nag-iwan ng balat ng candy?', 'Pakitapon sa basurahan, ha.'];
+  root.Chismis = { SOLO, PAIRS, COOK, SWEEP };
+})(globalThis);

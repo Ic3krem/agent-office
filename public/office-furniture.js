@@ -733,6 +733,29 @@
     reg('memory', 'Corkboard: memory notes', [0, 600, 78, 4, 92, 56], cork, { clip: true });
     reg('breaker', 'Breaker box: switches', [0, 560, 62, 4, 38, 52], cork, { clip: true });
   });
+  // Karinderya (phase 6): turo-turo counter with four plastic stools. Not in the default office; added from Build. Agents at
+  // their plan limit eat here (stools are kain:* spots) instead of standing at the water cooler.
+  const KX = 640, KY = 380, STOOLS = [14, 38, 62, 86];
+  def('karinderya', [KX, KY], () => {
+    add(KX + 48 + KY + 11, g => {
+      box(g, KX, KY, 0, 96, 22, 30, '#a0643a', { t: '#e9e1cf' });
+      Fy(g, KY + 22, 30, () => { g.translate(KX, 0); g.fillStyle = '#c0392b'; g.fillRect(4, 4, 88, 10); txt(g, 'KARINDERYA', 48, 12.5, 8, '#fff5d6', 'center'); g.fillStyle = '#f1c40f'; g.fillRect(4, 16, 88, 2); });
+      [['#7a3b1c', '#5a2a12'], ['#e3b23c', '#c48a1c'], ['#9cc06a', '#d7c79a'], ['#f6f1e3', '#ddd5c2']].forEach(([food, bit], i) => { // adobo, pancit, sinigang, kanin
+        const tx = KX + 6 + i * 22; flat(g, tx, KY + 4, 18, 13, '#b8bec8', 30.5, 'rgba(40,40,60,.45)'); flat(g, tx + 2, KY + 6, 14, 9, food, 31);
+        for (let k = 0; k < 3; k++) { const c = P(tx + 4 + k * 4, KY + 8 + (k % 2) * 3, 32); g.fillStyle = bit; g.fillRect(c[0], c[1], 2, 1.5); }
+      });
+      poly(g, [P(KX + 2, KY + 2, 31), P(KX + 94, KY + 2, 31), P(KX + 94, KY + 2, 46), P(KX + 2, KY + 2, 46)], 'rgba(190,225,245,.18)', 'rgba(220,240,255,.45)', .6);
+      cyl(g, KX + 88, KY - 8, 0, 3, 34, '#4a4f5c'); // electric fan on a stand, blades spin
+      const c = P(KX + 88, KY - 8, 40); g.fillStyle = 'rgba(200,215,230,.55)'; g.beginPath(); g.ellipse(c[0], c[1], 8, 8, 0, 0, 6.2832); g.fill();
+      g.strokeStyle = '#3a8ae0'; g.lineWidth = 1.4; const a0 = ST.T * 14; for (let k = 0; k < 3; k++) { const a = a0 + k * 2.094; g.beginPath(); g.moveTo(c[0], c[1]); g.lineTo(c[0] + Math.cos(a) * 7, c[1] + Math.sin(a) * 7); g.stroke(); }
+    });
+    STOOLS.forEach((dx, i) => add(KX + dx + KY + 40 - 1, g => cyl(g, KX + dx, KY + 40, 0, 6, 12, ['#d63a3a', '#2f78d6', '#d63a3a', '#2f78d6'][i]), { nofp: true }));
+  }, { spots: STOOLS.map((dx, i) => ({ id: 'kain:' + (i + 1), dx, dy: 40, face: 'n', zone: 'kain', seat: true })) });
+  // Broom corner (phase 6): a mop bucket and broom; placing one adds the sweeper NPC, who starts from its npc:sweeper spot.
+  def('broom-corner', [400, 380], () => add(400 + 380 + 8, g => {
+    cyl(g, 404, 384, 0, 7, 12, '#e8c53a', { top: '#5a7fa8' }); box(g, 397, 383, 12, 14, 2, 2, '#9a9aa6');
+    poly(g, [P(414, 380, 0), P(416, 380, 0), P(416, 380, 46), P(414, 380, 46)], '#a0643a'); poly(g, [P(411, 378, 0), P(419, 382, 0), P(417, 382, 9), P(413, 378, 9)], '#d9b45a', EDGE, .6);
+  }), { spots: [{ id: 'npc:sweeper', dx: 10, dy: 26, face: 's', zone: 'utility' }] });
   def('water-cooler', [446, 596], () => add(290 + 590, g => { // water cooler (rate-limit corner)
     box(g, 446, 596, 0, 20, 18, 44, '#e8e4dc'); cyl(g, 456, 605, 44, 8, 22, 'rgba(120,190,240,.75)', { top: 'rgba(170,220,250,.85)' }); box(g, 452, 614, 22, 8, 2, 4, '#3a8ae0'); Fy(g, 614, 40, () => { g.translate(446, 0); g.fillStyle = '#7ad0ff'; g.fillRect(6, 6, 4, 4); g.fillStyle = '#ff7a6b'; g.fillRect(12, 6, 4, 4); });
   }));

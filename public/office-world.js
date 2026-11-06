@@ -12,6 +12,7 @@
   let cv = null, g = null, res = 1, opts = {}, bg = null, bgKey = '';
   let brain = M.createBrain(), walkers = new Map(), ghosts = [], frame = null;
   let live = null, demo = null, extras = {}, selected = null, hover = null, chatter = null, nextChat = 0;
+  let npcs = {}, npcChat = 0; // zero-token NPCs (cook, sweeper) and when one may speak next
   let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
   // Build mode: the edit session (WorldEdit) or null, the page's hooks, the zone tool, the selection {kind: 'obj'|'zone', id},
@@ -192,6 +193,7 @@
     frame = brain.update(s || { agents: [], goals: [], boss: {} }, clock, { arrived: (id, spot) => { const w = walkers.get(id); return !!w && M.arrivedAt(w, spot); } });
     syncWalkers(dt);
     stepCeo(dt);
+    stepNpcs(dt);
     // shared state for the painters
     ST.board = frame.board; ST.reportIcon = frame.reportIcon; ST.ex = extras;
     ST.dim += ((frame.board.empty ? 1 : 0) - ST.dim) * Math.min(1, dt * 1.5);
@@ -211,9 +213,15 @@
     if (clock > nextChat) {
       nextChat = clock + 11000 + Math.random() * 6000;
       const idle = frame.agents.filter(a => !a.isManager && (a.state === M.S.PLAY || a.state === M.S.IDLE_DESK));
-      if (idle.length && !reduced()) { const a = idle[Math.random() * idle.length | 0]; chatter = { id: a.id, text: CHATTER[Math.random() * CHATTER.length | 0], until: clock + 4500 }; }
+      const eat = eaters(), CH = root.Chismis, pick = l => l[Math.random() * l.length | 0];
+      if (eat.length && CH && !reduced()) { // karinderya chismis: a line and its reply when two are eating
+        nextChat = clock + 6000 + Math.random() * 4000;
+        if (eat.length > 1) { const i = Math.random() * eat.length | 0, j = (i + 1 + (Math.random() * (eat.length - 1) | 0)) % eat.length, pr = pick(CH.PAIRS);
+          chatter = { id: eat[i].id, text: pr[0], until: clock + 3500, next: { id: eat[j].id, text: pr[1] } }; }
+        else chatter = { id: eat[0].id, text: pick(CH.SOLO), until: clock + 4000 };
+      } else if (idle.length && !reduced()) { const a = idle[Math.random() * idle.length | 0]; chatter = { id: a.id, text: CHATTER[Math.random() * CHATTER.length | 0], until: clock + 4500 }; }
     }
-    if (chatter && chatter.until < clock) chatter = null;
+    if (chatter && chatter.until < clock) chatter = chatter.next ? { ...chatter.next, until: clock + 3500 } : null;
     if (!legend && ST.labels > 0 && clock - born > 14000) ST.labels = Math.max(0, ST.labels - dt * .5);
   }
 
@@ -238,6 +246,37 @@
     const p = a.pose;
     const f = p === 'type' ? Math.floor(T * 5) % 2 : p === 'sit-idle' ? (((T + hashId(a.id) % 9) % 9) < 1.4 ? 1 : 0) : p === 'hand' ? Math.floor(T * 3) % 2 : p === 'play' || p === 'sit-play' ? Math.floor(T * 4) % 2 : 0;
     return { p, f: reduced() ? 0 : f };
+  }
+  // ---------- zero-token NPCs (phase 6): a cook behind the karinderya, a sweeper from each broom corner ----------
+  const COOK_A = { id: 'npc-cook', name: 'Aling Nena', pose: 'stand', color: '#f3ede2', accent: '#c0392b' };
+  const SWEEP_A = { id: 'npc-sweep', name: 'Mang Ben', pose: 'stand', color: '#5a7fa8', accent: '#e8c53a' };
+  const eaters = () => frame ? frame.agents.filter(a => a.spot && a.spot.startsWith('kain:') && !(walkers.get(a.id) || {}).moving) : [];
+  const npcBody = (a, x, y) => Object.assign(WPL().create(x, y), { id: a.id, hip: 18, alpha: 1, fade: 1, look: SP.lookOf(a) });
+  function stepNpcs(dt) {
+    if (build || !SP) { npcs = {}; return; }
+    const k1 = M.SPOTS['kain:1'], b = M.SPOTS['npc:sweeper'], CH = root.Chismis;
+    if (k1 && !npcs.cook) npcs.cook = { kind: 'cook', a: COOK_A, w: npcBody(COOK_A, k1.x + 34, k1.y - 52) };
+    if (!k1) delete npcs.cook;
+    if (b && !npcs.sweep) { npcs.sweep = { kind: 'sweep', a: SWEEP_A, w: npcBody(SWEEP_A, b.x, b.y), wait: 3 }; WPL().unstick(npcs.sweep.w, M.grid()); }
+    if (!b) delete npcs.sweep;
+    const s = npcs.sweep;
+    if (s && !reduced()) { // sweep a while, then walk to a random open spot (never a seat or a desk)
+      WPL().step(s.w, dt, null, M.grid());
+      if (!s.w.moving && s.w.pi >= s.w.path.length && (s.wait -= dt) <= 0) {
+        const open = Object.values(M.SPOTS).filter(q => !q.seat && !q.desk && !q.id.startsWith('kain:'));
+        if (open.length) WPL().walkTo(s.w, open[Math.random() * open.length | 0]);
+        s.wait = 4 + Math.random() * 5;
+      }
+    }
+    if (CH && clock > npcChat) { // now and then one of them says something
+      npcChat = clock + 14000 + Math.random() * 10000;
+      const who = npcs.cook && eaters().length ? npcs.cook : npcs.sweep && Math.random() < .5 ? npcs.sweep : null;
+      if (who) { const l = who.kind === 'cook' ? CH.COOK : CH.SWEEP; who.line = l[Math.random() * l.length | 0]; who.lineUntil = clock + 4000; }
+    }
+  }
+  function dust(w) { // little puffs at the broom
+    const T = F.state.T;
+    for (let i = 0; i < 3; i++) { const t = (T * 1.6 + i / 3) % 1, [x, y] = P(w.x + 8 + i * 3, w.y + 6, t * 8); g.fillStyle = 'rgba(190,180,160,' + (.55 * (1 - t)) + ')'; g.beginPath(); g.arc(x, y, 1.5 + t * 2.5, 0, 6.2832); g.fill(); }
   }
   function drawPerson(a, w) {
     const T = F.state.T;
@@ -338,6 +377,7 @@
     const people = [];
     for (const a of frame.agents) { const w = walkers.get(a.id); if (!w) continue; people.push({ d: w.x + w.y + 3 + (w.moving ? 0 : 0.5), x: w.x, y: w.y, a, w }); }
     { const nw = npcWalker(); people.push({ d: nw.x + nw.y + 3.5, x: nw.x, y: nw.y, npc: true }); }
+    for (const n of Object.values(npcs)) people.push({ d: n.w.x + n.w.y + 3, x: n.w.x, y: n.w.y, extra: n });
     if (ceoOn()) { const p = ceoPlayer(); people.push({ d: p.x + p.y + 3, x: p.x, y: p.y, a: CEO_AGENT, w: p }); }
     for (const gh of ghosts) people.push({ d: gh.w.x + gh.w.y + 3, x: gh.w.x, y: gh.w.y, ghost: gh });
     const all = F.layer(people); // furniture and walkers, ordered by each piece's tight ground footprint
@@ -346,6 +386,7 @@
     for (const it of all) {
       if (it.fn) { it.fn(g); continue; }
       if (it.npc) { const nw = npcWalker(), p = drawPerson(NPC.a, nw); hits.push({ id: 'sched-npc', l: p.hit.l, r: p.hit.r, t: p.hit.t, b: p.hit.b }); npcPos = p; continue; }
+      if (it.extra) { const n = it.extra; n.pos = drawPerson(n.a, n.w); if (n.kind === 'sweep' && !n.w.moving && !reduced()) dust(n.w); continue; }
       if (it.ghost) { const gh = it.ghost; const fake = { id: gh.w.id, name: gh.name, pose: 'stand' }; g.save(); g.globalAlpha = gh.a; gh.w.alpha = 1; const p0 = drawPerson({ ...fake, accent: null }, gh.w); void p0; g.restore(); continue; }
       if (it.a === CEO_AGENT) { ceoPos = drawPerson(it.a, it.w); continue; } // not clickable: a click near you walks
       const p = drawPerson(it.a, it.w); posOf.set(it.a.id, p);
@@ -369,6 +410,7 @@
     for (const a of order) { const p = posOf.get(a.id), nw = Math.ceil(g.measureText(clip(a.name || 'Helper', 14)).width), mb = MODEL[a.model] ? 17 : 0, w = nw + 21 + mb; const x = Math.round(p.sx - w / 2); let y = Math.round(p.top - 17); for (let k = 0; k < 4 && placed.some(b => x < b.x + b.w && x + w > b.x && y < b.y + 17 && y + 15 > b.y - 2); k++) y -= 17; placed.push({ x, y, w }); p.tagY = y; p.tagW = w; }
     for (const a of frame.agents) { const p = posOf.get(a.id); if (!p) continue; const w = walkers.get(a.id); g.save(); g.globalAlpha = Math.max(0, Math.min(1, (w.alpha == null ? 1 : w.alpha)) * (w.fadeDir || w.fade < 1 ? w.fade : 1)); const r = drawTag(a, p, hover && hover.kind === 'agent' && hover.id === a.id); g.restore(); if (r.nudge) nudgeBoxes[a.id] = r.nudge; }
     if (npcPos) { g.save(); g.font = '11px ' + FONT; bubble(npcPos.sx, Math.round(npcPos.top - 6), schedLine(), '#f4efe4', '#2a2420', '#4a86c9'); g.restore(); }
+    for (const n of Object.values(npcs)) if (n.pos && n.line && n.lineUntil > clock) { g.save(); g.font = '11px ' + FONT; bubble(n.pos.sx, Math.round(n.pos.top - 6), n.line, '#f4efe4', '#2a2420', n.kind === 'cook' ? '#c0392b' : '#e8c53a'); g.restore(); }
     if (ceoPos) { ceoPos.tagY = Math.round(ceoPos.top - 17); drawTag(CEO_AGENT, ceoPos, false); }
     drawPrompt(posOf);
     hits.nudge = nudgeBoxes;
@@ -382,6 +424,7 @@
     if (!frame || build) return false;
     const ST = F.state;
     if (ceoOn() && WPL().ceoActive(ceoP, keys.size, joy)) return true;
+    if (Object.values(npcs).some(n => n.w.moving || n.lineUntil > clock)) return true;
     if (ghosts.length || ST.printer > 0 || Object.keys(nudged).length) return true;
     if (!legend && ST.labels > 0.02 && ST.labels < 1) return true;
     if (Math.abs(ST.dim - (frame.board.empty ? 1 : 0)) > .01) return true;
@@ -390,7 +433,7 @@
   }
   function isActive() {
     if (!frame || build) return false;
-    if (chatter || extras.music || extras.pending || frame.reportIcon || demo) return true;
+    if (chatter || npcs.sweep || eaters().length || extras.music || extras.pending || frame.reportIcon || demo) return true;
     const A = ['play', 'sit-play', 'think', 'sit-think', 'hand', 'report', 'cup', 'type', 'celebrate'];
     return frame.agents.some(a => a.working || a.state === M.S.WINDOW || A.includes(a.pose));
   }
@@ -677,10 +720,11 @@
     if (ceoP) { ceoP.path = []; ceoP.pi = 0; WPL().unstick(ceoP, M.grid()); } // the old route may cross the new furniture
     // seated characters snap to their spot's new place; walking ones re-route on the new grid
     for (const w of walkers.values()) if (w.target && M.SPOTS[w.target]) M.setTarget(w, w.target, { instant: !w.moving });
-    hover = null; NPC.w = null; bg = null; bgKey = ''; opts.onLayout && opts.onLayout(); wake();
+    hover = null; NPC.w = null; npcs = {}; bg = null; bgKey = ''; opts.onLayout && opts.onLayout(); wake();
   }
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {
+      npcInfo: () => Object.values(npcs).map(n => ({ kind: n.kind, x: Math.round(n.w.x), y: Math.round(n.w.y), moving: !!n.w.moving, line: n.lineUntil > clock ? n.line : null })), // read-only, for checks
     mount, setScale, advance, hotspots, activate, applyLayout, setBuild, setTool, dropAt, buildOp, STW, STH,
     setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } wake(); },
     setExtras(e) { extras = Object.assign(extras, e); wake(); },

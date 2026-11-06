@@ -13,6 +13,7 @@
 <script src="./world-model.js"></script>
 <script src="./world-edit.js"></script>
 <script src="./world-player.js"></script>
+<script src="./chismis-tl.js"></script>
 <script src="./office-world.js"></script>
 <script src="./agent-history.js" defer></script>
 </head>
@@ -502,7 +503,7 @@ const SP=window.OfficeSprites,PORT={};
 // Small portrait for the detail pane: the same character the office draws.
 const portrait=a=>{const pr=a.profile||{};const look=SP.lookOf({id:a.id,name:a.name,isManager:a.isManager,key:pr.key,color:pr.color,accent:pr.accent});return PORT[look.sig]||(PORT[look.sig]=SP.get(look,'f','stand',0,0).cv.toDataURL());};
 const TOOLK={tool:'\u{1F527}',think:'\u{1F4AD}',out:'\u{1F4AC}',err:'\u26A0',hitl:'\u270B',sys:'\u24D8',user:'\u203A',agent:'\u21E2'};
-const DEMOS=['','work','think','blocked','report','empty','tour'];
+const DEMOS=['','work','think','blocked','limit','report','empty','tour'];
 const OPEN_GOAL=g=>g.status==='todo'||g.status==='doing'||g.status==='blocked'; // the server's goalError rule
 const cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;
 const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v;}catch(e){return d;}};
