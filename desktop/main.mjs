@@ -36,8 +36,8 @@ app.setAppUserModelId('io.github.ic3krem.agentoffice');
 
 let server, office, kiro, island, tray;
 const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')))); } catch { return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
-// agentNames is owned by the server (rename UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
-const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch {} const out = { ...prefs }; if (disk.agentNames) out.agentNames = disk.agentNames; else delete out.agentNames; fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
+// agentNames and looks are owned by the server (rename and wardrobe UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
+const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch {} const out = { ...prefs }; for (const k of ['agentNames', 'looks']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 // The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly

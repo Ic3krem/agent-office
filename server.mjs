@@ -15,7 +15,7 @@ import { createAudit } from './guard/audit.mjs';
 import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
-import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
+import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, lookStore, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -78,6 +78,7 @@ const AH = agentHome(path.join(CFG_DIR, 'agents'));
 try { AH.ensureAll(); } catch (e) { console.error('agent homes:', e.message); }
 const hireGoal = {};   // roster key -> goal id of the approved hire request, used to link the task in history
 const dnames = () => displayNames(nameBox.get());
+const lookBox = lookStore(path.join(CFG_DIR, 'kiro.json')); // wardrobe costumes (kiro.json looks)
 // Optional retention ("retentionDays" in kiro.json, 7 or more): old finished goals, history summaries and reports are deleted at start.
 let RETENTION_DAYS = 0; try { RETENTION_DAYS = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')).retentionDays; } catch {}
 prune({ retentionDays: RETENTION_DAYS, goalsFile: path.join(CFG_DIR, 'goals.json') });
@@ -519,7 +520,7 @@ function snapshot() {
   const shown = list.slice(0, deskCap).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   return {
     worldVersion: worldStore.version(),
-    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
+    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, looks: lookBox.get(), hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
     // one bad agent is dropped (null, then filtered); the rest still stream
     agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => { try { return {
       isManager: !!a.isManager,
@@ -737,6 +738,7 @@ async function handle(req, res) {
       case '/api/guard/status': return json(res, 200, { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length });
       case '/api/names': return json(res, 200, { names: dnames(), defaults: { tiro: 'Tiro', ...Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])) }, overrides: nameBox.get() });
       case '/api/names/set': { try { nameBox.set(String(b.key), b.name); } catch (e) { return json(res, 400, { error: e.message }); } bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }
+      case '/api/looks/set': { try { lookBox.set(String(b.key), b.costume); } catch (e) { return json(res, 400, { error: e.message }); } bump(); return json(res, 200, { looks: lookBox.get() }); }
       case '/api/names/reset': { if (b.key) nameBox.set(String(b.key), ''); else nameBox.reset(); bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }
       case '/api/hire/decide': { if (!hires.decide(String(b.id), !!b.approve, String(b.note || '').slice(0, 200))) return json(res, 404, { error: 'That request was already answered.' }); bump(); return json(res, 200, { ok: true }); }
       case '/api/reports': return json(res, 200, { reports: reports.list() });

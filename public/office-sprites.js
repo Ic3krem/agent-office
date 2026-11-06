@@ -5,21 +5,39 @@
   'use strict';
   const W = 18, H = 26, OX = 1, OY = 1; // 1 px margin for the outline
   const OUT = '#1b1220';
-  const HAIRS = ['#d39a52', '#3b2418', '#1f1a1a', '#141010', '#c9c3b8', '#6b3a1f', '#a8432a', '#2a2a3a'];
-  const SKINS = ['#f0c69c', '#c98d62', '#e6b48c', '#8d5a3b', '#f2cfae', '#d9a57a', '#f3d0b0', '#b5774f'];
+  const WR = root.RoleCatalog.WARDROBE, HAIRS = WR.hair, SKINS = WR.skin, ROLE_PROP = root.RoleCatalog.ROLE_PROP;
+  let costumes = {}; // saved looks {ceo|tiro|roleKey: costume}, from the snapshot
+  const setCostumes = m => { costumes = root.RoleCatalog.cleanLooks(m); };
   const PANTS = ['#3a3550', '#2f3a4f', '#3b3b3b', '#47352f', '#2c4038'];
   const VISITOR = ['#8b8f98', '#a39e94', '#7e8794', '#9a9aa6', '#8f8a82'];
   const hash = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
   function shade(hex, f) { const n = parseInt(hex.slice(1), 16); return 'rgb(' + [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.min(255, Math.round(v * f))).join(',') + ')'; }
 
   // Look for an agent: profile gives shirt and accent; everything else comes from the id.
-  function lookOf(a) {
-    // the CEO (you): dark suit, accent = suit so the lanyard disappears; tie and crown pin are drawn as the 'ceo' prop
-    if (a.look === 'ceo') return { key: 'ceo', shirt: '#2b2f3e', accent: '#2b2f3e', hair: '#2a1c14', skin: '#e6b48c', pants: '#1f2230', style: 0, sig: 'ceo' };
-    const h = hash(a.id || a.name || 'x');
-    const isTiro = !!a.isManager;
-    return { key: isTiro ? 'tiro' : (a.key || null), shirt: a.color || VISITOR[h % VISITOR.length], accent: a.accent || '#d8d2c4',
-      hair: isTiro ? '#3b2418' : HAIRS[(h >> 3) % 8], skin: isTiro ? '#e6b48c' : SKINS[(h >> 6) % 8], pants: PANTS[(h >> 9) % PANTS.length], style: (h >> 12) % 3, sig: [a.key, a.color, h % 977].join('|') };
+  // costume (optional): preview a wardrobe choice instead of the saved one.
+  function lookOf(a, costume) {
+    let L;
+    // the CEO (you): dark suit, accent = suit so the lanyard disappears; tie and crown pin are the 'suit' accessory
+    if (a.look === 'ceo') L = { key: 'ceo', shirt: '#2b2f3e', accent: '#2b2f3e', hair: '#2a1c14', skin: '#e6b48c', pants: '#1f2230', style: 0, sig: 'ceo' };
+    else {
+      const h = hash(a.id || a.name || 'x');
+      const isTiro = !!a.isManager;
+      L = { key: isTiro ? 'tiro' : (a.key || null), shirt: a.color || VISITOR[h % VISITOR.length], accent: a.accent || '#d8d2c4',
+        hair: isTiro ? '#3b2418' : HAIRS[(h >> 3) % 8], skin: isTiro ? '#e6b48c' : SKINS[(h >> 6) % 8], pants: PANTS[(h >> 9) % PANTS.length], style: (h >> 12) % 3, sig: [a.key, a.color, h % 977].join('|') };
+    }
+    L.prop = ROLE_PROP[L.key] || 'none';
+    // a saved costume overrides hair, skin, style, outfit and accessory; visitors (no key) never get one
+    const c = costume !== undefined ? root.RoleCatalog.cleanCostume(costume) : L.key && costumes[L.key];
+    if (c) {
+      if (c.hair !== undefined) L.hair = HAIRS[c.hair];
+      if (c.skin !== undefined) L.skin = SKINS[c.skin];
+      if (c.style !== undefined) L.style = c.style;
+      const o = c.outfit !== undefined && WR.outfits[c.outfit];
+      if (o && o.shirt) { L.shirt = o.shirt; L.pants = o.pants; if (L.key === 'ceo') L.accent = o.shirt; }
+      if (c.prop) L.prop = c.prop;
+      L.sig += '|' + [c.hair, c.skin, c.style, c.outfit, c.prop].join(',');
+    }
+    return L;
   }
 
   function make() { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; return cv; }
@@ -37,7 +55,7 @@
     const L = look, C = L.shirt, c2 = shade(C, .72), A = L.accent, a2 = shade(A, .7), S = L.skin, s2 = shade(S, .85), Hh = L.hair, h2 = shade(Hh, .72), P = L.pants, K = '#2a2733';
     const seated = pose.startsWith('sit') || pose === 'type' || pose === 'hand';
     const front = view === 'f';
-    const key2 = L.key;
+    const key2 = L.prop;
 
     // ---- legs ----
     if (!seated) {
@@ -111,33 +129,33 @@
       rc(5, 10, 6, 1, s2);
     }
 
-    // ---- role props ----
+    // ---- accessory (the role's default, or the wardrobe's choice) ----
     const hatBack = () => { rc(3, 0, 10, 4, A); rc(3, 3, 10, 1, a2); rc(4, 0, 8, 1, shade(A, 1.15)); };
-    if (key2 === 'pixel') { // headphones
+    if (key2 === 'headphones') { // headphones
       rc(4, 0, 8, 1, '#2b2b36'); rc(3, 1, 1, 4, '#2b2b36'); rc(12, 1, 1, 4, '#2b2b36'); rc(2, 4, 2, 4, A); rc(12, 4, 2, 4, A); rc(2, 4, 1, 4, a2);
       px(3, 5, '#2b2b36'); px(12, 5, '#2b2b36');
-    } else if (key2 === 'forge') { // hard cap
+    } else if (key2 === 'hardhat') { // hard cap
       if (front) { rc(4, 0, 8, 1, shade(A, 1.15)); rc(3, 1, 10, 2, A); rc(2, 3, 12, 1, a2); rc(7, 1, 2, 1, '#fff7c9'); } else hatBack();
-    } else if (key2 === 'warden') { // visor and badge
+    } else if (key2 === 'visor') { // visor and badge
       if (front) { rc(3, 5, 10, 3, '#1d2b4a'); rc(4, 5, 8, 1, '#6fd0ff'); px(5, 6, '#9fe3ff'); rc(3, 4, 10, 1, A); rc(5 + ex, 6, 2, 1, '#9fe3ff'); rc(9 + ex, 6, 2, 1, '#9fe3ff'); }
       else rc(3, 4, 10, 1, A);
       if (front) { rc(10, 13, 3, 3, '#ffd23f'); px(11, 14, '#b8860b'); }
-    } else if (key2 === 'probe') { // goggles on the forehead
+    } else if (key2 === 'goggles') { // goggles on the forehead
       rc(3, 3, 10, 1, A); if (front) { rc(4, 2, 3, 2, '#9fe3ff'); rc(9, 2, 3, 2, '#9fe3ff'); px(4, 2, '#fff'); px(9, 2, '#fff'); rc(4, 2, 3, 1, '#2b2b36', 0); }
-    } else if (key2 === 'atlas') { // round glasses
+    } else if (key2 === 'glasses') { // round glasses
       if (front) { for (const x0 of [4, 9]) { rc(x0 + ex, 5, 4, 1, '#2b2b36'); rc(x0 + ex, 8, 4, 1, '#2b2b36'); px(x0 + ex, 6, '#2b2b36'); px(x0 + ex, 7, '#2b2b36'); px(x0 + 3 + ex, 6, '#2b2b36'); px(x0 + 3 + ex, 7, '#2b2b36'); } px(8 + ex, 6, '#2b2b36'); px(7 + ex, 6, '#2b2b36'); }
       else { rc(3, 4, 1, 2, '#2b2b36'); rc(12, 4, 1, 2, '#2b2b36'); }
-    } else if (key2 === 'cabalan') { // scarf
+    } else if (key2 === 'scarf') { // scarf
       rc(4, 10, 8, 2, A); rc(4, 11, 8, 1, a2); if (front) { rc(5, 12, 2, 5, A); rc(5, 15, 2, 2, a2); } else rc(9, 12, 2, 5, A);
-    } else if (key2 === 'tally') { // clipboard
+    } else if (key2 === 'clipboard') { // clipboard
       if (front) { rc(12, 13, 4, 6, '#8a5a2a'); rc(13, 14, 2, 4, '#f3ede2'); rc(13, 12, 2, 1, '#bbb'); px(13, 15, '#3a8a5a'); px(14, 16, '#9aa'); hand(12, 17, 2, 2); }
       else rc(0, 13, 2, 6, '#8a5a2a');
-    } else if (key2 === 'scribe') { // pen behind the ear
+    } else if (key2 === 'pen') { // pen behind the ear
       rc(12, 3, 1, 5, A); px(12, 8, '#fff'); px(12, 2, a2); px(13, 3, a2);
-    } else if (key2 === 'tiro') { // tie and collar
+    } else if (key2 === 'tie') { // tie and collar
       if (front) { rc(6, 11, 4, 1, '#fff'); px(7, 12, '#b3261e'); px(8, 12, '#b3261e'); rc(7, 13, 2, 4, '#b3261e'); px(7, 16, '#7a1810'); rc(5, 12, 2, 1, '#fff'); rc(9, 12, 2, 1, '#fff'); }
       else rc(5, 11, 6, 1, '#fff');
-    } else if (key2 === 'ceo') { // white shirt, dark red tie, small gold crown pin on the lapel
+    } else if (key2 === 'suit') { // white shirt, dark red tie, small gold crown pin on the lapel
       if (front) {
         rc(6, 15, 4, 2, C); rc(6, 11, 4, 1, '#fff'); rc(6, 12, 4, 3, '#f3ede2');
         px(7, 12, '#8a1c2b'); px(8, 12, '#8a1c2b'); rc(7, 13, 2, 4, '#8a1c2b'); px(7, 16, '#5a0f1a');
@@ -153,5 +171,5 @@
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = buf[y][x] || out[y][x]; if (c) { g.fillStyle = c; g.fillRect(x, y, 1, 1); } }
     return (cache[key] = { cv, w: W, h: H, ox: OX, oy: OY });
   }
-  root.OfficeSprites = { get, lookOf, shade, W, H, OX, OY };
+  root.OfficeSprites = { get, lookOf, setCostumes, shade, W, H, OX, OY };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -260,6 +260,19 @@ export function nameStore(file) {
     reset() { const cur = read(); delete cur.agentNames; fs.writeFileSync(file, JSON.stringify(cur)); return {}; },
   };
 }
+// Wardrobe looks live in kiro.json under looks {ceo|tiro|roleKey: costume}; a null/empty costume resets that agent.
+export function lookStore(file) {
+  const read = () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; } };
+  return {
+    get: () => RoleCatalog.cleanLooks(read().looks),
+    set(key, costume) {
+      if (!RoleCatalog.LOOK_KEYS().includes(key)) throw new Error('Unknown agent ' + key);
+      const cur = read(), next = RoleCatalog.cleanLooks(cur.looks), c = RoleCatalog.cleanCostume(costume);
+      if (c) next[key] = c; else delete next[key];
+      cur.looks = next; fs.writeFileSync(file, JSON.stringify(cur)); return next;
+    },
+  };
+}
 
 // ---------- hiring approvals: the manager asks, the user decides, one approval buys one hire ----------
 // Hash of a prompt as the hire gate compares it (line endings and outer whitespace do not matter).

@@ -121,7 +121,8 @@
   const coarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   let ceoP = null, ceoShown = true, keys = new Set(), joy = { dx: 0, dy: 0 }, near = null, nearKey = '', cands = [], promptBox = null;
   function ceoPlayer() {
-    if (!ceoP) { ceoP = Object.assign(WPL().create(M.SPAWN.x, M.SPAWN.y), { id: 'ceo', hip: 18, alpha: 1, fade: 1, look: SP && SP.lookOf(CEO_AGENT) }); WPL().unstick(ceoP, M.grid()); }
+    if (!ceoP) { ceoP = Object.assign(WPL().create(M.SPAWN.x, M.SPAWN.y), { id: 'ceo', hip: 18, alpha: 1, fade: 1, look: null }); WPL().unstick(ceoP, M.grid()); }
+    if (SP) ceoP.look = SP.lookOf(CEO_AGENT); // follows wardrobe changes
     return ceoP;
   }
   const ceoOn = () => ceoShown && !build && !demo;
