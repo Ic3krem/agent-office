@@ -41,7 +41,10 @@ const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let 
 // The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly
 // SameSite=Strict cookie; it is never in a URL, a file or a log. Agents can read bridge.json but this key is not in it.
 const UI_KEY = crypto.randomBytes(24).toString('hex');
-const signedIn = () => fetch(BASE + '/api/roster', { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(2000) }).then(r => r.ok, () => false);
+// Every /api POST needs the server's per-start nonce: read it the way a window does (a page load sets the ao_nonce cookie).
+const uiNonce = () => fetch(BASE + '/island', { headers: { cookie: 'ao_ui=' + UI_KEY }, signal: AbortSignal.timeout(2000) }).then(r => { r.body?.cancel(); return (/ao_nonce=([0-9a-f]+)/.exec(r.headers.get('set-cookie') || '') || [])[1] || ''; });
+const uiPost = (p, body) => uiNonce().then(nonce => fetch(BASE + p, { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json', 'x-nonce': nonce }, body: JSON.stringify(body), signal: AbortSignal.timeout(2000) }));
+const signedIn = () => uiPost('/api/roster', {}).then(r => r.ok, () => false);
 // Event log for the desktop shell: no environment, arguments or keys, only the event, exit code or signal, and the retry plan. Capped in size.
 const LOG_FILE = path.join(CFG_DIR, 'desktop.log');
 const logEvent = ev => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, restartLogLine(Date.now(), ev) + String.fromCharCode(10)); } catch {} };
@@ -414,7 +417,7 @@ function reportVisibility() {
   const v = anyWindowVisible();
   if (v === lastVisible) return;
   lastVisible = v;
-  fetch(BASE + '/api/visibility', { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json' }, body: JSON.stringify({ visible: v }), signal: AbortSignal.timeout(2000) }).catch(() => { lastVisible = null; });
+  uiPost('/api/visibility', { visible: v }).then(r => { if (!r.ok) lastVisible = null; }, () => { lastVisible = null; });
 }
 function startVisibilityReports() {
   app.on('browser-window-created', (e, w) => { for (const ev of ['show', 'hide', 'minimize', 'restore', 'closed']) w.on(ev, () => setTimeout(reportVisibility, 50)); });

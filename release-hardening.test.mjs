@@ -108,3 +108,40 @@ test('H2: markdown over 256 KB is rendered shortened, with a note', () => {
   assert.match(html, /Shortened: only the first 256 KB is shown/);
   assert.ok(html.length < 300 * 1024);
 });
+
+// ---------------------------------------------------------------- M1 nonce, JSON and same-origin on every /api write
+test('M1: every non-GET /api call needs the nonce, a JSON content type and a same-origin page; /bridge keeps its own key', { timeout: 60000 }, async t => {
+  const s = await startServer();
+  t.after(() => { try { s.child.kill(); } catch {} });
+  const ui = { cookie: s.cookie };
+  for (const p of ['/api/interrupt', '/api/goal', '/api/boss', '/api/memory/delete', '/api/memory/link', '/api/names/set', '/api/names/reset', '/api/tidy', '/api/limits', '/api/roster', '/api/visibility'])
+    assert.equal((await call(s.port, p, { headers: ui, body: { id: 'x', name: 'x', from: 'a-b', to: 'c-d', key: 'forge' } })).status, 403, p + ' without the nonce');
+  const plain = await call(s.port, '/api/names/reset', { headers: { ...s.h, 'content-type': 'text/plain' }, body: '{}' });
+  assert.equal(plain.status, 415, 'text/plain (no CORS preflight) is refused');
+  assert.equal((await call(s.port, '/api/names/reset', { headers: { ...s.h, 'content-type': '' }, body: '{}' })).status, 415, 'no content type');
+  assert.equal((await call(s.port, '/api/names/reset', { headers: { ...s.h, 'sec-fetch-site': 'same-site' } })).status, 403, 'another localhost port is same-site, not same-origin');
+  assert.equal((await call(s.port, '/api/names/reset', { headers: { ...s.h, 'sec-fetch-site': 'cross-site' } })).status, 403);
+  assert.equal((await call(s.port, '/api/names/reset', { headers: { ...s.h, 'sec-fetch-site': 'same-origin' } })).status, 200, 'the office page itself');
+  assert.equal((await call(s.port, '/api/names/reset', { headers: { ...s.h, 'content-type': 'application/json; charset=utf-8' } })).status, 200, 'charset is fine');
+  assert.equal((await call(s.port, '/api/names/reset', { headers: s.h })).status, 200, 'the desktop app (no Sec-Fetch-Site)');
+  const bridge = JSON.parse(fs.readFileSync(path.join(s.tmp, '.claude', 'agent-office', 'bridge.json'), 'utf8'));
+  assert.equal((await call(s.port, '/bridge/register', { headers: { 'x-key': bridge.key }, body: { session: 's1' } })).status, 200, '/bridge/* needs no nonce');
+});
+
+test('M1: every client POST to /api sends the nonce and JSON', () => {
+  const files = ['public/Agent Office.html', 'public/island.html', 'public/kiro.html', 'public/office-objects.js', 'public/agent-history.js', 'public/world-edit.js', 'public/office-world.js', 'desktop/main.mjs', 'desktop/preload.cjs', 'desktop/office-preload.cjs', 'desktop/island-preload.cjs'];
+  let seen = 0;
+  for (const f of files) {
+    if (!fs.existsSync(path.join(ROOT, f))) continue;
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    for (const m of src.matchAll(/fetch\([^;]*?method\s*:\s*['"]POST['"][^;]*/g)) {
+      seen++;
+      assert.match(m[0], /x-nonce/, f + ': ' + m[0].slice(0, 80));
+      assert.match(m[0], /application\/json/, f + ': ' + m[0].slice(0, 80));
+    }
+  }
+  assert.ok(seen >= 6, 'found the POST helpers (' + seen + ')');
+  const main = fs.readFileSync(path.join(ROOT, 'desktop/main.mjs'), 'utf8');
+  assert.doesNotMatch(main, /fetch\(BASE \+ '\/api\//, 'the desktop app posts through uiPost (nonce included)');
+  assert.match(main, /uiPost\('\/api\/roster'/); assert.match(main, /uiPost\('\/api\/visibility'/);
+});

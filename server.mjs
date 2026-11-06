@@ -58,7 +58,7 @@ delete process.env.AGENT_OFFICE_UI_KEY;
 const GUARD_KEY = typeof process.env.AGENT_OFFICE_GUARD_KEY === 'string' && process.env.AGENT_OFFICE_GUARD_KEY.length >= 32 ? process.env.AGENT_OFFICE_GUARD_KEY : '';
 delete process.env.AGENT_OFFICE_GUARD_KEY;
 const AUTH = createAuth({ bridgeKey: BRIDGE_KEY, uiKey: ENV_UI_KEY || rand(24) });
-// Decisions only the real UI may make: UI cookie plus the per-session nonce.
+// Decisions only the real UI may make: UI cookie plus the per-session nonce. Every non-GET /api/* call needs the nonce too (handle()).
 const DECISIONS = new Set(['/api/decide', '/api/hire/decide', '/api/switch', '/api/manager', '/api/send', '/api/sops/save', '/api/task', '/api/boss-reset', '/api/world', '/api/world/templates', '/api/world/template', '/api/world/template/delete', '/api/goal/priority', '/api/goal/pace']);
 
 const agents = new Map();      // id -> agent (sessionId, or "agent-<id>" for helpers)
@@ -588,7 +588,14 @@ async function handle(req, res) {
   if (s && req.method === 'GET') { res.writeHead(200, { 'content-type': s[1] + '; charset=utf-8', ...(uiOk ? { 'set-cookie': AUTH.nonceCookie() } : {}) }); return fs.createReadStream(path.join(ROOT, 'public', s[0])).pipe(res); }
   if (url.pathname.startsWith('/bridge/')) { if (!AUTH.isBridge(req)) return json(res, 401, { error: 'bad key' }); }
   else if (!uiOk) return json(res, 401, { error: 'not signed in' });
-  else if (DECISIONS.has(url.pathname) && !AUTH.nonceOk(req)) return json(res, 403, { error: 'missing session nonce' });
+  else {
+    // State changes come only from the office's own pages: SameSite=Strict does not stop another localhost port, and a text/plain
+    // POST needs no CORS preflight. So every non-GET call needs the nonce, a JSON body and (when the browser says) a same-origin page.
+    const write = req.method !== 'GET', site = req.headers['sec-fetch-site'];
+    if (write && site && site !== 'same-origin' && site !== 'none') return json(res, 403, { error: 'cross-site request' });
+    if (write && !/^application\/json\s*(;|$)/i.test(req.headers['content-type'] || '')) return json(res, 415, { error: 'send JSON (content-type: application/json)' });
+    if ((write || DECISIONS.has(url.pathname)) && !AUTH.nonceOk(req)) return json(res, 403, { error: 'missing session nonce' });
+  }
 
   {
     if (url.pathname === '/api/stream') {

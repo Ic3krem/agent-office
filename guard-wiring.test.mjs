@@ -79,9 +79,11 @@ function startServer() {
   return new Promise((resolve, reject) => { const t0 = Date.now(); const tick = () => { if (/running on/.test(out)) return resolve({ child, port, tmp, uiKey }); if (Date.now() - t0 > 20000) { child.kill(); return reject(new Error('no start: ' + out.slice(0, 300))); } setTimeout(tick, 150); }; tick(); });
 }
 const call = (port, p, { headers = {}, body } = {}) => new Promise((resolve, reject) => { const req = http.request({ host: '127.0.0.1', port, path: p, method: 'POST', headers: { host: `127.0.0.1:${port}`, 'content-type': 'application/json', ...headers } }, res => { let d = ''; res.on('data', c => { d += c; }); res.on('end', () => resolve({ status: res.statusCode, body: d })); }); req.on('error', reject); req.end(JSON.stringify(body || {})); });
+// Every /api POST needs the page nonce (set as the ao_nonce cookie on a signed-in page load).
+const nonceOf = s => new Promise((resolve, reject) => { http.get({ host: '127.0.0.1', port: s.port, path: '/', headers: { host: `127.0.0.1:${s.port}`, cookie: 'ao_ui=' + s.uiKey } }, res => { res.resume(); resolve(res.headers['set-cookie'].join(';').match(/ao_nonce=([0-9a-f]+)/)[1]); }).on('error', reject); });
 test('server: the audit endpoints need the UI cookie, return the effective settings, and a weaker kiro.json value is ignored and noted', { timeout: 60000 }, async t => {
   const s = await startServer(); t.after(() => { try { s.child.kill(); } catch {} });
-  const ui = { cookie: 'ao_ui=' + s.uiKey };
+  const ui = { cookie: 'ao_ui=' + s.uiKey, 'x-nonce': await nonceOf(s) };
   assert.equal((await call(s.port, '/api/guard/log')).status, 401);
   const base = path.join(s.tmp, '.claude', 'agent-office');
   fs.writeFileSync(path.join(base, 'kiro.json'), JSON.stringify({ guard: { S: 'off', U: 'log' } }));

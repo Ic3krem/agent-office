@@ -155,12 +155,15 @@ test('server: credentials are separated, decisions need the UI cookie and nonce,
   assert.deepEqual(Object.keys(bridge).sort(), ['key', 'port', 'v']);
   assert.notEqual(bridge.key, s.uiKey);
   const ui = { cookie: 'ao_ui=' + s.uiKey };
+  const nonce = (await call(s.port, '/', { method: 'GET', headers: ui })).headers['set-cookie'].join(';').match(/ao_nonce=([0-9a-f]+)/)[1];
+  const uiN = { ...ui, 'x-nonce': nonce };
 
   assert.equal((await call(s.port, '/api/roster')).status, 401, 'no credential');
   assert.equal((await call(s.port, '/api/roster', { headers: { 'x-key': bridge.key } })).status, 401, 'bridge key does not open the API');
   assert.equal((await call(s.port, '/api/roster?key=' + s.uiKey)).status, 401, '?key= is no longer accepted');
   assert.equal((await call(s.port, '/api/roster', { headers: { 'x-key': s.uiKey } })).status, 401, 'the UI key in a header is not accepted either');
-  assert.equal((await call(s.port, '/api/roster', { headers: ui })).status, 200, 'UI cookie works');
+  assert.equal((await call(s.port, '/api/roster', { headers: ui })).status, 403, 'every POST needs the nonce too');
+  assert.equal((await call(s.port, '/api/roster', { headers: uiN })).status, 200, 'UI cookie and nonce work');
   assert.equal((await call(s.port, '/api/roster', { headers: { 'x-key': Buffer.from('\u00e9\u4e2d\u6587\u{1F600}', 'utf8').toString('latin1') } })).status, 401, 'non-ASCII key: 401, no crash');
   assert.equal((await call(s.port, '/api/roster', { headers: { cookie: 'ao_ui=%E4%B8%AD' } })).status, 401);
 
@@ -169,8 +172,6 @@ test('server: credentials are separated, decisions need the UI cookie and nonce,
     assert.equal((await call(s.port, p, { headers: { 'x-key': bridge.key }, body: { askId: 'x', decision: 'allow', id: 'x', approve: true, name: 'hiring', on: false } })).status, 401, p + ' with the bridge key');
     assert.equal((await call(s.port, p, { headers: ui, body: { id: 'x' } })).status, 403, p + ' with the cookie but no nonce');
   }
-  const nonceCookie = (await call(s.port, '/', { method: 'GET', headers: ui })).headers['set-cookie'].join(';');
-  const nonce = nonceCookie.match(/ao_nonce=([0-9a-f]+)/)[1];
   assert.equal((await call(s.port, '/api/hire/decide', { headers: { ...ui, 'x-nonce': nonce }, body: { id: 'nope', approve: true } })).status, 404, 'with cookie and nonce the request is processed');
   assert.equal((await call(s.port, '/', { method: 'GET' })).headers['set-cookie'], undefined, 'no nonce for an anonymous page load');
 
@@ -182,18 +183,18 @@ test('server: credentials are separated, decisions need the UI cookie and nonce,
   // bad input: a clean error, no path or stack in the message
   const bad = await call(s.port, '/api/names/set', { headers: { ...ui, 'x-nonce': nonce }, body: { key: 'ghost', name: 'Zed' } });
   assert.ok(bad.status >= 400 && !/[\\/]/.test(bad.body), bad.body);
-  const raw = await new Promise(res => { const r = http.request({ host: '127.0.0.1', port: s.port, path: '/api/goal', method: 'POST', headers: { host: `127.0.0.1:${s.port}`, ...ui, 'x-nonce': nonce } }, x => { let d = ''; x.on('data', c => { d += c; }); x.on('end', () => res({ status: x.statusCode, body: d })); }); r.end('{not json'); });
+  const raw = await new Promise(res => { const r = http.request({ host: '127.0.0.1', port: s.port, path: '/api/goal', method: 'POST', headers: { host: `127.0.0.1:${s.port}`, ...ui, 'x-nonce': nonce, 'content-type': 'application/json' } }, x => { let d = ''; x.on('data', c => { d += c; }); x.on('end', () => res({ status: x.statusCode, body: d })); }); r.end('{not json'); });
   assert.equal(raw.status, 400);
   assert.doesNotMatch(raw.body, /Unexpected|position|JSON/);
 
   // keys never appear in the server log; the config folder is private
   assert.ok(!s.log().includes(bridge.key) && !s.log().includes(s.uiKey), 'no key in the log');
   assert.doesNotMatch(s.log(), /[?&]key=/);
-  const rack = JSON.parse((await call(s.port, '/api/rack', { headers: ui })).body);
+  const rack = JSON.parse((await call(s.port, '/api/rack', { headers: uiN })).body);
   assert.ok(!JSON.stringify(rack).includes(bridge.key) && !JSON.stringify(rack).includes(s.uiKey), 'no key in the rack log');
   if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(s.tmp, '.claude', 'agent-office')).mode & 0o777, 0o700);
   // survives an uncaught error probe: still answering
-  assert.equal((await call(s.port, '/api/roster', { headers: ui })).status, 200);
+  assert.equal((await call(s.port, '/api/roster', { headers: uiN })).status, 200);
 });
 
 test('server: standalone bootstrap URL signs in once, then the key is not in the URL', { timeout: 60000 }, async t => {
@@ -208,7 +209,8 @@ test('server: standalone bootstrap URL signs in once, then the key is not in the
   assert.match(r1.headers['set-cookie'].join(';'), /ao_ui=[0-9a-f]+; HttpOnly; SameSite=Strict/);
   assert.equal((await call(port, `/__boot?t=${boot}&to=/`, { method: 'GET' })).status, 401, 'the bootstrap link works once');
   const cookie = r1.headers['set-cookie'].find(c => c.startsWith('ao_ui=')).split(';')[0];
-  assert.equal((await call(port, '/api/roster', { headers: { cookie } })).status, 200);
+  const nonce = (await call(port, '/', { method: 'GET', headers: { cookie } })).headers['set-cookie'].join(';').match(/ao_nonce=([0-9a-f]+)/)[1];
+  assert.equal((await call(port, '/api/roster', { headers: { cookie, 'x-nonce': nonce } })).status, 200);
 });
 
 // ---------------------------------------------------------------- retention, scheduler fencing
