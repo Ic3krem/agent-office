@@ -206,3 +206,31 @@ test('M4: the hire card carries the full prompt the hash covers (up to 20 000 ch
   assert.match(island, /Full request: \$\{h\.prompt\.length\} characters/);
   assert.match(island, /Prompt: \$\{esc\(h\.prompt\)\}/, 'island shows it all too');
 });
+
+// ---------------------------------------------------------------- M5 redaction misses
+test('M5: JSON keys, env names, Authorization schemes, URLs, webhooks, vendor tokens, PGP blocks and look-alike keys are redacted', async () => {
+  const { redact } = await import('./redact.mjs');
+  const cases = {
+    'JSON password': '{"password": "hunter2hunter2"}', 'JSON api_key': '{"api_key":"Sup3rS3cretValue"}', 'quoted with comma': "password='abc,defghijk'",
+    'env after underscore': 'ANTHROPIC_API_KEY=sk-ant-xxx', 'GITHUB_TOKEN': 'GITHUB_TOKEN=abcd1234efgh5678', 'OPENAI env': 'OPENAI_API_KEY=abcd1234efgh5678',
+    'Authorization Token': 'Authorization: Token abcdef1234567890abcdef', 'postgres user:pw': 'postgres://admin:s3cr3tpw@db.example.com/x',
+    'empty user': 'postgres://:p4ssw0rd@db.example.com/x', 'slash in password': 'postgres://admin:pa/ss@db.example.com/x',
+    'access_token query': 'https://x.com/api?access_token=abcd1234abcd1234', 'Slack webhook': 'https://hooks.slack.com/services/' + 'T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+    'GOCSPX': 'GOCSPX-abcdefghijklmnopqrstuvwx', 'glpat': 'glpat-abcdefghij1234567890', 'hf_': 'hf_abcdefghijklmnopqrstuvwxyzABCDEF',
+    'PGP block': '-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOYBF\n-----END PGP PRIVATE KEY BLOCK-----',
+    'Cyrillic a in password': 'p\u0430ssword=Hunter2Hunter2', 'fullwidth equals': 'password\uff1dHunter2Hunter2', 'fullwidth key': '\uff50\uff41\uff53\uff53\uff57\uff4f\uff52\uff44: Hunter2Hunter2',
+  };
+  const secrets = ['hunter2hunter2', 'Sup3rS3cretValue', 'abc,defghijk', 'sk-ant-xxx', 'abcd1234efgh5678', 'abcdef1234567890abcdef', 's3cr3tpw', 'p4ssw0rd', 'pa/ss', 'abcd1234abcd1234', 'XXXXXXXXXXXXXXXXXXXXXXXX', 'GOCSPX-', 'glpat-', 'hf_abc', 'lQOYBF', 'Hunter2Hunter2'];
+  for (const [name, s] of Object.entries(cases)) {
+    const r = redact('before ' + s + ' after');
+    assert.match(r, /\[redacted\]/, name);
+    for (const x of secrets) assert.ok(!r.includes(x), name + ' leaks ' + x + ': ' + r);
+    assert.ok(r.startsWith('before ') && r.endsWith(' after'), name + ': text around it is kept');
+  }
+  assert.equal(redact('Привет: обычный текст, ｆｕｌｌｗｉｄｔｈ ok'), 'Привет: обычный текст, ｆｕｌｌｗｉｄｔｈ ok', 'non-ASCII text is returned unchanged');
+  assert.equal(redact('Пароль p\u0430ssword=Hunter2Hunter2!'), 'Пароль [redacted]', 'the original text is kept around a folded match');
+  for (const s of ['the max_tokens setting', 'Review the password management policy and token usage', 'see https://example.com/a/b?page=2']) assert.equal(redact(s), s, s);
+  for (const s of ['a://x:'.repeat(100000), 'token='.repeat(100000), '-----BEGIN PGP PRIVATE KEY BLOCK-----'.repeat(20000), 'Authorization: '.repeat(50000), 'p\u0430ss '.repeat(100000)]) {
+    const t = performance.now(); redact(s); assert.ok(performance.now() - t < 1500, 'slow input: ' + s.slice(0, 20));
+  }
+});

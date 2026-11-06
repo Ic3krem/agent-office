@@ -3,11 +3,16 @@
 const R = '[redacted]';
 const PATTERNS = [
   // private key blocks (whole block, or to the end of the text when unterminated)
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
-  // key = value assignments
-  /\b(?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|token|auth[_-]?token|private[_-]?key)\s*[:=]\s*["']?[^\s"',;]{4,}/gi,
-  // connection strings: scheme://user:pass@host
-  /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:@\/]+:[^\s@\/]+@[^\s\/]+/gi,
+  /-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|$)/g,
+  // key = value assignments, also JSON ("password": "x") and env style after an underscore (ANTHROPIC_API_KEY=, GITHUB_TOKEN=):
+  // a lookbehind, not \b, because _ is a word character
+  /(?<![A-Za-z0-9])(?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|token|auth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key)["']?\s*[:=]\s*(?:"[^"\n]{4,200}"|'[^'\n]{4,200}'|["']?[^\s"',;]{4,})/gi,
+  // Authorization headers of any scheme (Bearer, Basic, Token, ...)
+  /(?<![A-Za-z0-9])(?:proxy-)?authorization["']?\s*[:=]\s*["']?(?:[A-Za-z]+\s+)?[^\s"',;]{8,}/gi,
+  // connection strings: scheme://user:pass@host, also an empty user (://:pass@) and a / in the password (bounded: no backtracking blow-up)
+  /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:@\/]{0,200}:[^\s@]{1,200}@[^\s\/]+/gi,
+  // Slack incoming webhooks
+  /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9_\/-]{20,}/g,
   // Azure storage / SAS / service bus style
   /\b(?:AccountKey|SharedAccessKey|SharedAccessSignature|sig)=[A-Za-z0-9+\/%=_-]{16,}/g,
   // bearer tokens and basic auth headers
@@ -26,7 +31,25 @@ const PATTERNS = [
   /\bops_[A-Za-z0-9_-]{20,}/g,         // 1Password service account tokens
   /\bAIza[0-9A-Za-z_-]{30,}/g,
   /\bnpm_[A-Za-z0-9]{30,}/g,
+  /\bGOCSPX-[A-Za-z0-9_-]{20,}/g,      // Google OAuth client secrets
+  /\bglpat-[A-Za-z0-9_-]{20,}/g,       // GitLab personal access tokens
+  /\bhf_[A-Za-z0-9]{30,}/g,            // Hugging Face tokens
 ];
+
+// Matching runs on a folded copy of the text (same length): NFKC per character (fullwidth ＝, ｐａｓｓ) and a few look-alike
+// letters (Cyrillic/Greek а е о р с ...). The original text is kept; only the matched ranges become [redacted].
+// ponytail: a small look-alike table, not the full Unicode confusables list; extend it if a new spelling slips through.
+const LOOKALIKE = { а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ј: 'j', ѕ: 's', к: 'k', А: 'A', Е: 'E', О: 'O', Р: 'P', С: 'C', Х: 'X', І: 'I', Ј: 'J', Ѕ: 'S', К: 'K', Т: 'T', Н: 'H', М: 'M', В: 'B', ο: 'o', α: 'a', ρ: 'p', ε: 'e', ι: 'i', κ: 'k', Ο: 'O', Α: 'A', Ρ: 'P', Ε: 'E', Ι: 'I', Κ: 'K', Τ: 'T' };
+const fold = s => s.replace(/[^\x00-\x7f]/g, c => { const n = LOOKALIKE[c] || c.normalize('NFKC'); return n.length === 1 ? n : c; });
+// Replaces each match found in the folded text (kept only when keep(match) says so) in both copies.
+function replaceBoth([o, f], re, keep = () => true) {
+  let oo = '', ff = '', last = 0;
+  for (const m of f.matchAll(re)) {
+    if (!keep(m[0])) continue;
+    oo += o.slice(last, m.index) + R; ff += f.slice(last, m.index) + R; last = m.index + m[0].length;
+  }
+  return last ? [oo + o.slice(last), ff + f.slice(last)] : [o, f];
+}
 
 // Shannon entropy in bits per character.
 export function entropy(s) {
@@ -47,10 +70,10 @@ function looksLikeToken(t) {
 }
 
 export function redact(text) {
-  let s = String(text ?? '');
-  for (const re of PATTERNS) s = s.replace(re, R);
-  s = s.replace(CANDIDATE, t => (looksLikeToken(t) ? R : t));
-  return s;
+  const s = String(text ?? '');
+  let both = [s, fold(s)];
+  for (const re of PATTERNS) both = replaceBoth(both, re);
+  return replaceBoth(both, CANDIDATE, looksLikeToken)[0];
 }
 
 // True when redaction would change the text, i.e. it appears to contain a secret.
