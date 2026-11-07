@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { apply, newAgent, statusOf, toolSummary } from './transcript.mjs';
+import { apply, newAgent, statusOf, stampStatus, toolSummary } from './transcript.mjs';
 import { claudeSessionOptions, makeCanUseTool, describeRequest, launchesClaude } from './permissions.mjs';
 import { createGuardHooks, discoverSyncRoots, makeReadReg, markSdkSession, unmarkSdkSession, clearSdkMarkers, detectRemoteDrives, saveRemoteDrives } from './guard/hook.mjs';
 import { createAudit } from './guard/audit.mjs';
@@ -512,6 +512,7 @@ function tellBoss(text) {
 }
 
 // ---------- snapshot ----------
+const statusSince = new Map(); // agent id -> {status, at}: when its computed status last changed
 function snapshot() {
   const now = Date.now();
   const list = [...agents.values()].filter(a => !a.isManager && (!TEAM_ONLY || (boss.id && a.parent === boss.id)) && !(a.hidden && a.hidden === a.mtime && !a.perms?.length) && (a.perms?.length || a.dashboard || (a.bridged && now - a.bridged < 10e3) || now - (a.mtime || 0) < RECENT_MS));
@@ -523,14 +524,16 @@ function snapshot() {
   const helpers = assignHelpers(list, dn); // one person per specialist; extra same-type agents are labelled helpers
   const deskCap = roster.keys().length; // one desk per role in the layout (at most 12); the hire cap stays MAX_SPECIALISTS
   const shown = list.slice(0, deskCap).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
+  const out = (bossAgent ? [bossAgent, ...shown] : shown);
+  for (const id of statusSince.keys()) if (!out.some(a => a.id === id)) statusSince.delete(id);
   return {
     worldVersion: Object.fromEntries(SCENES.map(s => [s, worldStore.version(s)])), // per scene: a window reacts only to its own room
     guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, looks: lookBox.get(), party: partyClient.view(), hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
     // one bad agent is dropped (null, then filtered); the rest still stream
-    agents: (bossAgent ? [bossAgent, ...shown] : shown).map(a => { try { return {
+    agents: out.map(a => { try { return {
       isManager: !!a.isManager,
       id: a.id, name: a.isManager ? dn.tiro : helpers.get(a.id)?.helper ? helpers.get(a.id).label : dn[a.profile?.key] || a.title || a.name || a.firstPrompt || path.basename(a.cwd || '') || a.id.slice(0, 8),
-      role: a.role, profile: a.isManager ? { ...MANAGER, key: 'tiro', name: dn.tiro } : (h => h?.helper && a.profile ? { ...withName(a.profile), name: h.label, helper: true, helperOf: h.helperOf } : withName(a.profile))(helpers.get(a.id)) || undefined, model: a.model || 'claude', cwd: a.cwd, mode: a.mode, status: statusOf(a, now), task: statusOf(a, now) === 'idle' ? '' : a.task,
+      role: a.role, profile: a.isManager ? { ...MANAGER, key: 'tiro', name: dn.tiro } : (h => h?.helper && a.profile ? { ...withName(a.profile), name: h.label, helper: true, helperOf: h.helperOf } : withName(a.profile))(helpers.get(a.id)) || undefined, model: a.model || 'claude', cwd: a.cwd, mode: a.mode, status: statusOf(a, now), statusAt: stampStatus(statusSince, a.id, statusOf(a, now), now), task: statusOf(a, now) === 'idle' ? '' : a.task,
       turnTok: a.turnTok || 0, errText: a.apiError ? a.errText : '',
       logs: a.logs.slice(-60), perm: a.perms?.[0] || null,
       canSend: sdk.has(a.id) || (!!a.bridged && now - a.bridged < 10e3),

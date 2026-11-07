@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { apply, newAgent, statusOf } from './transcript.mjs';
+import { apply, newAgent, statusOf, stampStatus } from './transcript.mjs';
 
 const T = '2026-10-17T10:00:00.000Z';
 test('a turn goes working -> idle and logs what happened', () => {
@@ -43,4 +43,12 @@ test('API failures show as limited or error until the next prompt; tokens add up
   apply(a, { type: 'user', timestamp: T, message: { content: 'retry' } });
   assert.equal(statusOf(a, Date.parse(T)), 'working');
   assert.equal(a.turnTok, 0);
+});
+
+test('stampStatus: at moves only when the status really changes', () => {
+  const m = new Map();
+  assert.equal(stampStatus(m, 'a', 'idle', 100), 100, 'unknown id is stamped now');
+  assert.equal(stampStatus(m, 'a', 'idle', 500), 100, 'same status keeps its stamp');
+  assert.equal(stampStatus(m, 'a', 'working', 900), 900, 'changed status restamps');
+  assert.equal(stampStatus(m, 'a', 'working', 1200), 900);
 });

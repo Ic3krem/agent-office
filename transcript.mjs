@@ -77,3 +77,11 @@ export function statusOf(a, now = Date.now()) {
   if (a.lastKind === 'text' && now - a.lastTs > 6000) return 'idle';
   return 'working';
 }
+
+// Epoch ms the agent's status last changed (first sighting counts); map is id -> {status, at}.
+export function stampStatus(map, id, status, now) {
+  const e = map.get(id);
+  if (e && e.status === status) return e.at;
+  map.set(id, { status, at: now });
+  return now;
+}
