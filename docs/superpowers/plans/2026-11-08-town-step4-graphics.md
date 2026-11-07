@@ -4,6 +4,8 @@
 
 **Goal:** A graphics panel offers Low / Medium / High / Ultra / Custom presets, with auto-detect on the first run. The settings drive every scene: render scale, fps cap, shadows, ambient animation, day/night lighting, and Canvas2D vs GPU. The step also closes the accepted step 2/3 memory-drift miss.
 
+The town also gets raised terraces (Task 9), at the user's request of 2026-11-08. The memory budget follows the spec (JS heap ±10%, plus a private-bytes plateau check); the user accepted the recommendation on 2026-11-08.
+
 **Architecture:**
 - One pure module, `public/graphics.js` (classic script, `root.Graphics`, loadable in node like `agent-travel.js`), owns:
   - the preset table;
@@ -384,7 +386,49 @@ test('nightOf matches the office formula; tintOf ends', () => {
 - [ ] **Step 4:** Run `npm test`, `perf/office-check.cjs` and `perf/scene-check.cjs`. Expected: ALL PASSED. Take screenshots of the office on Low and on High at `?hour=22`, and look at them.
 - [ ] **Step 5:** Commit with the message `Town step 4: office and interiors honour graphics`.
 
-### Task 9: Memory drift fix and per-preset perf budgets
+### Task 9: Land levels (raised terraces, cliffs, ramps)
+
+The user approved this on 2026-11-08: "you are also allowed to create different land levels to not make our world look flat". It is the town exterior only; interiors stay flat.
+
+**Files:**
+- Modify: `public/town/town.json`:
+  - add `levels: [{rect:[x0,y0,x1,y1], level: 1|2}]`;
+  - add `ramps: [{rect:[x0,y0,x1,y1], dir: 'n'|'s'|'e'|'w'}]` (the low side → the high side direction).
+  - Layout: 2–3 terraces around the edges and behind lots, e.g. a raised orchard and a hill behind the home lot. The plaza, every lot `rect`, the spawn and every door stay at one level each. Each terrace is reachable by at least one ramp or stair from the road.
+- Modify: `public/town-map.js`:
+  - `validate`:
+    - `levels`/`ramps` must be in bounds;
+    - a lot `rect` lies inside one level;
+    - ramps touch both levels they join;
+    - every terrace is reachable (reuse the existing reachability check).
+  - `grid(d)`: cells on a level boundary (a cliff edge band 1 cell wide) are blocked, except the cells inside a ramp. This is the same mechanism as water vs bridges.
+  - Add `heightAt(d, x, y) -> z`:
+    - `LEVEL_H = 14` world units per level;
+    - on a ramp, linear along `dir`;
+    - elsewhere, the level of the innermost containing rect;
+    - 0 outside all of them.
+- Modify: `art/blender/town_terrain.py`: raise terrace rects by `level × LEVEL_H` (in Blender units, /10 as in the other scripts). Cliff sides use the soil-sides material the terrain already has. Ramps are sloped planes, or stairs where the side is short. Rerun `npm run art` and commit the regenerated `public/art/town/terrain/*` and `MANIFEST.json`.
+- Modify:
+  - `public/town-render.js` and `public/town-render-2d.js`: sprites, characters and blob shadows are placed with `project(x, y, TownMap.heightAt(map, x, y))`. `depthOf` stays x+y; raised ground is behind the cliffs that face the camera, because terraces sit at the map edges and behind lots.
+  - `travellerAt` and `toWorld` account for the height. For `toWorld`, iterate: unproject at z=0, then re-project at `heightAt` (2 iterations are enough for 14-unit steps).
+- Modify: `public/agent-travel.js`: nothing, provided routes come from `TownMap.grid`. Verify this with the existing "grass under 5%" route test, which must stay green.
+- Test: `town-map.test.mjs`:
+  - `heightAt` at the plaza = 0, on a level-1 terrace = 14, at a ramp's midpoint = 7;
+  - a cliff-edge cell is blocked and a ramp cell is open;
+  - `validate` rejects a lot straddling two levels and a terrace with no ramp;
+  - every terrace has a path from spawn through `world-path` A*.
+
+**Interfaces:**
+- Consumes: `TownMap.grid/validate` (existing), the renderers (Tasks 4 and 7).
+- Produces: `TownMap.heightAt(map, x, y) -> number`, `TownMap.LEVEL_H = 14`.
+
+- [ ] **Step 1:** Write the failing `town-map.test.mjs` cases above, against a small fixture map. The real `town.json` also has to pass `validate`.
+- [ ] **Step 2:** Run `node --test town-map.test.mjs`. Expected: FAIL.
+- [ ] **Step 3:** Implement the map changes, the terrain art and the renderer z.
+- [ ] **Step 4:** Run `npm test`, `perf/town-check.cjs` and `perf/travel-check.cjs`. Expected: ALL PASSED. Take screenshots of the town on High and Low, and of the player walking up a ramp, and look at them: the cliff sides are visible, the player's feet stay on the ground, and nothing floats.
+- [ ] **Step 5:** Commit with the message `Town step 4: raised terraces with cliffs and ramps`.
+
+### Task 10: Memory drift fix and per-preset perf budgets
 
 **Files:**
 - Modify: `perf/office-perf.cjs`, `perf/town-perf.cjs` (run per preset; add the budgets)
