@@ -24,6 +24,18 @@ test('built-in templates validate and differ from the default', () => {
   }
 });
 
+test('built-in office templates are served migrated: no playroom or garden spots, still valid; user templates untouched', () => {
+  const st = createWorldStore(tmp());
+  for (const { id } of st.listTemplates().filter((t) => t.builtIn)) {
+    const { layout } = st.getTemplate(id);
+    assert.ok(!layout.spots.some((s) => /^(play|garden):/.test(s.id)), id + ' still has play or garden spots');
+    assert.deepEqual(J(WM.validate(J(layout))), { ok: true, errors: [] }, id);
+  }
+  assert.equal(st.getTemplate('interior-games').layout.scene, 'games', 'interiors are served as they are');
+  st.saveTemplate('Mine', def);
+  assert.deepEqual(st.getTemplate('mine').layout, def, 'a user template keeps its playroom');
+});
+
 test('save, list, get, delete user template', () => {
   const st = createWorldStore(tmp());
   assert.deepEqual(st.saveTemplate('My Room', def), { ok: true, id: 'my-room' });

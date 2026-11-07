@@ -818,7 +818,7 @@
   [118, 152, 306, 346].forEach((x, i) => put('hot-chair-' + (i + 1), 'hot-chair', x, 654));
   walls.push(g => { Fg(g, 0.3, () => { if (ST.labels > 0.02) { g.globalAlpha = ST.labels; g.fillStyle = 'rgba(255,255,255,.55)'; g.font = "700 15px 'Pixelify Sans',monospace"; g.textAlign = 'center';
       const L = (s, x, y, c) => { g.fillStyle = c || 'rgba(255,255,255,.55)'; g.fillText(s, x, y); };
-      const has = t => (ZONES || (root.WorldModel ? root.WorldModel.defaultLayout().zones : [])).some(q => q.type === t); // a migrated office has no garden or playroom
+      const has = t => !!ZONES && ZONES.some(q => q.type === t); // only a layout with a garden / play zone labels it (none before setZones)
       L('MANAGER', 400, 120, 'rgba(255,255,255,.5)'); L('FOCUS WORK', 500, 270, 'rgba(255,255,255,.55)'); if (has('garden')) { L('GARDEN', 880, 212, 'rgba(255,255,255,.6)'); L('PARK', 1120, 540, 'rgba(255,255,255,.6)'); } L('GARAGE', 1120, 776, 'rgba(255,255,255,.7)'); if (has('play')) L('PLAYROOM', 560, 778, 'rgba(255,255,255,.6)'); L('UTILITY', 150, 776, 'rgba(60,40,20,.55)'); g.globalAlpha = 1; } }); });
 
   // ---------- east park ----------

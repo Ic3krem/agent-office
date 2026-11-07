@@ -7,7 +7,7 @@
   'use strict';
   const K = 0.7071, K2 = 0.3536;
   const MIN_W = 900, MIN_H = 560; // css px of map that must stay in view
-  const CHAR_CAP = 128; // up to 12 travellers (MAX_DESKS) x 4 faces x 2 walk frames, plus the player: no eviction while walking
+  const CHAR_CAP = 128; // soft cap on cached character textures; own agents and friends share it, and lruEvict never drops one on screen
   const FEET = [9, 25]; // OfficeSprites pixel under the feet (same as office-world drawPerson)
   let O = [961, 4]; // terrain.json originPx; mount() replaces it with the loaded value
 
@@ -29,6 +29,12 @@
   const walkFrame = dist => 1 + (Math.floor(dist / STRIDE) % 2);
   // Sprite pool keyed by id: an id keeps its sprite; ids that left hide theirs for reuse (never destroyed). -> [[item, sprite]]
   const pool = () => ({ byId: new Map(), free: [] });
+  // Texture cache trim: drop the oldest entries past cap, skipping keys in use (on a sprite now). -> the dropped values
+  function lruEvict(map, cap, keep) {
+    const out = [];
+    for (const [k, v] of map) { if (map.size <= cap) break; if (!keep.has(k)) { map.delete(k); out.push(v); } }
+    return out;
+  }
   function syncPool(pl, list, make) {
     const out = [], seen = new Set();
     for (const t of list) {
@@ -114,28 +120,27 @@
     const player = new P.Sprite(P.Texture.EMPTY);
     player.visible = false; world.addChild(player); sprites++;
     const charTex = new Map(), crowd = pool(), shown = new Map(); // shown: traveller id -> {x, y, name}
-    let crowdOn = false;
+    let crowdOn = false, travKeys = new Set(), playerKey = null; // texture keys on screen: never evicted
     function charTexture(look, view, pose, frame, dir) {
       const key = [look.sig, view, pose, frame, dir].join('/');
       let t = charTex.get(key);
-      if (t) { charTex.delete(key); charTex.set(key, t); return t; }
+      if (t) { charTex.delete(key); charTex.set(key, t); return [t, key]; }
       const g = SP.get(look, view, pose, frame, dir);
       t = new P.Texture({ source: new P.CanvasSource({ resource: g.cv }) });
       charTex.set(key, t); textureBytes += g.w * g.h * 4;
-      if (charTex.size > CHAR_CAP) {
-        const [k0, t0] = charTex.entries().next().value;
-        charTex.delete(k0); textureBytes -= t0.width * t0.height * 4; t0.destroy(true);
-      }
-      return t;
+      for (const t0 of lruEvict(charTex, CHAR_CAP, new Set([...travKeys, playerKey, key]))) { textureBytes -= t0.width * t0.height * 4; t0.destroy(true); }
+      return [t, key];
     }
 
     function put(s, x, y, face, pose, frame, look) {
       const c = charPlace(x, y, face);
-      s.texture = charTexture(look, c.view, pose, frame, c.dir);
+      const [t, key] = charTexture(look, c.view, pose, frame, c.dir);
+      s.texture = t;
       s.scale.x = c.flip ? -1 : 1;
       s.position.set(c.px, c.py - (s.texture.height - SP.H)); // a short/tall sprite keeps its feet on the ground point
       s.zIndex = c.z; // ties: characters after sprites
       s.visible = true;
+      return key;
     }
 
     // Count GL draw calls per render (WebGL only).
@@ -189,15 +194,15 @@
 
     return {
       setPlayer({ x, y, face = 's', pose = 'stand', frame = 0, look }) {
-        put(player, x, y, face, pose, frame, look);
+        playerKey = put(player, x, y, face, pose, frame, look);
         mark();
       },
       // Agents walking the town: [{id, x, y, face, frame, look, name}]. Pooled sprites; renders only when something shows or just hid.
       setTravellers(list) {
         if (!list.length && !crowdOn) return;
-        shown.clear();
+        shown.clear(); travKeys = new Set();
         for (const [t, s] of syncPool(crowd, list, () => { const s = new P.Sprite(P.Texture.EMPTY); world.addChild(s); sprites++; return s; })) {
-          put(s, t.x, t.y, t.face, 'walk', t.frame, t.look);
+          travKeys.add(put(s, t.x, t.y, t.face, 'walk', t.frame, t.look));
           shown.set(t.id, { x: t.x, y: t.y, name: t.name, dh: s.texture.height - SP.H });
         }
         crowdOn = list.length > 0;
@@ -237,5 +242,5 @@
     };
   }
 
-  root.TownRender = { project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, mount };
+  root.TownRender = { project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
 })(globalThis);

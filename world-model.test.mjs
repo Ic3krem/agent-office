@@ -207,4 +207,5 @@ test('zone labels: GARDEN, PARK and PLAYROOM only when a zone of that type exist
   const labels = (zones) => { said.length = 0; F.setZones(zones); for (const p of F.walls) { try { p(g); } catch {} } return ['GARDEN', 'PARK', 'PLAYROOM', 'GARAGE'].filter((s) => said.includes(s)); };
   assert.deepEqual(labels(J(w.WorldModel.defaultLayout().zones)), ['GARDEN', 'PARK', 'PLAYROOM', 'GARAGE']);
   assert.deepEqual(labels(J(w.WorldModel.officeLayout().zones)), ['GARAGE']);
+  assert.deepEqual(labels(null), ['GARAGE'], 'no zones yet: the office as it now is, never the old playroom and garden');
 });

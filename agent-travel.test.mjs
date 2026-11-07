@@ -424,6 +424,12 @@ test('friends: a limited agent on friend-1 leaves its door at the time first see
   assert.equal(sm.friends(p, 200, mr)[0].trip.departAt, 100);
 });
 
+test('friends: an agent with no name is labelled Helper', () => {
+  const A = withStorage(null), rs = (a, b) => A.route(town, a, b);
+  const L = A.store().friends(party(['m1', 'Ana', [{ id: 'p1', key: 'pixel', state: 'limited' }]]), 100, rs);
+  assert.equal(L[0].name, 'Helper · Ana');
+});
+
 test('friends: back to working -> walks home to friend-1 from the time that was first seen', () => {
   const A = withStorage({}), rs = (a, b) => A.route(town, a, b), s = A.store();
   s.friends(party(['m1', 'Ana', [fa('p1', 'limited')]]), 0, rs);
@@ -449,4 +455,21 @@ test('friends: other states never travel; lots in join order; ids namespaced by 
   const J = { 'ao.friendTrips': JSON.stringify({ 'm1:p1': [1], 'm1:p2': { state: 'limited', at: 'x' } }) }, B = withStorage(J);
   const jl = B.store().friends(party(['m1', 'Ana', [fa('p1', 'limited'), fa('p2', 'limited')]]), 50, (a, b) => B.route(town, a, b));
   assert.deepEqual(plain(jl.map(f => f.trip.departAt)), [50, 50]);
+});
+
+test('town.html: the __town.travellers() debug read leaves the walk state alone', async () => {
+  const html = fs.readFileSync(new URL('./public/town.html', import.meta.url), 'utf8');
+  const fn = html.match(/function travellers\(now[^]*?\r?\n    }\r?\n/)[0], hook = html.match(/travellers: \(\) => (.+?\)), trips:/)[1];
+  const vm = await import('node:vm');
+  const c = vm.createContext({ Date, Math, Map,
+    AT: { where: (rec, now) => ({ scene: 'town', pos: { x: now / 1000, y: 0 } }) },
+    TownRender: { faceAlong: () => 'e', walkFrame: d => d },
+    OfficeSprites: { lookOf: a => a },
+    snap: { agents: [{ id: 'a1', trip: {} }] }, friends: [], trips: {}, routes: null, walked: new Map([['a1', { x: 1, y: 0, dist: 5, face: 'e' }]]) });
+  vm.runInContext(fn + ';globalThis.hook = () => ' + hook + ';', c);
+  const before = JSON.stringify([...c.walked]);
+  c.hook(); c.hook();
+  assert.equal(JSON.stringify([...c.walked]), before);
+  c.travellers(3000);
+  assert.notEqual(JSON.stringify([...c.walked]), before, 'the frame loop still records the walk');
 });

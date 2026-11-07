@@ -92,7 +92,9 @@ export function createWorldStore(dir, opts = {}) {
     },
     getTemplate(id) {
       if (!SLUG.test(String(id))) return null;
-      const layout = ids(builtinDir).includes(id) ? readJson(path.join(builtinDir, id + '.json')) : readJson(path.join(userDir, id + '.json'))?.layout;
+      const builtIn = ids(builtinDir).includes(id), raw = readJson(path.join(builtIn ? builtinDir : userDir, id + '.json'));
+      // built-in office templates predate the move of the playroom and garden: serve them migrated (user templates are theirs)
+      const layout = !builtIn ? raw?.layout : raw && sceneOk(raw, 'office') ? migrateV2(raw) : raw;
       return layout && WM.validate(J(layout)).ok ? { layout } : null;
     },
     saveTemplate(name, layout) {

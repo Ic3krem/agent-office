@@ -211,7 +211,7 @@
             const at = p && p.state === a.state ? p.at : now;
             const tr = trip(p && p.trip || null, { statusAt: at }, limited ? 'kain' : null, now, lot, routes);
             out[key] = p && p.at === at && (p.trip || null) === tr ? p : Object.assign({ state: a.state, at }, tr ? { trip: tr } : {});
-            if (tr) list.push({ id: 'friend:' + key, name: a.name + ' · ' + m.name, status: a.state, trip: tr });
+            if (tr) list.push({ id: 'friend:' + key, name: (a.name || 'Helper') + ' · ' + m.name, status: a.state, trip: tr });
           }
         }
         friendRecs = out;

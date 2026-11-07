@@ -80,6 +80,16 @@ test('syncPool: n travellers -> n visible sprites; one fewer -> one hidden, not 
   assert.equal(made.filter(s => s.visible).length, 0);
 });
 
+test('lruEvict: oldest first, never a key in use this frame; all in use -> the cache grows instead', () => {
+  const m = new Map(['k0', 'k1', 'k2', 'k3', 'k4'].map(k => [k, { k }]));
+  const out = R.lruEvict(m, 3, new Set(['k0', 'k1', 'k4']));
+  assert.deepEqual(plain(out).map(t => t.k), ['k2', 'k3']);
+  assert.deepEqual([...m.keys()], ['k0', 'k1', 'k4']);
+  const all = new Map([['a', 1], ['b', 2]]);
+  assert.equal(R.lruEvict(all, 1, new Set(['a', 'b'])).length, 0);
+  assert.equal(all.size, 2);
+});
+
 test('charPlace: z-order x+y (after sprites at the same depth), view/flip from the face', () => {
   const s = R.charPlace(500, 510, 's'), n = R.charPlace(500, 510, 'w');
   assert.equal(s.z, 1010 + 1e-3);

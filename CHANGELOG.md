@@ -12,6 +12,8 @@ The next major version, coming soon. Agent Office is being renamed **Tiro Worksp
 - **Walk the office as the CEO.** Move with the keyboard, click-to-walk or an on-screen joystick. Walk up to Tiro for Chat, Prioritize, Boost (the strongest model, with a cost confirmation and plan-limit checks) or Speed (the fastest model); walk up to a desk to see what a specialist is doing.
 - **Security hardening for release.** Every write needs the session token; transcripts, notes and layouts are checked so malformed files cannot break the office; secret redaction is better; hire approvals show the full request.
 
+**Upgrade note: the office layout is upgraded once.** The playroom moved to the game hall and the garden outdoors, so the first start of this build rewrites the office layout (`~/.claude/agent-office/world/layout.json`) without them. The original is kept beside it as `layout.v1.json`. To roll back, stop the app, copy `layout.v1.json` over `layout.json`, add `"migrated": 2` to it if you are staying on the new build (otherwise it is upgraded again), then restart. Older builds can't read the new office.
+
 **Planned after v2** (not built yet): a wardrobe with costumes; zero-token NPCs and a karinderya break room; a self-hosted party server to visit friends' offices; mini-games.
 
 

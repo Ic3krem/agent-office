@@ -66,7 +66,7 @@
       kick();
     };
     const kick = () => { if (!tRaf) tRaf = requestAnimationFrame(tTick); };
-    function travellers(now) {
+    function travellers(now, peek) { // peek: a read-only snapshot (debug hook), the walk state stays as it is
       const out = [], seen = new Map();
       for (const a of ((snap && snap.agents) || []).concat(friends)) {
         const rec = a.trip || trips[a.id]; if (!rec) continue;
@@ -77,7 +77,7 @@
         seen.set(a.id, { x: pos.x, y: pos.y, dist, face });
         out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a.profile ? { id: a.id, name: a.name, key: a.profile.key, color: a.profile.color, accent: a.profile.accent } : a), name: a.name || 'Helper', accent: a.profile && a.profile.accent });
       }
-      walked.clear(); for (const [k, v] of seen) walked.set(k, v);
+      if (!peek) { walked.clear(); for (const [k, v] of seen) walked.set(k, v); }
       return out;
     }
     function tTick() {
@@ -111,7 +111,7 @@
         } catch (e) {}
       };
     } catch (e) {}
-    window.__town = { api, p, grid, map, toWorld: api.toWorld, near: () => near && near.id, travellers: () => travellers(Date.now()), trips: () => trips }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { api, p, grid, map, toWorld: api.toWorld, near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;

@@ -167,7 +167,7 @@
   function stepWalker(w, dt, others) {
     if (w.fadeDir) { // fade-teleport fallback
       w.fade += w.fadeDir * dt / 0.22;
-      if (w.fadeDir < 0 && w.fade <= 0) { w.fade = 0; w.fadeDir = 1; w.x = w.goal.x; w.y = w.goal.y; w.path = []; w.moving = false; if (spotOf(w.target)) w.face = spotOf(w.target).face; }
+      if (w.fadeDir < 0 && w.fade <= 0) { w.fade = 0; w.fadeDir = 1; if (w.goal) { w.x = w.goal.x; w.y = w.goal.y; } w.path = []; w.moving = false; if (spotOf(w.target)) w.face = spotOf(w.target).face; }
       else if (w.fadeDir > 0 && w.fade >= 1) { w.fade = 1; w.fadeDir = 0; }
       return w;
     }
@@ -388,7 +388,7 @@
         else if (st === S.BACK) { // return by the normal rules, but not the playroom until the walk back finishes
           const back = nextState({ isManager: false, status: a.status, perm: a.perm, quietMs, toolInFlight, prev: null, prevSince: 0, first: false }, board, now);
           spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claimEat(a.id, !!a.at) : home();
-        } else if (st === S.THINK) spotId = a.isManager ? 'tiro:window' : (claim(gardenOf, GARDEN, a.id) || home());
+        } else if (st === S.THINK) spotId = a.isManager ? 'tiro:window' : (claim(gardenOf, GARDEN.filter(id => SPOTS[id]), a.id) || home());
         else if (st === S.WINDOW) spotId = 'tiro:window';
         else if (st === S.PLAY) {
           let s = playOf[a.id];

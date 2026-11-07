@@ -211,6 +211,24 @@ test('brain: working with no events for 6 s thinks in the garden, an event bring
   assert.equal(find(f, 'a-atlas').state, S.DESK, 'a tool call in flight is not thinking');
 });
 
+test('brain: in the migrated office (no garden) a quiet working agent thinks at its own desk', () => {
+  M.useLayout(W.officeLayout());
+  try {
+    assert.ok(!Object.keys(M.SPOTS).some(id => id.startsWith('garden:')));
+    const b = M.createBrain({ wall: () => 1e12 });
+    const mk = () => snap([tiro('working'), ag('atlas', 'working')], [goal('g1', 'doing')], 1);
+    b.update(mk(), 0);
+    const f = b.update(mk(), 7000), g = find(f, 'a-atlas');
+    assert.equal(g.state, S.THINK);
+    assert.equal(g.spot, ROSTER.atlas.desk);
+  } finally { M.useLayout(W.defaultLayout()); }
+});
+
+test('a fading walker with no goal does not throw', () => {
+  const w = M.createWalker('x', 10, 10); w.fadeDir = -1; w.fade = 0.01; w.goal = null;
+  assert.doesNotThrow(() => M.stepWalker(w, 0.1, []));
+});
+
 test('brain: blocked and error stay seated with a badge, limited goes to the cooler', () => {
   const b = M.createBrain({ wall: () => 1e12 });
   const f = b.update(snap([tiro('working'), ag('forge', 'blocked', { perm: { askId: 'q', short: 'Bash', cmd: 'x' } }), ag('probe', 'error', { errText: 'boom' }), ag('tally', 'limited')], [goal('g1', 'doing')], 3), 0);
