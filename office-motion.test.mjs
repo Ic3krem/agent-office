@@ -508,14 +508,16 @@ const town = JSON.parse(fs.readFileSync(new URL('./public/town/town.json', impor
 const interior = s => JSON.parse(fs.readFileSync(new URL('./public/world-templates/interior-' + s + '.json', import.meta.url), 'utf8'));
 // The office page in a vm with a fake wall clock (AgentTravel.where reads Date.now()).
 const J = v => JSON.parse(JSON.stringify(v));
-function travelWorld(sceneName) {
-  const w = loadWorld({ extra: ['town-map.js', 'agent-travel.js', 'office-world.js'], globals: { OfficeSprites: { lookOf: () => ({}), W: 32, H: 48 } } });
+// storage: a plain object standing in for localStorage (omit: no storage, memory only).
+const fakeStorage = data => ({ getItem: k => k in data ? data[k] : null, setItem: (k, v) => { data[k] = String(v); }, removeItem: k => { delete data[k]; } });
+function travelWorld(sceneName, office = { kain: false, play: true }, storage) {
+  const w = loadWorld({ extra: ['town-map.js', 'agent-travel.js', 'office-world.js'], globals: { OfficeSprites: { lookOf: () => ({}), W: 32, H: 48 }, ...(storage ? { localStorage: fakeStorage(storage) } : {}) } });
   w.document.documentElement = { dataset: {} };
   let t = 1e12; vm.runInContext("Date", w).now = () => t;
   const AT = w.AgentTravel, routes = (a, b) => AT.route(town, a, b);
   const OW = w.OfficeWorld;
   if (sceneName) { OW.setScene(sceneName); OW.applyLayout(interior(sceneName)); }
-  OW.setTravel({ routes, office: sceneName ? { kain: false, play: true } : undefined });
+  OW.setTravel({ routes, office: sceneName ? office : undefined });
   const R = routes('home', 'kain'), TOWN = R.len / AT.TOWN_SPEED * 1000;
   return { w, OW, AT, routes, TOWN, T0: 1e12, at: v => { t = v; }, dbg: id => (OW.debug() || { agents: [] }).agents.find(a => a.id === id) };
 }
@@ -577,5 +579,55 @@ test('eight eaters, six stools: the two extra stand near the counter, never stac
     for (const a of extra) { const sp = M.SPOTS[a.spot]; assert.ok(sp && !sp.seat && !sp.desk && a.spot !== 'door', a.spot); assert.equal(a.pose, 'cooler'); }
     // and every stand spot is open floor
     for (const a of extra) assert.ok(!M.grid().blocked[ctx.WorldPath.cellOf(M.grid(), M.SPOTS[a.spot])], a.spot);
+  } finally { M.useLayout(W.defaultLayout()); }
+});
+
+// ---------- fix round 1 ----------
+test('games trips: not the instant the board empties; ao.boardEmptyAt is kept, cleared when full; the return leaves when it fills', () => {
+  const store = {}, v = travelWorld('games', { kain: false, play: false }, store), T0 = v.T0;
+  const idle = ag('tally', 'idle', { statusAt: T0 - 3600e3 }); // idle for an hour
+  v.at(T0); v.OW.setSnapshot(snap([tiro('idle'), idle])); v.OW.advance(0.1);
+  assert.equal(store['ao.boardEmptyAt'], String(T0));
+  assert.equal(v.dbg('a-tally'), undefined, 'still walking out of the office, not already there');
+  const rec = JSON.parse(store['ao.trips'])['a-tally'];
+  assert.equal(v.AT.where(rec, T0 + 1000, v.routes).leg, 'exit');
+  v.at(T0 + v.AT.EXIT_MS + v.routes('home', 'games').len / v.AT.TOWN_SPEED * 1000 + 100); v.OW.advance(0.1);
+  const a = v.dbg('a-tally'), door = v.w.OfficeMotion.SPOTS.door;
+  assert.ok(a && Math.hypot(a.x - door.x, a.y - door.y) < 20, 'walks in at the door ' + JSON.stringify(a));
+  // the board fills: the stored time is cleared and the return trip departs now
+  const full = T0 + 600000; v.at(full);
+  v.OW.setSnapshot(snap([tiro('idle'), idle], [goal('g1', 'todo')])); v.OW.advance(0.1);
+  assert.equal(store['ao.boardEmptyAt'], undefined);
+  assert.equal(JSON.parse(store['ao.trips'])['a-tally'].returnAt, full);
+  assert.equal(v.dbg('a-tally').spot, 'door', 'back-exit walks to the door');
+});
+
+test('a reload keeps the first-seen empty time from storage', () => {
+  const store = { 'ao.boardEmptyAt': String(1e12 - 5000) }, v = travelWorld('games', { kain: false, play: false }, store);
+  v.at(1e12); v.OW.setSnapshot(snap([tiro('idle'), ag('tally', 'idle', { statusAt: 0 })])); v.OW.advance(0.1);
+  assert.equal(store['ao.boardEmptyAt'], String(1e12 - 5000));
+  assert.equal(JSON.parse(store['ao.trips'])['a-tally'].departAt, 1e12 - 5000);
+});
+
+test('bad stored records are dropped; a where() that throws counts as home', () => {
+  const store = { 'ao.trips': JSON.stringify({ 'a-x': [1, 2], 'a-y': 'nope', 'a-z': null }) }, v = travelWorld(null, undefined, store);
+  v.at(v.T0); v.OW.setSnapshot(snap([tiro('working'), ag('forge', 'working', { statusAt: v.T0 })], [goal('g1', 'doing')]));
+  assert.deepEqual(JSON.parse(store['ao.trips']), {});
+  const w2 = travelWorld(null); w2.at(w2.T0);
+  w2.AT.where = () => { throw new Error('bad record'); };
+  w2.OW.setSnapshot(snap([tiro('working'), ag('tally', 'limited', { statusAt: w2.T0 })], [goal('g1', 'doing')]));
+  w2.OW.advance(0.1);
+  assert.ok(w2.dbg('a-tally'), 'shown at home in the office');
+  assert.notEqual(w2.dbg('a-tally').spot, 'exit');
+});
+
+test('games hall overflow stands on distinct open floor, never the door', () => {
+  M.useLayout(interior('games'));
+  try {
+    const f = M.createBrain({ wall: () => 1e12 }).update(snap(Array.from({ length: 20 }, (_, i) => ({ id: 'g' + String(i).padStart(2, '0'), status: 'idle', at: 'games', logs: [], profile: null }))), 0);
+    const spots = f.agents.map(a => a.spot);
+    assert.equal(new Set(spots).size, 20, String(spots));
+    assert.ok(!spots.includes('door'));
+    for (const id of spots.filter(x => !x.startsWith('play:'))) assert.ok(/^play-stand:/.test(id) && !M.grid().blocked[ctx.WorldPath.cellOf(M.grid(), M.SPOTS[id])], id);
   } finally { M.useLayout(W.defaultLayout()); }
 });

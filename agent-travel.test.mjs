@@ -258,11 +258,15 @@ test('destOf: limited -> kain, idle on an empty board -> games, only when the of
   assert.equal(T.destOf(a('idle'), none, false), null);
   assert.equal(T.destOf(a('limited', { isManager: true }), none, true), null);
   assert.equal(T.destOf(a('idle', { isManager: true }), none, true), null);
-  // the same states nextState sends to the cooler / playroom (after the idle delay)
+  // the same states nextState sends to the cooler / playroom once the idle delay has passed; the delay itself is in departAt
   for (const status of ['working', 'nudged', 'idle', 'blocked', 'error', 'limited']) for (const perm of [null, { askId: 'q' }]) for (const empty of [true, false]) {
-    const st = OM.nextState({ isManager: false, status, perm, quietMs: 0, toolInFlight: false, prev: null, prevSince: 0, first: false }, { empty, open: empty ? 0 : 1, emptyFor: Infinity }, 0);
-    const want = st === OM.S.COOLER ? 'kain' : st === OM.S.PLAY ? 'games' : null;
+    const ns = emptyFor => OM.nextState({ isManager: false, status, perm, quietMs: 0, toolInFlight: false, prev: null, prevSince: 0, first: false }, { empty, open: empty ? 0 : 1, emptyFor, idleDelay: OM.IDLE_DELAY }, 0);
+    const st = ns(OM.IDLE_DELAY), want = st === OM.S.COOLER ? 'kain' : st === OM.S.PLAY ? 'games' : null;
     assert.equal(T.destOf({ status, perm }, none, empty), want, status + ' ' + !!perm + ' ' + empty);
+    if (want === 'games') {
+      assert.notEqual(ns(OM.IDLE_DELAY - 1), OM.S.PLAY, 'not before the delay');
+      assert.equal(T.departAt({ status, perm, statusAt: 0 }, 'games', { emptyAt: 0 }), OM.IDLE_DELAY, 'departAt carries the same delay');
+    }
   }
 });
 
@@ -286,4 +290,26 @@ test('sync: one record per travelling agent, ids gone are dropped, nothing chang
   assert.deepEqual(plain(T.sync(null, agents, dest, 0, routes)), plain(r1), 'null records start empty');
   // JSON round trip (localStorage) gives the same records back
   assert.deepEqual(plain(T.sync(JSON.parse(JSON.stringify(r2)), [{ id: 'a', status: 'working', statusAt: 2000 }], dest, 3000, routes)), plain(r2));
+});
+
+test('departAt: games leave IDLE_DELAY after going idle and not before the board was seen empty; they return when it was seen full', () => {
+  assert.equal(T.IDLE_DELAY, OM.IDLE_DELAY);
+  const idle = { id: 'a', status: 'idle', statusAt: 1000 };
+  assert.equal(T.departAt(idle, 'games', { emptyAt: 0 }), 1000 + T.IDLE_DELAY);
+  assert.equal(T.departAt(idle, 'games', { emptyAt: 90000 }), 90000, 'an old idle: leaves when the board was first seen empty');
+  assert.equal(T.departAt(idle, null, { fullAt: 150000 }), 150000, 'back when the board was first seen full');
+  assert.equal(T.departAt({ status: 'working', statusAt: 200000 }, null, { fullAt: 150000 }), 200000);
+  assert.equal(T.departAt({ status: 'limited', statusAt: 5 }, 'kain', { emptyAt: 90000 }), 5, 'kain trips keep statusAt');
+  assert.equal(T.departAt(idle, 'games'), 1000 + T.IDLE_DELAY, 'no board info: just the delay');
+});
+
+test('sync with board times: an agent idle for an hour starts at the exit leg when the board is first seen empty, and walks back when it fills', () => {
+  const dest = a => T.destOf(a, none, true), idle = { id: 'a', status: 'idle', statusAt: -3600e3 };
+  const seen = 1e6, r1 = T.sync({}, [idle], dest, seen, routes, { emptyAt: seen });
+  assert.deepEqual(plain(W(r1.a, seen + 1000)).leg, 'exit', 'walks out, no jump to there');
+  assert.equal(W(r1.a, seen - 1).leg, 'home');
+  assert.equal(T.sync(r1, [idle], dest, seen + 5000, routes, { emptyAt: seen }), r1, 'stable');
+  const full = seen + 120000, r2 = T.sync(r1, [idle], a => T.destOf(a, none, false), full, routes, { fullAt: full });
+  assert.equal(r2.a.returnAt, full);
+  assert.equal(W(r2.a, full + 1000).leg, 'back-exit');
 });

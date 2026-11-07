@@ -102,6 +102,18 @@
     SPAWN.x = layout.spawn.x; SPAWN.y = layout.spawn.y;
     GRID = WM.gridOf(layout);
     standSpots();
+    if (layout.scene === 'games') floorSpots();
+  }
+  // Game hall standing room: open floor on a 40-unit lattice, clear of every spot and the door, nearest the play spots first.
+  function floorSpots() {
+    const P = PLAY.map(id => SPOTS[id]).filter(Boolean), all = Object.values(SPOTS), pts = [];
+    if (!P.length) return;
+    const cx = P.reduce((t, q) => t + q.x, 0) / P.length, cy = P.reduce((t, q) => t + q.y, 0) / P.length;
+    for (let x = 20; x < GRID.cols * GRID.cell; x += 40) for (let y = 20; y < GRID.rows * GRID.cell; y += 40) {
+      if (GRID.blocked[root.WorldPath.cellOf(GRID, { x, y })] || all.some(q => Math.hypot(q.x - x, q.y - y) < (q.id === 'door' ? 50 : 28))) continue;
+      pts.push([Math.hypot(x - cx, y - cy), x, y]);
+    }
+    pts.sort((a, b) => a[0] - b[0]).forEach(([, x, y], i) => spot('play-stand:' + (i + 1), x, y, faceOf(cx - x, cy - y, 's'), 'play'));
   }
   // Standing room for eaters past the stools: open floor beside the table (south of the back row, then east and west of
   // the rows), never a seat. Derived here (kain-stand:N), not layout spots.
@@ -241,21 +253,24 @@
     // plan limit: agents eat at a karinderya when the layout has one (its stools are kain:* spots), else stand at the cooler
     const eatSpots = () => { const k = Object.keys(SPOTS).filter(id => id.startsWith('kain:')); return k.length ? k : COOLER; };
     const claim = (map, list, id) => { if (map[id] && list.includes(map[id])) return map[id]; const used = Object.values(map); const s = list.find(x => !used.includes(x)); if (s) map[id] = s; else delete map[id]; return map[id] || null; };
-    // Stools go in the order agents are fed (own agents before party friends'), and a stander takes a stool that frees up.
-    // Overflow stands beside the table, then at the cooler, then on any free open spot: never two on one stool.
-    const claimEat = id => {
-      const stools = eatSpots();
-      if (stools === COOLER) return claim(coolOf, COOLER, id);
-      const cur = coolOf[id], used = Object.entries(coolOf).filter(([k]) => k !== id).map(([, v]) => v);
+    // Visiting eaters (a.at, an interior): stools in the order agents are fed (own agents before party friends'), and a
+    // stander takes a stool that frees up. Overflow stands beside the table, then at the cooler, then on any open floor
+    // spot nobody holds: never two on one spot. Eaters in the office keep the old rule (overflow goes home to the desk).
+    const held = id => new Set([playOf, gardenOf, coolOf].flatMap(m => Object.entries(m).filter(([k]) => k !== id).map(([, v]) => v)));
+    const openFloor = () => Object.values(SPOTS).filter(q => !q.seat && !q.desk && q.id !== 'door' && !/^(npc|office|queue|tiro):/.test(q.id)).map(q => q.id);
+    const claimEat = (id, visiting) => {
+      if (!visiting) return claim(coolOf, eatSpots(), id);
+      const stools = Object.keys(SPOTS).filter(k => k.startsWith('kain:')), cur = coolOf[id], used = held(id);
       if (stools.includes(cur)) return cur;
-      const free = stools.find(x => !used.includes(x));
+      const free = stools.find(x => !used.has(x));
       if (free) return (coolOf[id] = free);
-      if (cur && SPOTS[cur]) return cur;
-      const open = Object.values(SPOTS).filter(q => !q.seat && !q.desk && !q.id.startsWith('npc:') && q.id !== 'door').map(q => q.id);
-      const s = [...open.filter(x => x.startsWith('kain-stand:')), ...COOLER, ...open].find(x => SPOTS[x] && !used.includes(x));
+      if (cur && SPOTS[cur] && !used.has(cur)) return cur;
+      const open = openFloor(), s = [...open.filter(x => x.startsWith('kain-stand:')), ...COOLER, ...open].find(x => SPOTS[x] && !used.has(x));
       if (s) coolOf[id] = s; else delete coolOf[id];
       return coolOf[id] || null;
     };
+    // Visiting players past the game hall's play spots stand on its free open floor (play-stand:N), never the door.
+    const standPlay = id => { const used = held(id), s = openFloor().filter(x => x.startsWith('play-stand:')).find(x => !used.has(x)); if (s) playOf[id] = s; return s || null; };
 
     // playroom: take the free spot farthest from everyone already playing (ties keep list order), so the room fills evenly
     const plays = () => PLAY.filter(x => SPOTS[x]); // the game hall has only some of the office's play spots
@@ -367,7 +382,7 @@
         else if (st === S.QUEUE) { const q = reps.filter(r => r.phase === 'wait').findIndex(r => r.agentId === a.id); spotId = 'queue:' + Math.min(3, q + 1); }
         else if (st === S.BACK) { // return by the normal rules, but not the playroom until the walk back finishes
           const back = nextState({ isManager: false, status: a.status, perm: a.perm, quietMs, toolInFlight, prev: null, prevSince: 0, first: false }, board, now);
-          spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claimEat(a.id) : home();
+          spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claimEat(a.id, !!a.at) : home();
         } else if (st === S.THINK) spotId = a.isManager ? 'tiro:window' : (claim(gardenOf, GARDEN, a.id) || home());
         else if (st === S.WINDOW) spotId = 'tiro:window';
         else if (st === S.PLAY) {
@@ -377,8 +392,8 @@
             const f = farFrom(playOf, a.id);
             if (f) { s = f; playOf[a.id] = s; rotated = true; }
           }
-          spotId = s || home();
-        } else if (st === S.COOLER) spotId = claimEat(a.id) || home();
+          spotId = s || (a.at && standPlay(a.id)) || home();
+        } else if (st === S.COOLER) spotId = claimEat(a.id, !!a.at) || home();
         else spotId = home();
         if (st !== S.PLAY || a.leave) delete playOf[a.id];
         if (st !== S.THINK || a.leave) delete gardenOf[a.id];

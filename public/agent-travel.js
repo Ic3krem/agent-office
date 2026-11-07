@@ -4,7 +4,7 @@
 (function (root) {
   'use strict';
   const EXIT_MS = 6000, ENTER_MS = 5000, TOWN_SPEED = 80; // walk to a door; walk in from a door; town units per second
-  const DESTS = ['kain', 'games'], MAX_CHAIN = 4;
+  const DESTS = ['kain', 'games'], MAX_CHAIN = 4, IDLE_DELAY = 20000; // IDLE_DELAY = OfficeMotion.IDLE_DELAY (tested)
   const cache = new WeakMap(); // town data -> { grid, pairs }
 
   // A* path between two lot doors as {pts: [[x,y]...], len}, or null for an unknown lot or no path. Cached per pair.
@@ -125,18 +125,30 @@
     return empty && !office.play ? 'games' : null;
   }
 
+  // The time a trip decision takes effect (trip()'s statusAt). A games trip starts IDLE_DELAY after the agent went idle (as
+  // nextState waits before the playroom) and not before the board was first seen empty; staying home (dest null) starts
+  // no earlier than the board was first seen full, so an idle agent walks back then. board: {emptyAt?, fullAt?}, times
+  // the pages store when they first see the board empty / full.
+  function departAt(agent, dest, board) {
+    const s = agent.statusAt, b = board || {};
+    if (dest === 'games') return Math.max(s + IDLE_DELAY, typeof b.emptyAt === 'number' ? b.emptyAt : -Infinity);
+    if (!dest && typeof b.fullAt === 'number') return Math.max(s, b.fullAt);
+    return s;
+  }
+
   // Per-snapshot update: records {[agentId]: trip record} -> the new records, dropping ids no longer present. Returns
-  // `records` itself when nothing changed, so the page can skip its storage write.
-  function sync(records, agents, destFn, now, routes) {
+  // `records` itself when nothing changed, so the page can skip its storage write. board: see departAt.
+  function sync(records, agents, destFn, now, routes, board) {
     const prev = records || {}, out = {};
     let same = !!records;
     for (const a of agents || []) {
-      const r = trip(prev[a.id] || null, a, destFn(a), now, 'home', routes);
+      const dest = destFn(a), at = typeof a.statusAt === 'number' ? departAt(a, dest, board) : a.statusAt;
+      const r = trip(prev[a.id] || null, at === a.statusAt ? a : { statusAt: at }, dest, now, 'home', routes);
       if (r) out[a.id] = r;
       if (r !== (prev[a.id] || null)) same = false;
     }
     return same && Object.keys(out).length === Object.keys(prev).length ? records : out;
   }
 
-  root.AgentTravel = { route, trip, where, destOf, sync, EXIT_MS, ENTER_MS, TOWN_SPEED };
+  root.AgentTravel = { route, trip, where, destOf, departAt, sync, EXIT_MS, ENTER_MS, TOWN_SPEED, IDLE_DELAY };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

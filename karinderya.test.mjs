@@ -71,3 +71,30 @@ test('ruling 3: an office with its own karinderya keeps limited agents on its st
   assert.ok(d.find(a => a.id === 'a-tally').spot.startsWith('kain:') && d.find(a => a.id === 'a-forge').spot.startsWith('kain:'));
   assert.equal(asked, 0);
 });
+
+test('fix round 1: an office karinderya behaves as before: the 7th and 8th limited agents go to their desks', () => {
+  try {
+    M.useLayout(withPieces());
+    const keys = M.TEAM.map(t => t.key);
+    assert.equal(keys.length, 8);
+    const f = M.createBrain({ wall: () => 1e12 }).update(snap([tiro, ...keys.map(k => ag(k, 'limited'))]), 0);
+    const eat = keys.map(k => f.agents.find(a => a.id === 'a-' + k));
+    assert.deepEqual(J(eat.slice(0, 6).map(a => a.spot.startsWith('kain:'))), [true, true, true, true, true, true]);
+    assert.deepEqual(J(eat.slice(6).map(a => a.spot)), J(eat.slice(6).map(a => ROSTER[a.key].desk)));
+  } finally { M.useLayout(WM.defaultLayout()); }
+});
+
+test('fix round 1: the eaters open-floor fallback skips claimed spots and office/queue/tiro spots', () => {
+  try {
+    M.useLayout(withPieces());
+    const eaters = Array.from({ length: 40 }, (_, i) => ({ id: 'v' + String(i).padStart(2, '0'), status: 'limited', at: 'kain', logs: [], profile: null }));
+    const players = M.TEAM.slice(0, 3).map(t => ag(t.key, 'idle'));
+    const f = M.createBrain({ wall: () => 1e12 }).update({ ...snap([...players, ...eaters]), goals: [], boss: { active: true, running: 0, max: 8 } }, 0); // empty board: players play
+    const pl = players.map(p => f.agents.find(a => a.id === p.id).spot);
+    assert.ok(pl.every(s => s.startsWith('play:')), String(pl));
+    const ea = eaters.map(e => f.agents.find(a => a.id === e.id).spot);
+    for (const s of ea) assert.ok(!/^(office|queue|tiro):/.test(s), s);
+    const placed = ea.filter(s => s !== M.exitId() && !/^hot:|^over:/.test(s));
+    assert.equal(new Set([...placed, ...pl]).size, placed.length + pl.length, 'no spot shared with a player or another eater');
+  } finally { M.useLayout(WM.defaultLayout()); }
+});
