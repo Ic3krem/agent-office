@@ -113,8 +113,23 @@
   const deskRole = o => o.role || root.RoleCatalog.BUILTIN_DESKS[o.desk];
   const MAX_DESKS = 12;
   const desksOf = layout => layout.objects.filter(o => o.type === 'dept-desk');
-  // An interior needs only its exit door; the office needs every spot the agent brain reads.
-  const requiredSpots = layout => { const M = root.OfficeMotion; return layout.scene ? ['door'] : M ? [...desksOf(layout).map(o => o.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
+  // An interior needs only its exit door; the office needs every spot the agent brain reads. Play and garden spots are
+  // optional since town step 3: without them PLAY travels to the game hall and THINK stays at the desk.
+  const requiredSpots = layout => { const M = root.OfficeMotion; return layout.scene ? ['door'] : M ? [...desksOf(layout).map(o => o.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
+
+  // Town step 3: the playroom moved to the game hall and the garden outdoors. An office layout saved before then drops
+  // these types (the step 2 play pieces and both ponds), garden trees and benches standing in a garden zone, and the
+  // play and garden spots. Zones stay. Returns a new layout with migrated: 2; world-store backs up and writes it.
+  const MIGRATE_V2 = ['arcade', 'arcade-race', 'jukebox', 'sofa3', 'snack-table', 'beanbag', 'ball-pit', 'hoop', 'dartboard', 'toy-bin', 'pond', 'pond-east'];
+  const MIGRATE_V2_GARDEN = ['tree', 'bench', 'bench-side'];
+  function migrateV2(layout) {
+    const M = root.OfficeMotion, spots = new Set([...M.PLAY, ...M.GARDEN]), garden = rectsOf(layout, 'garden');
+    const inGarden = o => garden.some(([x0, y0, x1, y1]) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1);
+    return Object.assign({}, layout, {
+      objects: layout.objects.filter(o => !MIGRATE_V2.includes(o.type) && !(MIGRATE_V2_GARDEN.includes(o.type) && inGarden(o))),
+      spots: layout.spots.filter(s => !spots.has(s.id)), migrated: 2,
+    });
+  }
 
   function validate(layout) {
     const errors = [];
@@ -166,6 +181,6 @@
     }
   }
 
-  root.WorldModel = { VERSION, INTERIORS, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS };
+  root.WorldModel = { VERSION, INTERIORS, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS, MIGRATE_V2, MIGRATE_V2_GARDEN, migrateV2 };
   if (root.OfficeMotion && typeof root.OfficeMotion.useLayout === 'function') root.OfficeMotion.useLayout(defaultLayout());
 })(globalThis);

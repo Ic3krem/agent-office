@@ -21,14 +21,15 @@ export function createWorldStore(dir, opts = {}) {
   const noop = new Proxy(function () {}, { get: () => noop, apply: () => noop, set: () => true });
   const WM = loadWorld({ ctxFactory: () => noop }).WorldModel;
   const J = (v) => JSON.parse(JSON.stringify(v)); // the vm has its own realm
+  const migrateV2 = (l) => J((opts.migrateV2 || WM.migrateV2)(J(l))); // opts.migrateV2: tests
   const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const ids = (d) => { try { return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).filter((i) => SLUG.test(i)); } catch { return []; } };
   const builtIds = () => ids(builtinDir).filter((i) => !i.startsWith('interior-')); // interior-* are scene defaults: fetchable (Build's reset), never listed
-  // Atomic, fsynced write shared by the layout and templates.
+  // Atomic, fsynced write shared by the layout and templates. A string is written as is (the v1 backup keeps the bytes).
   const writeAtomic = (f, data) => {
     fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
     const fd = fs.openSync(f + '.tmp', 'w', 0o600);
-    try { fs.writeFileSync(fd, JSON.stringify(data)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    try { fs.writeFileSync(fd, typeof data === 'string' ? data : JSON.stringify(data)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.renameSync(f + '.tmp', f);
   };
   // A missing or bad file means the scene's default: the office's built-in layout, an interior's template.
@@ -36,13 +37,27 @@ export function createWorldStore(dir, opts = {}) {
   const missingLogged = {};
   const emptyRoom = (scene) => ({ version: 1, scene, size: { w: 600, h: 400 }, spawn: { x: 300, y: 330 }, zones: [{ id: 'floor', type: 'office', rect: [0, 0, 600, 400] }], objects: [], spots: [{ id: 'door', x: 300, y: 390, face: 's', zone: 'door' }] });
   const defaultOf = (scene) => {
-    if (scene === 'office') return J(WM.defaultLayout());
+    if (scene === 'office') return migrateV2(WM.defaultLayout()); // a fresh install starts without the playroom and garden
     const f = path.join(builtinDir, 'interior-' + scene + '.json'), l = readJson(f);
     if (l && sceneOk(l, scene) && WM.validate(J(l)).ok) return l;
     if (!missingLogged[scene]) { missingLogged[scene] = true; console.error('[world] the built-in interior template ' + f + ' is missing or invalid; showing an empty ' + scene + ' room'); }
     return emptyRoom(scene);
   };
   const sceneOk = (layout, scene) => (layout?.scene ?? 'office') === scene;
+  // Town step 3: an office layout saved before the playroom and garden moved out. The exact old bytes go to layout.v1.json
+  // first (never overwriting a different v1); on any doubt the layout stays as it is (valid, unmigrated) and the log says why.
+  const migrate = (file, text, layout) => {
+    const keep = (why) => { console.error('[world] layout.json not migrated: ' + why); return layout; };
+    const next = migrateV2(layout), v = WM.validate(J(next));
+    if (!v.ok) return keep('the migrated layout is invalid: ' + v.errors.slice(0, 3).join('; '));
+    const v1 = path.join(dir, 'layout.v1.json');
+    try {
+      if (!fs.existsSync(v1)) writeAtomic(v1, text);
+      else if (fs.readFileSync(v1, 'utf8') !== text) return keep('layout.v1.json already holds a different layout');
+    } catch (e) { return keep('the backup to layout.v1.json failed (' + (e.code || e.message) + ')'); }
+    try { writeAtomic(file, next); } catch (e) { return keep('the rewrite failed (' + (e.code || e.message) + ')'); }
+    return next;
+  };
   return {
     load(scene = 'office') {
       const file = fileOf(scene), name = FILES[scene];
@@ -57,14 +72,15 @@ export function createWorldStore(dir, opts = {}) {
       try { layout = JSON.parse(text); } catch { return fallback(name + ' is not valid JSON; using the default'); }
       const r = WM.validate(J(layout));
       if (r.ok && !sceneOk(layout, scene)) return fallback(name + ' holds another scene; using the default');
-      return r.ok ? { layout, source: 'file' } : fallback(name + ' rejected: ' + r.errors.slice(0, 3).join('; '));
+      if (!r.ok) return fallback(name + ' rejected: ' + r.errors.slice(0, 3).join('; '));
+      return { layout: scene === 'office' && layout.migrated !== 2 ? migrate(file, text, layout) : layout, source: 'file' };
     },
     save(layout, scene = 'office') {
       const file = fileOf(scene);
       const r = WM.validate(J(layout ?? null));
       if (!r.ok) return { ok: false, errors: J(r.errors) };
       if (!sceneOk(layout, scene)) return { ok: false, errors: ['this layout is for ' + (layout.scene ?? 'office') + ', not ' + scene] };
-      writeAtomic(file, layout);
+      writeAtomic(file, scene === 'office' ? { ...layout, migrated: 2 } : layout); // saved after the move: any playroom is the user's own
       ver[scene]++;
       return { ok: true };
     },

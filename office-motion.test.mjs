@@ -658,3 +658,25 @@ test('R2 stander churn: when an earlier stander leaves, the others keep their st
     } finally { M.useLayout(W.defaultLayout()); }
   }
 });
+
+// Task 5 (ruling 3): after the migration the office has no play spots, so PLAY goes to the game hall through the travel
+// seam; the classic office (its own playroom) keeps playing at home.
+test('a migrated office (no play spots) sends an idle agent on an empty board to the game hall; the classic office does not', () => {
+  for (const migrated of [true, false]) {
+    const store = {}, v = travelWorld(null, undefined, store), T0 = v.T0, WMv = v.w.WorldModel;
+    if (migrated) v.OW.applyLayout(J(WMv.migrateV2(WMv.defaultLayout())));
+    assert.equal(v.w.OfficeMotion.travelFlags().play, !migrated);
+    const idle = ag('tally', 'idle', { statusAt: T0 - 3600e3 });
+    v.at(T0); v.OW.setSnapshot(snap([tiro('idle'), idle])); v.OW.advance(0.1);
+    const t = T0 + v.AT.IDLE_DELAY + 1000; v.at(t); v.OW.setSnapshot(snap([tiro('idle'), idle])); v.OW.advance(0.1);
+    const rec = JSON.parse(store['ao.trips'] || '{}')['a-tally'], a = v.dbg('a-tally');
+    if (migrated) {
+      assert.equal(rec && rec.dest, 'games');
+      assert.equal(v.AT.where(rec, t, v.routes).leg, 'exit');
+      assert.equal(a.spot, 'exit', 'walking out of the office');
+    } else {
+      assert.equal(rec, undefined, 'no trip: plays in its own playroom');
+      assert.ok(M.PLAY.includes(a.spot), a.spot);
+    }
+  }
+});

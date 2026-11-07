@@ -148,3 +148,9 @@ test("removing desk-3 is allowed; desk-3's spot is no longer required", () => {
   assert.ok(!WM.requiredSpots(l).includes('desk-3'));
   assert.ok(WM.requiredSpots(l).includes('desk-4') && WM.requiredSpots(l).includes('tiro:seat'));
 });
+
+test('town step 3: play and garden spots are optional in the office (PLAY travels to the game hall)', () => {
+  const req = WM.requiredSpots(J(WM.defaultLayout()));
+  assert.ok(req.includes('cool:1') && req.includes('queue:1'));
+  assert.deepEqual(J(req.filter((id) => /^(play|garden|pk):/.test(id))), []);
+});

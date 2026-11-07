@@ -35,9 +35,10 @@ test('illegal move changes nothing', () => {
 
 test('cannot delete pieces agents need', () => {
   const s = E.createSession(WM.defaultLayout());
-  const sofa = J(s.remove('sofa3'));
-  assert.equal(sofa.ok, false);
-  assert.match(sofa.reason, /play:sofa1/);
+  const chair = J(s.remove('tiro-chair'));
+  assert.equal(chair.ok, false);
+  assert.match(chair.reason, /tiro:seat/);
+  assert.equal(s.remove('sofa3').ok, true, 'the playroom is optional since town step 3 (PLAY travels to the game hall)');
   assert.equal(s.remove('bird-feeder').ok, true);
   assert.equal(s.canUndo(), true);
 });
