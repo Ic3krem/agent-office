@@ -3,7 +3,7 @@
  "files": [
   {
    "file": "art/palette-office.json",
-   "sha256": "e49f1a90e54857d25dc3eb125adae7b381e68d0bbc3bbcdf552e23538e0b7a07",
+   "sha256": "bc2bf71eb883c9eb684cc5f3c189b022f7063fb48ac0c4b9ee4627c057362534",
    "script": "art/post.py",
    "date": "2026-11-07",
    "license": "Apache-2.0 (original)"
@@ -17,29 +17,29 @@
   },
   {
    "file": "public/art/office/atlas-glow.png",
-   "sha256": "cbbdaa66f73ec8a0ea53a282d01e5c6200b29b6add78fefd5f5f0fb1995620d5",
-   "script": "art/blender/office_assets.py + art/post.py",
+   "sha256": "0f4e1c07dd27c4b5fb802c11fd63d12eef964bae15a0a41c48222c1065f9f5b7",
+   "script": "art/blender/office_assets.py + art/blender/office_shell.py + art/post.py",
    "date": "2026-11-07",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/office/atlas-shadow.png",
-   "sha256": "a1c408c341656002af18f5ade3d8b31c40c86697ecff01448e58138f70494b08",
-   "script": "art/blender/office_assets.py + art/post.py",
+   "sha256": "79c3e4413a6ae251133ec4348b1024ef1f8caeba938d403c985a039b7672763b",
+   "script": "art/blender/office_assets.py + art/blender/office_shell.py + art/post.py",
    "date": "2026-11-07",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/office/atlas.json",
-   "sha256": "7a40900481d930cdf7202dcdeb0326c4ce51bc44736f35d7f27f5544337242ae",
-   "script": "art/blender/office_assets.py + art/post.py",
+   "sha256": "4d074274df3323ab5c0e40a99244da1b1a8aaab3a9992ba3757ffb65e27209db",
+   "script": "art/blender/office_assets.py + art/blender/office_shell.py + art/post.py",
    "date": "2026-11-07",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/office/atlas.png",
-   "sha256": "ad17358c1ef0ce21bc02cd26e64461997a235e90113848d95fc18b550be528a7",
-   "script": "art/blender/office_assets.py + art/post.py",
+   "sha256": "aaec49527d210acf036fa136cf8124c8ca291d105b5ae97281cc0773e0487efc",
+   "script": "art/blender/office_assets.py + art/blender/office_shell.py + art/post.py",
    "date": "2026-11-07",
    "license": "Apache-2.0 (original)"
   },

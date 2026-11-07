@@ -735,7 +735,8 @@
     if (typeof fetch !== 'function' || typeof Image !== 'function') return;
     fetch('/art/office/atlas.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(a => new Promise((ok, no) => { const image = new Image(); image.onload = () => ok(Object.assign({}, a, { image })); image.onerror = () => no(new Error('atlas.png did not load')); image.src = '/art/office/atlas.png'; }))
-      .then(a => { F.useAtlas(a); rebuildObjects(); wake(); })
+      .then(a => new Promise(ok => { const glow = new Image(); glow.onload = () => ok(Object.assign(a, { glow })); glow.onerror = () => ok(a); glow.src = '/art/office/atlas-glow.png'; })) // night windows; optional
+      .then(a => { F.useAtlas(a); bg = null; rebuildObjects(); wake(); }) // re-bake: floors and walls come from the atlas too
       .catch(e => console.info('Office art not loaded, drawing the furniture instead:', e.message));
   }
   function setScale(s) { // css scale of the stage * device pixel ratio -> internal canvas resolution

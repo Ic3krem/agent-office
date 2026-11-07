@@ -98,12 +98,48 @@ test('bake with default zones is unchanged', () => {
   assert.ok(!w.WorldModel.isDefaultZones(z));
 });
 
-test('bake draws the 1.2.9 floor, before and after default zones', () => {
-  const pin = JSON.parse(fs.readFileSync(new URL('./fixtures/office-bake-golden.json', import.meta.url), 'utf8')).hash;
-  const w = loadWorld();
-  assert.equal(hashLog(bakeLog(w)), pin);
-  w.OfficeFurniture.setZones(w.WorldModel.defaultLayout().zones);
-  assert.equal(hashLog(bakeLog(w)), pin);
+// ---- the office art room shell (floor tiles, wall strips) ----
+const KINDS = ['wood', 'carpet', 'grass', 'concrete', 'asphalt', 'pavers', 'water', 'rug', 'terracotta'];
+const SHELL = Object.fromEntries([...KINDS.map(k => ['floor@' + k, { x: 0, y: 0, w: 128, h: 64, ax: 64, ay: 32 }]),
+  ['wall@x', { x: 0, y: 100, w: 560, h: 440, ax: 8, ay: 10, glow: true }], ['wall@y', { x: 0, y: 600, w: 890, h: 600, ax: 10, ay: 12, glow: true }]]);
+const shellWorld = () => { const w = loadWorld({ ctxFactory: () => recorder([]) }); w.OfficeFurniture.useAtlas({ image: { tag: 'IMG' }, glow: { tag: 'GLOW' }, frames: SHELL }); return w; };
+// the polygon each pattern fill paints: the moveTo/lineTo run that the fill closes
+const patternFills = calls => calls.flatMap((c, i) => {
+  if (c[0] !== 'fill' || !calls.slice(Math.max(0, i - 4), i).some(a => a[0] === '=' && a[1] === 'fillStyle' && a[2] === 'pattern')) return [];
+  let k = i; while (k > 0 && calls[k][0] !== 'moveTo') k--;
+  return [calls.slice(k, i).filter(a => a[0] === 'moveTo' || a[0] === 'lineTo').map(a => [a[1], a[2]])];
+});
+
+test('with the office art, bake fills every default zone with one pattern clipped to its frozen floor polygon', () => {
+  const want = JSON.parse(fs.readFileSync(new URL('./fixtures/office-bake-golden.json', import.meta.url), 'utf8')).zones;
+  for (const zones of [null, 'default']) {
+    const w = shellWorld(), F = w.OfficeFurniture, Z = w.WorldModel.defaultLayout().zones;
+    if (zones) F.setZones(Z);
+    const fills = patternFills(bakeLog(w));
+    assert.equal(fills.length, Z.length, 'one pattern fill per zone');
+    Z.forEach((q, i) => { if (q.type !== 'water') assert.deepEqual(fills[i], want[q.id], q.id); });
+  }
+});
+
+test('with the office art, bake draws both wall strips, and lays the glow sheet over them after dusk', () => {
+  const w = shellWorld(), F = w.OfficeFurniture, img = c => c.filter(a => a[0] === 'drawImage').map(a => a[1] + ' ' + a[3]);
+  const day = bakeLog(w);
+  assert.deepEqual(img(day), ['IMG 600', 'IMG 100'], 'wall@y then wall@x, no glow by day');
+  assert.ok(!day.some(a => a[0] === 'createLinearGradient'), 'no procedural wall or window gradients');
+  const calls = [], ctx = recorder(calls); ctx.globalAlpha = 1; F.state.night = .6; F.bake(ctx);
+  assert.deepEqual(img(calls), ['IMG 600', 'GLOW 600', 'IMG 100', 'GLOW 100']);
+  const i = calls.findIndex(a => a[0] === 'drawImage' && a[1] === 'GLOW');
+  assert.ok(calls.slice(i - 3, i).some(a => a[0] === '=' && a[1] === 'globalAlpha' && a[2] === .6), 'glow fades in with the night');
+});
+
+test('floor patterns are made once per atlas, and every zone type has a tile', () => {
+  const w = shellWorld(), F = w.OfficeFurniture, made = c => c.filter(a => a[0] === 'createPattern').length;
+  assert.equal(made(bakeLog(w)), 7, 'the default layout uses wood, grass, asphalt, water, concrete, carpet and pavers');
+  assert.equal(made(bakeLog(w)), 0, 'a second bake reuses them');
+  for (const type of w.WorldModel.ZONE_TYPES) {
+    F.setZones([{ id: 'z', type, rect: [100, 100, 300, 300] }]);
+    assert.equal(patternFills(bakeLog(w)).length, 1, type);
+  }
 });
 
 test('bake paints custom zones', () => {

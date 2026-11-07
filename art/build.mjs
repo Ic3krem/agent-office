@@ -1,4 +1,4 @@
-// npm run art: Blender terrain + town asset + office piece renders -> art/.raw, then art/post.py -> public/art/town and
+// npm run art: Blender terrain + town asset + office piece and room shell renders -> art/.raw, then art/post.py -> public/art/town and
 // public/art/office (town palette art/palette.json, kept once cut; office palette art/palette-office.json), then art/MANIFEST.json. The office frame list comes from scripts/export-catalog.mjs.
 // Developer-only (needs Blender, Python 3 and Pillow); npm test and packaging use the committed PNG/JSON.
 import fs from 'node:fs';
@@ -26,6 +26,7 @@ run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/town_terrain.py'), '--', 
 run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/town_assets.py'), '--', TOWN, RAW]);
 run(process.execPath, [path.join(ROOT, 'scripts/export-catalog.mjs'), CATALOG]);
 run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/office_assets.py'), '--', CATALOG, FOOT, path.join(RAW, 'office')]);
+run(blender, ['-b', '-P', path.join(ROOT, 'art/blender/office_shell.py'), '--', path.join(RAW, 'office')]);
 run(python, [path.join(ROOT, 'art/post.py'), RAW, OUT, OFFICE]);
 
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
@@ -33,7 +34,7 @@ const date = new Date().toISOString().slice(0, 10), license = 'Apache-2.0 (origi
 const MANIFEST = path.join(ROOT, 'art/MANIFEST.json');
 const prev = new Map((fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).files : []).map(e => [e.file + ' ' + e.sha256, e.date])); // unchanged bytes keep their date
 const scriptOf = rel => rel.startsWith('art/palette') ? 'art/post.py'
-  : rel.includes('/terrain') ? 'art/blender/town_terrain.py + art/post.py' : rel.startsWith('public/art/office/') ? 'art/blender/office_assets.py + art/post.py'
+  : rel.includes('/terrain') ? 'art/blender/town_terrain.py + art/post.py' : rel.startsWith('public/art/office/') ? 'art/blender/office_assets.py + art/blender/office_shell.py + art/post.py'
   : 'art/blender/town_assets.py + art/post.py';
 const files = [...walk(OUT), ...walk(OFFICE), path.join(ROOT, 'art/palette.json'), path.join(ROOT, 'art/palette-office.json')].map(f => {
   const rel = path.relative(ROOT, f).split(path.sep).join('/');

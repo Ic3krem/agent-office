@@ -104,14 +104,14 @@
   // stays the whole procedural piece, so the fallback draws exactly as before; under/over boxes are not recorded twice.
   // A variant of a type (desk partition height, plant scale or growth) adds '@<variant>' to the frame name.
   let ATLAS = null, HOME = null; // HOME: [x, y] of the piece being built
-  function useAtlas(a) { ATLAS = a; measured = false; } // re-measure: click silhouettes follow the sprites
+  function useAtlas(a) { ATLAS = a; measured = false; for (const k in PATS) delete PATS[k]; } // re-measure: click silhouettes follow the sprites
   // t: the [tx, ty] canvas translate add() wraps a moved copy in; the destination is rounded with it so the frame lands on
   // whole pixels after the translate (a fractional offset would resample the art soft).
-  function sprite(g, name, x, y, a, t) {
+  function sprite(g, name, x, y, a, t, img) { // img: another sheet with the same rects (the glow sheet)
     const f = ATLAS && ATLAS.frames[name]; if (!f) return false;
     const p = P(x, y, 0), tx = t ? t[0] : 0, ty = t ? t[1] : 0;
     g.save(); g.imageSmoothingEnabled = false; if (a != null) g.globalAlpha *= a;
-    g.drawImage(ATLAS.image, f.x, f.y, f.w, f.h, Math.round(p[0] - f.ax + tx) - tx, Math.round(p[1] - f.ay + ty) - ty, f.w, f.h);
+    g.drawImage(img || ATLAS.image, f.x, f.y, f.w, f.h, Math.round(p[0] - f.ax + tx) - tx, Math.round(p[1] - f.ay + ty) - ty, f.w, f.h);
     g.restore();
     return true;
   }
@@ -133,6 +133,35 @@
   const dstate = id => ST.desk[id] || { present: false, working: false, led: '#666' };
 
   // ---------- baked background: floors, walls, slab ----------
+  // Floor decor of the default layout, drawn on the floor plane (inside Fg): the procedural floor paints it between its
+  // textures, the tiled floor (office art) over its zone patterns.
+  function runner(g) { // aisle runner rug (room for eight accent pairs)
+    g.fillStyle = '#34406a'; g.fillRect(36, 366, 928, 60); g.strokeStyle = '#c9a24a'; g.lineWidth = 3; g.strokeRect(40, 370, 920, 52);
+    g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,.22)'; g.setLineDash([10, 8]); g.beginPath(); g.moveTo(52, 396); g.lineTo(948, 396); g.stroke(); g.setLineDash([]);
+    M.TEAM.slice(0, 8).forEach((t, i) => { g.fillStyle = t.accent; g.fillRect(70 + i * 112, 374, 30, 3); g.fillRect(70 + i * 112, 415, 30, 3); });
+  }
+  function playRug(g) {
+    g.fillStyle = '#3d2a5c'; g.fillRect(556, 636, 350, 132); g.fillStyle = '#e0679a'; g.fillRect(564, 644, 334, 116); g.fillStyle = '#3d2a5c'; g.fillRect(572, 652, 318, 100);
+    g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.strokeRect(580, 660, 302, 84);
+    g.fillStyle = '#5ac8e8'; for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(600 + i * 32, 702); g.lineTo(616 + i * 32, 678); g.lineTo(632 + i * 32, 702); g.lineTo(616 + i * 32, 726); g.fill(); }
+  }
+  function officeRug(g) { // office rug
+    g.fillStyle = '#5a2f3a'; g.fillRect(116, 98, 220, 120); g.strokeStyle = '#d6b13a'; g.lineWidth = 2; g.strokeRect(122, 104, 208, 108); g.strokeStyle = 'rgba(255,255,255,.18)'; g.strokeRect(130, 112, 192, 92);
+  }
+  function bed(g, x, y, w, d, seed) { g.fillStyle = '#3d2a1a'; g.fillRect(x, y, w, d); const f = rnd(seed); for (let i = 0; i < 26; i++) { g.fillStyle = ['#ff7aa8', '#ffd23f', '#fff', '#c9b0f0', '#ff9a4a'][i % 5]; g.beginPath(); g.arc(x + 4 + f() * (w - 8), y + 4 + f() * (d - 8), 2.4, 0, 6.2832); g.fill(); } g.strokeStyle = '#7a5230'; g.lineWidth = 2; g.strokeRect(x, y, w, d); }
+  function park(g) { // stepping stones to the gate and round the east pond, flower beds
+    const sp = (x, y, r) => { g.fillStyle = r % 2 ? '#b9b2a6' : '#a7a094'; g.beginPath(); g.ellipse(x, y, 9, 6.5, r * .4, 0, 6.2832); g.fill(); };
+    for (let i = 0; i < 11; i++) sp(1004 + i * 10, 396, i);
+    for (let i = 0; i < 18; i++) { const t = i / 18 * 6.2832; sp(1120 + 78 * Math.cos(t), 290 + 78 * Math.sin(t) * .92, i); }
+    for (let i = 0; i < 6; i++) sp(1100, 380 + i * 11, i);
+    bed(g, 1010, 60, 50, 60, 41); bed(g, 1180, 360, 44, 70, 42); bed(g, 1020, 500, 60, 36, 43);
+  }
+  function forecourt(g, apron) { // forecourt: asphalt apron in front of the bay (the tiled floor has its own asphalt), parking lines
+    if (apron) g.fillStyle = '#5c616d', g.fillRect(1006, 700, 228, 76);
+    g.strokeStyle = '#e8d36a'; g.lineWidth = 2; g.setLineDash([12, 9]); g.beginPath(); g.moveTo(1010, 700); g.lineTo(1232, 700); g.stroke(); g.setLineDash([]);
+    g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(1030 + i * 62, 706); g.lineTo(1030 + i * 62, 770); g.stroke(); }
+  }
+  const decor = g => Fg(g, 0, () => { runner(g); playRug(g); officeRug(g); bed(g, 530, 120, 46, 70, 21); bed(g, 940, 70, 40, 60, 22); bed(g, 600, 12, 50, 34, 23); park(g); forecourt(g, false); });
   // The hand-painted 1.2.9 floor (the default layout's zones).
   function bakeDefaultFloor(g) {
     const zone = (x0, y0, x1, y1, c) => flat(g, x0, y0, x1 - x0, y1 - y0, c);
@@ -156,20 +185,14 @@
       for (let y = 230; y < 550; y += 40) for (let x = 0; x < 1000; x += 40) { g.fillStyle = ((x + y) / 40) % 2 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,20,.05)'; g.fillRect(x, y, 40, 40); }
       // north corridor walkway
       g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(0, 238, 1000, 26); g.strokeStyle = 'rgba(255,255,255,.12)'; g.strokeRect(0, 238, 1000, 26);
-      // aisle runner rug (room for eight accent pairs)
-      g.fillStyle = '#34406a'; g.fillRect(36, 366, 928, 60); g.strokeStyle = '#c9a24a'; g.lineWidth = 3; g.strokeRect(40, 370, 920, 52);
-      g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,.22)'; g.setLineDash([10, 8]); g.beginPath(); g.moveTo(52, 396); g.lineTo(948, 396); g.stroke(); g.setLineDash([]);
-      M.TEAM.slice(0, 8).forEach((t, i) => { g.fillStyle = t.accent; g.fillRect(70 + i * 112, 374, 30, 3); g.fillRect(70 + i * 112, 415, 30, 3); });
+      runner(g);
       // utility checker
       for (let y = 550; y < 780; y += 38) for (let x = 0; x < 470; x += 38) { g.fillStyle = ((x + y) / 38) % 2 ? 'rgba(80,60,30,.1)' : 'rgba(255,255,255,.18)'; g.fillRect(x, y, 38, 38); }
       // playroom: confetti and a big rug
       const c = rnd(11); const cols = ['#ff6b8a', '#ffd23f', '#3dd6ff', '#7cf29a', '#c9b0f0'];
       for (let i = 0; i < 120; i++) { g.fillStyle = cols[i % 5]; g.globalAlpha = .55; g.fillRect(480 + c() * 515, 556 + c() * 220, 3, 2); } g.globalAlpha = 1;
-      g.fillStyle = '#3d2a5c'; g.fillRect(556, 636, 350, 132); g.fillStyle = '#e0679a'; g.fillRect(564, 644, 334, 116); g.fillStyle = '#3d2a5c'; g.fillRect(572, 652, 318, 100);
-      g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.strokeRect(580, 660, 302, 84);
-      g.fillStyle = '#5ac8e8'; for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(600 + i * 32, 702); g.lineTo(616 + i * 32, 678); g.lineTo(632 + i * 32, 702); g.lineTo(616 + i * 32, 726); g.fill(); }
-      // office rug
-      g.fillStyle = '#5a2f3a'; g.fillRect(116, 98, 220, 120); g.strokeStyle = '#d6b13a'; g.lineWidth = 2; g.strokeRect(122, 104, 208, 108); g.strokeStyle = 'rgba(255,255,255,.18)'; g.strokeRect(130, 112, 192, 92);
+      playRug(g);
+      officeRug(g);
       // zone trims
       g.fillStyle = '#2a2030'; g.fillRect(0, 228, 470, 3); g.fillStyle = '#c9a24a'; g.fillRect(0, 548, 1000, 2); g.fillStyle = '#2a2030'; g.fillRect(0, 550, 1000, 3);
       g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(468, 0, 5, 230);
@@ -180,20 +203,13 @@
       for (let i = 0; i < 24; i++) { const t = i / 24 * 6.2832; g.fillStyle = i % 2 ? '#b9b2a6' : '#a7a094'; g.beginPath(); g.ellipse(790 + 80 * Math.cos(t), 105 + 80 * Math.sin(t), 9, 6.5, t, 0, 6.2832); g.fill(); }
       for (let i = 0; i < 9; i++) { g.fillStyle = '#b4ad9f'; g.beginPath(); g.ellipse(500 + i * 9, 214 - (i < 4 ? 0 : 0) + (i > 4 ? -(i - 4) * 2 : 0), 8, 6, st(), 0, 6.2832); g.fill(); }
       // flower beds
-      const bed = (x, y, w, d, seed) => { g.fillStyle = '#3d2a1a'; g.fillRect(x, y, w, d); const f = rnd(seed); for (let i = 0; i < 26; i++) { g.fillStyle = ['#ff7aa8', '#ffd23f', '#fff', '#c9b0f0', '#ff9a4a'][i % 5]; g.beginPath(); g.arc(x + 4 + f() * (w - 8), y + 4 + f() * (d - 8), 2.4, 0, 6.2832); g.fill(); } g.strokeStyle = '#7a5230'; g.lineWidth = 2; g.strokeRect(x, y, w, d); };
-      bed(530, 120, 46, 70, 21); bed(940, 70, 40, 60, 22); bed(600, 12, 50, 34, 23);
+      bed(g, 530, 120, 46, 70, 21); bed(g, 940, 70, 40, 60, 22); bed(g, 600, 12, 50, 34, 23);
       // ---- east wing: park lawn, path to the fence gate, flower beds; garage forecourt with bay markings ----
       for (let i = 0; i < 5; i++) { g.fillStyle = i % 2 ? 'rgba(255,255,255,.045)' : 'rgba(0,30,0,.06)'; g.fillRect(1000 + i * 48, 0, 48, 550); }
       for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? 'rgba(255,255,255,.045)' : 'rgba(0,30,0,.06)'; g.fillRect(998 + i * 48, 0, 48, 230); }
       const pq = rnd(31); for (let i = 0; i < 230; i++) { g.fillStyle = pq() > .5 ? 'rgba(20,70,20,.45)' : 'rgba(150,200,110,.35)'; g.fillRect(1000 + pq() * 238, pq() * 548, 1.6, 3); }
-      const sp = (x, y, r) => { g.fillStyle = r % 2 ? '#b9b2a6' : '#a7a094'; g.beginPath(); g.ellipse(x, y, 9, 6.5, r * .4, 0, 6.2832); g.fill(); };
-      for (let i = 0; i < 11; i++) sp(1004 + i * 10, 396, i);
-      for (let i = 0; i < 18; i++) { const t = i / 18 * 6.2832; sp(1120 + 78 * Math.cos(t), 290 + 78 * Math.sin(t) * .92, i); }
-      for (let i = 0; i < 6; i++) sp(1100, 380 + i * 11, i);
-      bed(1010, 60, 50, 60, 41); bed(1180, 360, 44, 70, 42); bed(1020, 500, 60, 36, 43);
-      // forecourt: asphalt apron in front of the bay, parking lines
-      g.fillStyle = '#5c616d'; g.fillRect(1006, 700, 228, 76); g.strokeStyle = '#e8d36a'; g.lineWidth = 2; g.setLineDash([12, 9]); g.beginPath(); g.moveTo(1010, 700); g.lineTo(1232, 700); g.stroke(); g.setLineDash([]);
-      g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(1030 + i * 62, 706); g.lineTo(1030 + i * 62, 770); g.stroke(); }
+      park(g);
+      forecourt(g, true);
       g.fillStyle = 'rgba(0,0,0,.12)'; for (let i = 0; i < 40; i++) g.fillRect(1010 + (i * 53 % 220), 556 + (i * 37 % 140), 3, 2);
       g.fillStyle = '#c9a24a'; g.fillRect(996, 556, 5, 224);
     });
@@ -211,12 +227,36 @@
     garage: { c: '#8e949e', t() { } },
     path: { c: '#6c7390', t(g, x0, y0, x1, y1) { g.fillStyle = 'rgba(255,255,255,.1)'; g.fillRect(x0, y0, x1 - x0, y1 - y0); } },
     lounge: { c: '#a8805a', t(g, x0, y0, x1, y1) { for (let y = y0; y < y1; y += 30) for (let x = x0; x < x1; x += 30) { g.fillStyle = ((x - x0 + y - y0) / 30) % 2 ? 'rgba(255,235,200,.1)' : 'rgba(60,30,10,.08)'; g.fillRect(x, y, 30, 30); } } },
+    kain: { c: '#c4704a', t(g, x0, y0, x1, y1) { for (let y = y0; y < y1; y += 20) for (let x = x0; x < x1; x += 20) { g.fillStyle = ((x - x0 + y - y0) / 20) % 2 ? 'rgba(255,235,200,.12)' : 'rgba(60,20,10,.08)'; g.fillRect(x, y, 20, 20); } } },
   };
+  // Office art floors: the tile frame (art/blender/office_shell.py) each zone type is filled with.
+  const FLOOR = { office: 'wood', focus: 'wood', play: 'carpet', garden: 'grass', utility: 'concrete', garage: 'asphalt', path: 'pavers', water: 'water', lounge: 'rug', kain: 'terracotta' };
+  const PATS = {}; // frame name -> CanvasPattern, made once per atlas (bake runs once per sky bucket, never per frame)
+  function floorPattern(g, type) {
+    const name = 'floor@' + FLOOR[type], f = ATLAS && ATLAS.frames[name]; if (!f) return null;
+    if (!PATS[name]) {
+      const c = root.document.createElement('canvas'); c.width = f.w; c.height = f.h;
+      c.getContext('2d').drawImage(ATLAS.image, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
+      PATS[name] = { pat: g.createPattern(c, 'repeat'), f };
+    }
+    return PATS[name];
+  }
+  // One pattern fill clipped to the zone's floor polygon (water: the ellipse inside its rect, the pond's shape), the tile
+  // pixel (ax, ay) on P(0, 0, 0) so every zone shares one tile grid and neighbouring floors meet without a seam.
+  function zoneFill(g, q, T) {
+    const [x0, y0, x1, y1] = q.rect;
+    g.save(); g.beginPath();
+    if (q.type === 'water') { g.save(); g.transform(K, K2, -K, K2, OXS, OYS); g.ellipse((x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, (y1 - y0) / 2, 0, 0, 6.2832); g.restore(); }
+    else [P(x0, y0, 0), P(x1, y0, 0), P(x1, y1, 0), P(x0, y1, 0)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
+    g.closePath(); g.translate(OXS - T.f.ax, OYS - T.f.ay); g.imageSmoothingEnabled = false; g.fillStyle = T.pat; g.fill(); g.restore();
+  }
   function bakeZoneFloor(g, zones) {
     flat(g, 0, 0, WXm(), WYm(), '#4a4a55'); // neutral base: a removed or shrunk zone leaves plain floor, not a hole
     for (const q of zones) {
+      const [x0, y0, x1, y1] = q.rect, A = floorPattern(g, q.type);
+      if (A) zoneFill(g, q, A);
       const T = ZONE_TEX[q.type]; if (!T) continue; // water: the pond pieces draw it
-      const [x0, y0, x1, y1] = q.rect;
+      if (A) { Fg(g, 0, () => { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x0, y0, x1 - x0, 2); g.fillRect(x0, y1 - 2, x1 - x0, 2); g.fillRect(x0, y0, 2, y1 - y0); g.fillRect(x1 - 2, y0, 2, y1 - y0); }); continue; }
       flat(g, x0, y0, x1 - x0, y1 - y0, T.c);
       Fg(g, 0, () => {
         g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip(); T.t(g, x0, y0, x1, y1); g.restore();
@@ -234,9 +274,15 @@
     // floor slab (front edges)
     poly(g, [P(0, WYm(), 0), P(WXm(), WYm(), 0), P(WXm(), WYm(), -16), P(0, WYm(), -16)], '#4a3020', null);
     poly(g, [P(WXm(), 0, 0), P(WXm(), WYm(), 0), P(WXm(), WYm(), -16), P(WXm(), 0, -16)], '#33200f', null);
-    if (!ZONES || !root.WorldModel || root.WorldModel.isDefaultZones(ZONES)) bakeDefaultFloor(g); else bakeZoneFloor(g, ZONES);
+    const dflt = !ZONES || !root.WorldModel || root.WorldModel.isDefaultZones(ZONES), A = ATLAS && ATLAS.frames;
+    if (A && A['floor@wood'] && root.WorldModel) { bakeZoneFloor(g, ZONES || root.WorldModel.defaultLayout().zones); if (dflt) decor(g); } // office art: tiled zones
+    else if (dflt) bakeDefaultFloor(g); else bakeZoneFloor(g, ZONES);
 
     // ---- left wall (plane x=0) and right wall (plane y=0) ----
+    if (A && A['wall@x'] && A['wall@y']) { // office art: one strip per wall; after dusk the glow sheet lays a night sky on the panes
+      for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow) sprite(g, n, 0, 0, nt, null, ATLAS.glow); }
+      return;
+    }
     const WYv = WYm(), WXv = WXm();
     const gl = g.createLinearGradient(P(0, 0, 0)[0], 0, P(0, WYv, 0)[0], 0); gl.addColorStop(0, '#34376a'); gl.addColorStop(1, '#262850');
     poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, WH), P(0, 0, WH)], gl, null);
@@ -269,10 +315,10 @@
 
   // ---------- dynamic wall pieces (drawn every frame, after the background, before the sorted items) ----------
   function todayBoard(g) {
-    const b = ST.board, tot = Math.max(1, b.total);
+    const b = ST.board, tot = Math.max(1, b.total), art = sprite(g, 'wall-today', 0, 0); // office art: the board itself; text and cards stay live
     Fy(g, 0, 128, () => {
       g.translate(132, 0);
-      g.fillStyle = '#d9d2c3'; g.fillRect(-3, -3, 186, 78); g.fillStyle = '#7a5230'; g.fillRect(-3, -3, 186, 3); g.fillStyle = '#26402f'; g.fillRect(0, 0, 180, 72);
+      if (!art) { g.fillStyle = '#d9d2c3'; g.fillRect(-3, -3, 186, 78); g.fillStyle = '#7a5230'; g.fillRect(-3, -3, 186, 3); g.fillStyle = '#26402f'; g.fillRect(0, 0, 180, 72); }
       txt(g, 'TODAY  ' + b.done + '/' + b.total + ' done', 8, 14, 11, '#ffdca0');
       const cols = [['TO DO', b.todo, '#f0e4d4'], ['DOING', b.doing, '#5ef0a0'], ['DONE', b.done, '#7fd49b']];
       cols.forEach(([n, v, c], i) => {
@@ -285,10 +331,10 @@
     });
   }
   function usageBoard(g) {
-    const u = ST.ex.usage || {};
+    const u = ST.ex.usage || {}, art = sprite(g, 'wall-usage', 0, 0);
     Fy(g, 0, 120, () => {
       g.translate(355, 0);
-      g.fillStyle = '#9a9fa8'; g.fillRect(-3, -3, 106, 66); g.fillStyle = '#f3eee2'; g.fillRect(0, 0, 100, 60);
+      if (!art) { g.fillStyle = '#9a9fa8'; g.fillRect(-3, -3, 106, 66); g.fillStyle = '#f3eee2'; g.fillRect(0, 0, 100, 60); }
       txt(g, 'USAGE · TODAY', 6, 11, 8, '#a2463a');
       txt(g, 'Credits ' + (u.credits || '$0.00'), 6, 24, 8.5, '#2b2b36'); txt(g, 'Week ' + (u.week || '–'), 58, 24, 8.5, u.weekColor || '#2b2b36');
       txt(g, (u.tok || '0') + ' tok', 6, 35, 8.5, '#2b2b36'); txt(g, '5h ' + (u.sess || '–'), 58, 35, 8.5, u.sessColor || '#2b2b36');
@@ -298,18 +344,19 @@
   }
   function clockAndBoard(g) {
     // wall clock (left wall) driven by the real time
-    const d = new Date(), hh = d.getHours() % 12 + d.getMinutes() / 60, mm = d.getMinutes();
+    const d = new Date(), hh = d.getHours() % 12 + d.getMinutes() / 60, mm = d.getMinutes(), clock = sprite(g, 'wall-clock', 0, 0);
     Fx(g, 0, 560, 140, () => {
       g.translate(0, 0); const cx = 560 - 520 + 0; void cx;
-      g.save(); g.translate(40, 20); g.fillStyle = '#3b2a1a'; g.beginPath(); g.arc(0, 0, 20, 0, 6.2832); g.fill(); g.fillStyle = '#f3eee2'; g.beginPath(); g.arc(0, 0, 17, 0, 6.2832); g.fill();
-      g.strokeStyle = '#2b2b36'; g.lineWidth = 1; for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; g.beginPath(); g.moveTo(Math.sin(a) * 14, -Math.cos(a) * 14); g.lineTo(Math.sin(a) * 16, -Math.cos(a) * 16); g.stroke(); }
+      g.save(); g.translate(40, 20); g.strokeStyle = '#2b2b36'; // office art: the case, face and ticks; the hands stay live
+      if (!clock) { g.fillStyle = '#3b2a1a'; g.beginPath(); g.arc(0, 0, 20, 0, 6.2832); g.fill(); g.fillStyle = '#f3eee2'; g.beginPath(); g.arc(0, 0, 17, 0, 6.2832); g.fill();
+        g.lineWidth = 1; for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; g.beginPath(); g.moveTo(Math.sin(a) * 14, -Math.cos(a) * 14); g.lineTo(Math.sin(a) * 16, -Math.cos(a) * 16); g.stroke(); } }
       g.lineWidth = 2; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.sin(hh * Math.PI / 6) * 9, -Math.cos(hh * Math.PI / 6) * 9); g.stroke();
       g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.sin(mm * Math.PI / 30) * 13, -Math.cos(mm * Math.PI / 30) * 13); g.stroke(); g.restore();
     });
     // whiteboard with the date (left wall, focus band)
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], board = sprite(g, 'wall-whiteboard', 0, 0);
     Fx(g, 0, 470, 126, () => {
-      g.fillStyle = '#c9ccd4'; g.fillRect(-3, -3, 126, 62); g.fillStyle = '#f5f6f8'; g.fillRect(0, 0, 120, 56);
+      if (!board) { g.fillStyle = '#c9ccd4'; g.fillRect(-3, -3, 126, 62); g.fillStyle = '#f5f6f8'; g.fillRect(0, 0, 120, 56); }
       txt(g, days[d.getDay()].toUpperCase(), 8, 14, 9, '#3a6ac0'); txt(g, d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 8, 30, 14, '#1f2a44');
       g.strokeStyle = '#d35a4a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(8, 36); g.lineTo(60, 36); g.stroke(); txt(g, 'Focus first.', 8, 50, 8.5, '#4a5a7a');
     });
@@ -804,9 +851,10 @@
   const cork = g => { // corkboard (memory) and breaker box on the left wall
     const n = ST.ex.memoryN || 0;
     Fx(g, 0, 700, 128, () => { g.translate(0, 0); const yy = 700 - 100; void yy; });
-    Fx(g, 0, 690, 118, () => { g.translate(8, 0); g.fillStyle = '#5a3a1c'; g.fillRect(-3, -3, 76, 62); g.fillStyle = '#a4744a'; g.fillRect(0, 0, 70, 56); const q = rnd(13); for (let i = 0; i < 6; i++) { g.fillStyle = ['#fdf3dc', '#fff7d6', '#f2e6c8', '#ffd0e0'][i % 4]; g.fillRect(5 + (i % 3) * 22 + q() * 3, 5 + Math.floor(i / 3) * 24, 16, 18); g.fillStyle = ['#e04a3a', '#3a8ae0', '#3ae07a', '#e0c43a'][i % 4]; g.beginPath(); g.arc(13 + (i % 3) * 22, 7 + Math.floor(i / 3) * 24, 1.8, 0, 6.2832); g.fill(); } g.strokeStyle = '#b3261e'; g.lineWidth = .8; g.beginPath(); g.moveTo(13, 7); g.lineTo(35, 31); g.lineTo(57, 7); g.stroke(); txt(g, n + ' notes', 35, 54, 6, '#3a2a1a', 'center'); });
+    const art = sprite(g, 'wall-cork', 0, 0), box2 = sprite(g, 'wall-breaker', 0, 0); // office art: board, notes and box; the count and switches stay live
+    Fx(g, 0, 690, 118, () => { g.translate(8, 0); if (!art) { g.fillStyle = '#5a3a1c'; g.fillRect(-3, -3, 76, 62); g.fillStyle = '#a4744a'; g.fillRect(0, 0, 70, 56); const q = rnd(13); for (let i = 0; i < 6; i++) { g.fillStyle = ['#fdf3dc', '#fff7d6', '#f2e6c8', '#ffd0e0'][i % 4]; g.fillRect(5 + (i % 3) * 22 + q() * 3, 5 + Math.floor(i / 3) * 24, 16, 18); g.fillStyle = ['#e04a3a', '#3a8ae0', '#3ae07a', '#e0c43a'][i % 4]; g.beginPath(); g.arc(13 + (i % 3) * 22, 7 + Math.floor(i / 3) * 24, 1.8, 0, 6.2832); g.fill(); } } g.strokeStyle = '#b3261e'; g.lineWidth = .8; g.beginPath(); g.moveTo(13, 7); g.lineTo(35, 31); g.lineTo(57, 7); g.stroke(); txt(g, n + ' notes', 35, 54, 6, '#3a2a1a', 'center'); });
     const sw = ST.ex.switches || {}, on = ['kiro', 'autopilot', 'hiring', 'bridge', 'guard', 'espresso'].map(k => k === 'espresso' ? !!sw.espresso : sw[k] !== false);
-    Fx(g, 0, 598, 112, () => { g.translate(0, 0); g.fillStyle = '#3b3f45'; g.fillRect(-2, -2, 38, 52); g.fillStyle = '#8a9099'; g.fillRect(0, 0, 34, 48); g.fillStyle = '#5e646c'; g.fillRect(3, 3, 28, 42); on.forEach((v, i) => { const x = 6 + (i % 3) * 8, y = 7 + Math.floor(i / 3) * 18; g.fillStyle = '#2b2b33'; g.fillRect(x, y, 5, 13); g.fillStyle = v ? '#5fd38d' : '#e0573f'; g.fillRect(x - 1, y + (v ? 0 : 7), 7, 6); }); });
+    Fx(g, 0, 598, 112, () => { g.translate(0, 0); if (!box2) { g.fillStyle = '#3b3f45'; g.fillRect(-2, -2, 38, 52); g.fillStyle = '#8a9099'; g.fillRect(0, 0, 34, 48); g.fillStyle = '#5e646c'; g.fillRect(3, 3, 28, 42); } on.forEach((v, i) => { const x = 6 + (i % 3) * 8, y = 7 + Math.floor(i / 3) * 18; if (!box2) g.fillStyle = '#2b2b33', g.fillRect(x, y, 5, 13); g.fillStyle = v ? '#5fd38d' : '#e0573f'; g.fillRect(x - 1, y + (v ? 0 : 7), 7, 6); }); });
   };
   walls.push(cork);
   fixture('corkboard', () => {

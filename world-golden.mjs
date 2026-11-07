@@ -18,6 +18,7 @@ export function recorder(calls) {
       if (p in store) return store[p];
       if (p === 'measureText') return s => ({ width: String(s).length * 5 });
       if (p === 'createRadialGradient' || p === 'createLinearGradient') return (...a) => stub(p, a);
+      if (p === 'createPattern') return (img, rep) => { calls.push(['createPattern', rep]); return { tag: 'pattern' }; };
       if (p === 'createImageData') return (...a) => ({ ...stub(p, a), data: new Uint8ClampedArray(4 * (a[0] * a[1] || 1)) });
       return (...a) => { calls.push([p, ...a.map(ser).map(r2)]); };
     },

@@ -130,3 +130,16 @@ test('glass panes stay light: mean alpha of the translucent glass-x/glass-y pixe
     assert.ok(k && sum / k / 255 <= 0.25, n + ' mean glass alpha ' + (sum / k / 255).toFixed(2));
   }
 });
+
+test('the room shell is in the office atlas: an opaque 128x64 tile per floor, both wall strips with night panes, the fixture bases', () => {
+  const atlas = readJson('public/art/office/atlas.json'), F = atlas.frames, png = decodePng(path.join(OFFICE, 'atlas.png'), 6), glow = decodePng(path.join(OFFICE, 'atlas-glow.png'), 6);
+  const alphas = (im, n) => { const r = F[n], a = []; for (let y = r.y; y < r.y + r.h; y++) { const row = im.row(y); for (let x = r.x; x < r.x + r.w; x++) a.push(row[x * 4 + 3]); } return a; };
+  for (const k of ['wood', 'carpet', 'grass', 'concrete', 'asphalt', 'pavers', 'water', 'rug', 'terracotta']) {
+    const n = 'floor@' + k; assert.ok(F[n], n);
+    assert.deepEqual([F[n].w, F[n].h], [128, 64], n);
+    assert.ok(alphas(png, n).every(a => a === 255), n + ' is opaque');
+  }
+  for (const n of ['wall@x', 'wall@y']) { assert.ok(F[n] && F[n].glow, n); assert.ok(alphas(glow, n).filter(a => a).length > 2000, n + ' has night panes'); }
+  for (const n of ['wall-today', 'wall-usage', 'wall-whiteboard', 'wall-clock', 'wall-cork', 'wall-breaker']) assert.ok(F[n], n);
+  assert.ok(F['karinderya.0'].w < 120, 'the karinderya floor sprite is only its rug: the tiles are the kain zone floor');
+});

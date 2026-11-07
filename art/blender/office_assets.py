@@ -279,12 +279,10 @@ def broom_corner(_):
 
 # ---------------- batch B: the karinderya (rustic-cozy), parts at their place around its anchor ----------------
 KWOOD, KPLANK, KTRIM, KDARK = '#8b4a2b', '#6e3a21', '#b0683a', '#5a2e19'
-KTILE = ['#ecc49a', '#d9a273']
 
 
 def k_floor():
-    for i in range(22):
-        for j in range(18): B(i * 10, j * 10, 0, 10, 10, .3, KTILE[(i + j) & 1])
+    """Only the rug: the tile floor under the karinderya is its kain zone's texture (office_shell.py), not this sprite."""
     B(96, 140, .3, 46, 20, .4, '#a8452f'); B(99, 142, .7, 40, 16, .3, '#c86a45'); B(106, 148, 1, 26, 4, .2, '#e8b07a')
 
 

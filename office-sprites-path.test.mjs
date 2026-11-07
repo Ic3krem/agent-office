@@ -153,3 +153,23 @@ test('batch C live bits stay procedural over the sprites', () => {
   assert.notEqual(JSON.stringify(draw(part('mail-bench'))), s0, 'mail-bench screen follows the scheduler');
   ST.ex.scheduler = null;
 });
+
+test('wall fixtures draw their sprite base and keep text, switches and clock hands live', () => {
+  const names = ['wall-today', 'wall-usage', 'wall-whiteboard', 'wall-clock', 'wall-cork', 'wall-breaker'];
+  const run = atlas => {
+    const w = loadWorld({ ctxFactory: () => recorder([]) }), F = w.OfficeFurniture, calls = [];
+    if (atlas) F.useAtlas({ image: IMG, frames: Object.fromEntries(names.map(n => [n, FRAME])) });
+    F.state.ex.switches = { kiro: false }; for (const p of F.walls) p(recorder(calls));
+    return calls;
+  };
+  const has = (c, k, ...a) => c.some(x => x[0] === k && a.every((v, i) => x[i + 1] === v));
+  const art = run(true), drawn = run(false);
+  assert.equal(art.filter(c => c[0] === 'drawImage').length, names.length, 'one base sprite per fixture');
+  for (const c of [art, drawn]) {
+    for (const t of ['TODAY  0/0 done', 'USAGE · TODAY', '0 notes', 'Focus first.']) assert.ok(has(c, 'fillText', t), t);
+    assert.ok(has(c, '=', 'fillStyle', '#e0573f'), 'a switch that is off is red');
+    assert.ok(c.filter(x => x[0] === 'stroke').length >= 2, 'clock hands');
+  }
+  assert.ok(has(drawn, 'fillRect', -3, -3, 186, 78) && !has(art, 'fillRect', -3, -3, 186, 78), 'the Today board frame comes from the sprite');
+  assert.ok(has(drawn, 'arc', 0, 0, 20, 0, 6.28) && !has(art, 'arc', 0, 0, 20, 0, 6.28), 'the clock case comes from the sprite');
+});

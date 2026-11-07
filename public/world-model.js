@@ -73,7 +73,7 @@
   const MAX = 4000; // ponytail: arbitrary cap so a PUT body cannot ask for a huge grid; today's world is 1240x780
   const rect = r => Array.isArray(r) && r.length === 4 && r.every(num);
   // List caps bound the work validate does on untrusted input (today's world: about 40 zones, 160 objects, 70 spots).
-  const LIST_MAX = { zones: 2000, objects: 1000, spots: 300 }, MAX_ERRORS = 10, ZONE_TYPES = new Set([...ZONES.map(q => q.type), 'lounge']);
+  const LIST_MAX = { zones: 2000, objects: 1000, spots: 300 }, MAX_ERRORS = 10, ZONE_TYPES = new Set([...ZONES.map(q => q.type), 'lounge', 'kain']);
   const inside = (x, y, l) => num(x) && num(y) && x >= 0 && x <= l.size.w && y >= 0 && y <= l.size.h;
   const short = v => typeof v === 'string' && v.length <= 64;
   // Values each param may take (painters loop over w and scale by s, so these bound the work validate does).
