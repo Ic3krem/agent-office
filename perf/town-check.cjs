@@ -66,16 +66,16 @@ app.whenReady().then(async () => {
   fs.writeFileSync(shot, (await w.webContents.capturePage()).toPNG());
   console.log('screenshot', shot);
 
-  // Graphics (town step 4): High and Medium at noon and 22:00. Shots go to $TOWN_SHOTS (default art/.raw).
+  // Graphics (town step 4): High, Medium and Ultra at noon and 22:00. Shots go to $TOWN_SHOTS (default art/.raw).
   const shotDir = process.env.TOWN_SHOTS || path.dirname(shot);
-  for (const preset of ['high', 'medium']) {
+  for (const preset of ['high', 'medium', 'ultra']) {
     await js(`Graphics.save({ preset: '${preset}' })`);
     for (const hour of [12, 22]) {
       await w.loadURL(base + '/town?hour=' + hour);
       for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
       await wait(800);
       const g = await js(`(() => { const s = __town.api.stats().graphics, c = document.getElementById('town'); return { shadows: s.shadows, lighting: s.lighting, rs: s.renderScale, w: c.width, cw: c.clientWidth }; })()`);
-      const want = preset === 'high' ? { shadows: 'soft', lighting: 'glow', rs: 1 } : { shadows: 'blob', lighting: 'tint', rs: .75 };
+      const want = { high: { shadows: 'soft', lighting: 'glow', rs: 1 }, medium: { shadows: 'blob', lighting: 'tint', rs: .75 }, ultra: { shadows: 'tint', lighting: 'pools', rs: 1 } }[preset]; // ultra's 2x is capped at dpr 1
       check(`${preset} ${hour}h: graphics applied, backing store = css px x renderScale`, g.shadows === want.shadows && g.lighting === want.lighting && g.rs === want.rs && g.w === Math.round(g.cw * want.rs), g);
       const f = path.join(shotDir, `town-${preset}-${hour}.png`);
       fs.writeFileSync(f, (await w.webContents.capturePage()).toPNG());

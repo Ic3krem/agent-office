@@ -237,12 +237,6 @@ SPRITES = {'wall@x': wall_x, 'wall@y': wall_y, 'wall-today': fx_today, 'wall-usa
            'wall-cork': fx_cork, 'wall-breaker': fx_breaker, 'wall-clock': fx_clock}
 
 
-def holdout():
-    m = bpy.data.materials.new('hold'); m.use_nodes = True; nt = m.node_tree; nt.nodes.clear()
-    nt.links.new(nt.nodes.new('ShaderNodeHoldout').outputs[0], nt.nodes.new('ShaderNodeOutputMaterial').inputs['Surface'])
-    return m
-
-
 def render_sprite(name, seed):
     sc = kit.reset_scene(seed); sc.render.dither_intensity = 0
     sun = sc.objects['sun'].data; sun.shadow_maximum_resolution = 0.002; sun.shadow_filter_radius = 0; sun.angle = 0; sun.use_shadow_jitter = False; sc.eevee.shadow_ray_count = 1
@@ -258,7 +252,7 @@ def render_sprite(name, seed):
     for ext in ('.ground.png', '.noshadow.png'): shutil.copy(p, os.path.join(out, name + ext))  # the page draws no shadow under walls
     panes = [o for o in objs if tag(o)[1] in (PANE, STAR)]
     if panes:  # glow pass: panes as the night sky, stars on; everything else holds out (occludes, renders transparent)
-        hold = holdout()
+        hold = kit.holdout()
         for o in objs:
             col, t = tag(o)
             if t == PANE: o.data.materials[0] = emit(DAY2NIGHT[col])

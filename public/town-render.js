@@ -82,7 +82,8 @@
     const [atlas, terrain] = await Promise.all([getJson(atlasUrl), getJson(terrainUrl)]);
     O = terrain.originPx;
     const base = terrainUrl.replace(/[^/]*$/, '');
-    const colourUrl = atlasUrl.replace(/\.json$/, '.png'), shadowUrl = atlasUrl.replace(/\.json$/, '-shadow.png');
+    const colourUrl = atlasUrl.replace(/\.json$/, '.png'), shadowUrl = atlasUrl.replace(/\.json$/, '-shadow.png'), glowUrl = atlasUrl.replace(/\.json$/, '-glow.png');
+    const hasGlow = Object.values(atlas.frames).some(f => f.glow); // atlas-glow.png ships only with lit frames
     const chunkUrl = (r, c) => base + 'terrain/r' + r + 'c' + c + '.png';
 
     P.TextureStyle.defaultOptions.scaleMode = 'nearest';
@@ -92,7 +93,7 @@
     const sys = P.Ticker.system, sysWas = { autoStart: sys.autoStart, started: sys.started };
     sys.autoStart = false; sys.stop();
 
-    const urls = [colourUrl, shadowUrl];
+    const urls = hasGlow ? [colourUrl, shadowUrl, glowUrl] : [colourUrl, shadowUrl];
     for (let r = 0; r < terrain.rows; r++) for (let c = 0; c < terrain.cols; c++) urls.push(chunkUrl(r, c));
     P.Assets.setPreferences({ preferWorkers: false }); // the server's CSP has no worker-src, so Pixi's blob decode worker is blocked
     const tex = await P.Assets.load(urls);
@@ -101,9 +102,10 @@
 
     const cam = new P.Container(), ground = new P.Container(), shade = new P.Container(), world = new P.Container();
     const blobs = new P.Container(), soft = new P.Container(); // shade holds one of: blob ellipses, the shadow atlas
-    world.sortableChildren = true;
+    const pools = new P.Container(); // lamp light on the ground, under the sprites (Ultra)
+    world.sortableChildren = true; pools.blendMode = 'add';
     shade.addChild(blobs, soft);
-    cam.addChild(ground, shade, world);
+    cam.addChild(ground, shade, pools, world);
     // One ellipse texture for every blob shadow, scaled per sprite.
     const BW = 64, BH = 32, bcv = document.createElement('canvas');
     bcv.width = BW; bcv.height = BH;
@@ -111,6 +113,14 @@
     bx.fillStyle = 'rgba(26,34,64,0.35)'; bx.beginPath(); bx.ellipse(BW / 2, BH / 2, BW / 2, BH / 2, 0, 0, Math.PI * 2); bx.fill();
     const blobTex = new P.Texture({ source: new P.CanvasSource({ resource: bcv }) });
     textureBytes += BW * BH * 4;
+    // One warm radial gradient for every lamp pool, squashed to the ground diamond's 2:1.
+    const PW = 64, POOL_R = 34, pcv = document.createElement('canvas');
+    pcv.width = pcv.height = PW;
+    const pctx = pcv.getContext('2d'), grad = pctx.createRadialGradient(PW / 2, PW / 2, 0, PW / 2, PW / 2, PW / 2);
+    grad.addColorStop(0, 'rgba(255,213,138,0.6)'); grad.addColorStop(0.5, 'rgba(255,213,138,0.25)'); grad.addColorStop(1, 'rgba(255,213,138,0)');
+    pctx.fillStyle = grad; pctx.fillRect(0, 0, PW, PW);
+    const poolTex = new P.Texture({ source: new P.CanvasSource({ resource: pcv }) });
+    textureBytes += PW * PW * 4;
     app.stage.addChild(cam);
 
     const chunks = [];
@@ -125,6 +135,7 @@
       return frames[k] || (frames[k] = new P.Texture({ source: src, frame: new P.Rectangle(f.x, f.y, f.w, f.h) }));
     };
     let sprites = chunks.length;
+    const glows = new Set();
     const place = (type, x, y) => {
       const f = atlas.frames[type];
       if (!f) return;
@@ -133,6 +144,17 @@
         const s = new P.Sprite(frameTex(src, type));
         s.position.set(px, py); s.cullable = true; s.zIndex = depthOf(x, y);
         layer.addChild(s); sprites++;
+      }
+      if (f.glow && hasGlow) { // lit windows: just after the colour sprite, untinted; alpha set by applyGraphics
+        // Drawn over the pane, not added: the day pane is near-white, so adding warm light to it at night clips to white.
+        const s = new P.Sprite(frameTex(tex[glowUrl].source, type));
+        s.position.set(px, py); s.cullable = true; s.zIndex = depthOf(x, y) + 1e-4; s.visible = false;
+        world.addChild(s); glows.add(s); sprites++;
+      }
+      if (type === 'lamp') {
+        const s = new P.Sprite(poolTex);
+        s.anchor.set(0.5); s.position.set(Math.round(sx), Math.round(sy)); s.scale.set(POOL_R * 2 / PW, POOL_R / PW); s.cullable = true;
+        pools.addChild(s); sprites++;
       }
       if (f.footprint) {
         const b = blobOf(f), s = new P.Sprite(blobTex);
@@ -162,7 +184,7 @@
     function put(s, x, y, face, pose, frame, look) {
       const c = charPlace(x, y, face);
       const [t, key] = charTexture(look, c.view, pose, frame, c.dir);
-      s.texture = t;
+      s.texture = t; s.tint = tintNow;
       s.scale.x = c.flip ? -1 : 1;
       s.position.set(c.px, c.py - (s.texture.height - SP.H)); // a short/tall sprite keeps its feet on the ground point
       s.zIndex = c.z; // ties: characters after sprites
@@ -180,7 +202,7 @@
 
     let camX = map.spawn.x, camY = map.spawn.y, zoom = 1, viewW = 1, viewH = 1;
     let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, dead = false;
-    let G = graphics, lightKey = '';
+    let G = graphics, lightKey = '', tintNow = 0xffffff;
     const hourNow = () => hour != null ? hour : new Date().getHours() + new Date().getMinutes() / 60;
     const bucket = () => Math.round(root.Graphics.nightOf(hourNow()) * 10); // tints change per tenth of night, as the office's ensureBG
     function applyGraphics() {
@@ -189,7 +211,12 @@
       if (key === lightKey) return;
       lightKey = key;
       const h = hourNow();
-      ground.tint = world.tint = lightAt(h, G.lighting).tint;
+      const L = lightAt(h, G.lighting);
+      tintNow = ground.tint = L.tint;
+      // world is tinted per sprite, not as a container: a container tint would also darken the additive glow sprites in it
+      for (const s of world.children) if (!glows.has(s)) s.tint = L.tint;
+      for (const s of glows) { s.alpha = L.glow; s.visible = L.glow > 0; }
+      pools.alpha = L.pools; pools.visible = L.pools > 0;
       soft.tint = G.shadows === 'tint' ? root.Graphics.tintOf(root.Graphics.nightOf(h)) : 0xffffff;
     }
     // Render on demand: once a minute (and on becoming visible), re-render only if the night bucket moved.
@@ -278,7 +305,7 @@
         document.removeEventListener('visibilitychange', onVis);
         canvas.removeEventListener('webglcontextrestored', mark);
         for (const t of charTex.values()) t.destroy(true);
-        blobTex.destroy(true);
+        blobTex.destroy(true); poolTex.destroy(true);
         charTex.clear();
         app.destroy({ removeView: false }, { children: true });
         P.Assets.unload(urls);

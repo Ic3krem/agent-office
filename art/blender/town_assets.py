@@ -2,7 +2,8 @@
 # Run: blender -b -P art/blender/town_assets.py -- <in town.json> <out raw dir>
 # Each asset is modelled around its world origin (footprint centre, x east, y south) and rendered three times:
 # <name>.png (colour, no ground), <name>.ground.png (white ground, shadows on), <name>.noshadow.png (ground, shadows off),
-# plus <name>.json {anchor: [ax, ay], footprint: [x0, y0, x1, y1] in world units, relative to the origin}.
+# <name>.glow.png (emissive parts only: lit windows, lamps, neon) for assets with any,
+# plus <name>.json {anchor: [ax, ay], footprint: [x0, y0, x1, y1] in world units, relative to the origin, glow}.
 import sys, os, json, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy
@@ -176,6 +177,8 @@ def lot_empty():
     fence_run(LX, LY + d, LX + w, LY + d); fence_run(LX, LY, LX, LY + d); fence_run(LX + w, LY, LX + w, LY + d)
     fence_run(LX, LY, -1.5, LY); fence_run(1.5, LY, LX + w, LY)
     barrel(LX + w - 1.2, LY + d - 1.4); crate(LX + 0.6, LY + d - 1.6)
+    box(LX + w - 0.5, LY + d + 0.3, 0, 0.2, 0.2, 2.4, '#5a3a22'); box(LX + w - 0.75, LY + d + 0.15, 2.4, 0.7, 0.5, 0.15, '#2e2a30')  # garden lantern
+    box(LX + w - 0.65, LY + d + 0.2, 2.0, 0.5, 0.4, 0.4, '#ffcf6b', 3.0)
     return w, d
 
 
@@ -371,6 +374,12 @@ for i, (name, build) in enumerate(ASSETS.items()):
     kit.render(os.path.join(out, name + '.ground.png'))
     sun.use_shadow = False
     kit.render(os.path.join(out, name + '.noshadow.png'))
-    json.dump({'anchor': [ox, oy], 'footprint': [-w * 5, -d * 5, w * 5, d * 5]}, open(os.path.join(out, name + '.json'), 'w', newline='\n'))
+    for g in ground: g.hide_render = True
+    # glow pass in the parts' own colour: no sun or sky, emission at strength 1 (lit + strong emission clips to white)
+    sun.energy = 0; sc.world.node_tree.nodes['Background'].inputs[1].default_value = 0
+    for (col, gl), m in kit.MATS.items():
+        if gl > 0: m.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = 1
+    glows = kit.glow_pass([o for o in sc.objects if o.type == 'MESH'], os.path.join(out, name + '.glow.png'))
+    json.dump({'anchor': [ox, oy], 'footprint': [-w * 5, -d * 5, w * 5, d * 5], 'glow': glows}, open(os.path.join(out, name + '.json'), 'w', newline='\n'))
     print('ASSET', name, bw, bh, ox, oy)
 print('DONE')

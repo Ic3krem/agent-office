@@ -28,6 +28,16 @@ test('frames lie inside the atlas; both atlases match its size and are <= 2048',
   }
 });
 
+test('town glow sheet: same size as atlas.png, and every building type in town.json has glow: true', () => {
+  const town = readJson('public/town/town.json'), atlas = readJson('public/art/town/atlas.json');
+  assert.deepEqual(pngSize(path.join(TOWN, 'atlas-glow.png')), pngSize(path.join(TOWN, 'atlas.png')));
+  for (const t of new Set(town.lots.map(l => l.building.type))) assert.equal(atlas.frames[t].glow, true, t + ' glow');
+  assert.equal(atlas.frames.lamp.glow, true, 'lamp glow');
+  const glow = decodePng(path.join(TOWN, 'atlas-glow.png'), 6), r = atlas.frames['office-modern']; let lit = 0;
+  for (let y = r.y; y < r.y + r.h; y++) { const row = glow.row(y); for (let x = r.x; x < r.x + r.w; x++) if (row[x * 4 + 3]) lit++; }
+  assert.ok(lit > 500, 'office-modern lit window px ' + lit);
+});
+
 test('terrain chunks: cols * rows files of at most 512 px', () => {
   const t = readJson('public/art/town/terrain.json');
   assert.equal(t.chunk, 512);

@@ -185,6 +185,23 @@ def sun_dir():
     return (v.y, v.x, v.z / ZS)
 
 
+def holdout():
+    m = bpy.data.materials.new('hold'); m.use_nodes = True; nt = m.node_tree; nt.nodes.clear()
+    nt.links.new(nt.nodes.new('ShaderNodeHoldout').outputs[0], nt.nodes.new('ShaderNodeOutputMaterial').inputs['Surface'])
+    return m
+
+
+def glow_pass(objs, path):
+    """<name>.glow.png: emissive parts only, every other object holds out (occludes, renders transparent). -> anything glows"""
+    glows = {m for (col, g), m in MATS.items() if g > 0}
+    if not glows: return False
+    hold = holdout()
+    for o in objs:
+        if o.data.materials[0] not in glows: o.data.materials[0] = hold
+    render(path)
+    return True
+
+
 def render(path):
     sc = bpy.context.scene; sc.render.filepath = path
     bpy.ops.render.render(write_still=True)

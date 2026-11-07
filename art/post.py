@@ -89,6 +89,19 @@ def cut(sprites, pal, ncols):
     return frames
 
 
+def sheets(frames, W, H, rects, footprint=False):
+    """Colour, shadow and glow (lit parts, same rects) sheets plus the frame table; a frame with lit parts gets glow: True."""
+    atlas, atlas_sh, atlas_gl, meta = Image.new('RGBA', (W, H), (0, 0, 0, 0)), Image.new('RGBA', (W, H), SHADOW + (0,)), Image.new('RGBA', (W, H), (0, 0, 0, 0)), {}
+    for n in sorted(frames):
+        c, s, ax, ay, fp, gl = frames[n]; x, y = rects[n]
+        atlas.paste(c, (x, y)); atlas_sh.paste(s, (x, y))
+        if gl: atlas_gl.paste(look(gl), (x, y), gl.getchannel('A').point(lambda v: 255 if v > 100 else 0))
+        meta[n] = {'x': x, 'y': y, 'w': c.width, 'h': c.height, 'ax': ax, 'ay': ay}
+        if footprint: meta[n]['footprint'] = fp
+        if gl: meta[n]['glow'] = True
+    return atlas, atlas_sh, atlas_gl, meta
+
+
 def palette(images, path, keep=False):
     """Median cut (k-means refined) over the opaque pixels of images, plus the outline, written to path; each colour's weight
     is capped so big flat areas (grass, floors) don't starve small accents. keep: reuse path if it exists."""
@@ -113,14 +126,11 @@ def build(raw, out, office_out=None):
 
     frames = cut(sprites, pal, ncols)
     W, H, rects = pack(frames)
-    atlas, atlas_sh, meta = Image.new('RGBA', (W, H), (0, 0, 0, 0)), Image.new('RGBA', (W, H), SHADOW + (0,)), {}
-    for n in sorted(frames):
-        c, s, ax, ay, fp, _ = frames[n]; x, y = rects[n]
-        atlas.paste(c, (x, y)); atlas_sh.paste(s, (x, y))
-        meta[n] = {'x': x, 'y': y, 'w': c.width, 'h': c.height, 'ax': ax, 'ay': ay, 'footprint': fp}
+    atlas, atlas_sh, atlas_gl, meta = sheets(frames, W, H, rects, footprint=True)
     os.makedirs(os.path.join(out, 'terrain'), exist_ok=True)
     save_p(to_palette(atlas, pal, ncols), os.path.join(out, 'atlas.png'))
     atlas_sh.save(os.path.join(out, 'atlas-shadow.png'), optimize=True)
+    atlas_gl.save(os.path.join(out, 'atlas-glow.png'), optimize=True)
     json.dump({'frames': meta, 'size': [W, H]}, open(os.path.join(out, 'atlas.json'), 'w', newline='\n'), indent=1)
 
     # terrain: palette + outline round the whole block (not per chunk), cut into 512 px chunks
@@ -143,13 +153,7 @@ def build_office(sprites, out):
     pal, ncols = palette([s[0] for s in sprites.values()], os.path.join(HERE, 'palette-office.json'))
     frames = cut(sprites, pal, ncols)
     W, H, rects = pack(frames)
-    atlas, atlas_sh, atlas_gl, meta = Image.new('RGBA', (W, H), (0, 0, 0, 0)), Image.new('RGBA', (W, H), SHADOW + (0,)), Image.new('RGBA', (W, H), (0, 0, 0, 0)), {}
-    for n in sorted(frames):
-        c, s, ax, ay, fp, gl = frames[n]; x, y = rects[n]
-        atlas.paste(c, (x, y)); atlas_sh.paste(s, (x, y))
-        if gl: atlas_gl.paste(look(gl), (x, y), gl.getchannel('A').point(lambda v: 255 if v > 100 else 0))
-        meta[n] = {'x': x, 'y': y, 'w': c.width, 'h': c.height, 'ax': ax, 'ay': ay}
-        if gl: meta[n]['glow'] = True
+    atlas, atlas_sh, atlas_gl, meta = sheets(frames, W, H, rects)
     os.makedirs(out, exist_ok=True)
     q = to_palette(atlas, pal, ncols).convert('RGBA'); q.putalpha(atlas.getchannel('A'))  # snap the outline blend back onto the palette
     q.save(os.path.join(out, 'atlas.png'), optimize=True)

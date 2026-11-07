@@ -544,25 +544,15 @@ MODELS = {
 
 # the fixture is the footprint truth: report any frame whose model sits off its frozen footprint
 FROZEN = {(r['id'], r['part']): r['fp'] for r in fixture}
-HOLD = None
-
-
-def holdout():
-    global HOLD
-    if HOLD is None:
-        HOLD = bpy.data.materials.new('hold'); HOLD.use_nodes = True; nt = HOLD.node_tree; nt.nodes.clear()
-        nt.links.new(nt.nodes.new('ShaderNodeHoldout').outputs[0], nt.nodes.new('ShaderNodeOutputMaterial').inputs['Surface'])
-    return HOLD
 
 
 for i, (name, f) in enumerate(sorted(cat['frames'].items())):
     if only and name not in only: continue
     if f['base'] not in MODELS: print('NO MODEL', name); sys.exit(1)
-    sc = kit.reset_scene(seed=200 + i); HOLD = None
+    sc = kit.reset_scene(seed=200 + i)
     sun = sc.objects['sun'].data; sun.shadow_maximum_resolution = 0.002; sun.shadow_filter_radius = 0; sun.angle = 0; sun.use_shadow_jitter = False; sc.eevee.shadow_ray_count = 1  # interior pieces are small: finer, crisper shadows
     sc.render.dither_intensity = 0  # 8-bit output dither is the +-1 noise that speckled flat faces after the palette snap
     MODELS[f['base']](f['variant']); objs = kit.flush(name)
-    glows = {m for (col, g), m in kit.MATS.items() if g > 0}
     clear = {m for (col, g), m in kit.MATS.items() if g < 0}  # glass: casts no shadow, keeps its alpha through post
     for o in objs:
         if o.data.materials[0] in clear: o.visible_shadow = False
@@ -585,11 +575,8 @@ for i, (name, f) in enumerate(sorted(cat['frames'].items())):
     kit.render(os.path.join(out, name + '.ground.png'))
     sun.use_shadow = False
     kit.render(os.path.join(out, name + '.noshadow.png'))
-    if glows:  # emissive parts only: everything else holds out (occludes, renders transparent)
-        for g in ground: g.hide_render = True
-        for o in objs:
-            if o.data.materials[0] not in glows: o.data.materials[0] = holdout()
-        kit.render(os.path.join(out, name + '.glow.png'))
-    json.dump({'anchor': [ox, oy], 'footprint': fp, 'glow': bool(glows), 'alpha': bool(clear)}, open(os.path.join(out, name + '.json'), 'w', newline='\n'))
+    for g in ground: g.hide_render = True
+    glows = kit.glow_pass(objs, os.path.join(out, name + '.glow.png'))
+    json.dump({'anchor': [ox, oy], 'footprint': fp, 'glow': glows, 'alpha': bool(clear)}, open(os.path.join(out, name + '.json'), 'w', newline='\n'))
     print('OFFICE', name, bw, bh, ox, oy)
 print('DONE')
