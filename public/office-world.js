@@ -797,6 +797,7 @@
   }
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {
+      chatterInfo: () => (chatter && chatter.until > clock ? { id: chatter.id, text: chatter.text } : null), // read-only, for checks
       npcInfo: () => Object.values(npcs).map(n => ({ kind: n.kind, x: Math.round(n.w.x), y: Math.round(n.w.y), moving: !!n.w.moving, line: n.lineUntil > clock ? n.line : null })), // read-only, for checks
     mount, setScale, advance, hotspots, activate, applyLayout,
     // Enter a scene before applying its layout: the brain, walkers and the CEO start afresh (the CEO at the layout's spawn).

@@ -75,7 +75,7 @@
         const pos = w.pos, last = walked.get(a.id), [p0, p1] = n.pos ? [pos, n.pos] : [b.pos || pos, pos]; // the path segment it is on
         const face = TownRender.faceAlong(p0, p1, last ? last.face : 's'), dist = last ? last.dist + Math.hypot(pos.x - last.x, pos.y - last.y) : 0;
         seen.set(a.id, { x: pos.x, y: pos.y, dist, face });
-        out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a), name: a.name || 'Helper', accent: a.profile && a.profile.accent });
+        out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a.profile ? { id: a.id, name: a.name, key: a.profile.key, color: a.profile.color, accent: a.profile.accent } : a), name: a.name || 'Helper', accent: a.profile && a.profile.accent });
       }
       walked.clear(); for (const [k, v] of seen) walked.set(k, v);
       return out;

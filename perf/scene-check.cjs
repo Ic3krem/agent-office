@@ -25,8 +25,10 @@ app.whenReady().then(async () => {
   const errors = [];
   w.webContents.on('console-message', e => { if (e.level === 'error') errors.push(e.message); });
   const js = s => w.webContents.executeJavaScript(s);
+  // keys reach a page only while it has focus; after a navigation the hidden offscreen window can lose it (seen on Windows)
   const key_ = (type, keyCode) => w.webContents.sendInputEvent({ type, keyCode });
-  const press = async k => { key_('keyDown', k); await wait(40); key_('keyUp', k); };
+  const focus = async () => { if (!(await js('document.hasFocus()'))) { w.focusOnWebView(); await wait(150); } };
+  const press = async k => { await focus(); key_('keyDown', k); await wait(40); key_('keyUp', k); };
   const until = async (fn, ms = 15000) => { for (let t = 0; t < ms; t += 50) { try { if (await fn()) return true; } catch {} await wait(50); } return false; };
   const url = () => w.webContents.getURL().replace(base, '');
   const shot = async name => { await wait(300); const f = path.join(shots, 't6-' + name + '.png'); fs.mkdirSync(shots, { recursive: true }); fs.writeFileSync(f, (await w.webContents.capturePage()).toPNG()); console.log('screenshot', f); };
@@ -46,7 +48,7 @@ app.whenReady().then(async () => {
   };
   const atDoor = id => js(`(() => { const l = __town.map.lots.find(l => l.id === ${JSON.stringify(id)}); return Math.hypot(__town.p.x - l.door.x, __town.p.y - l.door.y); })()`);
   const walkToExit = async () => { // spawn is just inside the door: walk +y (screen down-left = S + A) until Leave shows
-    key_('keyDown', 'S'); key_('keyDown', 'A');
+    await focus(); key_('keyDown', 'S'); key_('keyDown', 'A');
     const ok = await until(() => js('OfficeWorld.nearKind() === "door"'), 3000);
     key_('keyUp', 'S'); key_('keyUp', 'A'); await wait(150);
     return ok;
@@ -76,8 +78,8 @@ app.whenReady().then(async () => {
     check(lot + ' scene boots', await officeReady(lot));
     // as in the office, the lights dim to the board and the zone labels fade once (about 16 s): wait that out before idle is measured
     await until(() => js('OfficeFurniture.state.labels <= 0.02 && Math.abs(OfficeFurniture.state.dim - (OfficeWorld.debug().board.empty ? 1 : 0)) <= 0.01'), 25000); await wait(600);
-    const st = await js(`({ agents: OfficeWorld.debug().agents.length, kain: !!OfficeMotion.SPOTS['kain:1'], arcade: !!OfficeMotion.SPOTS['play:arcade1'], ceo: OfficeWorld.ceo(), spawn: OfficeMotion.SPAWN, label: [...document.querySelectorAll('span')].some(s => s.textContent === ${JSON.stringify(lot === 'kain' ? 'Karinderya' : 'Game hall')}) })`);
-    check(lot + ': only the CEO, the interior pieces, the scene name', st.agents === 0 && Math.hypot(st.ceo.x - st.spawn.x, st.ceo.y - st.spawn.y) < 1 && (lot === 'kain' ? st.kain : st.arcade) && st.label, st);
+    const st = await js(`({ agents: (t => OfficeWorld.debug().agents.filter(a => !a.id.startsWith('friend:') && !(t[a.id] && t[a.id].dest === ${JSON.stringify(lot)})).length)(JSON.parse(localStorage.getItem('ao.trips') || '{}')), kain: !!OfficeMotion.SPOTS['kain:1'], arcade: !!OfficeMotion.SPOTS['play:arcade1'], ceo: OfficeWorld.ceo(), spawn: OfficeMotion.SPAWN, label: [...document.querySelectorAll('span')].some(s => s.textContent === ${JSON.stringify(lot === 'kain' ? 'Karinderya' : 'Game hall')}) })`);
+    check(lot + ': only the CEO (and travellers), the interior pieces, the scene name', st.agents === 0 && Math.hypot(st.ceo.x - st.spawn.x, st.ceo.y - st.spawn.y) < 1 && (lot === 'kain' ? st.kain : st.arcade) && st.label, st);
     const f = await fits();
     check(lot + ': Fit frames the interior, centred', f.inside && f.door && Math.abs(f.off[0]) < 60 && Math.abs(f.off[1]) < 80 && f.span > 0.5, f);
     const f0 = await js('OfficeWorld.framesDrawn()'); await wait(1500); const idle = (await js('OfficeWorld.framesDrawn()')) - f0;
