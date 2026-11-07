@@ -380,3 +380,16 @@ test('nextIn: the next start of a town leg (for one timeout instead of polling),
   assert.equal(T.nextIn(null, 'town', 0, routes), Infinity);
   assert.equal(T.nextIn({ dest: 'nowhere', departAt: 0 }, 'town', 0, routes), Infinity);
 });
+
+test('town routes keep to the dirt paths and plaza (under 5% on grass)', () => {
+  const onPath = (x, y) => [town.plaza, ...town.paths].some(([a, b, c, e]) => x >= a && x <= c && y >= b && y <= e);
+  for (const [a, b] of [['home', 'kain'], ['home', 'games'], ['kain', 'games']]) {
+    const { pts, len } = routes(a, b);
+    let grass = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], L = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(L / 2);
+      for (let s = 0; s < n; s++) if (!onPath(x0 + (x1 - x0) * (s + 0.5) / n, y0 + (y1 - y0) * (s + 0.5) / n)) grass += L / n;
+    }
+    assert.ok(grass / len < 0.05, `${a}>${b}: ${grass | 0}/${len | 0} on grass`);
+  }
+});

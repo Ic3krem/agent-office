@@ -7,7 +7,7 @@
   const BUILDINGS = ['office-country', 'office-japanese', 'office-modern', 'karinderya', 'gamehall', 'lot-empty'];
   const DECOR = ['tree-round', 'tree-pine', 'bush', 'bench', 'lamp', 'well', 'barrel', 'crate', 'flowers', 'sign'];
   const FACES = ['n', 'e', 's', 'w'];
-  const MAX_ERRORS = 20, ZONE_COST = 0.8;
+  const MAX_ERRORS = 20, ZONE_COST = 0.6; // low enough that the roads beat a ~1.3x straight-line detour across grass
   const num = v => typeof v === 'number' && isFinite(v);
   const inside = (p, [x0, y0, x1, y1]) => p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1;
 
