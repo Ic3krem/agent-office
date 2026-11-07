@@ -22,24 +22,25 @@
   }
 
   // Trip reducer: the page keeps the returned record per agent and passes it back next tick. Times come only from
-  // agent.statusAt (when the status changed; `now` only if it is missing), never later than needed and never before the
-  // current trip's departure, so pages polling the same history at different times build identical records.
-  // dest null means stay home. Record (plain JSON): {dest, fromLot, departAt, returnAt, prev?}; `prev` is the chain of
-  // trips still walking home when the agent was needed again (the new one waits for them). With `routes`, chain entries
-  // that ended by the transition time are pruned; without it the chain is kept whole.
+  // agent.statusAt (when the status changed; `now` only if it is missing), so pages polling the same history at different
+  // times build identical records. dest null means stay home. Record (plain JSON): {dest, fromLot, departAt, returnAt,
+  // statusAt, prev?}; statusAt is the status time the record last applied, `prev` the chain of trips still walking home
+  // when the agent was needed again (the new one waits for them). With `routes`, chain entries that ended by the
+  // transition time are pruned; without it the chain is kept whole.
   function trip(prev, agent, dest, now, fromLot = 'home', routes) {
-    let at = agent && typeof agent.statusAt === 'number' ? agent.statusAt : now;
-    if (prev && typeof prev.departAt === 'number') at = Math.max(at, prev.departAt);
-    const fresh = p => prune(Object.assign({ dest, fromLot, departAt: at, returnAt: null }, p ? { prev: p } : {}), at, routes);
+    const at = agent && typeof agent.statusAt === 'number' ? agent.statusAt : now;
+    // A dest change without a status change (a layout edit mid-trip) waits for the next status change: no jump.
+    if (prev && prev.statusAt === at) return prev;
+    const fresh = p => prune(Object.assign({ dest, fromLot, departAt: at, returnAt: null, statusAt: at }, p ? { prev: p } : {}), at, routes);
     if (!prev) return dest ? fresh() : null;
     if (prev.returnAt == null) {
       if (dest === prev.dest) return prev;
-      const back = Object.assign({}, prev, { returnAt: at });
+      const back = Object.assign({}, prev, { returnAt: at, statusAt: at });
       return dest ? fresh(back) : back;
     }
     if (!dest) return prev;
     // Flapping inside the exit leg: the agent has not turned yet, so the return is simply cancelled (one trip, no gap).
-    if (dest === prev.dest && at < prev.departAt + EXIT_MS) return Object.assign({}, prev, { returnAt: null });
+    if (dest === prev.dest && at < prev.departAt + EXIT_MS) return Object.assign({}, prev, { returnAt: null, statusAt: at });
     return fresh(prev);
   }
 

@@ -36,7 +36,7 @@ test('constants and route between lot doors', () => {
 
 test('limited at 0, now 3000 -> walking to the office door', () => {
   const trip = T.trip(null, lim(0), 'kain', 3000);
-  assert.deepEqual(plain(trip), { dest: 'kain', fromLot: 'home', departAt: 0, returnAt: null });
+  assert.deepEqual(plain(trip), { dest: 'kain', fromLot: 'home', departAt: 0, returnAt: null, statusAt: 0 });
   const w = W(trip, 3000);
   assert.equal(w.scene, 'office'); assert.equal(w.leg, 'exit'); assert.equal(w.t, 0.5); assert.equal(w.pos, undefined);
 });
@@ -100,7 +100,7 @@ test('flapping limited -> working -> limited within EXIT_MS: one trip, no gap', 
   const t0 = T.trip(null, lim(0), 'kain', 0);
   const t1 = T.trip(t0, { status: 'working', statusAt: 1000 }, null, 1000);
   const t2 = T.trip(t1, lim(2000), 'kain', 2000);
-  assert.deepEqual(plain(t2), plain(t0));
+  assert.deepEqual(plain({ ...t2, statusAt: 0 }), plain(t0));
   for (let now = 0; now < 30000; now += 100) assert.ok(W(now < 1000 ? t0 : now < 2000 ? t1 : t2, now).scene);
   assert.equal(W(t2, T.EXIT_MS + 1).leg, 'town');
   assert.equal(T.trip(t0, lim(0), 'kain', 9000), t0, 'unchanged need keeps the record');
@@ -165,17 +165,20 @@ test('fix 1: same statusAt history polled at different now builds identical reco
   assert.equal(f1.returnAt, null, 'flapping inside the exit leg is still one trip');
 });
 
-test('fix 2: dest switches with statusAt unchanged -> never before departure, no teleport', () => {
-  const t0 = T.trip(null, { statusAt: 0 }, 'kain', 0, 'home', lr);
-  const t1 = T.trip(t0, { statusAt: 0 }, 'games', 3000, 'home', lr);
-  assert.ok(t1.departAt >= t0.departAt);
-  assert.deepEqual(W(t0, 3000, lr), W(t1, 3000, lr), 'same spot at the switch');
-  const W2 = now => W(now < 3000 ? t0 : t1, now, lr);
-  for (let now = 0; now < 30000; now += 100) assert.ok(W2(now).scene);
-  assert.equal(W(t1, 1e9, lr).scene, 'games');
-  // stale statusAt older than the trip: transition is clamped to departAt
-  const t2 = T.trip({ dest: 'kain', fromLot: 'home', departAt: 5000, returnAt: null }, { statusAt: 100 }, null, 6000, 'home', lr);
-  assert.equal(t2.returnAt, 5000);
+test('fix 2: dest change without a status change waits for the next status change (no jump)', () => {
+  const real = routes; // real routes: kain and games paths differ, so a rewrite would jump
+  for (const now of [3000, T.EXIT_MS + 4000, 1e9]) { // during exit, mid-town, there
+    const t0 = T.trip(null, lim(0), 'kain', 0, 'home', real);
+    const t1 = T.trip(t0, lim(0), 'games', now, 'home', real);
+    assert.equal(t1, t0, 'same record at ' + now);
+    assert.deepEqual(W(t1, now, real), W(t0, now, real));
+    const t2 = T.trip(t1, { status: 'idle', statusAt: now + 1 }, 'games', now + 1, 'home', real);
+    assert.notEqual(t2, t0, 'the next status change applies it');
+    assert.equal(W(t2, now + 1e7, real).scene, 'games');
+  }
+  // the returning side waits too
+  const back = T.trip(T.trip(null, lim(0), 'kain', 0), { statusAt: 9000 }, null, 9000);
+  assert.equal(T.trip(back, { statusAt: 9000 }, 'games', 12000), back);
 });
 
 test('fix 3: the whole queued chain is kept (A returning, B made and returned, C needed)', () => {
