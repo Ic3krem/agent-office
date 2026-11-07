@@ -69,3 +69,38 @@ test('the page tplSlug matches the server slug (overwrite check)', async () => {
   const st = createWorldStore(tmp()), built = st.listTemplates().filter((t) => t.builtIn).map((t) => t.id);
   for (const nm of ['My Plan', 'Odd -- Name!!', 'x'.repeat(60), built[0], '!!!']) assert.equal(st.saveTemplate(nm, def).id, tplSlug(nm, built), nm);
 });
+
+// Town step 2: the karinderya and game hall interiors.
+const interior = (sc) => JSON.parse(fs.readFileSync(new URL('./public/world-templates/interior-' + sc + '.json', import.meta.url), 'utf8'));
+test('interior templates validate, keep their scene, and spawn by their door', () => {
+  for (const sc of ['kain', 'games']) {
+    const l = interior(sc), v = WM.validate(J(l));
+    assert.deepEqual(J(v), { ok: true, errors: [] }, sc);
+    assert.equal(l.scene, sc);
+    assert.ok(l.size.w <= 640 && l.size.h <= 440, sc + ' is about 600 x 400');
+    const door = l.spots.find((s) => s.id === 'door');
+    assert.ok(door, sc + ' has a door spot');
+    const d = Math.hypot(l.spawn.x - door.x, l.spawn.y - door.y);
+    assert.ok(d > 45 && d <= 80, sc + ' spawn is at the door, just outside the Leave reach: ' + d);
+  }
+  assert.ok(interior('kain').objects.some((o) => o.type === 'karinderya'));
+  const types = new Set(interior('games').objects.map((o) => o.type));
+  for (const t of ['arcade', 'arcade-race', 'jukebox', 'sofa3', 'snack-table', 'beanbag', 'dartboard', 'hoop', 'toy-bin']) assert.ok(types.has(t), 'games has ' + t);
+});
+
+test('interior templates are not offered as office templates', () => {
+  const st = createWorldStore(tmp());
+  assert.ok(!st.listTemplates().some((t) => /^interior-/.test(t.id)));
+});
+
+test('interiors: no desks, a door is required, the office stays the only scene with desks', () => {
+  const k = interior('kain');
+  const noDoor = { ...k, spots: k.spots.filter((s) => s.id !== 'door') };
+  assert.match(WM.validate(J(noDoor)).errors.join(), /missing spot door/);
+  const withDesk = { ...k, objects: [...k.objects, J(def.objects.find((o) => o.type === 'dept-desk'))] };
+  assert.match(WM.validate(J(withDesk)).errors.join(), /desks belong in the office/);
+  assert.match(WM.validate(J({ ...k, scene: 'office' })).errors.join(), /scene/);
+  assert.match(WM.validate(J({ ...k, scene: '../x' })).errors.join(), /scene/);
+  const S = loadWorld({ ctxFactory: () => noop }).WorldEdit.createSession(J(k));
+  assert.match(S.add('dept-desk', 300, 300, { role: 'researcher' }).reason, /desks belong in the office/);
+});

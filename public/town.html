@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office - Town</title>
-<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}</style>
+<script>if(/[#&]from=/.test(location.hash))document.documentElement.classList.add('ao-fade');</script>
+<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}#door{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 16px;border-radius:999px;border:1.5px solid #2a1a0c;background:#ffcf6b;color:#2a1a0c;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}#door.wait{background:#3a2e25;color:#e8e6df;border-color:#8a5a1c;cursor:default}html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
 </head>
 <body>
 <a href="/">Back to the office</a>
 <canvas id="town" tabindex="0"></canvas>
+<button id="door" hidden></button>
 <div id="err" role="alert"><div id="errmsg"></div><a href="/">Back to the office</a></div>
 <script src="/vendor/pixi.min.js"></script>
 <script src="/office-objects.js"></script>
@@ -24,22 +26,37 @@
 <script>
 (async function () {
   const canvas = document.getElementById('town'), WP = WorldPlayer;
-  const fail = e => { document.getElementById('errmsg').textContent = 'The town could not load: ' + (e && e.message || e); document.getElementById('err').style.display = 'block'; };
+  const fail = e => { document.documentElement.classList.remove('ao-fade'); document.getElementById('errmsg').textContent = 'The town could not load: ' + (e && e.message || e); document.getElementById('err').style.display = 'block'; };
   try {
     // ?failgl=1 is only for perf/town-check.cjs: it makes WebGL setup fail so the error box can be checked.
     if (/[?&]failgl=1/.test(location.search)) PIXI.Application.prototype.init = () => Promise.reject(new Error('WebGL unavailable'));
     const map = await TownMap.load('/town/town.json'), grid = TownMap.grid(map);
     const api = await TownRender.mount(canvas, { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json' });
-    const p = WP.unstick(WP.create(map.spawn.x, map.spawn.y), grid);
+    // #from=<lot>: back out of a scene, so start at that lot's door (town step 2)
+    const fromLot = map.lots.find(l => l.id === (/[#&]from=([^&]*)/.exec(location.hash) || [])[1]), at = fromLot ? fromLot.door : map.spawn;
+    const p = WP.unstick(WP.create(at.x, at.y), grid);
+    // Doors: near one, a prompt says where it goes; E or a tap on the prompt fades out and goes there. Friend lots wait for party mode.
+    const doorBtn = document.getElementById('door'), html = document.documentElement;
+    let near = null;
+    const nearDoor = () => { let best = null, bd = WP.REACH; for (const l of map.lots) { const d = Math.hypot(l.door.x - p.x, l.door.y - p.y); if (d <= bd) { bd = d; best = l; } } return best; };
+    const showDoor = () => {
+      const l = nearDoor(); if (l === near) return; near = l;
+      if (!l) { doorBtn.hidden = true; return; }
+      const t = TownMap.enterTarget(l); doorBtn.textContent = t.url ? t.label + ' · E' : t.label; doorBtn.className = t.url ? '' : 'wait'; doorBtn.hidden = false;
+    };
+    const enter = () => { const t = near && TownMap.enterTarget(near); if (!t || !t.url || html.classList.contains('ao-fade')) return; html.classList.add('ao-fade'); setTimeout(() => { location.href = t.url; }, 200); };
+    doorBtn.addEventListener('click', () => { enter(); canvas.focus(); });
+    addEventListener('pageshow', e => { if (e.persisted) html.classList.remove('ao-fade'); }); // back/forward cache: show the town again
+    requestAnimationFrame(() => html.classList.remove('ao-fade'));
     let look = OfficeSprites.lookOf({ look: 'ceo' }), pose = 'stand', frame = 0;
-    const draw = () => { api.setPlayer({ x: p.x, y: p.y, face: p.face, pose, frame, look }); api.setCamera(p.x, p.y); };
+    const draw = () => { api.setPlayer({ x: p.x, y: p.y, face: p.face, pose, frame, look }); api.setCamera(p.x, p.y); showDoor(); };
     draw();
     try { // the CEO's saved wardrobe: first stream message, then done
       const es = new EventSource('/api/stream');
       es.onmessage = ev => { es.close(); try { OfficeSprites.setCostumes(JSON.parse(ev.data).looks); look = OfficeSprites.lookOf({ look: 'ceo' }); draw(); } catch (e) {} };
       es.onerror = () => es.close();
     } catch (e) {}
-    window.__town = { api, p, grid, map, toWorld: api.toWorld }; // handle for perf/town-check.cjs
+    window.__town = { api, p, grid, map, toWorld: api.toWorld, near: () => near && near.id }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;
@@ -55,7 +72,9 @@
     const go = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } };
     const state = e => ({ shown: true, canvas });
     addEventListener('keydown', e => {
-      if (WP.takesKey(e, state(e)) !== 'move') return;
+      const act = WP.takesKey(e, state(e));
+      if (act === 'interact') { if (near) { e.preventDefault(); enter(); } return; }
+      if (act !== 'move') return;
       e.preventDefault(); keys.add(WP.keyOf(e)); go();
     });
     addEventListener('keyup', e => { keys.delete(WP.keyOf(e)); });

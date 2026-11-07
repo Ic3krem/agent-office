@@ -172,6 +172,21 @@ test('/api/world: UI cookie and nonce required; a bad layout is refused with err
   const now = JSON.parse((await call(s.port, '/api/world', { method: 'GET', headers: h })).body);
   assert.equal(now.source, 'file');
   assert.deepEqual(now.layout, layout);
+  // Interiors (town step 2): same cookie + nonce rule; the scene is whitelisted before any file is touched.
+  assert.equal((await call(s.port, '/api/world?scene=kain', { method: 'GET', headers: { cookie } })).status, 403, 'scene GET needs the nonce');
+  const kain = JSON.parse((await call(s.port, '/api/world?scene=kain', { method: 'GET', headers: h })).body);
+  assert.equal(kain.source, 'default');
+  assert.equal(kain.layout.scene, 'kain');
+  assert.equal((await call(s.port, '/api/world?scene=kain', { headers: { cookie }, body: { layout: kain.layout } })).status, 403, 'scene save needs the nonce');
+  for (const bad of ['', 'x', '../layout', '..%2Flayout', 'KAIN', '__proto__', 'templates']) {
+    assert.equal((await call(s.port, '/api/world?scene=' + bad, { method: 'GET', headers: h })).status, 400, 'GET scene=' + bad);
+    assert.equal((await call(s.port, '/api/world?scene=' + bad, { headers: h, body: { layout: kain.layout } })).status, 400, 'POST scene=' + bad);
+  }
+  assert.equal((await call(s.port, '/api/world?scene=games', { headers: h, body: { layout: kain.layout } })).status, 400, 'a kain layout is not the game hall');
+  const kain2 = { ...kain.layout, spawn: { ...kain.layout.spawn, x: kain.layout.spawn.x + 10 } };
+  assert.equal((await call(s.port, '/api/world?scene=kain', { headers: h, body: { layout: kain2 } })).status, 200);
+  assert.deepEqual(JSON.parse((await call(s.port, '/api/world?scene=kain', { method: 'GET', headers: h })).body), { layout: kain2, source: 'file' });
+  assert.deepEqual(JSON.parse((await call(s.port, '/api/world', { method: 'GET', headers: h })).body).layout, layout, 'the office is untouched');
   assert.equal((await call(s.port, '/api/world/templates', { method: 'GET', headers: { cookie } })).status, 403, 'templates need the nonce');
   const tl = JSON.parse((await call(s.port, '/api/world/templates', { method: 'GET', headers: h })).body);
   assert.equal(tl.filter(x => x.builtIn).length, 3);

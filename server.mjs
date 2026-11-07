@@ -27,7 +27,7 @@ import { candidatePorts, listenFirstFree, MARKER } from './ports.mjs';
 import { createAuth, loadBridgeKey, lockDown, rand, safeLocal, writePrivate, safeEqual } from './auth.mjs';
 import { redact, hasSecret, redactDeep } from './redact.mjs';
 import { prune } from './retention.mjs';
-import { createWorldStore } from './world-store.mjs';
+import { createWorldStore, parseScene } from './world-store.mjs';
 
 let PORT = 0; // set once bound (see listenFirstFree in ports.mjs)
 const HOME = os.homedir();
@@ -47,7 +47,7 @@ const BRIDGE_WAIT_MS = 90e3;
 // Two separate credentials (see auth.mjs). The bridge key in bridge.json opens /bridge/* only; the UI key is never written to disk.
 lockDown(CFG_DIR, [CFG_FILE, ...['kiro.json', 'goals.json', 'switches.json', 'manager.json', 'credits.json', 'manager-session.json', 'scheduler.json'].map(f => path.join(CFG_DIR, f))]);
 const WORLD_DIR = path.join(CFG_DIR, 'world');
-lockDown(WORLD_DIR, [path.join(WORLD_DIR, 'layout.json')]);
+lockDown(WORLD_DIR, ['layout.json', 'kain.json', 'games.json'].map(f => path.join(WORLD_DIR, f)));
 const worldStore = createWorldStore(WORLD_DIR);
 let worldNow = worldStore.load();   // cached for GET /api/world; validated only on load and save
 // The team follows the department desks in the saved layout: Tiro hires only roles that have a desk.
@@ -665,7 +665,10 @@ async function handle(req, res) {
       }
       return json(res, 404, { error: 'not found' });
     }
-    if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, worldNow);
+    // ?scene= picks an interior (town step 2); parseScene whitelists it before the store builds any path.
+    const scene = url.pathname === '/api/world' ? parseScene(url.searchParams.get('scene')) : 'office';
+    if (!scene) return json(res, 400, { error: 'scene must be office, kain or games' });
+    if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, scene === 'office' ? worldNow : worldStore.load(scene));
     if (req.method === 'GET' && url.pathname === '/api/world/templates') return json(res, 200, worldStore.listTemplates());
     if (req.method === 'GET' && url.pathname === '/api/world/template') {
       const id = url.searchParams.get('id') || '';
@@ -707,6 +710,11 @@ async function handle(req, res) {
       }
       case '/api/world/template/delete': return json(res, 200, worldStore.deleteTemplate(b.id));
       case '/api/world': {
+        if (scene !== 'office') { // interiors hold no desks, so no roster check
+          const r = worldStore.save(b.layout, scene);
+          if (!r.ok) return json(res, 400, { errors: r.errors });
+          bump(); return json(res, 200, { ok: true });
+        }
         // A role whose specialist is out working cannot lose its desk (409, nothing saved).
         const r = roster.save(b.layout, k => roleBusy(k, { open: x => (boss.running > 0 ? AH.openCount(x) : 0), agents: [...agents.values()], bossId: boss.id, live: id => sdk.has(id), idle: a => statusOf(a, Date.now()) === 'idle' }), k => dnames()[k]);
         if (!r.ok) return json(res, r.status, r.status === 409 ? { error: r.error } : { errors: r.errors });

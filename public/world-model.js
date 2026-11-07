@@ -82,7 +82,10 @@
     home: (v, l) => Array.isArray(v) && v.length === 2 && inside(v[0], v[1], l), col: v => typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v),
     spot: short, desk: short, role: short,
   };
+  // Interiors (town step 2) carry scene: 'kain' | 'games'; the office layout has no scene field.
+  const INTERIORS = ['kain', 'games'];
   function malformed(l) {
+    if ('scene' in l && !INTERIORS.includes(l.scene)) return 'scene must be kain or games (the office has none)';
     if (!obj(l.size) || !(l.size.w > 0 && l.size.w <= MAX) || !(l.size.h > 0 && l.size.h <= MAX)) return 'size needs w and h in 1..' + MAX;
     if (!obj(l.spawn) || !inside(l.spawn.x, l.spawn.y, l)) return 'spawn needs numeric x and y inside the world';
     for (const k of ['zones', 'objects', 'spots']) {
@@ -110,7 +113,8 @@
   const deskRole = o => o.role || root.RoleCatalog.BUILTIN_DESKS[o.desk];
   const MAX_DESKS = 12;
   const desksOf = layout => layout.objects.filter(o => o.type === 'dept-desk');
-  const requiredSpots = layout => { const M = root.OfficeMotion; return M ? [...desksOf(layout).map(o => o.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
+  // An interior needs only its exit door; the office needs every spot the agent brain reads.
+  const requiredSpots = layout => { const M = root.OfficeMotion; return layout.scene ? ['door'] : M ? [...desksOf(layout).map(o => o.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.GARDEN, ...M.PLAY, ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
 
   function validate(layout) {
     const errors = [];
@@ -137,7 +141,8 @@
       roles.add(role);
     }
     const nDesks = desksOf(layout).length;
-    if (!nDesks) errors.push('no desks');
+    if (layout.scene) { if (nDesks) errors.push('desks belong in the office'); } // agents stay in the office in step 2
+    else if (!nDesks) errors.push('no desks');
     if (nDesks > MAX_DESKS) errors.push('too many desks');
     if (errors.length) return { ok: false, errors }; // the checks below draw the objects
     try { geometry(layout, errors, spotId, extra); } catch (e) { errors.push('malformed: ' + e.message); } // bad params can break a painter
@@ -161,6 +166,6 @@
     }
   }
 
-  root.WorldModel = { VERSION, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS };
+  root.WorldModel = { VERSION, INTERIORS, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS };
   if (root.OfficeMotion && typeof root.OfficeMotion.useLayout === 'function') root.OfficeMotion.useLayout(defaultLayout());
 })(globalThis);

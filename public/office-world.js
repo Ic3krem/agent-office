@@ -15,6 +15,9 @@
   let npcs = {}, npcChat = 0; // zero-token NPCs (cook, sweeper) and when one may speak next
   let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
+  // Town step 2: 'office', or an interior ('kain' | 'games') where only the CEO walks; agents stay in the office scene.
+  let scene = 'office', freshCeo = false; // freshCeo: the scene's first layout puts the CEO at its spawn
+  const inOffice = () => scene === 'office';
   // Build mode: the edit session (WorldEdit) or null, the page's hooks, the zone tool, the selection {kind: 'obj'|'zone', id},
   // the session's layout as last applied, footprints per object id, the drag in progress and the pointers that are down.
   let build = null, bhooks = {}, tool = null, sel = null, blayout = null, fps = new Map(), drag = null, noClick = false, tap = null;
@@ -137,6 +140,7 @@
     const ws = frame.agents.map(a => { const w = walkers.get(a.id); return w && { id: a.id, x: w.x, y: w.y, isManager: !!a.isManager }; }).filter(Boolean);
     const ds = M.DESKS.map(d => { const a = deskAgent(d.id), s = M.SPOTS[d.id]; return { id: d.id, x: s.x, y: s.y, agentId: a ? a.id : null }; });
     cands = WPL().candidatesFrom(ws, ds);
+    const door = M.SPOTS.door; if (door) cands.push({ kind: 'door', id: 'door', x: door.x, y: door.y }); // walking onto it offers Leave
     const n = WPL().nearest(p, cands), k = n ? n.kind + ':' + n.id : '';
     near = n; if (k !== nearKey) { nearKey = k; opts.onNear && opts.onNear(n); }
   }
@@ -169,7 +173,7 @@
     const pp = near.kind !== 'desk' && posOf.get(near.id), c = cands.find(q => q.kind === near.kind && q.id === near.id);
     if (!pp && !c) return;
     // beside an agent's name tag (the bubble above it stays readable); over the seat for a desk
-    const label = coarse() ? 'Tap' : 'E';
+    const label = near.kind === 'door' ? (coarse() ? 'Leave' : 'Leave · E') : coarse() ? 'Tap' : 'E';
     g.font = '11px ' + FONT; const w = Math.ceil(g.measureText(label).width) + 12, h = 17;
     const [sx, sy] = pp ? [pp.sx + (pp.tagW || 40) / 2 + 4 + w / 2, pp.tagY != null ? pp.tagY - 1 : pp.top - 18] : P(c.x, c.y, 62);
     const x = Math.round(sx - w / 2), y = Math.round(pp ? sy : sy - h);
@@ -190,7 +194,7 @@
     ST.T = reduced() ? 0 : clock / 1000;
     const s = currentSnap();
     if (demo && opts.onDemoSnap) { const sig = JSON.stringify([s.agents.map(a => a.id + a.status + (a.perm ? 1 : 0)), s.goals.map(x => x.id + x.status)]); if (sig !== lastDemoSig) { lastDemoSig = sig; opts.onDemoSnap(s); } }
-    frame = brain.update(s || { agents: [], goals: [], boss: {} }, clock, { arrived: (id, spot) => { const w = walkers.get(id); return !!w && M.arrivedAt(w, spot); } });
+    frame = brain.update(s && inOffice() ? s : { agents: [], goals: (s && s.goals) || [], boss: {} }, clock, { arrived: (id, spot) => { const w = walkers.get(id); return !!w && M.arrivedAt(w, spot); } });
     syncWalkers(dt);
     stepCeo(dt);
     stepNpcs(dt);
@@ -280,7 +284,7 @@
   const GUEST_COL = ['#3f5f8a', '#8a3f6b', '#3e7d55', '#a0643a', '#5a4a8a', '#2f7f86'];
   function setGuests(list) {
     const keep = new Set();
-    for (const gq of (Array.isArray(list) ? list : []).slice(0, 16)) {
+    for (const gq of (Array.isArray(list) && inOffice() ? list : []).slice(0, 16)) {
       const k = 'guest:' + gq.id; keep.add(k);
       let n = npcs[k];
       if (!n) { const a = { id: 'guest-' + gq.id, name: gq.name, pose: 'stand', color: GUEST_COL[hashId(gq.id) % GUEST_COL.length], accent: '#ffd23f' }; n = npcs[k] = { kind: 'guest', a, w: npcBody(a, gq.x, gq.y) }; }
@@ -395,11 +399,11 @@
     g.setTransform(res, 0, 0, res, 0, 0); g.clearRect(0, 0, STW, STH);
     g.globalAlpha = 1; g.imageSmoothingEnabled = true;
     g.drawImage(bg, 0, 0, STW, STH);
-    for (const w of F.walls) w(g);
+    if (inOffice()) for (const w of F.walls) w(g); // boards, clock and labels hang on the office walls
     // depth sorted: furniture and people
     const people = [];
     for (const a of frame.agents) { const w = walkers.get(a.id); if (!w) continue; people.push({ d: w.x + w.y + 3 + (w.moving ? 0 : 0.5), x: w.x, y: w.y, a, w }); }
-    { const nw = npcWalker(); people.push({ d: nw.x + nw.y + 3.5, x: nw.x, y: nw.y, npc: true }); }
+    if (M.SPOTS['sched:npc']) { const nw = npcWalker(); people.push({ d: nw.x + nw.y + 3.5, x: nw.x, y: nw.y, npc: true }); }
     for (const n of Object.values(npcs)) people.push({ d: n.w.x + n.w.y + 3, x: n.w.x, y: n.w.y, extra: n });
     if (ceoOn()) { const p = ceoPlayer(); people.push({ d: p.x + p.y + 3, x: p.x, y: p.y, a: CEO_AGENT, w: p }); }
     for (const gh of ghosts) people.push({ d: gh.w.x + gh.w.y + 3, x: gh.w.x, y: gh.w.y, ghost: gh });
@@ -415,7 +419,7 @@
       const p = drawPerson(it.a, it.w); posOf.set(it.a.id, p);
       hits.push({ id: it.a.id, l: p.hit.l, r: p.hit.r, t: p.hit.t, b: p.hit.b });
     }
-    F.overlay(g);
+    if (inOffice()) F.overlay(g); // pendants, sunbeams and party lights are placed for the office
     // ambient tint by time of day, and dim lights when the board is empty
     g.globalCompositeOperation = 'source-atop';
     if (ST.night > .02) { g.fillStyle = 'rgba(10,14,56,' + (.36 * ST.night) + ')'; g.fillRect(0, 0, STW, STH); }
@@ -750,7 +754,8 @@
   }
   // Swap in a layout (WorldModel format): motion spots and grid, furniture, click objects, then repaint the baked floor.
   function applyLayout(layout) {
-    M.useLayout(layout); F.place(layout.objects); rebuildObjects(); F.setZones(layout.zones);
+    M.useLayout(layout); F.place(layout.objects); rebuildObjects(); F.setZones(layout.zones, layout.scene ? { size: layout.size, door: layout.spots.find(q => q.id === 'door') } : null);
+    if (freshCeo) { freshCeo = false; ceoP = null; } // a snapshot may have placed the CEO before the scene's layout arrived
     if (ceoP) { ceoP.path = []; ceoP.pi = 0; WPL().unstick(ceoP, M.grid()); } // the old route may cross the new furniture
     // seated characters snap to their spot's new place; walking ones re-route on the new grid
     for (const w of walkers.values()) if (w.target && M.SPOTS[w.target]) M.setTarget(w, w.target, { instant: !w.moving });
@@ -759,7 +764,12 @@
   function reset() { brain = M.createBrain(); walkers = new Map(); ghosts = []; frame = null; lastDemoSig = ''; }
     root.OfficeWorld = {
       npcInfo: () => Object.values(npcs).map(n => ({ kind: n.kind, x: Math.round(n.w.x), y: Math.round(n.w.y), moving: !!n.w.moving, line: n.lineUntil > clock ? n.line : null })), // read-only, for checks
-    mount, setScale, advance, hotspots, activate, applyLayout, setBuild, setTool, dropAt, buildOp, STW, STH,
+    mount, setScale, advance, hotspots, activate, applyLayout,
+    // Enter a scene before applying its layout: the brain, walkers and the CEO start afresh (the CEO at the layout's spawn).
+    setScene(name) { scene = name === 'kain' || name === 'games' ? name : 'office'; reset(); ceoP = null; freshCeo = true; NPC.w = null; npcs = {}; clearNear(); wake(); },
+    scene: () => scene,
+    nearKind: () => (near && ceoOn() ? near.kind : null), // read-only, for checks
+    setBuild, setTool, dropAt, buildOp, STW, STH,
     setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } wake(); },
     setExtras(e) { extras = Object.assign(extras, e); wake(); },
     setSelected(id) { selected = id; wake(); },

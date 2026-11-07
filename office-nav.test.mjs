@@ -11,3 +11,8 @@ test('officeNav: off the office page (/town) reload "/" with the view', () => {
   assert.deepEqual(officeNav('http://127.0.0.1:4777/town', ''), { load: true, hash: '' });
   assert.deepEqual(officeNav('', 'today'), { hash: 'today' }); // unparsable url: keep old behaviour
 });
+test('officeNav: scenes are views too; an unknown scene opens the office', () => {
+  assert.deepEqual(officeNav('http://127.0.0.1:4777/town', 'scene=kain'), { load: true, hash: 'scene=kain' });
+  assert.deepEqual(officeNav('http://127.0.0.1:4777/#scene=games', 'scene=office'), { hash: 'scene=office' });
+  assert.deepEqual(officeNav('http://127.0.0.1:4777/town', 'scene=../x'), { load: true, hash: '' });
+});

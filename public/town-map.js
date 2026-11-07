@@ -108,5 +108,10 @@
     return data;
   }
 
-  root.TownMap = { validate, grid, decorFootprint, load };
+  // Doors (town step 2): where each lot's door leads, and the lot a scene's exit comes back to.
+  const ENTER = { home: ['/#scene=office', 'Enter the office'], kain: ['/#scene=kain', 'Enter the karinderya'], games: ['/#scene=games', 'Enter the game hall'] };
+  const enterTarget = lot => { const e = lot && Object.prototype.hasOwnProperty.call(ENTER, lot.kind) ? ENTER[lot.kind] : null; return e ? { url: e[0], label: e[1] } : { url: null, label: 'Friend lots open in party mode' }; };
+  const lotOfScene = scene => scene === 'kain' || scene === 'games' ? scene : 'home';
+
+  root.TownMap = { validate, grid, decorFootprint, load, enterTarget, lotOfScene };
 })(globalThis);

@@ -41,3 +41,15 @@ test('validate rejects bad maps with readable errors', () => {
   bad(d => { d.decor[0].x = 99999; }, /outside the map/);
   bad(d => d.lots.push({ ...JSON.parse(JSON.stringify(d.lots[3])), id: 'friend-4' }), /unexpected lot friend-4/);
 });
+
+test('every lot door has an enter target: home/kain/games open their scene, friend lots wait for party mode', () => {
+  const want = { home: '/#scene=office', kain: '/#scene=kain', games: '/#scene=games' };
+  for (const l of real().lots) {
+    const t = TownMap.enterTarget(l);
+    assert.ok(t && typeof t.label === 'string' && t.label.length, l.id);
+    if (l.kind === 'friend') { assert.equal(t.url, null, l.id); assert.equal(t.label, 'Friend lots open in party mode'); }
+    else assert.equal(t.url, want[l.id], l.id);
+  }
+  assert.deepEqual(['home', 'kain', 'games'].map(id => TownMap.lotOfScene(id === 'home' ? 'office' : id)), ['home', 'kain', 'games']);
+  assert.equal(TownMap.lotOfScene('nope'), 'home');
+});

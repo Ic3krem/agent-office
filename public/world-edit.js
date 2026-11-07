@@ -128,6 +128,7 @@
           if (!src || !F.CATALOG[src.type]) return fail(op.op === 'add' ? 'unknown type ' + op.type : 'no object ' + op.id);
           if (isFixture(src.type) || NOT_ADDABLE.has(src.type)) return fail('cannot add ' + src.type);
           const o = Object.assign({}, copy(src), { id: nextId(l.objects, src.type) });
+          if (o.type === 'dept-desk' && l.scene) return fail('desks belong in the office');
           if (o.type === 'dept-desk') { // one desk per role, desk ids desk-1.., at most MAX_DESKS
             const role = root.RoleCatalog.get(op.op === 'add' ? (op.params || {}).role : WM.deskRole(src));
             if (!role) return fail('pick a role');

@@ -3,9 +3,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadWorld } from './world-vm.mjs';
 
+// Scenes (town step 2): the office is layout.json; each interior has its own file beside it. The scene name comes from
+// the request, so it is checked against this list before any path is built: null = not a scene (the server answers 400).
+export const SCENES = ['office', 'kain', 'games'];
+const FILES = { office: 'layout.json', kain: 'kain.json', games: 'games.json' };
+export const parseScene = (v) => v == null ? 'office' : SCENES.includes(v) ? v : null;
+
 // The office layout on disk. Validation is the page's own WorldModel, loaded once per store.
 export function createWorldStore(dir) {
-  const file = path.join(dir, 'layout.json');
+  const fileOf = (scene) => { if (!SCENES.includes(scene)) throw new Error('unknown scene'); return path.join(dir, FILES[scene]); };
   const builtinDir = fileURLToPath(new URL('./public/world-templates/', import.meta.url));
   const userDir = path.join(dir, 'templates');
   const BUILT_IN_NAMES = { 'startup-loft': 'Startup Loft', 'agency-floor': 'Agency Floor', 'hotel-back-office': 'Hotel Back-Office' };
@@ -17,6 +23,7 @@ export function createWorldStore(dir) {
   const J = (v) => JSON.parse(JSON.stringify(v)); // the vm has its own realm
   const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const ids = (d) => { try { return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).filter((i) => SLUG.test(i)); } catch { return []; } };
+  const builtIds = () => ids(builtinDir).filter((i) => !i.startsWith('interior-')); // interior-* are scene defaults: fetchable (Build's reset), never listed
   // Atomic, fsynced write shared by the layout and templates.
   const writeAtomic = (f, data) => {
     fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
@@ -24,30 +31,37 @@ export function createWorldStore(dir) {
     try { fs.writeFileSync(fd, JSON.stringify(data)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.renameSync(f + '.tmp', f);
   };
-  const fallback = (warning) => ({ layout: J(WM.defaultLayout()), source: 'default', ...(warning ? { warning } : {}) });
+  // A missing or bad file means the scene's default: the office's built-in layout, an interior's template.
+  const defaultOf = (scene) => scene === 'office' ? J(WM.defaultLayout()) : readJson(path.join(builtinDir, 'interior-' + scene + '.json'));
+  const sceneOk = (layout, scene) => (layout?.scene ?? 'office') === scene;
   return {
-    load() {
+    load(scene = 'office') {
+      const file = fileOf(scene), name = FILES[scene];
+      const fallback = (warning) => ({ layout: defaultOf(scene), source: 'default', ...(warning ? { warning } : {}) });
       let text;
       try { text = fs.readFileSync(file, 'utf8'); } catch (e) {
         if (e.code === 'ENOENT') return fallback();
-        console.error('[world] layout.json unreadable:', e); // the full reason (with path) stays server-side
-        return fallback('layout.json unreadable (' + e.code + '); using the default');
+        console.error('[world] ' + name + ' unreadable:', e); // the full reason (with path) stays server-side
+        return fallback(name + ' unreadable (' + e.code + '); using the default');
       }
       let layout;
-      try { layout = JSON.parse(text); } catch { return fallback('layout.json is not valid JSON; using the default'); }
+      try { layout = JSON.parse(text); } catch { return fallback(name + ' is not valid JSON; using the default'); }
       const r = WM.validate(J(layout));
-      return r.ok ? { layout, source: 'file' } : fallback('layout.json rejected: ' + r.errors.slice(0, 3).join('; '));
+      if (r.ok && !sceneOk(layout, scene)) return fallback(name + ' holds another scene; using the default');
+      return r.ok ? { layout, source: 'file' } : fallback(name + ' rejected: ' + r.errors.slice(0, 3).join('; '));
     },
-    save(layout) {
+    save(layout, scene = 'office') {
+      const file = fileOf(scene);
       const r = WM.validate(J(layout ?? null));
       if (!r.ok) return { ok: false, errors: J(r.errors) };
+      if (!sceneOk(layout, scene)) return { ok: false, errors: ['this layout is for ' + (layout.scene ?? 'office') + ', not ' + scene] };
       writeAtomic(file, layout);
       ver++;
       return { ok: true };
     },
     version: () => ver,
     listTemplates() {
-      const built = ids(builtinDir).map((id) => ({ id, name: BUILT_IN_NAMES[id] || id, builtIn: true }));
+      const built = builtIds().map((id) => ({ id, name: BUILT_IN_NAMES[id] || id, builtIn: true }));
       const mine = ids(userDir).filter((id) => !built.some((b) => b.id === id)).map((id) => ({ id, name: readJson(path.join(userDir, id + '.json'))?.name || id, builtIn: false }));
       return [...built, ...mine];
     },

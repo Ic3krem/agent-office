@@ -268,8 +268,26 @@
     }
   }
   const zoneColor = type => (ZONE_TEX[type] || { c: '#3d8fd6' }).c; // water has no floor texture: pond blue
-  let ZONES = null;
-  function setZones(zones) { ZONES = zones || null; }
+  let ZONES = null, ROOM = null; // ROOM: an interior's {size, door} (town step 2), null for the office
+  function setZones(zones, room) { ZONES = zones || null; ROOM = room || null; }
+  // Interior shell: rustic plank walls with a window each, a wainscot and a doormat at the exit (the front is open, cut away).
+  function bakeRoom(g) {
+    const WXv = WXm(), WYv = WYm(), H = 110;
+    poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, H), P(0, 0, H)], '#8b5a36', null);
+    poly(g, [P(0, 0, 0), P(WXv, 0, 0), P(WXv, 0, H), P(0, 0, H)], '#74472a', null);
+    g.strokeStyle = 'rgba(40,20,8,.35)'; g.lineWidth = 1; g.beginPath();
+    for (let y = 12; y < WYv; y += 12) { const a = P(0, y, 0), b = P(0, y, H); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
+    for (let x = 12; x < WXv; x += 12) { const a = P(x, 0, 0), b = P(x, 0, H); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
+    g.stroke();
+    poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, 30), P(0, 0, 30)], '#5a3a22', null);
+    poly(g, [P(0, 0, 0), P(WXv, 0, 0), P(WXv, 0, 30), P(0, 0, 30)], '#4c301c', null);
+    poly(g, [P(0, 0, H), P(WXv, 0, H), P(WXv, -6, H), P(0, -6, H)], '#b0683a', null);
+    poly(g, [P(0, 0, H), P(0, WYv, H), P(-6, WYv, H), P(-6, 0, H)], '#b0683a', null);
+    const pane = (w, h) => { g.fillStyle = '#4a2614'; g.fillRect(-3, -3, w + 6, h + 6); g.fillStyle = mix('#ffd58a', '#233466', ST.night); g.fillRect(0, 0, w, h); g.fillStyle = '#4a2614'; g.fillRect(w / 2 - 1, 0, 2, h); g.fillRect(0, h / 2 - 1, w, 2); };
+    Fy(g, 0, 90, () => { g.translate(WXv * .62, 0); pane(70, 44); });
+    Fx(g, 0, WYv * .6, 90, () => pane(60, 44));
+    const d = ROOM.door; if (d) Fg(g, .2, () => { g.fillStyle = '#7a3e20'; g.fillRect(d.x - 26, d.y - 14, 52, 14); g.fillStyle = '#c4743d'; g.fillRect(d.x - 22, d.y - 11, 44, 8); });
+  }
 
   function bake(g) {
     const nt = ST.night, SK0 = mix('#5d9be0', '#0b1230', nt), SK1 = mix('#cfe6ff', '#233466', nt), CLOUD = 'rgba(255,255,255,' + (.7 - .55 * nt) + ')';
@@ -282,6 +300,7 @@
     else if (dflt) bakeDefaultFloor(g); else bakeZoneFloor(g, ZONES);
 
     // ---- left wall (plane x=0) and right wall (plane y=0) ----
+    if (ROOM) return bakeRoom(g);
     if (A && A['wall@x'] && A['wall@y']) { // office art: one strip per wall; after dusk the glow sheet lays a night sky on the panes
       for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow) sprite(g, n, 0, 0, nt, null, ATLAS.glow); }
     } else {
@@ -314,7 +333,7 @@
     // left wall: ivy trellis and framed prints in the utility strip
     Fx(g, 0, 780, 130, () => { for (const [y0, w, c] of [[8, 50, '#c95a3a'], [66, 38, '#3d8aa8']]) { g.fillStyle = '#3a2a18'; g.fillRect(y0, 0, w, 40); g.fillStyle = c; g.fillRect(y0 + 3, 3, w - 6, 34); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(y0 + 8, 12, w - 16, 3); g.fillRect(y0 + 8, 20, (w - 16) * .6, 3); } });
   }
-  const WXm = () => M.WX, WYm = () => M.WY;
+  const WXm = () => ROOM ? ROOM.size.w : M.WX, WYm = () => ROOM ? ROOM.size.h : M.WY;
 
   // ---------- dynamic wall pieces (drawn every frame, after the background, before the sorted items) ----------
   function todayBoard(g) {

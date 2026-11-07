@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
+<script>/* town step 2: one short fade in from a door, and back in if the page is restored from the back/forward cache */(function(d){if(/[#&](scene|from)=/.test(location.hash))d.classList.add('ao-fade');addEventListener('load',function(){requestAnimationFrame(function(){d.classList.remove('ao-fade');});});addEventListener('pageshow',function(e){if(e.persisted)d.classList.remove('ao-fade');});})(document.documentElement);</script>
 <script src="./support.js"></script>
 <script src="./office-objects.js"></script>
 <script src="./role-catalog.js"></script>
@@ -85,6 +87,7 @@ button:disabled{opacity:.45;cursor:default}
     <div style="position:absolute; top:16px; left:16px; right:16px; z-index:3000; display:{{ headDisp }}; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 12px; pointer-events:none;">
       <div style="display:flex; flex-direction:column; gap:3px; padding:9px 14px; border-radius:10px; background:var(--panel); border:1px solid var(--line); pointer-events:auto;">
         <div style="font-family:'Pixelify Sans',sans-serif; font-size:20px; line-height:1.1; color:#ffdca0;">Agent Office</div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:12px;"><span style="color:#ffdca0;">{{ sceneName }}</span><button class="wbtn" onClick="{{ toTown }}" title="Walk back out to the town" style="font-size:12px; padding:2px 9px;">Back to town</button></div>
         <div style="font-size:12px; color:var(--dim); white-space:nowrap;"><span style="color:{{ onlineColor }};">●</span> {{ onlineLabel }} · {{ totalN }} agents{{ overflowLabel }} · {{ tasksDone }} turns done</div>
       </div>
       <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; pointer-events:auto;">
@@ -583,14 +586,20 @@ const OPEN_GOAL=g=>g.status==='todo'||g.status==='doing'||g.status==='blocked'; 
 const cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;
 const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v;}catch(e){return d;}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+// Town step 2: #scene= picks the interior this page shows (a bad value is the office); its layout lives at WORLD_URL.
+const SCENE=(m=>m&&['office','kain','games'].includes(m[1])?m[1]:'office')(/[#&]scene=([^&]*)/.exec(location.hash));
+const SCENE_NAME={office:'Office',kain:'Karinderya',games:'Game hall'}[SCENE],WORLD_URL='/api/world'+(SCENE==='office'?'':'?scene='+SCENE);
+const fadeTo=u=>{document.documentElement.classList.add('ao-fade');setTimeout(()=>{location.href=u;},200);};
+// The stage rect the camera fits and centres (stage px): the whole office, or an interior's floor and walls with a margin.
+const boxOf=L=>{if(!L||!L.scene)return {cx:740,cy:460,w:1480,h:920};const P=OfficeFurniture.P,{w,h}=L.size,pts=[P(0,0,118),P(w,0,118),P(0,h,118),P(w,0,-16),P(0,h,-16),P(w,h,-16)],xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]),l=Math.min(...xs)-30,r=Math.max(...xs)+30,t=Math.min(...ys)-30,b=Math.max(...ys)+30;return {cx:(l+r)/2,cy:(t+b)/2,w:r-l,h:b-t};};
 
 class Component extends DCLogic {
   state={catGroup:'furniture',off:{x:0,y:0},nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null,menu:null,follow:lsGet('ao.follow','1')!=='0'};
   wrapRef=React.createRef(); termRef=React.createRef(); canvasRef=React.createRef();
   componentDidMount(){
     this.gameTimer=setInterval(()=>{const G=this.state.party&&this.state.party.game;if(this.state.partyOpen&&G&&(G.race||G.quiz))this.setState({gameTick:Date.now()});},250);
-    this.avTimer=setInterval(()=>{const P=this.state.party;if(!P||!P.connected||!window.OfficeWorld)return;const c=OfficeWorld.ceo(),v=this.state.visit,k=[Math.round(c.x),Math.round(c.y),v?v.id:''].join(',');if(k===this.avKey)return;this.avKey=k;api('/api/party/avatar',{x:c.x,y:c.y,room:v?'office:'+v.id:'home'}).catch(()=>{this.avKey='';});},1000);
-    const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect(),i=this.insets();const sc=Math.min((r.width-i.l)/1480,(r.height-40-i.t-i.b)/920);this.fitSc=sc;this.vp={w:r.width-i.l,h:r.height-i.t-i.b};this.off={x:i.l/2,y:(i.t-i.b)/2};this.setView(this.state.view,sc);this.setState({scale:sc,off:this.off});};
+    this.avTimer=setInterval(()=>{const P=this.state.party;if(SCENE!=='office'||!P||!P.connected||!window.OfficeWorld)return;const c=OfficeWorld.ceo(),v=this.state.visit,k=[Math.round(c.x),Math.round(c.y),v?v.id:''].join(',');if(k===this.avKey)return;this.avKey=k;api('/api/party/avatar',{x:c.x,y:c.y,room:v?'office:'+v.id:'home'}).catch(()=>{this.avKey='';});},1000);
+    const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect(),i=this.insets();const B=this.box||boxOf(null),sc=Math.min((r.width-i.l)/B.w,(r.height-40-i.t-i.b)/B.h);this.fitSc=sc;this.vp={w:r.width-i.l,h:r.height-i.t-i.b};this.off={x:i.l/2,y:(i.t-i.b)/2};this.setView(this.state.view,sc);this.setState({scale:sc,off:this.off});};
     this.fit=fit;
     this.onResize=()=>this.setState({vw:window.innerWidth});window.addEventListener('resize',this.onResize);
     const qd=new URLSearchParams(location.search).get('demo');
@@ -603,8 +612,9 @@ class Component extends DCLogic {
       onLayout:()=>this.applyNames(this.state.names),
       onFollow:(sx,sy)=>this.followCeo(sx,sy),onToast:t=>this.showToast(t),onInteract:n=>this.openNear(n),
       onNear:n=>{const m=this.state.menu;if(m&&(!n||n.id!==m.id))this.setState({menu:null});}});}; // a layout rebuilds OfficeMotion.TEAM with default names
-    fetch('/api/world',{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout)this.layout=j.layout;if(j&&j.layout&&j.source!=='default'&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(j&&j.warning)this.showToast(j.warning);mountWorld();});
-    setTimeout(mountWorld,400);
+    if(SCENE!=='office'&&window.OfficeWorld)OfficeWorld.setScene(SCENE); // before any layout: only the CEO walks an interior
+    fetch(WORLD_URL,{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout){this.layout=j.layout;this.box=boxOf(j.layout);this.fit&&this.fit();}if(j&&j.layout&&(j.source!=='default'||SCENE!=='office')&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(!j&&SCENE!=='office')this.showToast('Could not load the '+SCENE_NAME.toLowerCase());if(j&&j.warning)this.showToast(j.warning);mountWorld();});
+    if(SCENE==='office')setTimeout(mountWorld,400); // an interior waits for its layout: the office never flashes up first
     this.ro=new ResizeObserver(fit); if(this.wrapRef.current){this.ro.observe(this.wrapRef.current);this.camEvents(this.wrapRef.current);} fit();
     api('/api/roster').then(j=>this.setState({roster:[...j.roster,...(j.available||[])]})).catch(()=>{}); // cards for every role; who has a desk comes from the snapshot
     window.__demo=sc=>this.setDemo(sc||'');
@@ -627,13 +637,15 @@ class Component extends DCLogic {
     window.addEventListener('keydown',this.onKey);
     window.addEventListener('beforeunload',e=>{if(this.session&&this.session.dirty()){e.preventDefault();e.returnValue='';}});
     // Deep links from the Tiro island dock: #today, #reports, #usage.
-    this.onHash=()=>{const h=location.hash.slice(1);if(!h)return;history.replaceState(null,'',location.pathname+location.search);if(h==='usage')this.setState({usageOpen:true});else if(h==='reports')this.openReports();else if(h==='today')this.setState({todayOpen:true});};
+    this.onHash=()=>{const h=location.hash.slice(1);if(!h)return;const m=/(?:^|&)scene=([^&]*)/.exec(h);
+      if(m){if((['office','kain','games'].includes(m[1])?m[1]:'office')!==SCENE)location.reload();return;} // back/forward to another scene: load it afresh
+      history.replaceState(null,'',location.pathname+location.search+(SCENE==='office'?'':'#scene='+SCENE));if(h==='usage')this.setState({usageOpen:true});else if(h==='reports')this.openReports();else if(h==='today')this.setState({todayOpen:true});};
     window.addEventListener('hashchange',this.onHash);this.onHash();
   }
   componentWillUnmount(){clearInterval(this.avTimer);clearInterval(this.gameTimer);this.camOff&&this.camOff();this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
   componentDidUpdate(){if(this.state.menu!==this._menuShown){this._menuShown=this.state.menu;const b=this.state.menu&&document.querySelector('[role=menu] [role=menuitem], [data-card] .cta');b&&b.focus({preventScroll:true});}if(this.state.ask&&this.state.ask!==this._askShown){this._askShown=this.state.ask;const d=document.querySelector('[role=dialog]'),b=d&&(d.querySelector('button.cta')||(d.querySelector('button.danger')&&[...d.querySelectorAll('button')].find(x=>x.textContent.trim()==='Cancel'))||d.querySelector('button'));b&&b.focus();}if(this.state.selectedId!==this._selSent){this._selSent=this.state.selectedId;api('/api/select',{id:this.state.selectedId||null}).catch(()=>{});}this.syncWorld();const el=this.termRef.current;if(el&&el.scrollHeight-el.scrollTop-el.clientHeight<160)el.scrollTop=el.scrollHeight;}
   // Camera: wheel zooms about the cursor, drag pans, keys + - 0, buttons in the corner. Pure maths lives in OfficeMotion.
-  setView(v,sc){const M=window.OfficeMotion,vp=this.vp||{w:1280,h:800},f=sc||this.fitSc||1;const c=M.clampView(v,vp.w,vp.h,f,1480,920);this.view=c;this.setState({view:c});window.OfficeWorld&&OfficeWorld.setScale(f*c.z);}
+  setView(v,sc){const M=window.OfficeMotion,vp=this.vp||{w:1280,h:800},f=sc||this.fitSc||1,B=this.box||boxOf(null);const c=M.clampView(v,vp.w,vp.h,f,B.w,B.h);this.view=c;this.setState({view:c});window.OfficeWorld&&OfficeWorld.setScale(f*c.z);}
   zoomBy(k,cx,cy){this.setView(OfficeMotion.zoomAt(this.view||this.state.view,k,cx||0,cy||0));}
   // Zoomed in, keep the walking CEO inside the middle 60% of the office view; at z=1 the camera stays put.
   followCeo(sx,sy){
@@ -642,19 +654,22 @@ class Component extends DCLogic {
     // the part of the office you can see: the Build insets, the open Today panel (wide) and the chat bottom sheet (narrow)
     const L=r.left+i.l+(s.todayOpen&&s.vw>=700&&!s.building?304:0),T=r.top+i.t,R=r.left+i.l+vp.w,B=r.top+i.t+vp.h-(this.sel()&&!s.popout&&s.vw<1100?innerHeight*.62:0);
     const into=(p,lo,hi)=>p<lo?lo-p:p>hi?hi-p:0,W=Math.max(0,R-L),H=Math.max(0,B-T);
-    const dx=into(o.x+v.x+(sx-740)*k,L+W*.2,R-W*.2),dy=into(o.y+v.y+(sy-460)*k,T+H*.2,B-H*.2);
+    const bx=this.box||boxOf(null),dx=into(o.x+v.x+(sx-bx.cx)*k,L+W*.2,R-W*.2),dy=into(o.y+v.y+(sy-bx.cy)*k,T+H*.2,B-H*.2);
     if(!dx&&!dy)return;
-    const c=OfficeMotion.clampView({z:v.z,x:v.x+dx,y:v.y+dy},vp.w,vp.h,f,1480,920);
+    const c=OfficeMotion.clampView({z:v.z,x:v.x+dx,y:v.y+dy},vp.w,vp.h,f,bx.w,bx.h);
     if(Math.abs(c.x-v.x)>=.5||Math.abs(c.y-v.y)>=.5)this.setView(c); // pinned at the stage edge: no re-render
   }
   // E / tap near someone: Tiro gets the radial menu, a specialist a desk card. Again on the same target closes it.
   openNear(n){
+    if(n.kind==='door')return this.leaveScene();
     const m=this.state.menu;if(m&&m.id===n.id)return this.setState({menu:null});
     const kind=n.kind==='tiro'?'radial':'card';
     if(kind==='card'&&!this.state.agents.some(a=>a.id===n.id))return;
     const p=(window.OfficeWorld&&OfficeWorld.pointOf(n.id))||{x:innerWidth/2,y:innerHeight/2};
     this.setState({menu:{kind,id:n.id,x:p.x,y:p.y}});
   }
+  // Leave by the door or the header button: back to this scene's lot in the town (Build mode asks about unsaved changes first).
+  leaveScene(){this.leaveBuild(()=>fadeTo('/town#from='+(SCENE==='office'?'home':SCENE)));}
   // Prioritize / Boost / Speed on one open goal picked from the radial menu.
   goalAct(mode,g){
     this.setState({menu:null});const t=cut(g.text,60),fail=e=>this.showToast(e.message);
@@ -840,7 +855,7 @@ class Component extends DCLogic {
     this.reloadWorld();
   }
   reloadWorld(){
-    return getJ('/api/world').then(j=>{if(j&&j.layout&&!this.session){this.layout=j.layout;window.OfficeWorld&&OfficeWorld.applyLayout(j.layout);}}).catch(()=>{});
+    return getJ(WORLD_URL).then(j=>{if(j&&j.layout&&!this.session){this.layout=j.layout;window.OfficeWorld&&OfficeWorld.applyLayout(j.layout);}}).catch(()=>{});
   }
   // Room the Build UI takes from the office view, in px: the left drawer, or on narrow screens the edit bar and the bottom sheet + controls.
   insets(){if(!this.session)return {l:0,t:0,b:0};return window.innerWidth<700?{l:0,t:100,b:Math.round(window.innerHeight*.38)+52}:{l:286,t:0,b:0};}
@@ -878,12 +893,12 @@ class Component extends DCLogic {
       ['Overwrite',()=>{this.worldStale=false;this.saveBuild().then(res);},'danger'],
       ['Load theirs',()=>{this.loadTheirs();res(false);},true],['Cancel',()=>res(false)]]));
     this.ownSave=true;
-    return api('/api/world',{layout:L}).then(()=>{this.layout=L;S.markSaved();this.setState({buildErrs:null,bst:{...(this.state.bst||{})}});this.showToast('Layout saved');return true;})
+    return api(WORLD_URL,{layout:L}).then(()=>{this.layout=L;S.markSaved();this.setState({buildErrs:null,bst:{...(this.state.bst||{})}});this.showToast('Layout saved');return true;})
       .catch(e=>{this.ownSave=false;if(e.body&&e.body.errors)this.showErrs(e.body.errors);else this.showToast(e.message);return false;}); // 409: a role being retired is at work
   }
   // Replace the session with the layout another window saved; it is the saved state now, so the session is clean.
   loadTheirs(){
-    return getJ('/api/world').then(j=>{const S=this.session;if(!S||!j||!j.layout)return;if(!OfficeWorld.buildOp('load',j.layout).ok)return;this.layout=j.layout;this.worldStale=false;S.markSaved();this.setState(s=>({bst:{...(s.bst||{})}}));this.showToast('Loaded the layout from the other window');}).catch(e=>this.showToast(e.message));
+    return getJ(WORLD_URL).then(j=>{const S=this.session;if(!S||!j||!j.layout)return;if(!OfficeWorld.buildOp('load',j.layout).ok)return;this.layout=j.layout;this.worldStale=false;S.markSaved();this.setState(s=>({bst:{...(s.bst||{})}}));this.showToast('Loaded the layout from the other window');}).catch(e=>this.showToast(e.message));
   }
   // piece = a catalog type, or 'dept-desk:<role>' from the Desks tab.
   place(piece,x,y){const [type,role]=piece.split(':'),r=OfficeWorld.dropAt(type,x,y,role?{role}:undefined);if(r.ok)this.setState({armed:null});else this.showToast(r.toast||"Can't put the "+WorldEdit.labelOf(type)+' there: '+r.reason);return r;}
@@ -990,7 +1005,7 @@ class Component extends DCLogic {
       tpls:s.tpls.map(t=>({name:t.name,mine:!t.builtIn,onLoad:()=>this.loadInto(t.name,()=>getJ('/api/world/template?id='+encodeURIComponent(t.id)).then(j=>j.layout)),
         onDelete:()=>this.askUser('Delete the template '+t.name+'?',[['Delete',()=>api('/api/world/template/delete',{id:t.id}).then(r=>{this.showToast(r.ok?'Deleted '+t.name:'Could not delete '+t.name);this.refreshTpls();}).catch(e=>this.showToast(e.message)),'danger'],['Cancel']])})),
       tplName:s.tplName,onTplName:e=>this.setState({tplName:e.target.value}),onTplKey:e=>{if(e.key==='Enter')this.saveTpl();},saveTpl:()=>this.saveTpl(),
-      resetDefault:()=>this.loadInto('The default layout',()=>WorldModel.defaultLayout()),
+      resetDefault:()=>this.loadInto('The default layout',()=>SCENE==='office'?WorldModel.defaultLayout():getJ('/api/world/template?id=interior-'+SCENE).then(j=>j.layout)),
       catItems,deskCards,deskSel:!!sr,deskSelName:sr?this.roleName(sr):'',deskSelRole:sr?sr.role:'',deskSelAccent:sr?sr.accent:'#fff',
       hasAsk:!!s.ask,askText:s.ask?s.ask.text:'',askCancel:closeAsk,
       askBtns:s.ask?s.ask.btns.map(([label,fn,kind])=>({label,cls:kind==='danger'?'pill sm danger':kind?'pill sm cta':'pill sm',onClick:()=>{closeAsk();fn&&fn();}})):[],
@@ -1009,7 +1024,7 @@ class Component extends DCLogic {
     const logs=a?a.logs.slice(s.cleared[a.id]||0).concat(s.local[a.id]||[]):[];
     const selLogs=logs.map(l=>{const k=KIND[l.k]||KIND.sys;return {t:l.t,tag:k[0],tagColor:k[1],color:k[2],fs:l.k==='think'?'italic':'normal',text:l.text};});
     return {
-      wrapRef:this.wrapRef,termRef:this.termRef,canvasRef:this.canvasRef,scale:s.scale.toFixed(4),camScale:(s.scale*s.view.z).toFixed(4),stageX:Math.round(s.view.x+s.off.x),stageY:Math.round(s.view.y+s.off.y),buildBlocked:!!(s.building&&blockedN),panX:Math.round(s.view.x),panY:Math.round(s.view.y),
+      wrapRef:this.wrapRef,termRef:this.termRef,canvasRef:this.canvasRef,scale:s.scale.toFixed(4),camScale:(s.scale*s.view.z).toFixed(4),stageX:Math.round(s.view.x+s.off.x+(740-(this.box||boxOf(null)).cx)*s.scale*s.view.z),stageY:Math.round(s.view.y+s.off.y+(460-(this.box||boxOf(null)).cy)*s.scale*s.view.z),sceneName:SCENE_NAME,toTown:()=>this.leaveScene(),buildBlocked:!!(s.building&&blockedN),panX:Math.round(s.view.x),panY:Math.round(s.view.y),
       zoomLabel:s.view.z<=1.001?'Fit':Math.round(s.view.z*100)+'%',zoomBorder:s.view.z>1.001?'#8a5a1c':'#3a2e25',zoomIn:()=>this.zoomBy(1.25),zoomOut:()=>this.zoomBy(0.8),zoomReset:()=>this.setView({z:1,x:0,y:0}),offlineBanner:s.online===false&&!s.demo,
       workingN,idleN,blockedN,totalN:s.agents.length,tasksDone:s.tasksDone,
       overflowLabel:s.overflow?' · +'+s.overflow+' more':'',onlineLabel:s.claudeMissing?'Claude Code not found: install it and log in':s.online?'Live':s.online===null?'Connecting…':'Offline: is the server running?',onlineColor:s.online?'#5fd38d':s.online===null?'#a8998a':'#ff7a6b',
