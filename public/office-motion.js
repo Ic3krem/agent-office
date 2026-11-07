@@ -265,6 +265,10 @@
       if (stools.includes(cur)) return cur;
       const free = stools.find(x => !used.has(x));
       if (free) return (coolOf[id] = free);
+      // own agents before party friends' (ids 'friend:…'): an own eater with no stool takes one a friend holds, and the
+      // friend (fed later in the same update) stands
+      const isFriend = k => String(k).startsWith('friend:'), guest = !isFriend(id) && Object.keys(coolOf).find(k => isFriend(k) && stools.includes(coolOf[k]));
+      if (guest) { coolOf[id] = coolOf[guest]; delete coolOf[guest]; return coolOf[id]; }
       if (cur && SPOTS[cur] && !used.has(cur)) return cur;
       const open = openFloor(), s = [...open.filter(x => x.startsWith('kain-stand:')), ...COOLER, ...open].find(x => SPOTS[x] && !used.has(x));
       if (s) coolOf[id] = s; else delete coolOf[id];

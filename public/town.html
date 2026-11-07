@@ -58,14 +58,18 @@
     // localStorage), judged against the office layout's flags; only travellers whose where() is in town are drawn.
     // The rAF runs only while one is on the road; otherwise one timeout waits for the next town leg to start.
     const AT = AgentTravel, routes = (a, b) => AT.route(map, a, b), trips_ = AT.store(), walked = new Map(), tag = document.getElementById('tag');
-    let snap = null, office = null, trips = {}, tRaf = 0, tWake = 0, owv = {}, looksSig = '', hover = null;
+    let snap = null, office = null, trips = {}, friends = [], tRaf = 0, tWake = 0, owv = {}, looksSig = '', hover = null;
     const officeFlags = () => fetch('/api/world', { headers: { 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' } }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.layout) { office = OfficeMotion.travelFlags(WorldModel.spotsOf(j.layout)); resync(); } }).catch(() => {});
-    const resync = () => { if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes); kick(); };
+    const resync = () => {
+      if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes);
+      if (snap) friends = trips_.friends(snap.party, Date.now(), routes); // party friends' agents: name · friend, no costume
+      kick();
+    };
     const kick = () => { if (!tRaf) tRaf = requestAnimationFrame(tTick); };
     function travellers(now) {
       const out = [], seen = new Map();
-      for (const a of (snap && snap.agents) || []) {
-        const rec = trips[a.id]; if (!rec) continue;
+      for (const a of ((snap && snap.agents) || []).concat(friends)) {
+        const rec = a.trip || trips[a.id]; if (!rec) continue;
         let w, n, b; try { w = AT.where(rec, now, routes); n = AT.where(rec, now + 50, routes); b = AT.where(rec, now - 50, routes); } catch (e) { continue; }
         if (w.scene !== 'town' || !w.pos) continue;
         const pos = w.pos, last = walked.get(a.id), [p0, p1] = n.pos ? [pos, n.pos] : [b.pos || pos, pos]; // the path segment it is on
@@ -82,7 +86,7 @@
       api.setTravellers(list); showTag(list);
       if (list.length) { tRaf = requestAnimationFrame(tTick); return; }
       let next = Infinity;
-      for (const id in trips) next = Math.min(next, AT.nextIn(trips[id], 'town', now, routes));
+      for (const tr of Object.values(trips).concat(friends.map(f => f.trip))) next = Math.min(next, AT.nextIn(tr, 'town', now, routes));
       if (next < Infinity) tWake = setTimeout(kick, Math.min(next - now + 1, 2147483647));
     }
     // Hover shows the name only (the desk card stays on the office page).

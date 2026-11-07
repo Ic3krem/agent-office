@@ -113,5 +113,20 @@
   const enterTarget = lot => { const e = lot && Object.prototype.hasOwnProperty.call(ENTER, lot.kind) ? ENTER[lot.kind] : null; return e ? { url: e[0], label: e[1] } : { url: null, label: 'Friend lots open in party mode' }; };
   const lotOfScene = scene => scene === 'kain' || scene === 'games' ? scene : 'home';
 
-  root.TownMap = { validate, grid, decorFootprint, load, enterTarget, lotOfScene };
+  // Party lots: members (the party view's list, which keeps join order) -> {[memberId]: 'friend-1'..'friend-3'}.
+  // The first three get a lot; later joiners get none. Step 5 assigns lots with this same helper.
+  const FRIEND_LOTS = LOT_IDS.filter(id => id.startsWith('friend-'));
+  function friendLots(members) {
+    const out = {};
+    if (!Array.isArray(members)) return out;
+    for (const m of members) {
+      if (!m || typeof m.id !== 'string' || !m.id || Object.prototype.hasOwnProperty.call(out, m.id)) continue;
+      const n = Object.keys(out).length;
+      if (n >= FRIEND_LOTS.length) break;
+      out[m.id] = FRIEND_LOTS[n];
+    }
+    return out;
+  }
+
+  root.TownMap = { validate, grid, decorFootprint, load, enterTarget, lotOfScene, friendLots };
 })(globalThis);

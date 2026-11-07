@@ -164,9 +164,9 @@
   // first seen empty). Memory only when storage is unavailable. One store per page; sync(agents, office, empty, now,
   // routes) reads the stored records, runs sync() with destOf, writes them back when they changed, and returns them.
   function store() {
-    const TRIPS_KEY = 'ao.trips', EMPTY_KEY = 'ao.boardEmptyAt';
+    const TRIPS_KEY = 'ao.trips', EMPTY_KEY = 'ao.boardEmptyAt', FRIENDS_KEY = 'ao.friendTrips';
     // fullAt: when this page first saw the board full again (the return time; the stored records hold it after that).
-    let trips = {}, emptyAt = null, fullAt = null;
+    let trips = {}, emptyAt = null, fullAt = null, friendRecs = {};
     const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
     function boardTimes(empty, now) {
       if (!empty) {
@@ -189,6 +189,35 @@
         trips = sync(prev, agents, a => destOf(a, office, empty), now, routes, boardTimes(empty, now));
         if (trips !== stored) try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { /* memory only */ }
         return trips;
+      },
+      // Friends' agents, from the party view ({connected, members: [{id, name, crew: [{id, name, key, state, bubble}]}]}).
+      // No server time exists for them, so a state counts from when a page of this origin first saw it. Records live
+      // apart from ours in 'ao.friendTrips' as {['<member>:<agent>']: {state, at, trip?}}. Only 'limited' travels, to
+      // kain, from the member's lot (TownMap.friendLots). Returns [{id: 'friend:<member>:<agent>', name, status, trip}].
+      friends(party, now, routes) {
+        let raw = null, stored = null;
+        try { raw = localStorage.getItem(FRIENDS_KEY); stored = JSON.parse(raw); } catch (e) { /* no storage: memory only */ }
+        const prev = plain(stored) ? stored : friendRecs, out = {}, list = [];
+        const members = party && party.connected && Array.isArray(party.members) ? party.members : [];
+        const lots = root.TownMap.friendLots(members);
+        for (const m of members) {
+          const lot = m && lots[m.id];
+          if (!lot || !Array.isArray(m.crew)) continue;
+          for (const a of m.crew) {
+            if (!a || typeof a.id !== 'string') continue;
+            const key = m.id + ':' + a.id, q = prev[key], limited = a.state === 'limited';
+            const p = plain(q) && typeof q.at === 'number' && (q.trip === undefined || plain(q.trip)) ? q : null; // junk: start afresh
+            if (!p && !limited) continue;
+            const at = p && p.state === a.state ? p.at : now;
+            const tr = trip(p && p.trip || null, { statusAt: at }, limited ? 'kain' : null, now, lot, routes);
+            out[key] = p && p.at === at && (p.trip || null) === tr ? p : Object.assign({ state: a.state, at }, tr ? { trip: tr } : {});
+            if (tr) list.push({ id: 'friend:' + key, name: a.name + ' · ' + m.name, status: a.state, trip: tr });
+          }
+        }
+        friendRecs = out;
+        const s = JSON.stringify(out);
+        if (s !== raw) try { localStorage.setItem(FRIENDS_KEY, s); } catch (e) { /* memory only */ }
+        return list;
       },
     };
   }

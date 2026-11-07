@@ -19,24 +19,28 @@
   // (AgentTravel.where) puts them there; party guest avatars stay office-only.
   let scene = 'office', freshCeo = false; // freshCeo: the scene's first layout puts the CEO at its spawn
   const inOffice = () => scene === 'office';
+  const isFriend = id => String(id).startsWith('friend:'); // party friends' agents (AgentTravel store.friends ids)
   // Trips: records {[agentId]: record} shared by every page of this origin in localStorage (a reload or a second window
   // continues the same trip; memory only if storage is unavailable). travel: {routes, office} from the page; routes
   // unset = nobody travels. office: {kain, play} of the office layout (an interior page sets it; the office reads SPOTS).
-  let trips = {}, travel = {}, tripStore = null;
+  let trips = {}, friends = [], travel = {}, tripStore = null; // friends: party friends' travellers (AgentTravel store.friends)
   const travelOn = () => !!(root.AgentTravel && travel.routes && !demo); // not in a preview or a party visit (another office's layout)
   function syncTrips(s) {
     const flags = inOffice() ? M.travelFlags() : travel.office;
     if (!travelOn() || !s || !flags) return;
     tripStore = tripStore || root.AgentTravel.store(); // localStorage 'ao.trips' + 'ao.boardEmptyAt', shared with the town page
     trips = tripStore.sync(s.agents || [], flags, M.boardOf(s).empty, Date.now(), travel.routes);
+    friends = tripStore.friends(s.party, Date.now(), travel.routes); // every page records when it first saw a friend's state
   }
   // The snapshot this scene's brain sees: only agents whose trip puts them here, with door hints for the walk in or out.
   function sceneSnap(s) {
     if (!s) return { agents: [], goals: [], boss: {} };
     if (!travelOn()) return inOffice() ? s : Object.assign({}, s, { agents: [] });
     const now = Date.now(), agents = [];
-    for (const a of s.agents || []) {
-      const rec = trips[a.id];
+    // own agents first, then friends' (generic: name, limited, no task), so own agents claim the stools first
+    const guests = inOffice() ? [] : friends.map(f => ({ id: f.id, name: f.name, status: f.status, task: '', logs: [], perm: null, trip: f.trip }));
+    for (const a of (s.agents || []).concat(guests)) {
+      const rec = a.trip || trips[a.id];
       if (!rec) { if (inOffice()) agents.push(a); continue; } // no trip: at home (where() is never asked)
       let w; try { w = root.AgentTravel.where(rec, now, travel.routes); } catch (e) { w = { scene: 'office', leg: 'home' }; } // a bad record: home
       if (w.scene !== scene) continue;
@@ -409,7 +413,7 @@
       const n = reduced() ? 3 : 1 + (Math.floor(T * 2.2) % 3), s = '.'.repeat(n); b = [s + ' thinking', '#e9e4f6', '#2a2145', '#6b5aa8'];
     } else if (a.working && a.task && (hovered || selected === a.id || taskBubbles)) b = [clip(a.task, 26) + (hovered || selected === a.id ? ' · ' + tok + ' tok' : ''), '#f4efe4', '#2a2420', '#5a4a3c'];
     if (b) top = bubble(cx, y, b[0], b[1], b[2], b[3], b[4]);
-    if (hovered && !a.isManager || hovered && a.isManager) { // nudge pill
+    if (hovered && !isFriend(a.id)) { // nudge pill (never on a party friend's agent)
       const lbl = '⚡ Nudge', nw2 = 58, nx = Math.round(pos.sx - nw2 / 2), ny = Math.round(top - 22);
       g.fillStyle = '#8a5a1c'; rr(nx, ny + 3, nw2, 19, 5); g.fill(); g.fillStyle = '#ffcf6b'; g.strokeStyle = '#2a1a0c'; g.lineWidth = 1.5; rr(nx, ny, nw2, 19, 5); g.fill(); g.stroke();
       g.fillStyle = '#2a1a0c'; g.font = '12px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(lbl, pos.sx, ny + 10);
@@ -549,7 +553,7 @@
     }
     if (h.kind === 'nudge') { opts.onNudge && opts.onNudge(h.id); return; }
     if (h.kind === 'agent' && h.id === 'sched-npc') { activate('scheduler'); return; }
-    if (h.kind === 'agent') { opts.onSelect && opts.onSelect(h.id); return; }
+    if (h.kind === 'agent') { if (!isFriend(h.id)) opts.onSelect && opts.onSelect(h.id); return; } // a friend's agent has no desk card here
     activate(h.id);
   }
   function onLeave() { if (hover) { hover = null; wake(); } }

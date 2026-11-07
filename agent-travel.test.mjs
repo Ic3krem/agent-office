@@ -393,3 +393,60 @@ test('town routes keep to the dirt paths and plaza (under 5% on grass)', () => {
     assert.ok(grass / len < 0.05, `${a}>${b}: ${grass | 0}/${len | 0} on grass`);
   }
 });
+
+// ---------- town step 3, task 6: friends' agents eat at the karinderya ----------
+// party: the party view in the snapshot ({connected, members: [{id, name, crew: [{id, name, key, state, bubble}]}]}).
+const fa = (id, state, name = 'Pixel') => ({ id, name, key: 'pixel', state, bubble: 'On break' });
+const party = (...members) => ({ connected: true, members: members.map(([id, name, crew]) => ({ id, name, crew })) });
+const F1 = routes('friend-1', 'kain'), FTOWN = F1.len / T.TOWN_SPEED * 1000;
+
+test('friends: a limited agent on friend-1 leaves its door at the time first seen and reaches kain', () => {
+  const data = {}, A = withStorage(data), rs = (a, b) => A.route(town, a, b), s = A.store();
+  const p = party(['m1', 'Ana', [fa('p1', 'limited'), fa('p2', 'working', 'Forge')]]);
+  const L = s.friends(p, 5000, rs);
+  assert.equal(L.length, 1, 'only the limited agent travels');
+  const f = L[0];
+  assert.equal(f.id, 'friend:m1:p1'); assert.equal(f.name, 'Pixel · Ana'); assert.equal(f.status, 'limited');
+  assert.deepEqual(plain(f.trip), { dest: 'kain', fromLot: 'friend-1', departAt: 5000, returnAt: null, statusAt: 5000 });
+  assert.deepEqual(W(f.trip, 4999), { scene: 'friend:friend-1', leg: 'home', t: 0 });
+  assert.equal(W(f.trip, 5001).scene, 'friend:friend-1'); assert.equal(W(f.trip, 5001).leg, 'exit');
+  const tw = W(f.trip, 5000 + T.EXIT_MS + 1);
+  assert.equal(tw.scene, 'town'); near(tw.pos, { x: F1.pts[0][0], y: F1.pts[0][1] }, 0.1);
+  assert.deepEqual(W(f.trip, 5000 + T.EXIT_MS + FTOWN + T.ENTER_MS + 1), { scene: 'kain', leg: 'there', t: 0 });
+  // a later poll keeps the first-seen time; a second page on the same storage agrees
+  assert.equal(s.friends(p, 9000, rs)[0].trip.departAt, 5000);
+  assert.deepEqual(plain(withStorage(data).store().friends(p, 12000, rs)), plain(L));
+  assert.ok(data['ao.friendTrips'], 'stored beside, not inside, the own-agent trips');
+  assert.equal(data['ao.trips'], undefined);
+  // no storage: memory only, same behaviour
+  const M = withStorage(null), sm = M.store(), mr = (a, b) => M.route(town, a, b);
+  assert.equal(sm.friends(p, 100, mr)[0].trip.departAt, 100);
+  assert.equal(sm.friends(p, 200, mr)[0].trip.departAt, 100);
+});
+
+test('friends: back to working -> walks home to friend-1 from the time that was first seen', () => {
+  const A = withStorage({}), rs = (a, b) => A.route(town, a, b), s = A.store();
+  s.friends(party(['m1', 'Ana', [fa('p1', 'limited')]]), 0, rs);
+  const back = 60000, f = s.friends(party(['m1', 'Ana', [fa('p1', 'working')]]), back, rs)[0];
+  assert.equal(f.trip.returnAt, back);
+  assert.equal(W(f.trip, back + 1).scene, 'kain'); assert.equal(W(f.trip, back + 1).leg, 'back-exit');
+  assert.deepEqual(W(f.trip, back + 3600e3), { scene: 'friend:friend-1', leg: 'home', t: 0 });
+  assert.equal(s.friends(party(['m1', 'Ana', [fa('p1', 'working')]]), back + 5000, rs)[0].trip.returnAt, back, 'kept');
+});
+
+test('friends: other states never travel; lots in join order; ids namespaced by member; gone members dropped', () => {
+  const data = {}, A = withStorage(data), rs = (a, b) => A.route(town, a, b), s = A.store();
+  for (const st of ['working', 'idle', 'blocked', 'error']) assert.deepEqual(plain(s.friends(party(['m1', 'Ana', [fa('p1', st)]]), 1, rs)), [], st);
+  for (const v of [null, undefined, { connected: false }, { connected: true }]) assert.deepEqual(plain(s.friends(v, 1, rs)), []);
+  const four = party(['m1', 'A', [fa('p1', 'limited')]], ['m2', 'B', [fa('p1', 'limited')]], ['m3', 'C', [fa('p1', 'limited')]], ['m4', 'D', [fa('p1', 'limited')]]);
+  const L = s.friends(four, 10, rs);
+  assert.deepEqual(plain(L.map(f => f.id)), ['friend:m1:p1', 'friend:m2:p1', 'friend:m3:p1'], 'same agent id in two offices: two travellers; no 4th lot');
+  assert.deepEqual(plain(L.map(f => f.trip.fromLot)), ['friend-1', 'friend-2', 'friend-3']);
+  assert.deepEqual(Object.keys(JSON.parse(data['ao.friendTrips'])).sort(), ['m1:p1', 'm2:p1', 'm3:p1']);
+  assert.deepEqual(plain(s.friends(party(['m2', 'B', [fa('p1', 'limited')]]), 20, rs).map(f => f.id)), ['friend:m2:p1'], 'gone members are dropped');
+  assert.deepEqual(Object.keys(JSON.parse(data['ao.friendTrips'])), ['m2:p1']);
+  // junk in storage is ignored
+  const J = { 'ao.friendTrips': JSON.stringify({ 'm1:p1': [1], 'm1:p2': { state: 'limited', at: 'x' } }) }, B = withStorage(J);
+  const jl = B.store().friends(party(['m1', 'Ana', [fa('p1', 'limited'), fa('p2', 'limited')]]), 50, (a, b) => B.route(town, a, b));
+  assert.deepEqual(plain(jl.map(f => f.trip.departAt)), [50, 50]);
+});

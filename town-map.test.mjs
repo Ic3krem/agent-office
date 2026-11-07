@@ -53,3 +53,14 @@ test('every lot door has an enter target: home/kain/games open their scene, frie
   assert.deepEqual(['home', 'kain', 'games'].map(id => TownMap.lotOfScene(id === 'home' ? 'office' : id)), ['home', 'kain', 'games']);
   assert.equal(TownMap.lotOfScene('nope'), 'home');
 });
+
+test('friendLots: party members get friend-1..3 in join order (the order the party view lists them); the rest get none', () => {
+  const m = ids => ids.map(id => ({ id, name: 'N' + id }));
+  const P = v => JSON.parse(JSON.stringify(v));
+  assert.deepEqual(P(TownMap.friendLots(m(['b', 'a', 'c', 'd']))), { b: 'friend-1', a: 'friend-2', c: 'friend-3' });
+  assert.deepEqual(P(TownMap.friendLots(m(['a']))), { a: 'friend-1' });
+  assert.deepEqual(P(TownMap.friendLots([null, { id: 7 }, { id: 'x' }])), { x: 'friend-1' }, 'bad entries take no lot');
+  for (const v of [undefined, null, 'x', {}]) assert.deepEqual(P(TownMap.friendLots(v)), {});
+  const lots = real().lots.filter(l => l.kind === 'friend').map(l => l.id);
+  assert.deepEqual(Object.values(TownMap.friendLots(m(['a', 'b', 'c']))), lots, 'the real friend lot ids');
+});

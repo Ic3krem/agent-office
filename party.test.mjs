@@ -98,6 +98,10 @@ test('two app clients: join, see each other, share a clean office, chat, get kic
     await A.publish(feedOf(snap, { version: 1, objects: [] }, {}, A.hashId), { x: 100, y: 200, room: 'lounge' });
     const ana = () => B.view().members.find(m => m.name === 'Ana');
     await until(() => ana() && ana().agents === 3 && ana().room === 'lounge');
+    // town step 3: each member's agents, with exactly the protocol's per-agent fields (friends' agents travel by state)
+    assert.deepEqual(ana().crew.map(a => Object.keys(a).sort().join()), Array(3).fill('bubble,id,key,name,state'));
+    assert.deepEqual(ana().crew.map(a => a.state), ['working', 'working', 'limited']);
+    assert.equal(JSON.stringify(ana().crew).includes('secret'), false);
     const office = await B.office(ana().id);
     assert.equal(JSON.stringify(office).includes('secret'), false);
     assert.equal(JSON.stringify(B.view()).includes(A.view().you.id) && !JSON.stringify(B.view()).includes('token'), true);

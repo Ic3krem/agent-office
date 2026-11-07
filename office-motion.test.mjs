@@ -680,3 +680,28 @@ test('a migrated office (no play spots) sends an idle agent on an empty board to
     }
   }
 });
+
+// ---------- town step 3, task 6: friends' agents in the karinderya ----------
+test('kain: friends eat on free stools; six own eaters take the stools back and the two friends stand, never stacked', () => {
+  const v = travelWorld('kain'), T0 = v.T0, AT = v.AT;
+  const FT = v.routes('friend-1', 'kain').len / AT.TOWN_SPEED * 1000;
+  const crew = [{ id: 'x1', name: 'Pixel', key: 'pixel', state: 'limited', bubble: 'On break' }, { id: 'x2', name: 'Forge', key: 'forge', state: 'limited', bubble: 'On break' }];
+  const keys = Object.keys(ROSTER).slice(0, 6), late = T0 + AT.EXIT_MS + FT + AT.ENTER_MS + 1000;
+  const s = snap([tiro('working'), ...keys.map(k => ag(k, 'limited', { statusAt: late }))], [goal('g1', 'doing')]);
+  s.party = { connected: true, members: [{ id: 'm1', name: 'Ana', crew }] };
+  v.at(T0); v.OW.setSnapshot(s); // the friends are first seen now
+  v.at(late - 500); v.OW.setSnapshot(s); v.OW.advance(0.1);
+  const ids = () => J(v.OW.debug().agents.map(a => a.id));
+  assert.deepEqual(ids(), ['friend:m1:x1', 'friend:m1:x2'], 'only the friends are here yet');
+  for (const id of ids()) assert.ok(v.dbg(id).spot.startsWith('kain:'), 'free stools: ' + v.dbg(id).spot);
+  assert.equal(v.dbg('friend:m1:x1').name, 'Pixel · Ana');
+  v.at(late + 3600e3); v.OW.setSnapshot(s); v.OW.advance(0.1);
+  const own = keys.map(k => v.dbg('a-' + k)), fr = ['friend:m1:x1', 'friend:m1:x2'].map(v.dbg);
+  assert.ok(own.every(a => a && a.spot.startsWith('kain:')), 'own agents sit: ' + own.map(a => a && a.spot));
+  assert.ok(fr.every(a => a && !a.spot.startsWith('kain:') && a.pose === 'cooler'), 'friends stand: ' + fr.map(a => a && a.spot));
+  const spots = [...own, ...fr].map(a => a.spot);
+  assert.equal(new Set(spots).size, 8, 'never stacked: ' + spots);
+  // the office never shows friends' agents (their home is their own lot)
+  const o = travelWorld(null); o.at(late + 3600e3); o.OW.setSnapshot(s); o.OW.advance(0.1);
+  assert.ok(!J(o.OW.debug().agents.map(a => a.id)).some(id => id.startsWith('friend:')));
+});
