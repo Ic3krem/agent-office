@@ -26,21 +26,44 @@
 <script src="/town-map.js"></script>
 <script src="/town-ambient.js"></script>
 <script src="/town-render.js"></script>
+<script src="/town-render-2d.js"></script>
 <script src="/agent-travel.js"></script>
 <script>
 (async function () {
-  const canvas = document.getElementById('town'), WP = WorldPlayer;
+  let canvas = document.getElementById('town'), api = null, gpuFailed = false;
+  const WP = WorldPlayer;
   const fail = e => { document.documentElement.classList.remove('ao-fade'); document.getElementById('errmsg').textContent = 'The town could not load: ' + (e && e.message || e); document.getElementById('err').style.display = 'block'; };
   try {
-    // ?failgl=1 is only for perf/town-check.cjs: it makes WebGL setup fail so the error box can be checked.
+    // ?failgl=1 is only for perf/town-check.cjs: it makes WebGL setup fail so the Canvas2D fallback can be checked.
     if (/[?&]failgl=1/.test(location.search)) PIXI.Application.prototype.init = () => Promise.reject(new Error('WebGL unavailable'));
     const map = await TownMap.load('/town/town.json'), grid = TownMap.grid(map);
     // ?hour=<0-23> is only for visual and perf checks: a fixed time of day.
     const hq = /[?&]hour=(\d+)/.exec(location.search), hour = hq ? Math.min(23, +hq[1]) : null;
     let stored = await Graphics.load();
-    const api = await TownRender.mount(canvas, { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: Graphics.resolve(stored, Graphics.env()), hour });
+    // Renderer: Canvas2D for G.renderer 'canvas' or when the GPU mount fails (logged once), else PixiJS/WebGL.
+    // A WebGL canvas cannot become 2D, so a swap mounts on a fresh element (same id, listeners re-wired by wire()).
+    const fresh = () => { const c = canvas.cloneNode(false), had = document.activeElement === canvas; canvas.replaceWith(c); canvas = c; if (wire) wire(c); if (had) c.focus(); return c; };
+    const mountOn = async (cv, g) => {
+      const o = { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: g, hour };
+      if (g.renderer === 'canvas' || gpuFailed) return TownRender2D.mount(cv, o);
+      try { return await TownRender.mount(cv, o); } catch (e) {
+        gpuFailed = true; console.info('Town: the GPU renderer failed (' + (e && e.message || e) + '); using Canvas2D.');
+        return TownRender2D.mount(fresh(), o);
+      }
+    };
+    let wire = null, lastTrav = [];
+    api = await mountOn(canvas, Graphics.resolve(stored, Graphics.env()));
     // Re-resolve on a settings change, and when power saver (8 fps ambient) or reduced motion (ambient off) changes.
-    const regraph = () => api.setGraphics(Graphics.resolve(stored, Graphics.env()));
+    // A renderer change mounts the other one on a fresh canvas, carries the player, camera and travellers over, then
+    // destroys the old one (it stays usable until then). Changes queue so two swaps never overlap.
+    let queue = Promise.resolve();
+    const regraph = () => { queue = queue.then(async () => {
+      const g = Graphics.resolve(stored, Graphics.env()), kind = g.renderer === 'canvas' || gpuFailed ? 'canvas' : 'gpu';
+      if (kind === api.kind) return api.setGraphics(g);
+      const old = api;
+      api = await mountOn(fresh(), g);
+      old.destroy(); draw(); if (lastTrav.length) api.setTravellers(lastTrav);
+    }).catch(fail); };
     Graphics.onChange(s => { stored = s; regraph(); });
     addEventListener('storage', e => { if (e.key === 'ao.powerSaver') regraph(); });
     matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', regraph);
@@ -94,7 +117,7 @@
     function tTick() {
       tRaf = 0; clearTimeout(tWake); tWake = 0;
       const now = Date.now(), list = travellers(now);
-      api.setTravellers(list); showTag(list);
+      api.setTravellers(list); lastTrav = list; showTag(list);
       if (list.length) { tRaf = requestAnimationFrame(tTick); return; }
       let next = Infinity;
       for (const tr of Object.values(trips).concat(friends.map(f => f.trip))) next = Math.min(next, AT.nextIn(tr, 'town', now, routes));
@@ -108,8 +131,6 @@
       tag.textContent = a.name; tag.style.background = a.accent || '#d8d2c4';
       tag.style.left = (r.left + t.sx) + 'px'; tag.style.top = (r.top + t.sy - 2) + 'px'; tag.hidden = false;
     }
-    canvas.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); hover = { x: e.clientX - r.left, y: e.clientY - r.top }; }); // the traveller loop shows the tag
-    canvas.addEventListener('pointerleave', () => { hover = null; tag.hidden = true; });
     try { // the stream: the CEO's saved wardrobe and the agents (trips); the office layout's flags when it changes
       const es = new EventSource('/api/stream');
       es.onmessage = ev => {
@@ -122,7 +143,7 @@
         } catch (e) {}
       };
     } catch (e) {}
-    window.__town = { api, p, grid, map, toWorld: api.toWorld, near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { get api() { return api; }, p, grid, map, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;
@@ -147,10 +168,15 @@
     const release = () => keys.clear(); // a key released while unfocused never sends keyup
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
-    canvas.addEventListener('pointerdown', e => {
-      const r = canvas.getBoundingClientRect(), [x, y] = api.toWorld(e.clientX - r.left, e.clientY - r.top);
-      if (WP.walkTo(p, { x, y }, grid)) go();
-    });
+    wire = c => { // canvas input; re-run on every fresh canvas
+      c.addEventListener('pointermove', e => { const r = c.getBoundingClientRect(); hover = { x: e.clientX - r.left, y: e.clientY - r.top }; }); // the traveller loop shows the tag
+      c.addEventListener('pointerleave', () => { hover = null; tag.hidden = true; });
+      c.addEventListener('pointerdown', e => {
+        const r = c.getBoundingClientRect(), [x, y] = api.toWorld(e.clientX - r.left, e.clientY - r.top);
+        if (WP.walkTo(p, { x, y }, grid)) go();
+      });
+    };
+    wire(canvas);
     addEventListener('resize', () => { api.resize(); draw(); });
   } catch (e) { fail(e); }
 })();

@@ -66,6 +66,20 @@
     return { tint: lighting === 'off' ? 0xffffff : root.Graphics.tintOf(n), glow: glow ? n : 0, pools: lighting === 'pools' ? n : 0 };
   }
 
+  // The traveller under css px (cx, cy), front-most first: shown = id -> {x, y, name, dh}; left/top/zoom: the laid-out
+  // camera; k: backing px per css px. -> {id, name, sx, sy (css px of its head)} or null. Shared by both renderers.
+  function travellerHit(shown, cx, cy, left, top, zoom, k) {
+    const tx = left + cx * k / zoom, ty = top + cy * k / zoom;
+    let best = null;
+    for (const [id, t] of shown) {
+      const [sx, sy] = project(t.x, t.y, 0);
+      const hd = 30 + (t.dh || 0); // head height follows the sprite's height
+      if (Math.abs(tx - sx) <= 10 && ty <= sy + 3 && ty >= sy - hd && (!best || depthOf(t.x, t.y) > best.d))
+        best = { id, name: t.name, d: depthOf(t.x, t.y), sx: (sx - left) * zoom / k, sy: (sy - hd - top) * zoom / k };
+    }
+    return best && { id: best.id, name: best.name, sx: best.sx, sy: best.sy };
+  }
+
   // cam: top-left of the view in terrain px; view: its size in terrain px.
   function visibleChunks(cam, view, terrain) {
     const n = terrain.chunk, cl = v => Math.max(0, v);
@@ -317,6 +331,7 @@
     replan(); animate(0); ambStart();
 
     return {
+      kind: 'gpu',
       setPlayer({ x, y, face = 's', pose = 'stand', frame = 0, look }) {
         playerKey = put(player, x, y, face, pose, frame, look);
         mark();
@@ -335,15 +350,7 @@
       // The traveller under css px (cx, cy) inside the canvas, as {id, name, sx, sy (css px of its head)}, or null.
       travellerAt(cx, cy) {
         layout();
-        const k = viewW / canvas.clientWidth, tx = left + cx * k / zoom, ty = top + cy * k / zoom;
-        let best = null;
-        for (const [id, t] of shown) {
-          const [sx, sy] = project(t.x, t.y, 0);
-          const hd = 30 + (t.dh || 0); // head height follows the sprite's height
-          if (Math.abs(tx - sx) <= 10 && ty <= sy + 3 && ty >= sy - hd && (!best || depthOf(t.x, t.y) > best.d))
-            best = { id, name: t.name, d: depthOf(t.x, t.y), sx: (sx - left) * zoom / k, sy: (sy - hd - top) * zoom / k };
-        }
-        return best && { id: best.id, name: best.name, sx: best.sx, sy: best.sy };
+        return travellerHit(shown, cx, cy, left, top, zoom, viewW / canvas.clientWidth);
       },
       // css px inside the canvas -> world x,y at ground level (uses the last laid-out camera, so call after a render)
       toWorld(cx, cy) { layout(); const k = viewW / canvas.clientWidth; return unproject(left + cx * k / zoom, top + cy * k / zoom); },
@@ -374,5 +381,5 @@
     };
   }
 
-  root.TownRender = { K, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
+  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, travellerHit, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
 })(globalThis);

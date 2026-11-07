@@ -12,7 +12,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, info) => { if (!ok) failed++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (info !== undefined ? '  ' + JSON.stringify(info) : '')); };
 const done = code => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); };
-setTimeout(() => { console.log('FAIL watchdog: harness exceeded 120 s'); done(1); }, 120000).unref();
+setTimeout(() => { console.log('FAIL watchdog: harness exceeded 180 s'); done(1); }, 180000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 
 app.whenReady().then(async () => {
@@ -128,10 +128,57 @@ app.whenReady().then(async () => {
   }
   check('no console errors with ambient on', errors.length === 0, errors);
 
-  // WebGL failure shows the message box
-  await w.loadURL(base + '/town?failgl=1'); await wait(2000);
-  const box = await js(`(() => { const e = document.getElementById('err'); return { shown: getComputedStyle(e).display !== 'none', text: e.textContent } })()`);
-  check('WebGL failure shows the error box', box.shown && /could not load/.test(box.text) && /Back to the office/.test(box.text), box);
+  // Canvas2D (town step 4): Low draws with Canvas2D; day and 22:00 shots, and frame times while walking.
+  await js(`localStorage.setItem('ao.powerSaver', '1')`);
+  for (const hour of [12, 22]) {
+    await js(`Graphics.save({ preset: 'low' })`);
+    await w.loadURL(base + '/town?hour=' + hour);
+    for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
+    await wait(800);
+    const k = await js(`({ kind: __town.api.kind, frames: __town.api.frameCount(), w: document.getElementById('town').width, cw: document.getElementById('town').clientWidth })`);
+    check(`Low ${hour}h: Canvas2D renderer at 50% scale`, k.kind === 'canvas' && k.frames > 0 && k.w === Math.round(k.cw / 2), k);
+    const f = path.join(shotDir, `town-low-${hour}.png`);
+    fs.writeFileSync(f, (await w.webContents.capturePage()).toPNG());
+    console.log('screenshot', f);
+  }
+  await js(`window.__ms = []; window.__msT = setInterval(() => __ms.push(__town.api.stats().lastRenderMs), 16)`);
+  const lf0 = await js('__town.api.frameCount()');
+  key_('keyDown', 'A'); await wait(1500); key_('keyUp', 'A'); await wait(100);
+  const walk = await js(`(() => { clearInterval(__msT); const m = __ms.slice().sort((a, b) => a - b); return { frames: __town.api.frameCount() - ${lf0}, max: m[m.length - 1], p50: m[m.length >> 1] }; })()`);
+  check('Low walk: frames render, each < 16 ms', walk.frames > 20 && walk.max < 16, walk);
+  check('no console errors on Canvas2D', errors.length === 0, errors);
+
+  // Live renderer swap: High (GPU) -> Low (Canvas2D) -> High, without a reload; texture memory comes back to the same.
+  await js(`Graphics.save({ preset: 'high' })`);
+  await w.loadURL(base + '/town?hour=12');
+  for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
+  await wait(800);
+  const s0 = await js(`({ kind: __town.api.kind, tb: __town.api.stats().textureBytes })`);
+  await js(`Graphics.save({ preset: 'low' })`); await wait(1500);
+  const s1 = await js(`({ kind: __town.api.kind, frames: __town.api.frameCount(), id: document.getElementById('town') && document.querySelectorAll('canvas#town').length })`);
+  check('swap High -> Low: Canvas2D on a fresh canvas', s0.kind === 'gpu' && s1.kind === 'canvas' && s1.frames > 0 && s1.id === 1, { s0, s1 });
+  await js(`Graphics.save({ preset: 'high' })`); await wait(1500);
+  const s2 = await js(`({ kind: __town.api.kind, tb: __town.api.stats().textureBytes, frames: __town.api.frameCount() })`);
+  check('swap Low -> High: GPU again, same textureBytes as the first High', s2.kind === 'gpu' && s2.frames > 0 && s2.tb === s0.tb, { s0, s2 });
+  const pw = await pos(), cr = await js('(() => { const b = document.getElementById("town").getBoundingClientRect(); return { x: b.left + b.width / 2 - 120, y: b.top + b.height / 2 + 40 }; })()');
+  w.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(cr.x), y: Math.round(cr.y), button: 'left', clickCount: 1 }); await wait(30);
+  w.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(cr.x), y: Math.round(cr.y), button: 'left', clickCount: 1 }); await wait(1500);
+  const pw2 = await pos();
+  check('after the swaps, click-to-walk still works on the new canvas', Math.hypot(pw2.x - pw.x, pw2.y - pw.y) > 20, { pw, pw2 });
+  const fs2 = path.join(shotDir, 'town-high-after-swap-12.png');
+  fs.writeFileSync(fs2, (await w.webContents.capturePage()).toPNG());
+  console.log('screenshot', fs2);
+  check('no console errors after swaps', errors.length === 0, errors);
+
+  // WebGL failure falls back to Canvas2D: the town loads, no error box
+  await w.loadURL(base + '/town?failgl=1&hour=22'); // stored preset is High: the 2D path draws soft shadows, night tint and window glow
+  for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
+  await wait(800);
+  const box = await js(`(() => { const e = document.getElementById('err'); return { shown: getComputedStyle(e).display !== 'none', kind: window.__town && __town.api.kind, frames: window.__town && __town.api.frameCount(), ms: window.__town && __town.api.stats().lastRenderMs } })()`);
+  check('WebGL failure falls back to Canvas2D, no error box', !box.shown && box.kind === 'canvas' && box.frames > 0, box);
+  const fg = path.join(shotDir, 'town-failgl-high-22.png');
+  fs.writeFileSync(fg, (await w.webContents.capturePage()).toPNG());
+  console.log('screenshot', fg);
 
   console.log(failed ? 'FAILED ' + failed : 'ALL PASSED');
   done(failed ? 1 : 0);
