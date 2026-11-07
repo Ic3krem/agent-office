@@ -25,11 +25,11 @@ export function createWorldStore(dir, opts = {}) {
   const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const ids = (d) => { try { return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).filter((i) => SLUG.test(i)); } catch { return []; } };
   const builtIds = () => ids(builtinDir).filter((i) => !i.startsWith('interior-')); // interior-* are scene defaults: fetchable (Build's reset), never listed
-  // Atomic, fsynced write shared by the layout and templates. A string is written as is (the v1 backup keeps the bytes).
+  // Atomic, fsynced write shared by the layout and templates. A Buffer is written as is (the v1 backup keeps the bytes).
   const writeAtomic = (f, data) => {
     fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
     const fd = fs.openSync(f + '.tmp', 'w', 0o600);
-    try { fs.writeFileSync(fd, typeof data === 'string' ? data : JSON.stringify(data)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    try { fs.writeFileSync(fd, Buffer.isBuffer(data) ? data : JSON.stringify(data)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.renameSync(f + '.tmp', f);
   };
   // A missing or bad file means the scene's default: the office's built-in layout, an interior's template.
@@ -46,14 +46,14 @@ export function createWorldStore(dir, opts = {}) {
   const sceneOk = (layout, scene) => (layout?.scene ?? 'office') === scene;
   // Town step 3: an office layout saved before the playroom and garden moved out. The exact old bytes go to layout.v1.json
   // first (never overwriting a different v1); on any doubt the layout stays as it is (valid, unmigrated) and the log says why.
-  const migrate = (file, text, layout) => {
+  const migrate = (file, raw, layout) => {
     const keep = (why) => { console.error('[world] layout.json not migrated: ' + why); return layout; };
     const next = migrateV2(layout), v = WM.validate(J(next));
     if (!v.ok) return keep('the migrated layout is invalid: ' + v.errors.slice(0, 3).join('; '));
     const v1 = path.join(dir, 'layout.v1.json');
     try {
-      if (!fs.existsSync(v1)) writeAtomic(v1, text);
-      else if (fs.readFileSync(v1, 'utf8') !== text) return keep('layout.v1.json already holds a different layout');
+      if (!fs.existsSync(v1)) writeAtomic(v1, raw);
+      else if (!fs.readFileSync(v1).equals(raw)) return keep('layout.v1.json already holds a different layout');
     } catch (e) { return keep('the backup to layout.v1.json failed (' + (e.code || e.message) + ')'); }
     try { writeAtomic(file, next); } catch (e) { return keep('the rewrite failed (' + (e.code || e.message) + ')'); }
     return next;
@@ -62,8 +62,8 @@ export function createWorldStore(dir, opts = {}) {
     load(scene = 'office') {
       const file = fileOf(scene), name = FILES[scene];
       const fallback = (warning) => ({ layout: defaultOf(scene), source: 'default', ...(warning ? { warning } : {}) });
-      let text;
-      try { text = fs.readFileSync(file, 'utf8'); } catch (e) {
+      let raw, text; // raw: the exact bytes, for a byte-identical v1 backup
+      try { raw = fs.readFileSync(file); text = raw.toString('utf8'); } catch (e) {
         if (e.code === 'ENOENT') return fallback();
         console.error('[world] ' + name + ' unreadable:', e); // the full reason (with path) stays server-side
         return fallback(name + ' unreadable (' + e.code + '); using the default');
@@ -73,7 +73,7 @@ export function createWorldStore(dir, opts = {}) {
       const r = WM.validate(J(layout));
       if (r.ok && !sceneOk(layout, scene)) return fallback(name + ' holds another scene; using the default');
       if (!r.ok) return fallback(name + ' rejected: ' + r.errors.slice(0, 3).join('; '));
-      return { layout: scene === 'office' && layout.migrated !== 2 ? migrate(file, text, layout) : layout, source: 'file' };
+      return { layout: scene === 'office' && layout.migrated !== 2 ? migrate(file, raw, layout) : layout, source: 'file' };
     },
     save(layout, scene = 'office') {
       const file = fileOf(scene);

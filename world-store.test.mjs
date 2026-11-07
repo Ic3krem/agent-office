@@ -145,8 +145,9 @@ test('a missing interior template: one clear error, an empty interior with a doo
 const VW = loadWorld({ ctxFactory: () => noop }), WMv = VW.WorldModel, OMv = VW.OfficeMotion;
 const Jv = (v) => JSON.parse(JSON.stringify(v));
 const PLAYROOM = ['arcade', 'arcade-race', 'jukebox', 'sofa3', 'snack-table', 'beanbag', 'ball-pit', 'hoop', 'dartboard', 'toy-bin'];
-const inGarden = (l, o) => l.zones.some((q) => q.type === 'garden' && o.x >= q.rect[0] && o.x <= q.rect[2] && o.y >= q.rect[1] && o.y <= q.rect[3]);
-const moved = (l, o) => [...PLAYROOM, 'pond', 'pond-east'].includes(o.type) || (['tree', 'bench', 'bench-side'].includes(o.type) && inGarden(l, o));
+const inZone = (l, o, types) => l.zones.some((q) => types.includes(q.type) && o.x >= q.rect[0] && o.x <= q.rect[2] && o.y >= q.rect[1] && o.y <= q.rect[3]);
+const moved = (l, o) => [...PLAYROOM, 'pond', 'pond-east'].includes(o.type) || (['tree', 'bench', 'bench-side'].includes(o.type) && inZone(l, o, ['garden']))
+  || (['hedge', 'picnic-table', 'lamp-post', 'bird-feeder'].includes(o.type) && inZone(l, o, ['garden', 'play']));
 // A layout saved before step 3: today's default as it was written to disk.
 const oldOffice = (d, l = Jv(WMv.defaultLayout())) => { const text = JSON.stringify(l, null, 1); fs.writeFileSync(path.join(d, 'layout.json'), text); return { l, text }; };
 
@@ -157,9 +158,8 @@ test('migration: a saved default layout loses the playroom and garden pieces and
   assert.deepEqual(r.layout.objects, l.objects.filter((o) => !moved(l, o)), 'exactly the moved pieces are gone, nothing else changed');
   assert.ok(l.objects.filter((o) => moved(l, o)).length >= 25, 'the default had a playroom and a garden');
   assert.deepEqual(r.layout.objects.filter((o) => o.type === 'dept-desk'), l.objects.filter((o) => o.type === 'dept-desk'), 'every desk kept');
-  for (const keep of ['tiro-desk', 'tiro-chair', 'water-cooler', 'coffee-counter', 'hot-desk-1', 'hedge-1', 'plant-2', 'garage', 'mailbox', 'pennants']) assert.ok(r.layout.objects.some((o) => o.id === keep), keep);
-  const zoneGone = (q) => q.type === 'play' || q.type === 'garden' || (q.type === 'water' && (q.id === 'pond' || q.id === 'pond-east'));
-  assert.deepEqual(r.layout.zones, l.zones.filter((q) => !zoneGone(q)), 'playroom, garden and pond-water zones go; the rest stay');
+  for (const keep of ['tiro-desk', 'tiro-chair', 'water-cooler', 'coffee-counter', 'hot-desk-1', 'server-plant', 'plant-2', 'garage', 'mailbox', 'pennants']) assert.ok(r.layout.objects.some((o) => o.id === keep), keep);
+  assert.deepEqual(r.layout.zones, Jv(WMv.officeLayout()).zones, 'playroom and garden become office floor, their strips and the pond water go');
   const g = WMv.gridOf(Jv(r.layout)), reach = VW.WorldPath.reachFrom(g, r.layout.spawn);
   for (const p of [{ x: 790, y: 105 }, { x: 1120, y: 290 }]) assert.ok(!g.blocked[VW.WorldPath.cellOf(g, p)] && reach(p), 'the old pond area is walkable: ' + p.x + ',' + p.y);
   const spots = WMv.spotsOf(Jv(r.layout));
@@ -187,8 +187,8 @@ test('migration: a second load is a no-op; a migrated layout with its own playro
 });
 
 test('migration: a layout with no playroom or garden pieces gets only migrated: 2', () => {
-  const d = tmp(), base = Jv(WMv.defaultLayout());
-  const l = { ...base, zones: base.zones.filter((q) => q.type !== 'play' && q.type !== 'garden'), objects: base.objects.filter((o) => !moved(base, o)), spots: base.spots.filter((q) => !/^(play|garden|pk):/.test(q.id)) };
+  const d = tmp(), { migrated, ...l } = Jv(WMv.officeLayout()); // already in the new shape
+  assert.equal(migrated, 2);
   oldOffice(d, l);
   assert.deepEqual(createWorldStore(d).load().layout, { ...l, migrated: 2 });
 });
@@ -243,4 +243,16 @@ test('migration: only the office; interiors, a fresh install and a save after th
   assert.equal(r.layout.migrated, 2);
   assert.ok(r.layout.objects.some((o) => o.type === 'arcade'));
   assert.ok(!fs.existsSync(path.join(d, 'layout.v1.json')));
+});
+
+test('migration safety: layout.v1.json is byte-identical even when the file is not valid UTF-8', () => {
+  const d = tmp(), l = { ...Jv(WMv.defaultLayout()), note: 'cafX' };
+  const raw = Buffer.from(JSON.stringify(l)), i = raw.indexOf('cafX') + 3; raw[i] = 0xe9; // a lone Latin-1 byte inside a string
+  fs.writeFileSync(path.join(d, 'layout.json'), raw);
+  assert.equal(createWorldStore(d).load().layout.migrated, 2);
+  assert.ok(fs.readFileSync(path.join(d, 'layout.v1.json')).equals(raw), 'the raw bytes, not a UTF-8 re-encoding');
+  // the same raw bytes already in v1 count as backed up (compared as bytes)
+  const d2 = tmp(); fs.writeFileSync(path.join(d2, 'layout.json'), raw); fs.writeFileSync(path.join(d2, 'layout.v1.json'), raw);
+  assert.equal(createWorldStore(d2).load().layout.migrated, 2);
+  assert.ok(fs.readFileSync(path.join(d2, 'layout.v1.json')).equals(raw));
 });

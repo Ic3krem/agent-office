@@ -160,10 +160,18 @@ test('officeLayout(): the migrated default; no play or garden zones (their decor
   const d = J(WM.defaultLayout()), o = J(WM.officeLayout());
   assert.deepEqual(o, J(WM.migrateV2(WM.defaultLayout())));
   assert.deepEqual(J(WM.validate(o)), { ok: true, errors: [] });
-  const gone = (q) => q.type === 'play' || q.type === 'garden' || q.id === 'pond' || q.id === 'pond-east';
-  assert.deepEqual(o.zones, d.zones.filter((q) => !gone(q)), 'only the playroom, garden and pond-water zones go');
-  assert.ok(d.zones.filter(gone).length >= 5);
+  // fix round 2: play/garden zones become office floor; the walk strips wholly inside them and the pond water go
+  const old = d.zones.filter((q) => q.type === 'play' || q.type === 'garden');
+  const inside = (q) => old.some((z) => z.rect[0] <= q.rect[0] && z.rect[1] <= q.rect[1] && z.rect[2] >= q.rect[2] && z.rect[3] >= q.rect[3]);
+  const dropped = (q) => (q.type === 'water' && (q.id === 'pond' || q.id === 'pond-east')) || (q.type === 'path' && inside(q));
+  assert.deepEqual(o.zones, d.zones.filter((q) => !dropped(q)).map((q) => old.some((z) => z.id === q.id) ? { ...q, type: 'office' } : q));
+  assert.deepEqual(d.zones.filter((q) => q.type === 'path' && inside(q)).map((q) => q.id).sort(), ['garden-hub', 'loop-e', 'loop-n', 'loop-s', 'loop-w', 'play-e', 'play-in', 'play-n', 'play-s', 'play-w']);
+  assert.ok(o.zones.some((q) => q.id === 'garden-gate'), 'a strip that only crosses into the garden stays');
+  assert.deepEqual(o.zones.filter((q) => q.type === 'play' || q.type === 'garden'), []);
+  assert.deepEqual(['garden', 'park', 'play'].map((id) => o.zones.find((q) => q.id === id).type), ['office', 'office', 'office']);
   assert.equal(WM.isDefaultZones(o.zones), false, 'so the default play rug and garden beds are not drawn');
+  assert.deepEqual(o.objects.filter((x) => ['hedge', 'picnic-table', 'lamp-post', 'bird-feeder'].includes(x.type)), [], 'no stray hedges or garden furniture');
+  assert.ok(o.objects.some((x) => x.id === 'server-plant') && o.objects.some((x) => x.id === 'plant-4'), 'plants stay');
   const g = WM.gridOf(o), reach = W.reachFrom(g, o.spawn);
   for (const p of [{ x: 790, y: 105 }, { x: 1120, y: 290 }]) {
     assert.equal(g.blocked[W.cellOf(g, p)], 0, 'not blocked at ' + p.x + ',' + p.y);
@@ -179,4 +187,24 @@ test('the page never falls back to the classic office: reset, visit, Build and b
   assert.match(src, /resetDefault:.*SCENE==='office'\?WorldModel\.officeLayout\(\)/);
   assert.doesNotMatch(src, /j\.source!=='default'/, 'the server default (migrated) is applied too');
   assert.match(src, /mountWorld/);
+});
+
+test('migrateV2 on a user-built layout: containment, not ids; outdoor pieces go only from garden and play zones', () => {
+  const l = J(WM.defaultLayout());
+  l.zones.push({ id: 'g2', type: 'garden', rect: [20, 300, 120, 400] }, { id: 'p2', type: 'path', rect: [30, 310, 110, 330] }, { id: 'p3', type: 'path', rect: [100, 350, 200, 360] });
+  l.objects.push({ id: 'hedge-in', type: 'hedge', x: 60, y: 380 }, { id: 'lamp-in', type: 'lamp-post', x: 600, y: 700 }, { id: 'hedge-out', type: 'hedge', x: 300, y: 300 }, { id: 'table-out', type: 'picnic-table', x: 300, y: 620 });
+  const o = J(WM.migrateV2(l)), ids = (a) => a.map((q) => q.id);
+  assert.equal(o.zones.find((q) => q.id === 'g2').type, 'office');
+  assert.ok(!ids(o.zones).includes('p2'), 'a path inside a garden zone goes');
+  assert.ok(ids(o.zones).includes('p3'), 'a path crossing out of it stays');
+  assert.ok(!ids(o.objects).includes('hedge-in') && !ids(o.objects).includes('lamp-in'), 'outdoor pieces in garden/play zones go');
+  assert.ok(ids(o.objects).includes('hedge-out') && ids(o.objects).includes('table-out'), 'outdoor pieces elsewhere stay');
+});
+
+test('zone labels: GARDEN, PARK and PLAYROOM only when a zone of that type exists', () => {
+  const w = loadWorld(), F = w.OfficeFurniture, said = [];
+  const g = new Proxy({}, { get: (t, k) => k === 'fillText' ? (s) => said.push(s) : k in t ? t[k] : () => ({ width: 0 }), set: (t, k, v) => { t[k] = v; return true; } });
+  const labels = (zones) => { said.length = 0; F.setZones(zones); for (const p of F.walls) { try { p(g); } catch {} } return ['GARDEN', 'PARK', 'PLAYROOM', 'GARAGE'].filter((s) => said.includes(s)); };
+  assert.deepEqual(labels(J(w.WorldModel.defaultLayout().zones)), ['GARDEN', 'PARK', 'PLAYROOM', 'GARAGE']);
+  assert.deepEqual(labels(J(w.WorldModel.officeLayout().zones)), ['GARAGE']);
 });

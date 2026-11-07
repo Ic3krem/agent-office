@@ -118,18 +118,22 @@
   const requiredSpots = layout => { const M = root.OfficeMotion; return layout.scene ? ['door'] : M ? [...desksOf(layout).map(o => o.desk), 'tiro:seat', 'tiro:window', 'office:report', 'queue:1', 'queue:2', 'queue:3', 'sched:npc', ...M.COOLER, ...M.HOT, ...M.OVER] : []; };
 
   // Town step 3: the playroom moved to the game hall and the garden outdoors. An office layout saved before then drops
-  // these types (the step 2 play pieces and both ponds), garden trees and benches standing in a garden zone, and the
-  // play and garden spots, the play and garden zones (their floor decor goes with them) and the water zones under removed
-  // ponds (water with no pond is an invisible wall). Returns a new layout with migrated: 2; world-store backs up and writes it.
+  // these types (the step 2 play pieces and both ponds), garden trees and benches standing in a garden zone, outdoor
+  // pieces standing in a garden or play zone, and the play and garden spots. The play and garden zones become office
+  // floor (their decor goes), the walk strips wholly inside them go, and so does the water under removed ponds (water
+  // with no pond is an invisible wall). Zones are judged as they were before. Returns a new layout with migrated: 2;
+  // world-store backs up and writes it.
   const MIGRATE_V2 = ['arcade', 'arcade-race', 'jukebox', 'sofa3', 'snack-table', 'beanbag', 'ball-pit', 'hoop', 'dartboard', 'toy-bin', 'pond', 'pond-east'];
-  const MIGRATE_V2_GARDEN = ['tree', 'bench', 'bench-side'];
+  const MIGRATE_V2_GARDEN = ['tree', 'bench', 'bench-side'], MIGRATE_V2_OUTDOOR = ['hedge', 'picnic-table', 'lamp-post', 'bird-feeder'];
   function migrateV2(layout) {
-    const M = root.OfficeMotion, spots = new Set([...M.PLAY, ...M.GARDEN]), garden = rectsOf(layout, 'garden');
-    const within = (o, [x0, y0, x1, y1]) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1, inGarden = o => garden.some(r => within(o, r));
+    const M = root.OfficeMotion, spots = new Set([...M.PLAY, ...M.GARDEN]), garden = rectsOf(layout, 'garden'), outside = garden.concat(rectsOf(layout, 'play'));
+    const within = (o, [x0, y0, x1, y1]) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1, inAny = (o, rs) => rs.some(r => within(o, r));
+    const inside = ([a, b, c, d]) => outside.some(([x0, y0, x1, y1]) => a >= x0 && b >= y0 && c <= x1 && d <= y1);
     const ponds = layout.objects.filter(o => o.type === 'pond' || o.type === 'pond-east');
     return Object.assign({}, layout, {
-      zones: layout.zones.filter(q => q.type !== 'play' && q.type !== 'garden' && !(q.type === 'water' && ponds.some(o => within(o, q.rect)))),
-      objects: layout.objects.filter(o => !MIGRATE_V2.includes(o.type) && !(MIGRATE_V2_GARDEN.includes(o.type) && inGarden(o))),
+      zones: layout.zones.filter(q => !(q.type === 'water' && ponds.some(o => within(o, q.rect))) && !(q.type === 'path' && inside(q.rect)))
+        .map(q => q.type === 'play' || q.type === 'garden' ? Object.assign({}, q, { type: 'office' }) : q),
+      objects: layout.objects.filter(o => !MIGRATE_V2.includes(o.type) && !(MIGRATE_V2_GARDEN.includes(o.type) && inAny(o, garden)) && !(MIGRATE_V2_OUTDOOR.includes(o.type) && inAny(o, outside))),
       spots: layout.spots.filter(s => !spots.has(s.id)), migrated: 2,
     });
   }
@@ -185,6 +189,6 @@
     }
   }
 
-  root.WorldModel = { VERSION, INTERIORS, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS, MIGRATE_V2, MIGRATE_V2_GARDEN, migrateV2, officeLayout };
+  root.WorldModel = { VERSION, INTERIORS, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS, MIGRATE_V2, MIGRATE_V2_GARDEN, MIGRATE_V2_OUTDOOR, migrateV2, officeLayout };
   if (root.OfficeMotion && typeof root.OfficeMotion.useLayout === 'function') root.OfficeMotion.useLayout(defaultLayout());
 })(globalThis);
