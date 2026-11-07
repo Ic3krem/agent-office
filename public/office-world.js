@@ -261,10 +261,9 @@
   }
 
   // ---------- background (floor and walls) baked once per sky bucket ----------
-  const nightOf = h => h >= 20 || h < 5 ? 1 : h >= 18 ? (h - 18) / 2 : h < 7 ? (7 - h) / 2 : 0;
   function ensureBG() {
     const hr = hourOverride != null ? hourOverride : new Date().getHours() + new Date().getMinutes() / 60;
-    F.state.night = nightOf(hr);
+    F.state.night = root.Graphics.nightOf(hr);
     const key = res + '|' + Math.round(F.state.night * 10);
     if (bg && bgKey === key) return;
     bgKey = key; bg = document.createElement('canvas'); bg.width = Math.round(STW * res); bg.height = Math.round(STH * res);
