@@ -25,7 +25,7 @@
       L = { key: isTiro ? 'tiro' : (a.key || null), shirt: a.color || VISITOR[h % VISITOR.length], accent: a.accent || '#d8d2c4',
         hair: isTiro ? '#3b2418' : HAIRS[(h >> 3) % 8], skin: isTiro ? '#e6b48c' : SKINS[(h >> 6) % 8], pants: PANTS[(h >> 9) % PANTS.length], style: (h >> 12) % 3, sig: [a.key, a.color, h % 977].join('|') };
     }
-    L.prop = ROLE_PROP[L.key] || 'none';
+    L.prop = ROLE_PROP[L.key] || 'none'; L.height = 'average';
     // a saved costume overrides hair, skin, style, outfit and accessory; visitors (no key) never get one
     const c = costume !== undefined ? root.RoleCatalog.cleanCostume(costume) : L.key && costumes[L.key];
     if (c) {
@@ -36,11 +36,12 @@
       if (o && o.shirt) { L.shirt = o.shirt; L.pants = o.pants; if (L.key === 'ceo') L.accent = o.shirt; }
       if (c.prop) L.prop = c.prop;
       L.sig += '|' + [c.hair, c.skin, c.style, c.outfit, c.prop].join(',');
+      if (c.height && c.height !== 'average') { L.height = c.height; L.sig += '|' + c.height; }
     }
     return L;
   }
 
-  function make() { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; return cv; }
+  function make(h) { const cv = document.createElement('canvas'); cv.width = W; cv.height = h; return cv; }
   const cache = {};
 
   // pose: stand | walk | type | sit-idle | hand | sit | think | sit-think | play | sit-play | report | cup | cooler | sit-front | celebrate
@@ -48,7 +49,6 @@
   function get(look, view, pose, frame, dir) {
     const key = [look.sig, view, pose, frame, dir].join('/');
     if (cache[key]) return cache[key];
-    const cv = make(), g = cv.getContext('2d');
     const buf = Array.from({ length: H }, () => new Array(W).fill(null));
     const px = (x, y, c) => { x += OX; y += OY; if (x >= 0 && x < W && y >= 0 && y < H && c) buf[y][x] = c; };
     const rc = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) px(x + i, y + j, c); };
@@ -163,13 +163,19 @@
       } else rc(5, 11, 6, 1, '#fff');
     }
 
+    // ---- height: copy or drop one torso row (16) and one leg row (19), lower one first. Pixel rows, never scaling. The
+    // canvas is h = H +- 2 rows; callers anchor its bottom (subtract h - H rows) so the feet keep their ground point.
+    const T = OY + 16, G = OY + 19;
+    if (L.height === 'tall') { buf.splice(G, 0, buf[G].slice()); buf.splice(T, 0, buf[T].slice()); }
+    else if (L.height === 'short') { buf.splice(G, 1); buf.splice(T, 1); }
+    const h = buf.length, cv = make(h), g = cv.getContext('2d');
     // ---- outline pass ----
-    const out = Array.from({ length: H }, () => new Array(W).fill(null));
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!buf[y][x]) {
-      if ((y > 0 && buf[y - 1][x]) || (y < H - 1 && buf[y + 1][x]) || (x > 0 && buf[y][x - 1]) || (x < W - 1 && buf[y][x + 1])) out[y][x] = OUT;
+    const out = Array.from({ length: h }, () => new Array(W).fill(null));
+    for (let y = 0; y < h; y++) for (let x = 0; x < W; x++) if (!buf[y][x]) {
+      if ((y > 0 && buf[y - 1][x]) || (y < h - 1 && buf[y + 1][x]) || (x > 0 && buf[y][x - 1]) || (x < W - 1 && buf[y][x + 1])) out[y][x] = OUT;
     }
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = buf[y][x] || out[y][x]; if (c) { g.fillStyle = c; g.fillRect(x, y, 1, 1); } }
-    return (cache[key] = { cv, w: W, h: H, ox: OX, oy: OY });
+    for (let y = 0; y < h; y++) for (let x = 0; x < W; x++) { const c = buf[y][x] || out[y][x]; if (c) { g.fillStyle = c; g.fillRect(x, y, 1, 1); } }
+    return (cache[key] = { cv, w: W, h, ox: OX, oy: OY });
   }
   root.OfficeSprites = { get, lookOf, setCostumes, shade, W, H, OX, OY };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -124,7 +124,7 @@
       charTex.set(key, t); textureBytes += g.w * g.h * 4;
       if (charTex.size > CHAR_CAP) {
         const [k0, t0] = charTex.entries().next().value;
-        charTex.delete(k0); t0.destroy(true); textureBytes -= SP.W * SP.H * 4;
+        charTex.delete(k0); textureBytes -= t0.width * t0.height * 4; t0.destroy(true);
       }
       return t;
     }
@@ -133,7 +133,7 @@
       const c = charPlace(x, y, face);
       s.texture = charTexture(look, c.view, pose, frame, c.dir);
       s.scale.x = c.flip ? -1 : 1;
-      s.position.set(c.px, c.py);
+      s.position.set(c.px, c.py - (s.texture.height - SP.H)); // a short/tall sprite keeps its feet on the ground point
       s.zIndex = c.z; // ties: characters after sprites
       s.visible = true;
     }
@@ -198,7 +198,7 @@
         shown.clear();
         for (const [t, s] of syncPool(crowd, list, () => { const s = new P.Sprite(P.Texture.EMPTY); world.addChild(s); sprites++; return s; })) {
           put(s, t.x, t.y, t.face, 'walk', t.frame, t.look);
-          shown.set(t.id, { x: t.x, y: t.y, name: t.name });
+          shown.set(t.id, { x: t.x, y: t.y, name: t.name, dh: s.texture.height - SP.H });
         }
         crowdOn = list.length > 0;
         mark();
@@ -210,8 +210,9 @@
         let best = null;
         for (const [id, t] of shown) {
           const [sx, sy] = project(t.x, t.y, 0);
-          if (Math.abs(tx - sx) <= 10 && ty <= sy + 3 && ty >= sy - 30 && (!best || depthOf(t.x, t.y) > best.d))
-            best = { id, name: t.name, d: depthOf(t.x, t.y), sx: (sx - left) * zoom / k, sy: (sy - 30 - top) * zoom / k };
+          const hd = 30 + (t.dh || 0); // head height follows the sprite's height
+          if (Math.abs(tx - sx) <= 10 && ty <= sy + 3 && ty >= sy - hd && (!best || depthOf(t.x, t.y) > best.d))
+            best = { id, name: t.name, d: depthOf(t.x, t.y), sx: (sx - left) * zoom / k, sy: (sy - hd - top) * zoom / k };
         }
         return best && { id: best.id, name: best.name, sx: best.sx, sy: best.sy };
       },

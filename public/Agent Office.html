@@ -282,9 +282,10 @@ button:disabled{opacity:.45;cursor:default}
               <div style="font-size:12px; line-height:1.4; color:#cdbda9; white-space:pre-line;">{{ c.brief }}</div>
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7d7064;">{{ c.tools }}</div>
               <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
-                <img ref="{{ c.lookRef }}" alt="" style="width:36px; height:52px; image-rendering:pixelated;"></img>
+                <img ref="{{ c.lookRef }}" alt="" style="width:36px; height:auto; image-rendering:pixelated;"></img>
                 <span style="flex:1; min-width:90px; font-size:11px; color:#a8998a;">{{ c.lookLabel }}</span>
                 <button class="wbtn" onClick="{{ c.onHair }}" title="Next hair colour">Hair</button><button class="wbtn" onClick="{{ c.onSkin }}" title="Next skin tone">Skin</button><button class="wbtn" onClick="{{ c.onStyle }}" title="Next hairstyle">Style</button><button class="wbtn" onClick="{{ c.onOutfit }}" title="Next outfit">Outfit</button><button class="wbtn" onClick="{{ c.onProp }}" title="Next accessory">Extra</button>
+                <span role="group" aria-label="Height" style="display:inline-flex; gap:2px;"><button class="wbtn" onClick="{{ c.onShort }}" aria-pressed="{{ c.shortOn }}" title="Short" style="border-color:{{ c.shortBorder }};">S</button><button class="wbtn" onClick="{{ c.onAverage }}" aria-pressed="{{ c.averageOn }}" title="Average height" style="border-color:{{ c.averageBorder }};">M</button><button class="wbtn" onClick="{{ c.onTall }}" aria-pressed="{{ c.tallOn }}" title="Tall" style="border-color:{{ c.tallBorder }};">T</button></span>
                 <sc-if value="{{ c.hasLook }}" hint-placeholder-val="{{ false }}"><button class="wbtn" onClick="{{ c.onLookReset }}" title="Back to the default look">↺</button></sc-if>
               </div>
               <sc-if value="{{ c.canRename }}" hint-placeholder-val="{{ true }}"><div style="display:flex; gap:6px; align-items:center; margin-top:2px;">
@@ -485,7 +486,7 @@ button:disabled{opacity:.45;cursor:default}
         <div style="padding:18px 18px 14px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid #33281f;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="width:50px; height:50px; flex-shrink:0; border-radius:8px; background:#2a211b; border:2px solid #1b1220; overflow:hidden; display:flex; justify-content:center;">
-              <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}"><img ref="{{ sel.imgRef }}" alt="" style="display:block; width:54px; height:78px; margin-top:2px; flex-shrink:0; image-rendering:pixelated;"></img></sc-if>
+              <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}"><img ref="{{ sel.imgRef }}" alt="" style="display:block; width:54px; height:auto; margin-top:2px; flex-shrink:0; image-rendering:pixelated;"></img></sc-if>
             </div>
             <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -963,7 +964,7 @@ class Component extends DCLogic {
     const set=costume=>api('/api/looks/set',{key,costume}).then(j=>{SP.setCostumes(j.looks);this.setState({looks:j.looks});}).catch(e=>this.showToast(e.message));
     const step=f=>()=>{const nx={...cur};if(f==='prop'){const i=W.props.indexOf(cur.prop||RoleCatalog.ROLE_PROP[key]||'none');nx.prop=W.props[(i+1)%W.props.length];}else nx[f]=((cur[f]??-1)+1)%n[f];set(nx);};
     const lk=key==='ceo'?SP.lookOf({look:'ceo'}):SP.lookOf({id:key,isManager:key==='tiro',key,color:c.color,accent:c.accent}),u=PORT[lk.sig]||(PORT[lk.sig]=SP.get(lk,'f','stand',0,0).cv.toDataURL());
-    return {lookRef:el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);},lookLabel:W.outfits[cur.outfit??0].name+' · '+lk.prop,onHair:step('hair'),onSkin:step('skin'),onStyle:step('style'),onOutfit:step('outfit'),onProp:step('prop'),hasLook:!!(this.state.looks||{})[key],onLookReset:()=>set(null)};}
+    return {lookRef:el=>{if(el&&el.getAttribute('src')!==u)el.setAttribute('src',u);},lookLabel:W.outfits[cur.outfit??0].name+' · '+lk.prop,onHair:step('hair'),onSkin:step('skin'),onStyle:step('style'),onOutfit:step('outfit'),onProp:step('prop'),...Object.fromEntries(W.heights.flatMap(h=>{const on=(cur.height||'average')===h,nm=h[0].toUpperCase()+h.slice(1);return [['on'+nm,()=>{const nx={...cur};if(h==='average')delete nx.height;else nx.height=h;set(Object.keys(nx).length?nx:null);}],[h+'On',on?'true':'false'],[h+'Border',on?'#ffcf6b':'#4a3a2c']];})),hasLook:!!(this.state.looks||{})[key],onLookReset:()=>set(null)};}
   // Load a template (or the default) into the session: one undoable step that stays dirty until saved.
   loadInto(name,get){
     this.setState({tplOpen:false});

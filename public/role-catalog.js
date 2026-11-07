@@ -32,6 +32,7 @@
       { name: 'Sunset', shirt: '#e0674a', pants: '#47352f' }, { name: 'Forest', shirt: '#3e7d55', pants: '#2c4038' },
     ],
     props: ['none', 'headphones', 'hardhat', 'visor', 'goggles', 'glasses', 'scarf', 'clipboard', 'pen', 'tie', 'suit'],
+    heights: ['short', 'average', 'tall'],
   };
   // Default accessory per agent (the look each role had before costumes existed).
   const ROLE_PROP = { pixel: 'headphones', forge: 'hardhat', warden: 'visor', probe: 'goggles', atlas: 'glasses', cabalan: 'scarf', tally: 'clipboard', scribe: 'pen', tiro: 'tie', ceo: 'suit' };
@@ -41,7 +42,8 @@
   function cleanCostume(c) {
     if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
     const out = { hair: idx(c.hair, WARDROBE.hair.length), skin: idx(c.skin, WARDROBE.skin.length), style: idx(c.style, WARDROBE.styles.length),
-      outfit: idx(c.outfit, WARDROBE.outfits.length), prop: WARDROBE.props.includes(c.prop) ? c.prop : undefined };
+      outfit: idx(c.outfit, WARDROBE.outfits.length), prop: WARDROBE.props.includes(c.prop) ? c.prop : undefined,
+      height: WARDROBE.heights.includes(c.height) ? c.height : undefined };
     for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
     return Object.keys(out).length ? out : null;
   }

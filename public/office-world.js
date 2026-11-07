@@ -91,8 +91,8 @@
   const tbCache = new WeakMap();
   function tightOf(spr) {
     let t = tbCache.get(spr); if (t) return t;
-    t = { l: 0, t: 0, r: SP.W, b: SP.H };
-    try { const d = spr.cv.getContext('2d').getImageData(0, 0, SP.W, SP.H).data; let l = SP.W, tt = SP.H, r = -1, b = -1; for (let y = 0; y < SP.H; y++) for (let x = 0; x < SP.W; x++) if (d[(y * SP.W + x) * 4 + 3] >= 96) { if (x < l) l = x; if (x > r) r = x; if (y < tt) tt = y; if (y > b) b = y; } if (r >= 0) t = { l, t: tt, r: r + 1, b: b + 1 }; } catch (e) { /* tainted or unavailable: whole sprite */ }
+    t = { l: 0, t: 0, r: SP.W, b: spr.h };
+    try { const d = spr.cv.getContext('2d').getImageData(0, 0, SP.W, spr.h).data; let l = SP.W, tt = spr.h, r = -1, b = -1; for (let y = 0; y < spr.h; y++) for (let x = 0; x < SP.W; x++) if (d[(y * SP.W + x) * 4 + 3] >= 96) { if (x < l) l = x; if (x > r) r = x; if (y < tt) tt = y; if (y > b) b = y; } if (r >= 0) t = { l, t: tt, r: r + 1, b: b + 1 }; } catch (e) { /* tainted or unavailable: whole sprite */ }
     tbCache.set(spr, t); return t;
   }
 
@@ -362,9 +362,9 @@
     g.fillStyle = 'rgba(12,6,24,.3)'; g.beginPath(); g.ellipse(sx, sy0 + 1, 13, 6.5, 0, 0, 6.2832); g.fill();
     if (selected === a.id) { g.strokeStyle = '#ffcf6b'; g.lineWidth = 1.6; g.setLineDash([5, 3]); g.beginPath(); g.ellipse(sx, sy0 + 1, 19, 9.5, 0, 0, 6.2832); g.stroke(); g.setLineDash([]); g.fillStyle = 'rgba(255,207,107,.14)'; g.fill(); }
     g.imageSmoothingEnabled = false;
-    const dx = sx - 9 * sc, dy = sy - 19 * sc + bob + jump;
+    const dx = sx - 9 * sc, dy = sy - (19 + spr.h - SP.H) * sc + bob + jump; // taller/shorter sprites keep their feet
     if (!front && face === 'w') { g.translate(sx, 0); g.scale(-1, 1); g.translate(-sx, 0); }
-    g.drawImage(spr.cv, dx, dy, SP.W * sc, SP.H * sc);
+    g.drawImage(spr.cv, dx, dy, SP.W * sc, spr.h * sc);
     g.restore();
     const tb = tightOf(spr), flip = !front && face === 'w', tl = flip ? SP.W - tb.r : tb.l, tr = flip ? SP.W - tb.l : tb.r;
     return { sx, sy: sy0, top: dy + 3, left: dx + 3 * sc, right: dx + (SP.W - 3) * sc, bottom: sy0 + 3,
