@@ -46,10 +46,15 @@ test('the frame is drawn crisp with its anchor on the home point; a moved copy l
   assert.deepEqual(J(F.footprints([{ id: 't', type: 'tires', x: 1062, y: 760 }])), [[1054, 752, 1070, 768]]);
 });
 
-test('no frame for the type, or no atlas: the procedural painter draws exactly as before', () => {
-  const a = boot(), b = boot({ image: IMG, frames: { other: FRAME } });
-  assert.equal(hashLog(draw(tiresAt(b, 1022, 760))), hashLog(draw(tiresAt(a, 1022, 760))));
-  assert.ok(draw(tiresAt(a, 1022, 760)).some(c => c[0] === 'fillRect'));
+// The atlas-missing fallback (golden): the piece's footprint geometry drawn as plain placeholder-grey boxes, the old art gone.
+test('no frame for the type, or no atlas: the piece draws its geometry as plain placeholder boxes', () => {
+  const a = boot(), b = boot({ image: IMG, frames: { other: FRAME } }), calls = draw(tiresAt(a, 1022, 760));
+  assert.deepEqual(draw(tiresAt(b, 1022, 760)), calls);
+  const styles = [...new Set(calls.filter(c => c[0] === '=' && /Style$/.test(c[1])).map(c => c[2]))].sort();
+  assert.deepEqual(styles, ['rgb(122,125,131)', 'rgb(145,149,157)', 'rgb(162,166,175)', 'rgb(176,180,189)', 'rgb(196,201,211)', 'rgba(14,8,26,.38)'], 'placeholder greys and the edge only');
+  assert.equal(calls.length, 38);
+  assert.equal(hashLog(calls), '1fed0c2130c61db941efe56dc372c6f74c890328');  const Fa = a.OfficeFurniture, desk = Fa.parts(Fa.defaultInstances().find(p => p.id === 'desk-1'))[0].it;
+  assert.ok(draw(desk).some(c => c[0] === 'fillText'), 'the live bits (name plate) still draw over the placeholder');
 });
 
 test('sprite() applies an optional alpha and reports a missing frame', () => {

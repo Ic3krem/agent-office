@@ -11,9 +11,15 @@ import { loadWorld } from '../world-vm.mjs';
 const FILE = new URL('../fixtures/office-footprints.json', import.meta.url);
 const round = v => Math.round(v * 100) / 100;
 
-export function freeze() {
-  const F = loadWorld().OfficeFurniture, rows = [], inst = F.defaultInstances(), had = new Set(inst.map(p => p.type));
+// The default instances plus one copy, at its anchor, of each catalog type with no default copy (karinderya, broom corner).
+export function withAnchored(F) {
+  const inst = F.defaultInstances(), had = new Set(inst.map(p => p.type));
   for (const [type, T] of Object.entries(F.CATALOG)) if (!had.has(type)) inst.push({ id: type, type, x: T.anchor[0], y: T.anchor[1] });
+  return inst;
+}
+
+export function freeze() {
+  const F = loadWorld().OfficeFurniture, rows = [], inst = withAnchored(F);
   for (const p of inst) {
     const [hx, hy] = F.homeOf(F.CATALOG[p.type], p);
     F.parts(p).forEach(({ it, rec }, part) => {

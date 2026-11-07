@@ -13,7 +13,7 @@
   let brain = M.createBrain(), walkers = new Map(), ghosts = [], frame = null;
   let live = null, demo = null, extras = {}, selected = null, hover = null, chatter = null, nextChat = 0;
   let npcs = {}, npcChat = 0; // zero-token NPCs (cook, sweeper) and when one may speak next
-  let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
+  let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, renderMs = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
   // Town step 2: 'office', or an interior ('kain' | 'games') where only the CEO walks; agents stay in the office scene.
   let scene = 'office', freshCeo = false; // freshCeo: the scene's first layout puts the CEO at its spawn
@@ -480,7 +480,8 @@
     const n = nowMs(); if (!last) last = n;
     const moving = isMoving(), dt = Math.min(moving ? 0.25 : 1, (n - last) / 1000); last = n;
     if (!build) tick(dt); // Build mode freezes the agents where they are
-    render(); dirty = false; lastDraw = n; drawn++;
+    const n0 = nowMs();
+    render(); dirty = false; lastDraw = n; drawn++; renderMs = nowMs() - n0;
     schedule();
   }
   function start() { if (running) return; running = true; last = 0; schedule(); }
@@ -733,15 +734,15 @@
     if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => { dirty = true; render(); schedule(); });
     loadAtlas();
   }
-  // Office art (/art/office/atlas.json + atlas.png). Missing, which is normal until the art ships, or broken: the drawn
-  // furniture stays, with one log line.
+  // Office art (/art/office/atlas.json + atlas.png). Missing or broken: every piece draws as a plain placeholder box of its
+  // footprint geometry (live bits still on top), with one log line.
   function loadAtlas() {
     if (typeof fetch !== 'function' || typeof Image !== 'function') return;
     fetch('/art/office/atlas.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(a => new Promise((ok, no) => { const image = new Image(); image.onload = () => ok(Object.assign({}, a, { image })); image.onerror = () => no(new Error('atlas.png did not load')); image.src = '/art/office/atlas.png'; }))
       .then(a => new Promise(ok => { const glow = new Image(); glow.onload = () => ok(Object.assign(a, { glow })); glow.onerror = () => ok(a); glow.src = '/art/office/atlas-glow.png'; })) // night windows; optional
       .then(a => { F.useAtlas(a); bg = null; rebuildObjects(); wake(); }) // re-bake: floors and walls come from the atlas too
-      .catch(e => console.info('Office art not loaded, drawing the furniture instead:', e.message));
+      .catch(e => console.info('Office art not loaded, drawing placeholder boxes instead:', e.message));
   }
   function setScale(s) { // css scale of the stage * device pixel ratio -> internal canvas resolution
     scaleCss = s; const r = Math.max(1, Math.min(3, Math.round(s * (root.devicePixelRatio || 1) * 4) / 4)); if (!cv) return;
@@ -782,6 +783,7 @@
     powerSaver: () => saver,
     setPowerSaver(on) { saver = !!on; try { localStorage.setItem('ao.powerSaver', saver ? '1' : '0'); } catch (e) { } wake(); },
     framesDrawn: () => drawn,
+    lastRenderMs: () => renderMs, // the last frame's draw time (perf harness)
     setLegend(on) { wake(); legend = !!on; F.state.labels = on ? 1 : (F.state.labels > 0 ? F.state.labels : 0); if (on) F.state.labels = 1; born = clock; },
     legend: () => legend,
     setHour(h) { hourOverride = h; bg = null; wake(); },

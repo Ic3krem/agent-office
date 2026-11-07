@@ -2,43 +2,35 @@
  "items": [
   {
    "d": -1000000000,
-   "fp": null,
-   "log": "d08da8129841777a3d700087bdeecce6bfe56395"
+   "fp": null
   },
   {
    "d": -1000000000,
-   "fp": null,
-   "log": "f5266ec51822935c67bf2f55304edfeadd43c92a"
+   "fp": null
   },
   {
    "d": 10,
-   "fp": null,
-   "log": "d2a21e3668e25e87344c90668a84161b54b499dc"
+   "fp": null
   },
   {
    "d": 10,
-   "fp": null,
-   "log": "763b5986253a3e522c70a6e6da54b2c63eb36d8c"
+   "fp": null
   },
   {
    "d": 26,
-   "fp": null,
-   "log": "fa5647445cc4a6ea031841ccd9b24a3f916a7a09"
+   "fp": null
   },
   {
    "d": 95,
-   "fp": null,
-   "log": "4a3a4bc14f077688505585f270587a6e6580c552"
+   "fp": null
   },
   {
    "d": 120,
-   "fp": null,
-   "log": "370a96f6db2a53f1c883e5c594045ce10fa1aff6"
+   "fp": null
   },
   {
    "d": 150,
-   "fp": null,
-   "log": "45554fbf86f14d4d6ba9a28bfc2ea1cdecdb9b33"
+   "fp": null
   },
   {
    "d": 297,
@@ -47,18 +39,15 @@
     228,
     130,
     232
-   ],
-   "log": "70a5fb6691286d4dac237cd6d29e032a257ed558"
+   ]
   },
   {
    "d": 322,
-   "fp": null,
-   "log": "5638cad793655368ad1ec8022ebad78a1edaeb41"
+   "fp": null
   },
   {
    "d": 340,
-   "fp": null,
-   "log": "7eca5591fb746f9435e0ccc4cb8dcf216ab1cf55"
+   "fp": null
   },
   {
    "d": 427,
@@ -67,23 +56,19 @@
     228,
     260,
     232
-   ],
-   "log": "ed99725cf622e6e50ff4b18e8914c6835092d2e9"
+   ]
   },
   {
    "d": 436,
-   "fp": null,
-   "log": "7f6fde81045f5923ea8d9e887070a70761e54296"
+   "fp": null
   },
   {
    "d": 460,
-   "fp": null,
-   "log": "1c8874faa114a463225054e5aea6826d07df806e"
+   "fp": null
   },
   {
    "d": 470,
-   "fp": null,
-   "log": "6002e29e58101b76e3f05b5d76817f79309ba21a"
+   "fp": null
   },
   {
    "d": 493,
@@ -92,13 +77,11 @@
     0,
     472,
     46
-   ],
-   "log": "e6100117af0220ba84be7668856be940e0ffef05"
+   ]
   },
   {
    "d": 499,
-   "fp": null,
-   "log": "b0f13bef8bdccb1c60fb4384fc152365dd644e9b"
+   "fp": null
   },
   {
    "d": 539,
@@ -107,8 +90,7 @@
     46,
     472,
     92
-   ],
-   "log": "3ec07b433517b4e9f8f4e1dc6f074c34737d5cb8"
+   ]
   },
   {
    "d": 559.5,
@@ -117,8 +99,7 @@
     228,
     395,
     232
-   ],
-   "log": "c39bd589aaa9914e73f61c9d281eaaa04571f23a"
+   ]
   },
   {
    "d": 585,
@@ -127,18 +108,15 @@
     92,
     472,
     138
-   ],
-   "log": "dfbde06e8081a6cea8fe7f55f60e6c4c9ff140aa"
+   ]
   },
   {
    "d": 600,
-   "fp": null,
-   "log": "abe3b4cd18f0e4ac90ce5d8bdd27263ec7085c5e"
+   "fp": null
   },
   {
    "d": 625,
-   "fp": null,
-   "log": "3d9978d9fccfe42903b5ebeed41284b4cee7004a"
+   "fp": null
   },
   {
    "d": 631,
@@ -147,23 +125,19 @@
     138,
     472,
     184
-   ],
-   "log": "d2689d6e37a21070f326547ab8658dfe9487b8eb"
+   ]
   },
   {
    "d": 646,
-   "fp": null,
-   "log": "9ac5792cd94b5b2607422b28949bd987b2e47529"
+   "fp": null
   },
   {
    "d": 654,
-   "fp": null,
-   "log": "f350b346bdafa945bf2df7c514f7f83d69d4ab41"
+   "fp": null
   },
   {
    "d": 663,
-   "fp": null,
-   "log": "ef7b4e573d0cb42fb30e9b6538c08e61e226a902"
+   "fp": null
   },
   {
    "d": 677,
@@ -172,8 +146,7 @@
     184,
     472,
     230
-   ],
-   "log": "280927dd4b04fd6414ca16b9be46bdb0334c8d31"
+   ]
   },
   {
    "d": 677,
@@ -182,318 +155,255 @@
     228,
     470,
     232
-   ],
-   "log": "2f983b24e7fd1b91c85b45b4b93826dd5dbf3d95"
+   ]
   },
   {
    "d": 690,
-   "fp": null,
-   "log": "f070c9491d6e79522c7b3a87c27148b4412dd976"
+   "fp": null
   },
   {
    "d": 694,
-   "fp": null,
-   "log": "41f5a22cc89d30159d5f66f31c0ce292bb573b72"
+   "fp": null
   },
   {
    "d": 703,
-   "fp": null,
-   "log": "21ecc5b173e910eb19a636655fa87f2353a14029"
+   "fp": null
   },
   {
    "d": 724,
-   "fp": null,
-   "log": "66c38062f8ab2cb3d9cf17d18e6affcc04da3d46"
+   "fp": null
   },
   {
    "d": 729,
-   "fp": null,
-   "log": "1fce2d1aed825271bbfa3d8054cc7ae71eb74043"
+   "fp": null
   },
   {
    "d": 746,
-   "fp": null,
-   "log": "093a8ee3175bf8cefa8a0e896cb487d7ed259868"
+   "fp": null
   },
   {
    "d": 763,
-   "fp": null,
-   "log": "77f28f99f67f84e7b467e08c3c8878181233b904"
+   "fp": null
   },
   {
    "d": 766,
-   "fp": null,
-   "log": "807c1792ad812bba95c654418b70fcdba9e5116b"
+   "fp": null
   },
   {
    "d": 787,
-   "fp": null,
-   "log": "7909e66fe2186fbdaaf25848903eda8ce0370ff1"
+   "fp": null
   },
   {
    "d": 797,
-   "fp": null,
-   "log": "d8f99bb0e2fe7847bc3611e9dae25af6234f23bc"
+   "fp": null
   },
   {
    "d": 823,
-   "fp": null,
-   "log": "f6089669b78e0a9c9c3a0b81eb1b7a85393a15ad"
+   "fp": null
   },
   {
    "d": 825,
-   "fp": null,
-   "log": "caf0e2252a7de5b817af29bad21719c278932f37"
+   "fp": null
   },
   {
    "d": 855,
-   "fp": null,
-   "log": "a6af961c761927a60d7d2e78f6c816fa49b59bd6"
+   "fp": null
   },
   {
    "d": 859,
-   "fp": null,
-   "log": "087c138be02d9d21f7794b36c16057576125cdcc"
+   "fp": null
   },
   {
    "d": 880,
-   "fp": null,
-   "log": "ae9c950ba9e93b1da8cb062da2567c4cd2891068"
+   "fp": null
   },
   {
    "d": 884,
-   "fp": null,
-   "log": "86b40d42d7640e5a4f5a901d0eeac2d347fd14b3"
+   "fp": null
   },
   {
    "d": 893,
-   "fp": null,
-   "log": "73552b7639aaf73c31d72d5d8411c707f3cc2bea"
+   "fp": null
   },
   {
    "d": 895,
-   "fp": null,
-   "log": "b76b1dfd37062ab5c943979a5770c40cca57065d"
+   "fp": null
   },
   {
    "d": 920,
-   "fp": null,
-   "log": "9ca550e7e45a515ab6e3d28b045e066ace45eb1f"
+   "fp": null
   },
   {
    "d": 931,
-   "fp": null,
-   "log": "6590b3e4850a93d2c78bb844e981753457410c99"
+   "fp": null
   },
   {
    "d": 938,
-   "fp": null,
-   "log": "6369643c7f3c19ddca46ba958e77e564048b8299"
+   "fp": null
   },
   {
    "d": 951,
-   "fp": null,
-   "log": "903b865edd450fd729e30f31667eae88c0eccee2"
+   "fp": null
   },
   {
    "d": 959,
-   "fp": null,
-   "log": "04a62eb7c968f7c74cb942584bc83df1adbad250"
+   "fp": null
   },
   {
    "d": 967,
-   "fp": null,
-   "log": "73f181a9c27167e0d1c4dfba3a1051ead53abbe3"
+   "fp": null
   },
   {
    "d": 991,
-   "fp": null,
-   "log": "f43eb9726fe609939d04be5d0fe75a8b945aec4b"
+   "fp": null
   },
   {
    "d": 994,
-   "fp": null,
-   "log": "20e4202147d9373e364aeaf47c0f849ae45e63d6"
+   "fp": null
   },
   {
    "d": 1000,
-   "fp": null,
-   "log": "e688c17720992a20d57dc9df986a39748ef5acd0"
+   "fp": null
   },
   {
    "d": 1003,
-   "fp": null,
-   "log": "c02ec4a88160dac4d8d723bd32256e08a0155ba9"
+   "fp": null
   },
   {
    "d": 1030,
-   "fp": null,
-   "log": "0f5299ec2c7523cbacdf8d233e74b58bc1c5dab1"
+   "fp": null
   },
   {
    "d": 1039,
-   "fp": null,
-   "log": "15e3acb653d48ad753d2d93a2a3f806d88190a5e"
+   "fp": null
   },
   {
    "d": 1075,
-   "fp": null,
-   "log": "e19bc5e6bd52d6c33d827b8778cd893372a4e98c"
+   "fp": null
   },
   {
    "d": 1085,
-   "fp": null,
-   "log": "dee4b55a84405d40614a83d6e3fd110aab20d398"
+   "fp": null
   },
   {
    "d": 1111,
-   "fp": null,
-   "log": "79438a98794c066469dd7a53581409a95bc373c2"
+   "fp": null
   },
   {
    "d": 1112,
-   "fp": null,
-   "log": "33e55df31179afa7b1e8e664d74384baa4ea4dd8"
+   "fp": null
   },
   {
    "d": 1123,
-   "fp": null,
-   "log": "89359579180e27fe83eae06d3ced0bad96088f13"
+   "fp": null
   },
   {
    "d": 1130,
-   "fp": null,
-   "log": "53532c2a8437b2aaf8cc6d0c849919d04cc5ee02"
+   "fp": null
   },
   {
    "d": 1146,
-   "fp": null,
-   "log": "b886170154fe0b46cbe944ed62ddcb37d687bcf0"
+   "fp": null
   },
   {
    "d": 1147,
-   "fp": null,
-   "log": "984537eb07ee816c4c5c3379cc3ecbbedc87ee70"
+   "fp": null
   },
   {
    "d": 1150,
-   "fp": null,
-   "log": "c59ee75324e5c7ad0e2c32dd35905014d161f4f6"
+   "fp": null
   },
   {
    "d": 1180,
-   "fp": null,
-   "log": "4418adf71c2bb0b9617b7fc53acfc8c97c2ff905"
+   "fp": null
   },
   {
    "d": 1183,
-   "fp": null,
-   "log": "a0af4338ba2957a3d71614c674f5ff642fddea3a"
+   "fp": null
   },
   {
    "d": 1189,
-   "fp": null,
-   "log": "d0af7db3b890967c53cc58802fdf1d0a21538d7b"
+   "fp": null
   },
   {
    "d": 1198,
-   "fp": null,
-   "log": "002b91028ea9a508f2b0143dfdca059dea735858"
+   "fp": null
   },
   {
    "d": 1199,
-   "fp": null,
-   "log": "7c9c48cc88fffa702edb44c13a1c987012131641"
+   "fp": null
   },
   {
    "d": 1219,
-   "fp": null,
-   "log": "6d0478e414497d3eb4fc8891fee922d14c26a337"
+   "fp": null
   },
   {
    "d": 1238,
-   "fp": null,
-   "log": "2b7cddc5e947c60ff053dd2b03d8b6d95e01850b"
+   "fp": null
   },
   {
    "d": 1248,
-   "fp": null,
-   "log": "46e4691d7579e8b38da60521c96890bc02357bd7"
+   "fp": null
   },
   {
    "d": 1250,
-   "fp": null,
-   "log": "e231cff9d4ff8be56c6cc9677ca0b13a8def0a0e"
+   "fp": null
   },
   {
    "d": 1258,
-   "fp": null,
-   "log": "bac77be1908fbc572c542269421462184c0281cd"
+   "fp": null
   },
   {
    "d": 1260,
-   "fp": null,
-   "log": "997f44f08dce36dbddfed9f7a963b45a51d68794"
+   "fp": null
   },
   {
    "d": 1263,
-   "fp": null,
-   "log": "93d19223dffe9975501360a9de5c964aa3c90c6d"
+   "fp": null
   },
   {
    "d": 1272,
-   "fp": null,
-   "log": "3feffd1bf396a36e85b0e17b3d7169a366aa8b4d"
+   "fp": null
   },
   {
    "d": 1296,
-   "fp": null,
-   "log": "6059e6cd696887a66383fe79c1046679c765f36a"
+   "fp": null
   },
   {
    "d": 1296,
-   "fp": null,
-   "log": "2b85f4f515c2becef3f265595b2820c775d04cfb"
+   "fp": null
   },
   {
    "d": 1300,
-   "fp": null,
-   "log": "f1aace3b55b4c33bbd5425539f7ac9341767a46f"
+   "fp": null
   },
   {
    "d": 1315,
-   "fp": null,
-   "log": "20eaac799bec2305d9bafd2fb25a4f8012b7fe49"
+   "fp": null
   },
   {
    "d": 1320,
-   "fp": null,
-   "log": "eb532acdefbfd80374068846ab7984ecf0108911"
+   "fp": null
   },
   {
    "d": 1342,
-   "fp": null,
-   "log": "6a27bd4d04cf64ec7d9c04ce85b7e40559ad4a49"
+   "fp": null
   },
   {
    "d": 1344,
-   "fp": null,
-   "log": "2a68c83b3fdd778959d92b05208000fbeb75c0c2"
+   "fp": null
   },
   {
    "d": 1350,
-   "fp": null,
-   "log": "c1f28e458ee56a13922653c3f6a41e3e15f5b0c1"
+   "fp": null
   },
   {
    "d": 1353,
-   "fp": null,
-   "log": "5fcb0d0c595b0f05d37c5376341645d0f1907d09"
+   "fp": null
   },
   {
    "d": 1368,
-   "fp": null,
-   "log": "b0095f107df4f113e62e7cdf8775a399ea9e6976"
+   "fp": null
   },
   {
    "d": 1396,
@@ -502,113 +412,91 @@
     379,
     1004,
     413
-   ],
-   "log": "f75606ce2ac1db172cef1951ddcd83247a55bf42"
+   ]
   },
   {
    "d": 1404,
-   "fp": null,
-   "log": "7f07b3f097b93e307d31e2f415af9bd2a768f379"
+   "fp": null
   },
   {
    "d": 1409,
-   "fp": null,
-   "log": "dbf01f2c7772693de06cd184c5e777b43c0c92bf"
+   "fp": null
   },
   {
    "d": 1424,
-   "fp": null,
-   "log": "641f2ce22163b5e3c9c257785ab1bf32aa33105d"
+   "fp": null
   },
   {
    "d": 1448,
-   "fp": null,
-   "log": "54a275242f5e2452b42261ab4e47a2570c1f4792"
+   "fp": null
   },
   {
    "d": 1451,
-   "fp": null,
-   "log": "307df2eb47c3b4c827ce29985cae26467db1c92a"
+   "fp": null
   },
   {
    "d": 1472,
-   "fp": null,
-   "log": "49931052c2323443fed8de60b2210b7806039ea9"
+   "fp": null
   },
   {
    "d": 1472,
-   "fp": null,
-   "log": "fde4de7e6504dc5b51333148d4a9cd24c94e1667"
+   "fp": null
   },
   {
    "d": 1490,
-   "fp": null,
-   "log": "ce0c07a2e9b9d5d2c96fc6adfd5c1324895400f3"
+   "fp": null
   },
   {
    "d": 1490,
-   "fp": null,
-   "log": "674a061d49c644e0b9957a65a12ebd904c0ff668"
+   "fp": null
   },
   {
    "d": 1496,
-   "fp": null,
-   "log": "6e4be84aef1a0ac0f1e464f8741d9973cab2b67e"
+   "fp": null
   },
   {
    "d": 1511,
-   "fp": null,
-   "log": "d7990f44733bd4d418ea1697a047e2041b524b5b"
+   "fp": null
   },
   {
    "d": 1514,
-   "fp": null,
-   "log": "76d5a371a78221be6e26fda86b011325d0c629ea"
+   "fp": null
   },
   {
    "d": 1520,
-   "fp": null,
-   "log": "5c4d6c4eb4acd758fbac37f668d703ced097b21f"
+   "fp": null
   },
   {
    "d": 1544,
-   "fp": null,
-   "log": "ec24cdb18267f460ffa507e7bd02ccf66a61d222"
+   "fp": null
   },
   {
    "d": 1575,
-   "fp": null,
-   "log": "988bdbd04a95a738b9fa313ff4c5d623b8a17b62"
+   "fp": null
   },
   {
    "d": 1590,
-   "fp": null,
-   "log": "a09abc0b9c3cf9b25e16b17e2f8f7f374cf7a482"
+   "fp": null
   },
   {
    "d": 1598,
-   "fp": null,
-   "log": "d0946dab313a16c577e9fa84c997e554ee3414ec"
+   "fp": null
   },
   {
    "d": 1648,
-   "fp": null,
-   "log": "db75a628a1e2194483f703c1b281c345a62d0fc9"
+   "fp": null
   },
   {
    "d": 1656,
-   "fp": null,
-   "log": "521a522ad76db0e89f7b0a6eda3114a1d9697e5a"
+   "fp": null
   },
   {
    "d": 1782,
-   "fp": null,
-   "log": "1c7ac9e4b19933dee54d7d569a243aa76f024211"
+   "fp": null
   },
   {
    "d": 1800,
-   "fp": null,
-   "log": "199815153a06684cfc529ad827161919e04c2484"
+   "fp": null
   },
   {
    "d": 1870,
@@ -617,13 +505,11 @@
     704,
     1140,
     730
-   ],
-   "log": "5919ece9e4a2b9f84b57f0bf178f2bea2b8c296f"
+   ]
   },
   {
    "d": 1910,
-   "fp": null,
-   "log": "5cf43adfe8b649d24e951b82149f13b488c24630"
+   "fp": null
   },
   {
    "d": 1930,
@@ -632,8 +518,7 @@
     724,
     1190,
     746
-   ],
-   "log": "27a26c9141b37c900062af02fd821814a7402286"
+   ]
   }
  ],
  "objects": [

@@ -5,23 +5,24 @@ import { recordOffice, recorder } from './world-golden.mjs';
 import { loadWorld } from './world-vm.mjs';
 
 const gold = JSON.parse(fs.readFileSync(new URL('./fixtures/office-golden.json', import.meta.url), 'utf8'));
-const pick = a => a.map(i => ({ d: i.d, fp: i.fp, log: i.log }));
-const norm = a => pick(a).sort((a, b) => a.d - b.d || (a.log < b.log ? -1 : a.log > b.log ? 1 : 0));
+// The 1.2.9 geometry, pinned: painter depths (in draw order) and explicit footprints, click boxes and spots. The pieces'
+// measured footprints are pinned per part by fixtures/office-footprints.json (office-sprites-path.test.mjs) and the
+// zone floor polygons by fixtures/office-bake-golden.json (below); the art itself is sprites, not draw logs.
+const norm = a => a.map(i => ({ d: i.d, fp: i.fp })).sort((a, b) => a.d - b.d || JSON.stringify(a.fp).localeCompare(JSON.stringify(b.fp)));
 
-test('static office draws exactly as 1.2.9', () => {
+test('static office keeps the 1.2.9 depths, footprints, click boxes and spots', () => {
   const now = JSON.parse(JSON.stringify(recordOffice()));
-  assert.deepEqual(pick(now.items), pick(gold.items)); // draw order is exact, not just the set of draws
+  assert.deepEqual(now.items, gold.items); // order is exact, not just the set
   assert.deepEqual(now.objects, gold.objects);
   assert.deepEqual(now.spots, gold.spots);
 });
 
 // office-world.js runs OfficeFurniture.measure, which fills derived footprints the fixture (recorded without it) lacks:
-// draw logs and depths must equal the fixture, footprints must equal a fresh boot of the same scripts.
+// depths must equal the fixture, footprints must equal a fresh boot of the same scripts.
 test('applyLayout(defaultLayout()) keeps the golden scene', () => {
   const rec = prep => JSON.parse(JSON.stringify(recordOffice({ extra: ['office-world.js'], prep })));
   const boot = rec(), now = rec(w => w.OfficeWorld.applyLayout(w.WorldModel.defaultLayout()));
-  const drawn = a => norm(a).map(i => ({ d: i.d, log: i.log }));
-  assert.deepEqual(drawn(now.items), drawn(gold.items));
+  assert.deepEqual(now.items.map(i => i.d).sort((a, b) => a - b), gold.items.map(i => i.d).sort((a, b) => a - b));
   assert.deepEqual(norm(now.items), norm(boot.items));
   assert.deepEqual(now.objects, gold.objects);
   assert.deepEqual(now.spots, gold.spots);
@@ -98,10 +99,13 @@ test('bake with default zones is unchanged', () => {
   assert.ok(!w.WorldModel.isDefaultZones(z));
 });
 
-test('without the office art, bake still draws the 1.2.9 floor and walls (draw-log pin)', () => {
-  const calls = bakeLog(loadWorld());
-  assert.equal(calls.length, 3670);
-  assert.equal(hashLog(calls), '6e7a22f9c25e593d6924cfc3810085866ffc7978');
+test('without the office art, bake paints each default zone plainly on its frozen floor polygon, and two plain walls', () => {
+  const w = loadWorld(), Z = w.WorldModel.defaultLayout().zones, calls = bakeLog(w), P = w.OfficeFurniture.P, r2 = v => Math.round(v * 100) / 100;
+  const want = JSON.parse(fs.readFileSync(new URL('./fixtures/office-bake-golden.json', import.meta.url), 'utf8')).zones;
+  const filled = q => calls.some((a, k) => a[0] === 'moveTo' && q.every((p, j) => calls[k + j] && calls[k + j][1] === p[0] && calls[k + j][2] === p[1]) && calls.slice(k + 4, k + 8).some(b => b[0] === 'fill'));
+  for (const q of Z) if (q.type !== 'water') assert.ok(filled(want[q.id]), q.id);
+  for (const q of [[P(0, 0, 0), P(0, 780, 0)], [P(0, 0, 0), P(1240, 0, 0)]]) assert.ok(filled([...q.map(p => p.map(r2)), [r2(q[1][0]), r2(q[1][1] - 150)], [r2(q[0][0]), r2(q[0][1] - 150)]]), 'a plain wall');
+  for (const k of ['createLinearGradient', 'createRadialGradient', 'createPattern', 'drawImage', 'fillText']) assert.ok(!calls.some(a => a[0] === k), 'no ' + k);
 });
 
 // ---- the office art room shell (floor tiles, wall strips) ----
@@ -134,8 +138,9 @@ test('with the office art, bake draws both wall strips, and lays the glow sheet 
   assert.ok(!day.some(a => a[0] === 'createLinearGradient'), 'no procedural wall or window gradients');
   const calls = [], ctx = recorder(calls); ctx.globalAlpha = 1; F.state.night = .6; F.bake(ctx);
   assert.deepEqual(img(calls), ['IMG 600', 'GLOW 600', 'IMG 100', 'GLOW 100']);
-  const i = calls.findIndex(a => a[0] === 'drawImage' && a[1] === 'GLOW');
-  assert.ok(calls.slice(i - 3, i).some(a => a[0] === '=' && a[1] === 'globalAlpha'), 'glow fades in with the night'); // (the recorder has no save/restore, so the value is not checked)
+  const alphaAt = i => calls.slice(0, i).filter(a => a[0] === '=' && a[1] === 'globalAlpha').pop()[2]; // the recorder restores it on restore()
+  const glows = calls.flatMap((a, i) => a[0] === 'drawImage' && a[1] === 'GLOW' ? [i] : []);
+  assert.deepEqual(glows.map(alphaAt), [.6, .6], 'each glow strip fades in with the night, at the night level');
 });
 
 test('with the office art, paths are pavers in the garden and only a faint borderless tint indoors; the left-wall prints stay', () => {
@@ -161,14 +166,14 @@ test('floor patterns are made once per atlas, and every zone type has a tile', (
 });
 
 test('bake paints custom zones', () => {
-  const w = loadWorld(), F = w.OfficeFurniture, strokes = c => c.filter(a => a[0] === 'stroke').length;
+  const w = loadWorld(), F = w.OfficeFurniture;
   const before = bakeLog(w);
   F.setZones([{ id: 'a', type: 'focus', rect: [0, 0, 400, 400] }]);
   const now = bakeLog(w), P = F.P;
   const want = [P(0, 0, 0), P(400, 0, 0), P(400, 400, 0), P(0, 400, 0)].map(p => p.map(v => Math.round(v * 100) / 100));
   const i = now.findIndex((a, k) => a[0] === 'moveTo' && now[k + 4] && now[k + 4][0] === 'closePath' && want.every((p, j) => now[k + j][1] === p[0] && now[k + j][2] === p[1]));
   assert.ok(i >= 0 && now.slice(i + 5, i + 8).some(a => a[0] === 'fill'), 'zone rect polygon is filled');
-  assert.ok(strokes(now) < strokes(before), 'no 1.2.9 office planks');
+  assert.notEqual(hashLog(now), hashLog(before));
 });
 
 test('bake with a zone removed still paints a base floor under every zone', () => {

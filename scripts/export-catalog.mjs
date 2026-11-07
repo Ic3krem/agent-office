@@ -8,13 +8,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadWorld } from '../world-vm.mjs';
+import { withAnchored } from './freeze-footprints.mjs';
 
 export function exportCatalog() {
   const F = loadWorld().OfficeFurniture, frames = {}, NUL = new Proxy(function () {}, { get: () => NUL, apply: () => NUL, set: () => true });
   let asked = []; const placed = []; // placed: the default copies at plant level 0, for the office preview
   F.useAtlas({ image: {}, frames: new Proxy({}, { get: (_, n) => { if (typeof n === 'string') asked.push(n); return { x: 0, y: 0, w: 1, h: 1, ax: 0, ay: 0 }; } }) });
-  const inst = F.defaultInstances(), had = new Set(inst.map(p => p.type));
-  for (const [type, T] of Object.entries(F.CATALOG)) if (!had.has(type)) inst.push({ id: type, type, x: T.anchor[0], y: T.anchor[1] }); // types with no default copy (karinderya, broom corner) at their anchor, as freeze-footprints does
+  const inst = withAnchored(F); // types with no default copy (karinderya, broom corner) at their anchor, as freeze-footprints does
   for (const role of ['tally', 'atlas', 'pixel']) for (const y of [352, 516]) inst.push({ id: role + y, type: 'dept-desk', desk: 'desk-1', role, x: 155, y });
   for (let lv = 0; lv <= 6; lv++) {
     F.state.ex.plantLevel = lv;
