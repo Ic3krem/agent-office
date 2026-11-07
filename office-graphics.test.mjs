@@ -22,7 +22,7 @@ function logCtx(log) {
 }
 
 // The office page mounted in a vm with a fake clock and fake timers: step() runs the next scheduled frame.
-function mounted() {
+function mounted(dpr = 1) {
   let now = 0, timers = [], rafs = [];
   const on = () => { };
   const doc = { createElement: () => ({ width: 0, height: 0, getContext: () => logCtx([]) }), addEventListener: on, documentElement: { dataset: {} }, hidden: false, hasFocus: () => true };
@@ -30,13 +30,13 @@ function mounted() {
     extra: ['office-world.js'],
     globals: {
       OfficeSprites: { lookOf: () => ({}), W: 18, H: 26, get: () => ({ cv: {}, w: 18, h: 26 }) },
-      performance: { now: () => now }, addEventListener: on, devicePixelRatio: 1,
+      performance: { now: () => now }, addEventListener: on, devicePixelRatio: dpr,
       setTimeout: (fn, ms) => { timers.push({ fn, at: now + ms }); return timers.length; }, clearTimeout: () => { timers = []; },
       requestAnimationFrame: fn => { rafs.push(fn); return rafs.length; }, cancelAnimationFrame: () => { rafs = []; },
     },
   });
   w.document = doc;
-  const cv = { width: 0, height: 0, getContext: () => logCtx([]), addEventListener: on, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1, height: 1 }) };
+  const cv = { width: 0, height: 0, style: {}, getContext: () => logCtx([]), addEventListener: on, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1, height: 1 }) };
   const OW = w.OfficeWorld;
   OW.mount(cv, {});
   const prof = key => ({ key, ...Object.fromEntries(['name', 'role', 'color', 'accent', 'desk'].map(k => [k, ROSTER[key][k]])) });
@@ -56,7 +56,7 @@ function mounted() {
     }
     return { n: OW.framesDrawn() - d0, walked };
   };
-  return { w, OW, run };
+  return { w, OW, run, cv };
 }
 
 const G = (o = {}) => ({ renderScale: 1, fps: 30, ambientFps: 30, shadows: 'blob', ambient: 'all', lighting: 'glow', renderer: 'canvas', ...o });
@@ -103,4 +103,14 @@ test('fps cap: 15 caps the walking cadence with power saver off; 60 raises it; s
   r = run(1000); assert.ok(r.n >= 25 && r.n <= 31, 'fps 30: ' + r.n);
   OW.setPowerSaver(true); OW.setGraphics(G({ fps: 60 })); run(100);
   r = run(1000); assert.ok(r.walked && r.n >= 25 && r.n <= 31, 'saver on keeps its 30 fps moving cadence at fps 60: ' + r.n);
+});
+
+test('render scale at dpr 2: Low halves the backing store, High and Ultra stay native (no supersampling); pixelated only below 1x', () => {
+  const { OW, cv } = mounted(2);
+  OW.setScale(1);
+  const at = g => { OW.setGraphics(G(g)); return [cv.width / 1480, cv.style.imageRendering]; };
+  assert.deepEqual(at({ renderScale: .5 }), [1, 'pixelated'], 'Low: 0.5 x 2');
+  assert.deepEqual(at({ renderScale: .75 }), [1.5, 'pixelated'], 'Medium: 0.75 x 2');
+  assert.deepEqual(at({ renderScale: 1 }), [2, ''], 'High: native');
+  assert.deepEqual(at({ renderScale: 2 }), [2, ''], 'Ultra: native too, not 3');
 });

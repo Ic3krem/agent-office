@@ -780,7 +780,7 @@
   }
   function setScale(s) { // css scale of the stage * device pixel ratio -> internal canvas resolution
     scaleCss = s; let r = Math.max(1, Math.min(3, Math.round(s * (root.devicePixelRatio || 1) * 4) / 4));
-    if (G) r = Math.max(.5, Math.min(3, Math.round(r * G.renderScale * 4) / 4)); // graphics render scale
+    if (G) r = Math.max(.5, Math.min(3, Math.round(r * Math.min(1, G.renderScale) * 4) / 4)); // r is already device px: Ultra's 2x would supersample, so it stays native
     if (!cv) return;
     if (cv.style) cv.style.imageRendering = G && G.renderScale < 1 ? 'pixelated' : ''; // below 100%: blocky pixels, not blur
     if (r !== res || cv.width !== Math.round(STW * r)) { res = r; cv.width = Math.round(STW * res); cv.height = Math.round(STH * res); bg = null; }
