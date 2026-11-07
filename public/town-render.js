@@ -52,9 +52,10 @@
   }
 
   const r2 = v => Math.round(v * 100) / 100;
-  // Blob shadow of an atlas frame: centre at the anchor, half-width = half the footprint diamond's projected width.
+  // Blob shadow of an atlas frame: centre at the anchor; half-width 1.4x the footprint diamond's, at least 0.45 x frame
+  // width, so it shows past the sprite's base.
   function blobOf(f) {
-    const [x0, y0, x1, y1] = f.footprint, rx = K * (x1 - x0 + y1 - y0) / 2;
+    const [x0, y0, x1, y1] = f.footprint, rx = Math.max(1.4 * K * (x1 - x0 + y1 - y0) / 2, 0.45 * f.w);
     return { cx: f.ax, cy: f.ay, rx: r2(rx), ry: r2(rx / 2) };
   }
   // Day/night light at an hour for a lighting level: sprite tint, window glow alpha and lamp pool alpha (0..1).
@@ -191,8 +192,9 @@
       ground.tint = world.tint = lightAt(h, G.lighting).tint;
       soft.tint = G.shadows === 'tint' ? root.Graphics.tintOf(root.Graphics.nightOf(h)) : 0xffffff;
     }
-    // Render on demand: once a minute, re-render only if the night bucket moved.
-    const hourTimer = setInterval(() => { if (!lightKey.startsWith(bucket() + '|')) mark(); }, 60000);
+    // Render on demand: once a minute (and on becoming visible), re-render only if the night bucket moved.
+    const lightStale = () => !lightKey.startsWith(bucket() + '|');
+    const hourTimer = setInterval(() => { if (!document.hidden && lightStale()) mark(); }, 60000);
     const view = new P.Rectangle();
 
     function layout() {
@@ -219,7 +221,7 @@
       lastRenderMs = performance.now() - t0;
     }
     const mark = () => { dirty = true; if (!raf && !dead && !document.hidden) raf = requestAnimationFrame(render); };
-    const onVis = () => { if (!document.hidden && dirty) mark(); };
+    const onVis = () => { if (!document.hidden && (dirty || lightStale())) mark(); };
     document.addEventListener('visibilitychange', onVis);
     canvas.addEventListener('webglcontextrestored', mark);
     app.stage.eventMode = 'none'; // input is DOM-only: skip Pixi's per-move hit-testing

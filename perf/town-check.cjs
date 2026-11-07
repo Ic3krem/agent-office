@@ -82,6 +82,17 @@ app.whenReady().then(async () => {
       console.log('screenshot', f);
     }
   }
+  // 50% render scale (custom), upscaled without smoothing
+  await js(`Graphics.save({ preset: 'custom', custom: { renderScale: .5, shadows: 'blob', lighting: 'tint' } })`);
+  await w.loadURL(base + '/town?hour=12');
+  for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
+  await wait(800);
+  const lo = await js(`(() => { const c = document.getElementById('town'); return { rs: __town.api.stats().graphics.renderScale, w: c.width, cw: c.clientWidth, ir: getComputedStyle(c).imageRendering }; })()`);
+  check('50% scale: half-size backing store, pixelated upscale', lo.rs === .5 && lo.w === Math.round(lo.cw / 2) && lo.ir === 'pixelated', lo);
+  const fl = path.join(shotDir, 'town-scale50-12.png');
+  fs.writeFileSync(fl, (await w.webContents.capturePage()).toPNG());
+  console.log('screenshot', fl);
+
   // a live preset change re-renders without a reload
   const fr = await js('__town.api.frameCount()');
   await js(`__town.api.setGraphics(Graphics.resolve({ preset: 'low' }, Graphics.env()))`); await wait(300);

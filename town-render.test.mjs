@@ -114,7 +114,10 @@ test('walkFrame advances with distance travelled, as the player does', () => {
 // ---------- town step 4: graphics ----------
 test('blobOf: ellipse at the frame anchor, half-axes from the projected footprint', () => {
   const r2 = v => Math.round(v * 100) / 100;
-  assert.deepEqual(plain(R.blobOf({ ax: 6, ay: 13, footprint: [-5, -5, 5, 5] })), { cx: 6, cy: 13, rx: r2(R.K * 10), ry: r2(R.K * 5) });
+  const rx = Math.max(1.4 * R.K * 10, 5.4);
+  assert.deepEqual(plain(R.blobOf({ w: 12, ax: 6, ay: 13, footprint: [-5, -5, 5, 5] })), { cx: 6, cy: 13, rx: r2(rx), ry: r2(rx / 2) });
+  // a wide frame on a small footprint: the 0.45 x frame width floor wins
+  assert.deepEqual(plain(R.blobOf({ w: 60, ax: 30, ay: 40, footprint: [-2, -2, 2, 2] })), { cx: 30, cy: 40, rx: 27, ry: 13.5 });
 });
 
 test('lightAt: tint, window glow and lamp pools by hour and lighting level', () => {
