@@ -121,3 +121,12 @@ test('glass frames keep translucent alpha; every other office frame has binary a
   for (const n of glass) assert.ok(partial(n) > 50, n + ' is translucent');
   for (const n of Object.keys(atlas.frames)) if (!glass.includes(n)) assert.equal(partial(n), 0, n + ' alpha is binary');
 });
+
+test('glass panes stay light: mean alpha of the translucent glass-x/glass-y pixels is at most 0.25', () => {
+  const atlas = readJson('public/art/office/atlas.json'), png = decodePng(path.join(OFFICE, 'atlas.png'), 6);
+  for (const n of Object.keys(atlas.frames).filter(n => /^glass-[xy]@/.test(n))) {
+    const r = atlas.frames[n]; let sum = 0, k = 0;
+    for (let y = r.y; y < r.y + r.h; y++) { const row = png.row(y); for (let x = r.x; x < r.x + r.w; x++) { const a = row[x * 4 + 3]; if (a > 0 && a < 255) { sum += a; k++; } } }
+    assert.ok(k && sum / k / 255 <= 0.25, n + ' mean glass alpha ' + (sum / k / 255).toFixed(2));
+  }
+});

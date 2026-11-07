@@ -17,6 +17,7 @@ def look(im, keep_alpha=False):
     """Binarise alpha (unless keep_alpha: glass stays translucent), then the target's warm grade: brighten 1.12, saturate 1.15."""
     a = im.getchannel('A') if keep_alpha else im.getchannel('A').point(lambda v: 255 if v > 100 else 0)
     rgb = ImageEnhance.Color(ImageEnhance.Brightness(im.convert('RGB')).enhance(1.12)).enhance(1.15)
+    if keep_alpha: rgb.paste(im.convert('RGB'), mask=a.point(lambda v: 255 if 0 < v < 255 else 0))  # glass keeps its own tint
     rgb.putalpha(a); return rgb
 
 

@@ -30,12 +30,15 @@ run(python, [path.join(ROOT, 'art/post.py'), RAW, OUT, OFFICE]);
 
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 const date = new Date().toISOString().slice(0, 10), license = 'Apache-2.0 (original)';
+const MANIFEST = path.join(ROOT, 'art/MANIFEST.json');
+const prev = new Map((fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).files : []).map(e => [e.file + ' ' + e.sha256, e.date])); // unchanged bytes keep their date
 const scriptOf = rel => rel.startsWith('art/palette') ? 'art/post.py'
   : rel.includes('/terrain') ? 'art/blender/town_terrain.py + art/post.py' : rel.startsWith('public/art/office/') ? 'art/blender/office_assets.py + art/post.py'
   : 'art/blender/town_assets.py + art/post.py';
 const files = [...walk(OUT), ...walk(OFFICE), path.join(ROOT, 'art/palette.json'), path.join(ROOT, 'art/palette-office.json')].map(f => {
   const rel = path.relative(ROOT, f).split(path.sep).join('/');
-  return { file: rel, sha256: crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex'), script: scriptOf(rel), date, license };
+  const sha256 = crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+  return { file: rel, sha256, script: scriptOf(rel), date: prev.get(rel + ' ' + sha256) || date, license };
 }).sort((a, b) => a.file.localeCompare(b.file));
-fs.writeFileSync(path.join(ROOT, 'art/MANIFEST.json'), JSON.stringify({ license, files }, null, 1) + '\n');
+fs.writeFileSync(MANIFEST, JSON.stringify({ license, files }, null, 1) + '\n');
 console.log(`art: ${files.length} files in art/MANIFEST.json`);

@@ -375,12 +375,13 @@ FRAME_L, FRAME_D = '#c9ced6', '#9aa1ad'
 STONE = ['#a39f99', '#8d8a86', '#b3aea6', '#99938a']
 
 
-def glass(x, y, z, w, d, h, col=GLASS, alpha=.28):
-    """Translucent pane: a blended material keyed (col, -alpha) in kit.MATS, so it batches like any box and never glows."""
+def glass(x, y, z, w, d, h, col=GLASS, alpha=.16):
+    """Translucent pane: a blended material keyed (col, -alpha) in kit.MATS, so it batches like any box and never glows.
+    Back faces are culled so the alpha does not compound (the procedural glass was about .16 clear, .14 on the band)."""
     k = (col, -alpha)
     if k not in kit.MATS:
         m = kit.mat(col).copy(); m.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = alpha
-        m.surface_render_method = 'BLENDED'; kit.MATS[k] = m
+        m.surface_render_method = 'BLENDED'; m.use_backface_culling = True; m.use_transparency_overlap = False; kit.MATS[k] = m
     B(x, y, z, w, d, h, col, glow=-alpha)
 
 
@@ -500,23 +501,23 @@ def garage(_):
 def glass_x(L):
     """Partition pane on the plane x = 0 from y 0 to L: clear glass, a frosted band, light frame rails, a mullion at y 0."""
     L = float(L)
-    glass(-1, 0, 5, 2, L, 41); glass(-1.2, 0, 46, 2.4, L, 10, FROST, .55); glass(-1, 0, 56, 2, L, 39)
-    B(-2, 0, 0, 4, L, 5, FRAME_D); B(-2, 0, 95, 4, L, 5, FRAME_L); B(-2, -1.5, 0, 4, 3, 100, FRAME_L)
+    glass(-.5, 0, 5, 1, L, 41); glass(-.6, 0, 46, 1.2, L, 10, FROST, .28); glass(-.5, 0, 56, 1, L, 39)
+    B(-1, 0, 0, 2, L, 5, FRAME_D); B(-1, 0, 95, 2, L, 5, FRAME_L); B(-1, -1.5, 0, 2, 3, 100, FRAME_L)
 
 
 def glass_y(L, x0=0.0, ends=(0, 60, 120)):
     """The same pane on the plane y = 0 from x x0 to x0 + L, with mullions at x0 + each of ends below L."""
     L = float(L)
-    glass(x0, -1, 5, L, 2, 41); glass(x0, -1.2, 46, L, 2.4, 10, FROST, .55); glass(x0, -1, 56, L, 2, 39)
-    B(x0, -2, 0, L, 4, 5, FRAME_D); B(x0, -2, 95, L, 4, 5, FRAME_L)
+    glass(x0, -.5, 5, L, 1, 41); glass(x0, -.6, 46, L, 1.2, 10, FROST, .28); glass(x0, -.5, 56, L, 1, 39)
+    B(x0, -1, 0, L, 2, 5, FRAME_D); B(x0, -1, 95, L, 2, 5, FRAME_L)
     for u in ends:
-        if u <= L: B(x0 + u - 1.5, -2, 0, 3, 4, 100, FRAME_L)
+        if u <= L: B(x0 + u - 1.5, -1, 0, 3, 2, 100, FRAME_L)
 
 
 def door(_):
     """Door frame at y 0 from x -25 to 25 and the open glass leaf on x = 25 (the sign over it is live)."""
-    for x in (-28, 22): B(x, -3, 0, 6, 6, 100, FRAME_D)
-    B(-28, -3, 100, 56, 6, 8, FRAME_L)
+    for x in (-28, 22): B(x, -1, 0, 6, 2, 100, FRAME_D)
+    B(-28, -1, 100, 56, 2, 8, FRAME_L)
     glass(24.2, 3, 2, 1.6, 28, 84); B(24, 2, 0, 2, 31, 2, FRAME_D); B(24, 2, 86, 2, 31, 2, FRAME_L); B(24, 30, 2, 2, 3, 84, FRAME_L)
     B(24.5, 26, 40, 3, 1.5, 12, STEEL)  # handle
     B(-22, -2, 0, 44, 8, .5, '#8f3b2e'); B(-22, 2, .5, 44, 1.6, .1, MUST)  # doormat
