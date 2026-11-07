@@ -84,7 +84,7 @@
   async function load() {
     let g = null;
     try {
-      const r = await root.fetch('/api/graphics', { headers: { 'x-nonce': nonce() } });
+      const r = await root.fetch('/api/graphics', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: '{}' }); // the server only reads state over POST
       if (!r.ok) throw new Error('graphics load failed');
       g = normalize((await r.json()).graphics);
       if (!g) g = await save({ preset: detect(root.Graphics.probe()) }); // first run: pick for this machine

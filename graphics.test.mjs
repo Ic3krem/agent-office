@@ -80,16 +80,16 @@ function clientCtx({ fetchImpl, ls = {} }) {
 const okJson = j => Promise.resolve({ ok: true, json: () => Promise.resolve(j) });
 
 test('Graphics.load: server null -> detect then POST once, mirrored to localStorage', async () => {
-  const c = clientCtx({ fetchImpl: (u, o) => okJson(o && o.body ? { graphics: JSON.parse(o.body) } : { graphics: null }) });
+  const c = clientCtx({ fetchImpl: (u, o) => !o || o.method !== 'POST' ? Promise.resolve({ ok: false, status: 405 }) : okJson(u.endsWith('/set') ? { graphics: JSON.parse(o.body) } : { graphics: null }) });
   const r = await c.Graphics.load();
   assert.deepEqual(plain(r), { preset: 'high' });
-  const posts = c.calls.filter(([u, o]) => o && o.method === 'POST');
+  const posts = c.calls.filter(([u, o]) => o && o.method === 'POST' && u.endsWith('/set'));
   assert.equal(posts.length, 1); assert.equal(posts[0][0], '/api/graphics/set');
   assert.equal(posts[0][1].headers['x-nonce'], 'abc');
   assert.deepEqual(JSON.parse(c.store['ao.graphics']), { preset: 'high' });
 });
 test('Graphics.load: server value is used and no POST', async () => {
-  const c = clientCtx({ fetchImpl: () => okJson({ graphics: { preset: 'ultra' } }) });
+  const c = clientCtx({ fetchImpl: (u, o) => o && o.method === 'POST' ? okJson({ graphics: { preset: 'ultra' } }) : Promise.resolve({ ok: false, status: 405 }) });
   assert.deepEqual(plain(await c.Graphics.load()), { preset: 'ultra' });
   assert.equal(c.calls.length, 1);
 });
