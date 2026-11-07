@@ -15,9 +15,40 @@
   let npcs = {}, npcChat = 0; // zero-token NPCs (cook, sweeper) and when one may speak next
   let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, renderMs = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
-  // Town step 2: 'office', or an interior ('kain' | 'games') where only the CEO walks; agents stay in the office scene.
+  // Town step 2: 'office', or an interior ('kain' | 'games'). Town step 3: each scene shows the agents whose trip
+  // (AgentTravel.where) puts them there; party guest avatars stay office-only.
   let scene = 'office', freshCeo = false; // freshCeo: the scene's first layout puts the CEO at its spawn
   const inOffice = () => scene === 'office';
+  // Trips: records {[agentId]: record} shared by every page of this origin in localStorage (a reload or a second window
+  // continues the same trip; memory only if storage is unavailable). travel: {routes, office} from the page; routes
+  // unset = nobody travels. office: {kain, play} of the office layout (an interior page sets it; the office reads SPOTS).
+  const TRIPS_KEY = 'ao.trips';
+  let trips = {}, travel = {};
+  const travelOn = () => !!(root.AgentTravel && travel.routes && !demo); // not in a preview or a party visit (another office's layout)
+  function syncTrips(s) {
+    const flags = inOffice() ? M.travelFlags() : travel.office;
+    if (!travelOn() || !s || !flags) return;
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem(TRIPS_KEY)); } catch (e) { /* no storage: memory only */ }
+    const prev = stored && typeof stored === 'object' ? stored : trips, empty = M.boardOf(s).empty;
+    trips = root.AgentTravel.sync(prev, s.agents || [], a => root.AgentTravel.destOf(a, flags, empty), Date.now(), travel.routes);
+    if (trips !== stored) try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { /* memory only */ }
+  }
+  // The snapshot this scene's brain sees: only agents whose trip puts them here, with door hints for the walk in or out.
+  function sceneSnap(s) {
+    if (!s) return { agents: [], goals: [], boss: {} };
+    if (!travelOn()) return inOffice() ? s : Object.assign({}, s, { agents: [] });
+    const now = Date.now(), agents = [];
+    for (const a of s.agents || []) {
+      const rec = trips[a.id];
+      if (!rec) { if (inOffice()) agents.push(a); continue; } // no trip: at home (where() is never asked)
+      const w = root.AgentTravel.where(rec, now, travel.routes);
+      if (w.scene !== scene) continue;
+      const hint = w.leg === 'exit' || w.leg === 'back-exit' ? { leave: 'door' } : w.leg === 'enter' || w.leg === 'back-enter' ? { arrive: 'door' } : null;
+      agents.push(hint || !inOffice() ? Object.assign({}, a, hint, inOffice() ? null : { at: scene }) : a);
+    }
+    return Object.assign({}, s, { agents });
+  }
   // Build mode: the edit session (WorldEdit) or null, the page's hooks, the zone tool, the selection {kind: 'obj'|'zone', id},
   // the session's layout as last applied, footprints per object id, the drag in progress and the pointers that are down.
   let build = null, bhooks = {}, tool = null, sel = null, blayout = null, fps = new Map(), drag = null, noClick = false, tap = null;
@@ -103,9 +134,9 @@
     for (const a of frame.agents) {
       seen.add(a.id);
       let w = walkers.get(a.id);
-      const sp = M.SPOTS[a.spot] || M.SPOTS['tiro:seat'];
+      const sp = M.spotOf(a.spot) || M.SPOTS['tiro:seat'];
       if (!w) {
-        const from = (a.first || rd || !a.spawn) ? sp : M.SPAWN;
+        const from = a.arrive && !rd ? M.spotOf(a.arrive) : (a.first || rd || !a.spawn) ? sp : M.SPAWN; // a traveller walks in from the door
         w = M.createWalker(a.id, from.x, from.y, sp.face); w.alpha = 0; w.hip = HIP(a.spot); walkers.set(a.id, w);
         if (from === sp) { w.target = a.spot; w.goal = { x: sp.x, y: sp.y }; } else M.setTarget(w, a.spot);
       }
@@ -194,7 +225,7 @@
     ST.T = reduced() ? 0 : clock / 1000;
     const s = currentSnap();
     if (demo && opts.onDemoSnap) { const sig = JSON.stringify([s.agents.map(a => a.id + a.status + (a.perm ? 1 : 0)), s.goals.map(x => x.id + x.status)]); if (sig !== lastDemoSig) { lastDemoSig = sig; opts.onDemoSnap(s); } }
-    frame = brain.update(s && inOffice() ? s : { agents: [], goals: (s && s.goals) || [], boss: {} }, clock, { arrived: (id, spot) => { const w = walkers.get(id); return !!w && M.arrivedAt(w, spot); } });
+    frame = brain.update(sceneSnap(s), clock, { all: s, arrived: (id, spot) => { const w = walkers.get(id); return !!w && M.arrivedAt(w, spot); } });
     syncWalkers(dt);
     stepCeo(dt);
     stepNpcs(dt);
@@ -455,6 +486,7 @@
     if (ghosts.length || ST.printer > 0 || Object.keys(nudged).length) return true;
     if (!legend && ST.labels > 0.02 && ST.labels < 1) return true;
     if (Math.abs(ST.dim - (frame.board.empty ? 1 : 0)) > .01) return true;
+    if (frame.agents.some(a => a.arrive || a.leave)) return true; // travellers walk in or out at the moving cadence
     for (const a of frame.agents) { const w = walkers.get(a.id); if (!w) continue; if (w.moving || w.fadeDir || w.fade < 1 || (w.alpha != null && w.alpha < 1)) return true; if (Math.abs(w.hip - (!w.moving ? HIP(a.spot) : 18)) > .3) return true; }
     return false;
   }
@@ -772,7 +804,10 @@
     scene: () => scene,
     nearKind: () => (near && ceoOn() ? near.kind : null), // read-only, for checks
     setBuild, setTool, dropAt, buildOp, STW, STH,
-    setSnapshot(s) { live = s; if (!frame && !demo) { tick(0.001); render(); } wake(); },
+    setSnapshot(s) { live = s; syncTrips(s); if (!frame && !demo) { tick(0.001); render(); } wake(); },
+    // Town step 3: {routes: (fromLot, toLot) => AgentTravel.route(...)} once the town map loads; an interior page adds
+    // {office: OfficeMotion.travelFlags(spots of the office layout)}. Merged; a snapshot re-syncs the trips.
+    setTravel(t) { travel = Object.assign({}, travel, t); if (live) syncTrips(live); wake(); },
     setExtras(e) { extras = Object.assign(extras, e); wake(); },
     setSelected(id) { selected = id; wake(); },
     setHover(v) { hover = v; wake(); },

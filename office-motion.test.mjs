@@ -502,3 +502,80 @@ test('frame budget on a fake clock: idle, working, moving, hidden', () => {
   // idle redraws per minute are at least 12x below the old 30 fps loop
   assert.ok(perMin(() => ({})) * 12 <= 1800);
 });
+
+// ---------- town step 3: agents leave and arrive through doors ----------
+const town = JSON.parse(fs.readFileSync(new URL('./public/town/town.json', import.meta.url), 'utf8'));
+const interior = s => JSON.parse(fs.readFileSync(new URL('./public/world-templates/interior-' + s + '.json', import.meta.url), 'utf8'));
+// The office page in a vm with a fake wall clock (AgentTravel.where reads Date.now()).
+const J = v => JSON.parse(JSON.stringify(v));
+function travelWorld(sceneName) {
+  const w = loadWorld({ extra: ['town-map.js', 'agent-travel.js', 'office-world.js'], globals: { OfficeSprites: { lookOf: () => ({}), W: 32, H: 48 } } });
+  w.document.documentElement = { dataset: {} };
+  let t = 1e12; vm.runInContext("Date", w).now = () => t;
+  const AT = w.AgentTravel, routes = (a, b) => AT.route(town, a, b);
+  const OW = w.OfficeWorld;
+  if (sceneName) { OW.setScene(sceneName); OW.applyLayout(interior(sceneName)); }
+  OW.setTravel({ routes, office: sceneName ? { kain: false, play: true } : undefined });
+  const R = routes('home', 'kain'), TOWN = R.len / AT.TOWN_SPEED * 1000;
+  return { w, OW, AT, routes, TOWN, T0: 1e12, at: v => { t = v; }, dbg: id => (OW.debug() || { agents: [] }).agents.find(a => a.id === id) };
+}
+
+test('office without kain seats: a limited agent walks to the exit spot (SPAWN, no door) and drops out when the exit leg ends', () => {
+  const v = travelWorld(null), T0 = v.T0;
+  v.at(T0 + 1000);
+  v.OW.setSnapshot(snap([tiro('working'), ag('tally', 'limited', { statusAt: T0 }), ag('forge', 'working', { statusAt: T0 })], [goal('g1', 'doing')]));
+  v.OW.advance(0.1);
+  const a = v.dbg('a-tally');
+  assert.ok(a, 'still in the office during the exit leg');
+  assert.equal(a.spot, 'exit');
+  v.at(T0 + 5500); v.OW.advance(5);
+  const b = v.dbg('a-tally');
+  assert.ok(Math.hypot(b.x - v.w.OfficeMotion.SPAWN.x, b.y - v.w.OfficeMotion.SPAWN.y) < 2, 'at the exit spot ' + b.x + ',' + b.y);
+  v.at(T0 + v.AT.EXIT_MS + 100); v.OW.advance(0.1);
+  assert.equal(v.dbg('a-tally'), undefined, 'gone once the leg is not exit');
+  assert.ok(v.dbg('a-forge') && v.dbg('a-tiro'), 'everyone else stays');
+  // the door spot is the exit when the layout has one
+  M.useLayout(interior('kain'));
+  try {
+    const f = M.createBrain({ wall: () => 1e12 }).update(snap([ag('tally', 'limited', { leave: 'door', at: 'kain' })]), 0);
+    assert.equal(find(f, 'a-tally').spot, 'door');
+  } finally { M.useLayout(W.defaultLayout()); }
+});
+
+test('kain scene: an agent on the enter leg appears at the door and claims a free stool; the board is the real one', () => {
+  const v = travelWorld('kain'), T0 = v.T0, door = v.w.OfficeMotion.SPOTS.door;
+  const s = snap([tiro('working'), ag('tally', 'limited', { statusAt: T0 }), ag('forge', 'working', { statusAt: T0 })], [goal('g1', 'doing')]);
+  v.at(T0 + v.AT.EXIT_MS + v.TOWN + 100); // just into the enter leg
+  v.OW.setSnapshot(s); v.OW.advance(1 / 30);
+  const a = v.dbg('a-tally');
+  assert.ok(a && a.spot.startsWith('kain:'), JSON.stringify(a));
+  assert.ok(Math.hypot(a.x - door.x, a.y - door.y) < 10, 'starts at the door ' + a.x + ',' + a.y);
+  assert.deepEqual(J(v.OW.debug().agents.map(x => x.id)), ['a-tally'], 'only agents in this scene; Tiro never travels');
+  assert.equal(v.OW.debug().board.empty, false, 'real board: the interior does not dim');
+  v.at(T0 + v.AT.EXIT_MS + v.TOWN + v.AT.ENTER_MS + 100); v.OW.advance(6);
+  const b = v.dbg('a-tally'), sp = v.w.OfficeMotion.SPOTS[b.spot];
+  assert.equal(b.pose, 'sit-front'); assert.ok(Math.hypot(b.x - sp.x, b.y - sp.y) < 1, 'seated');
+  // reset: the back-exit leg walks to the door and drops out
+  const back = T0 + v.AT.EXIT_MS + v.TOWN + v.AT.ENTER_MS + 1000;
+  v.OW.setSnapshot(snap([tiro('working'), ag('tally', 'working', { statusAt: back })], [goal('g1', 'doing')]));
+  v.at(back + 100); v.OW.advance(0.1);
+  assert.equal(v.dbg('a-tally').spot, 'door');
+  v.at(back + v.AT.EXIT_MS + 100); v.OW.advance(0.1);
+  assert.equal(v.dbg('a-tally'), undefined);
+});
+
+test('eight eaters, six stools: the two extra stand near the counter, never stacked', () => {
+  M.useLayout(interior('kain'));
+  try {
+    const keys = Object.keys(ROSTER).slice(0, 8);
+    const f = M.createBrain({ wall: () => 1e12 }).update(snap(keys.map(k => ag(k, 'limited', { at: 'kain' }))), 0);
+    const spots = f.agents.map(a => a.spot);
+    assert.equal(new Set(spots).size, 8, 'no two on one spot: ' + spots);
+    assert.equal(spots.filter(s => s.startsWith('kain:')).length, 6);
+    const extra = f.agents.filter(a => !a.spot.startsWith('kain:'));
+    assert.deepEqual(J(extra.map(a => a.id)), keys.slice(6).map(k => 'a-' + k), 'the list order claims the stools first');
+    for (const a of extra) { const sp = M.SPOTS[a.spot]; assert.ok(sp && !sp.seat && !sp.desk && a.spot !== 'door', a.spot); assert.equal(a.pose, 'cooler'); }
+    // and every stand spot is open floor
+    for (const a of extra) assert.ok(!M.grid().blocked[ctx.WorldPath.cellOf(M.grid(), M.SPOTS[a.spot])], a.spot);
+  } finally { M.useLayout(W.defaultLayout()); }
+});

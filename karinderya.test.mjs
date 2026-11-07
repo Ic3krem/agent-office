@@ -54,3 +54,20 @@ test('the chismis bank is all canned and fits a bubble', () => {
   assert.ok(C.PAIRS.every(p => p.length === 2));
   for (const l of all) assert.ok(typeof l === 'string' && l.trim() && l.length <= 60, l);
 });
+
+test('ruling 3: an office with its own karinderya keeps limited agents on its stools and never asks where()', () => {
+  const town = JSON.parse(fs.readFileSync(new URL('./public/town/town.json', import.meta.url), 'utf8'));
+  const w = loadWorld({ extra: ['town-map.js', 'agent-travel.js', 'office-world.js'], globals: { OfficeSprites: { lookOf: () => ({}), W: 32, H: 48 } } });
+  w.document.documentElement = { dataset: {} };
+  const AT = w.AgentTravel, where = AT.where; let asked = 0;
+  AT.where = (...a) => { asked++; return where(...a); };
+  const OW = w.OfficeWorld;
+  w.OfficeWorld.applyLayout(withPieces());
+  OW.setTravel({ routes: (a, b) => AT.route(town, a, b) });
+  const t0 = Date.now() - 3000;
+  OW.setSnapshot(snap([tiro, { ...ag('tally', 'limited'), statusAt: t0 }, { ...ag('forge', 'limited'), statusAt: t0 }]));
+  OW.advance(8);
+  const d = OW.debug().agents;
+  assert.ok(d.find(a => a.id === 'a-tally').spot.startsWith('kain:') && d.find(a => a.id === 'a-forge').spot.startsWith('kain:'));
+  assert.equal(asked, 0);
+});

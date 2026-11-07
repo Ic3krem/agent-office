@@ -114,5 +114,29 @@
     return out;
   }
 
-  root.AgentTravel = { route, trip, where, EXIT_MS, ENTER_MS, TOWN_SPEED };
+  // Where an agent goes, judged against the OFFICE layout. office: {kain, play} (OfficeMotion.travelFlags): the office has
+  // its own stools / play spots, so the agent stays (ruling 3). empty: the board is empty (OfficeMotion.boardOf). Mirrors
+  // nextState: limited -> cooler, idle on an empty board -> playroom; the manager never travels.
+  function destOf(agent, office, empty) {
+    if (!agent || agent.isManager) return null;
+    const st = agent.status;
+    if (st === 'limited') return office.kain ? null : 'kain';
+    if (agent.perm || ['blocked', 'error', 'working', 'nudged'].includes(st)) return null;
+    return empty && !office.play ? 'games' : null;
+  }
+
+  // Per-snapshot update: records {[agentId]: trip record} -> the new records, dropping ids no longer present. Returns
+  // `records` itself when nothing changed, so the page can skip its storage write.
+  function sync(records, agents, destFn, now, routes) {
+    const prev = records || {}, out = {};
+    let same = !!records;
+    for (const a of agents || []) {
+      const r = trip(prev[a.id] || null, a, destFn(a), now, 'home', routes);
+      if (r) out[a.id] = r;
+      if (r !== (prev[a.id] || null)) same = false;
+    }
+    return same && Object.keys(out).length === Object.keys(prev).length ? records : out;
+  }
+
+  root.AgentTravel = { route, trip, where, destOf, sync, EXIT_MS, ENTER_MS, TOWN_SPEED };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

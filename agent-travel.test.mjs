@@ -244,3 +244,46 @@ test('without routes the queued chain is capped at 4', () => {
   assert.ok(depth <= 4, 'depth ' + depth);
   assert.ok(W(tr, 1e6).scene);
 });
+
+// Task 3: the per-snapshot update the pages share (office, interiors, town) and the office-layout destination rule.
+const OM = loadWorld().OfficeMotion;
+const none = { kain: false, play: false };
+
+test('destOf: limited -> kain, idle on an empty board -> games, only when the office has none of its own; Tiro never travels', () => {
+  const a = (status, extra) => ({ id: 'x', status, ...extra });
+  assert.equal(T.destOf(a('limited'), none, false), 'kain');
+  assert.equal(T.destOf(a('limited'), { kain: true, play: false }, false), null);
+  assert.equal(T.destOf(a('idle'), none, true), 'games');
+  assert.equal(T.destOf(a('idle'), { kain: false, play: true }, true), null);
+  assert.equal(T.destOf(a('idle'), none, false), null);
+  assert.equal(T.destOf(a('limited', { isManager: true }), none, true), null);
+  assert.equal(T.destOf(a('idle', { isManager: true }), none, true), null);
+  // the same states nextState sends to the cooler / playroom (after the idle delay)
+  for (const status of ['working', 'nudged', 'idle', 'blocked', 'error', 'limited']) for (const perm of [null, { askId: 'q' }]) for (const empty of [true, false]) {
+    const st = OM.nextState({ isManager: false, status, perm, quietMs: 0, toolInFlight: false, prev: null, prevSince: 0, first: false }, { empty, open: empty ? 0 : 1, emptyFor: Infinity }, 0);
+    const want = st === OM.S.COOLER ? 'kain' : st === OM.S.PLAY ? 'games' : null;
+    assert.equal(T.destOf({ status, perm }, none, empty), want, status + ' ' + !!perm + ' ' + empty);
+  }
+});
+
+test('OfficeMotion.travelFlags reads stools and play spots from a spots map', () => {
+  const W = loadWorld().WorldModel;
+  assert.deepEqual(plain(OM.travelFlags(W.spotsOf(W.defaultLayout()))), { kain: false, play: true });
+  assert.deepEqual(plain(OM.travelFlags({ 'kain:1': {} })), { kain: true, play: false });
+  assert.deepEqual(plain(OM.travelFlags({})), { kain: false, play: false });
+});
+
+test('sync: one record per travelling agent, ids gone are dropped, nothing changed -> same object', () => {
+  const dest = a => T.destOf(a, none, false);
+  const agents = [{ id: 'a', status: 'limited', statusAt: 0 }, { id: 'b', status: 'working', statusAt: 0 }, { id: 't', isManager: true, status: 'limited', statusAt: 0 }];
+  const r1 = T.sync({}, agents, dest, 1000, routes);
+  assert.deepEqual(Object.keys(r1), ['a']);
+  assert.deepEqual(plain(r1.a), plain(T.trip(null, agents[0], 'kain', 1000, 'home', routes)));
+  assert.equal(T.sync(r1, agents, dest, 5000, routes), r1, 'unchanged -> same object (no storage write)');
+  const r2 = T.sync(r1, [{ id: 'a', status: 'working', statusAt: 2000 }], dest, 2000, routes);
+  assert.equal(r2.a.returnAt, 2000, 'a reset sends it home');
+  assert.equal(T.sync({ ...r2, gone: r2.a }, [{ id: 'a', status: 'working', statusAt: 2000 }], dest, 2000, routes).gone, undefined, 'dropped');
+  assert.deepEqual(plain(T.sync(null, agents, dest, 0, routes)), plain(r1), 'null records start empty');
+  // JSON round trip (localStorage) gives the same records back
+  assert.deepEqual(plain(T.sync(JSON.parse(JSON.stringify(r2)), [{ id: 'a', status: 'working', statusAt: 2000 }], dest, 3000, routes)), plain(r2));
+});

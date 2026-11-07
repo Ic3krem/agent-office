@@ -80,6 +80,13 @@
   const HOT = ['hot:1', 'hot:2', 'hot:3', 'hot:4'], OVER = ['over:1', 'over:2', 'over:3', 'over:4'];
 
   const SPAWN = { x: 420, y: 250 }; // newcomers appear at the manager's door and walk in
+  // Town step 3: travellers leave and arrive at the layout's door spot, else at SPAWN (the pseudo spot 'exit', kept out of
+  // SPOTS so the layout's spot set stays exactly WorldModel.spotsOf).
+  const EXIT = 'exit';
+  const exitId = () => SPOTS.door ? 'door' : EXIT;
+  const spotOf = id => SPOTS[id] || (id === EXIT ? { id: EXIT, x: SPAWN.x, y: SPAWN.y, face: 'n', zone: 'door' } : undefined);
+  // Does a spots map (the office layout's) have its own stools / play spots? Then nobody travels for that state (ruling 3).
+  const travelFlags = spots => { spots = spots || SPOTS; return { kain: Object.keys(spots).some(id => id.startsWith('kain:')), play: PLAY.some(id => !!spots[id]) }; };
 
   // ---------- paths ----------
   let GRID = null; // walk grid of the current layout, built once per useLayout()
@@ -94,10 +101,25 @@
     Object.assign(SPOTS, WM.spotsOf(layout));
     SPAWN.x = layout.spawn.x; SPAWN.y = layout.spawn.y;
     GRID = WM.gridOf(layout);
+    standSpots();
+  }
+  // Standing room for eaters past the stools: open floor beside the table (south of the back row, then east and west of
+  // the rows), never a seat. Derived here (kain-stand:N), not layout spots.
+  function standSpots() {
+    const st = Object.values(SPOTS).filter(s => s.id.startsWith('kain:'));
+    if (!st.length || !GRID) return;
+    const xs = st.map(s => s.x), ys = st.map(s => s.y), x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = Math.max(...ys), rows = [...new Set(ys)];
+    const cand = [...st.filter(s => s.y === y1).map(s => [s.x, y1 + 36, 'n']), ...rows.map(y => [x1 + 36, y, 'w']), ...rows.map(y => [x0 - 36, y, 'e'])];
+    let n = 0;
+    for (const [x, y, face] of cand) {
+      if (x < 0 || y < 0 || x >= GRID.cols * GRID.cell || y >= GRID.rows * GRID.cell || GRID.blocked[root.WorldPath.cellOf(GRID, { x, y })]) continue;
+      if (Object.values(SPOTS).some(q => Math.hypot(q.x - x, q.y - y) < 20)) continue;
+      spot('kain-stand:' + (++n), x, y, face, 'kain');
+    }
   }
 
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const resolve = t => typeof t === 'string' ? (SPOTS[t] ? { x: SPOTS[t].x, y: SPOTS[t].y } : null) : t;
+  const resolve = t => typeof t === 'string' ? (spotOf(t) ? { x: spotOf(t).x, y: spotOf(t).y } : null) : t;
 
   // A* over the layout grid. Returns points from `from` to `to` (inclusive); a straight line when there is no route.
   function pathTo(from, to) {
@@ -120,11 +142,11 @@
   function setTarget(w, to, opt) {
     const spotId = typeof to === 'string' ? to : null, B = resolve(to);
     w.target = spotId || 'pt'; w.goal = B; w.elapsed = 0; w.waited = 0; w.ignore = 0;
-    if (opt && opt.instant) { w.x = B.x; w.y = B.y; w.path = []; w.moving = false; if (spotId && SPOTS[spotId]) w.face = SPOTS[spotId].face; return w; }
+    if (opt && opt.instant) { w.x = B.x; w.y = B.y; w.path = []; w.moving = false; if (spotId && spotOf(spotId)) w.face = spotOf(spotId).face; return w; }
     const pts = pathTo({ x: w.x, y: w.y }, to);
     w.path = pts; w.pi = 1; w.moving = pts.length > 1;
     w.speed = Math.max(BASE_SPEED, Math.min(MAX_SPEED, pathLen(pts) / 4.2));
-    if (!w.moving && spotId && SPOTS[spotId]) w.face = SPOTS[spotId].face;
+    if (!w.moving && spotId && spotOf(spotId)) w.face = spotOf(spotId).face;
     return w;
   }
   const arrivedAt = (w, spotId) => w.target === spotId && !w.moving && w.fadeDir === 0 && w.fade === 1;
@@ -132,7 +154,7 @@
   function stepWalker(w, dt, others) {
     if (w.fadeDir) { // fade-teleport fallback
       w.fade += w.fadeDir * dt / 0.22;
-      if (w.fadeDir < 0 && w.fade <= 0) { w.fade = 0; w.fadeDir = 1; w.x = w.goal.x; w.y = w.goal.y; w.path = []; w.moving = false; if (SPOTS[w.target]) w.face = SPOTS[w.target].face; }
+      if (w.fadeDir < 0 && w.fade <= 0) { w.fade = 0; w.fadeDir = 1; w.x = w.goal.x; w.y = w.goal.y; w.path = []; w.moving = false; if (spotOf(w.target)) w.face = spotOf(w.target).face; }
       else if (w.fadeDir > 0 && w.fade >= 1) { w.fade = 1; w.fadeDir = 0; }
       return w;
     }
@@ -164,7 +186,7 @@
       if (mv >= d - 0.01) { w.x = t.x; w.y = t.y; w.pi++; }
       if (k < 1) break;
     }
-    if (w.pi >= w.path.length) { w.moving = false; w.path = []; if (SPOTS[w.target]) w.face = SPOTS[w.target].face; }
+    if (w.pi >= w.path.length) { w.moving = false; w.path = []; if (spotOf(w.target)) w.face = spotOf(w.target).face; }
     return w;
   }
 
@@ -219,12 +241,29 @@
     // plan limit: agents eat at a karinderya when the layout has one (its stools are kain:* spots), else stand at the cooler
     const eatSpots = () => { const k = Object.keys(SPOTS).filter(id => id.startsWith('kain:')); return k.length ? k : COOLER; };
     const claim = (map, list, id) => { if (map[id] && list.includes(map[id])) return map[id]; const used = Object.values(map); const s = list.find(x => !used.includes(x)); if (s) map[id] = s; else delete map[id]; return map[id] || null; };
+    // Stools go in the order agents are fed (own agents before party friends'), and a stander takes a stool that frees up.
+    // Overflow stands beside the table, then at the cooler, then on any free open spot: never two on one stool.
+    const claimEat = id => {
+      const stools = eatSpots();
+      if (stools === COOLER) return claim(coolOf, COOLER, id);
+      const cur = coolOf[id], used = Object.entries(coolOf).filter(([k]) => k !== id).map(([, v]) => v);
+      if (stools.includes(cur)) return cur;
+      const free = stools.find(x => !used.includes(x));
+      if (free) return (coolOf[id] = free);
+      if (cur && SPOTS[cur]) return cur;
+      const open = Object.values(SPOTS).filter(q => !q.seat && !q.desk && !q.id.startsWith('npc:') && q.id !== 'door').map(q => q.id);
+      const s = [...open.filter(x => x.startsWith('kain-stand:')), ...COOLER, ...open].find(x => SPOTS[x] && !used.includes(x));
+      if (s) coolOf[id] = s; else delete coolOf[id];
+      return coolOf[id] || null;
+    };
 
     // playroom: take the free spot farthest from everyone already playing (ties keep list order), so the room fills evenly
-    const farFrom = (map, id) => { const taken = Object.entries(map).filter(([k]) => k !== id).map(([, v]) => v), used = taken.map(v => SPOTS[v]).filter(Boolean); let best = null, bd = -1; for (const x of PLAY) { if (taken.includes(x) || map[id] === x) continue; const sp = SPOTS[x], d = used.length ? Math.min(...used.map(u => Math.hypot(u.x - sp.x, u.y - sp.y))) : 1e6 - PLAY.indexOf(x); if (d > bd) { bd = d; best = x; } } return best; };
-    const claimPlay = (map, id) => { if (map[id] && PLAY.includes(map[id])) return map[id]; const f = farFrom(map, id); if (f) map[id] = f; else delete map[id]; return map[id] || null; };
+    const plays = () => PLAY.filter(x => SPOTS[x]); // the game hall has only some of the office's play spots
+    const farFrom = (map, id) => { const P = plays(), taken = Object.entries(map).filter(([k]) => k !== id).map(([, v]) => v), used = taken.map(v => SPOTS[v]).filter(Boolean); let best = null, bd = -1; for (const x of P) { if (taken.includes(x) || map[id] === x) continue; const sp = SPOTS[x], d = used.length ? Math.min(...used.map(u => Math.hypot(u.x - sp.x, u.y - sp.y))) : 1e6 - P.indexOf(x); if (d > bd) { bd = d; best = x; } } return best; };
+    const claimPlay = (map, id) => { if (map[id] && plays().includes(map[id])) return map[id]; const f = farFrom(map, id); if (f) map[id] = f; else delete map[id]; return map[id] || null; };
 
     function pickReporter(g, present, now) {
+      present = present.filter(a => !a.at && !a.leave); // travellers do not carry reports
       const mentions = a => (a.logs || []).slice(-8).some(l => l && String(l.text || '').includes(g.id));
       let c = present.find(a => !a.isManager && mentions(a));
       if (c) return c;
@@ -238,7 +277,7 @@
       const arrived = ctx.arrived || (() => false);
       const agentsIn = (snap && snap.agents) || [];
       const goals = (snap && snap.goals) || [];
-      const board = boardOf(snap);
+      const board = boardOf(ctx.all || snap); // ctx.all: the whole snapshot when `snap` holds only this scene's agents
       if (board.empty) { if (emptySince == null) emptySince = now; } else emptySince = null;
       board.emptyFor = emptySince == null ? 0 : now - emptySince; board.idleDelay = cfg.idleDelay;
       const wall = o.wall();
@@ -311,8 +350,11 @@
         const m = mem.get(a.id);
         const quietMs = now - m.lastChange, toolInFlight = m.lastKind === 'tool' && quietMs < TOOL_GRACE;
         let st = nextState({ isManager: !!a.isManager, status: a.status, perm: a.perm, quietMs, toolInFlight, prev: m.state, prevSince: m.since, first: m.first }, board, now);
+        // TRAVEL seam (town step 3), hints from the page: at = the interior this agent is visiting (its trip decides: eat
+        // or play), leave = walk to the exit and drop out, arrive = appear at the exit and walk in.
+        if (a.at && !a.leave) st = a.at === 'kain' ? S.COOLER : S.PLAY;
         // reporting overrides everything except a working agent (rule 1)
-        const rep = reps.find(r => r.agentId === a.id);
+        const rep = !a.at && !a.leave && reps.find(r => r.agentId === a.id);
         const working = a.status === 'working' || a.status === 'nudged';
         let spotId, wasRep = false;
         if (rep && !working && !a.isManager) {
@@ -320,11 +362,12 @@
           wasRep = true;
         }
         const home = () => a.isManager ? 'tiro:seat' : m.visitor ? hotIndex[a.id] : a.profile.desk;
-        if (st === S.GO || st === S.REPORT) spotId = 'office:report';
+        if (a.leave) spotId = exitId();
+        else if (st === S.GO || st === S.REPORT) spotId = 'office:report';
         else if (st === S.QUEUE) { const q = reps.filter(r => r.phase === 'wait').findIndex(r => r.agentId === a.id); spotId = 'queue:' + Math.min(3, q + 1); }
         else if (st === S.BACK) { // return by the normal rules, but not the playroom until the walk back finishes
           const back = nextState({ isManager: false, status: a.status, perm: a.perm, quietMs, toolInFlight, prev: null, prevSince: 0, first: false }, board, now);
-          spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claim(coolOf, eatSpots(), a.id) : home();
+          spotId = back === S.PLAY ? claimPlay(playOf, a.id) : back === S.COOLER ? claimEat(a.id) : home();
         } else if (st === S.THINK) spotId = a.isManager ? 'tiro:window' : (claim(gardenOf, GARDEN, a.id) || home());
         else if (st === S.WINDOW) spotId = 'tiro:window';
         else if (st === S.PLAY) {
@@ -335,13 +378,14 @@
             if (f) { s = f; playOf[a.id] = s; rotated = true; }
           }
           spotId = s || home();
-        } else if (st === S.COOLER) spotId = claim(coolOf, eatSpots(), a.id) || home();
+        } else if (st === S.COOLER) spotId = claimEat(a.id) || home();
         else spotId = home();
-        if (st !== S.PLAY) delete playOf[a.id];
-        if (st !== S.THINK) delete gardenOf[a.id];
-        if (st !== S.COOLER && st !== S.BACK) delete coolOf[a.id];
+        if (st !== S.PLAY || a.leave) delete playOf[a.id];
+        if (st !== S.THINK || a.leave) delete gardenOf[a.id];
+        if ((st !== S.COOLER && st !== S.BACK) || a.leave) delete coolOf[a.id];
+        if (!SPOTS[spotId] && !SPOTS['tiro:seat']) spotId = exitId(); // an interior has no desks: wait by the door
         if (m.state !== st) { m.state = st; m.since = now; }
-        const sp = SPOTS[spotId] || SPOTS['tiro:seat'];
+        const sp = spotOf(spotId) || SPOTS['tiro:seat'];
         const look = a.isManager ? TIRO : (a.profile || null);
         let pose;
         if (sp.desk) pose = st === S.BLOCKED ? 'hand' : st === S.ERROR ? 'sit' : working ? 'type' : 'sit-idle';
@@ -354,7 +398,7 @@
         const badge = st === S.BLOCKED ? 'perm' : st === S.ERROR ? 'error' : st === S.COOLER || a.status === 'limited' ? 'limited' : null;
         out.push({ id: a.id, isManager: !!a.isManager, key: look ? look.key : null, name: a.name, role: a.role, model: a.model, color: look ? look.color : null, accent: look ? look.accent : null,
           visitor: !!m.visitor, state: st, spot: spotId, face: sp.face, pose, badge, status: a.status, working, spawn: !m.first && now - m.born < 100,
-          first: m.first, quietMs, task: a.task || '', turnTok: a.turnTok || 0, errText: a.errText || '', perm: a.perm || null, reporting: wasRep, goalIds: rep ? rep.goalIds : null });
+          first: m.first, arrive: a.arrive ? exitId() : null, leave: !!a.leave, quietMs, task: a.task || '', turnTok: a.turnTok || 0, errText: a.errText || '', perm: a.perm || null, reporting: wasRep, goalIds: rep ? rep.goalIds : null });
       }
       const rp = reps.find(r => r.phase === 'report'), going = reps.find(r => r.phase === 'go');
       const desksTaken = {}; out.forEach(a => { if (!a.isManager && !a.visitor) desksTaken[a.spot] = a.id; });
@@ -446,6 +490,6 @@
   // ms to wait before drawing, given the time since the last draw; never faster than MIN_GAP; -1 = paused
   const frameWait = (st, since) => { const d = nextFrameDelay(st); return d < 0 ? -1 : Math.max(FRAME.MIN_GAP - since, d - since, 0); };
   const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, deskAt, TIRO_DESK, OBSTACLES, SPOTS, SPAWN, GARDEN, PLAY, COOLER, HOT, OVER, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
-    boardOf, nextState, createBrain, useLayout, grid: () => GRID, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
+    boardOf, nextState, createBrain, useLayout, EXIT, exitId, spotOf, travelFlags, grid: () => GRID, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
   root.OfficeMotion = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
