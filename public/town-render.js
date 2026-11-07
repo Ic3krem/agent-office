@@ -3,6 +3,8 @@
 // Contract: input is DOM events only. While mounted, PIXI.Ticker.system is stopped (Pixi's scheduler and pointer-move
 // ticking would otherwise run a rAF loop forever), so Pixi pointer events, AnimatedSprite and video textures do not tick.
 // destroy() restores the ticker's previous state and clears the one 60 s hour timer (it only marks when the night tenth changes).
+// The one frame loop: ambient animation (TownAmbient), a rAF that renders at G.ambientFps only while the ambient plan is
+// non-empty, the page is visible and the fps is > 0. Its frames go through the same render(), at most once per rAF.
 (function (root) {
   'use strict';
   const K = 0.7071, K2 = 0.3536;
@@ -103,9 +105,10 @@
     const cam = new P.Container(), ground = new P.Container(), shade = new P.Container(), world = new P.Container();
     const blobs = new P.Container(), soft = new P.Container(); // shade holds one of: blob ellipses, the shadow atlas
     const pools = new P.Container(); // lamp light on the ground, under the sprites (Ultra)
+    const ambLow = new P.Container(), ambHigh = new P.Container(); // water sparkles under the sprites; leaves and steam over them
     world.sortableChildren = true; pools.blendMode = 'add';
     shade.addChild(blobs, soft);
-    cam.addChild(ground, shade, pools, world);
+    cam.addChild(ground, shade, pools, ambLow, world, ambHigh);
     // One ellipse texture for every blob shadow, scaled per sprite.
     const BW = 64, BH = 32, bcv = document.createElement('canvas');
     bcv.width = BW; bcv.height = BH;
@@ -121,6 +124,18 @@
     pctx.fillStyle = grad; pctx.fillRect(0, 0, PW, PW);
     const poolTex = new P.Texture({ source: new P.CanvasSource({ resource: pcv }) });
     textureBytes += PW * PW * 4;
+    // Ambient pixel sprites, drawn once: [colour, x, y] per pixel.
+    const pix = (w, h, cells) => {
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const x = cv.getContext('2d');
+      for (const [c, px, py] of cells) { x.fillStyle = c; x.fillRect(px, py, 1, 1); }
+      textureBytes += w * h * 4;
+      return new P.Texture({ source: new P.CanvasSource({ resource: cv }) });
+    };
+    const sparkTex = pix(3, 3, [['#ffffff', 1, 1], ['#d8f4ff', 1, 0], ['#d8f4ff', 0, 1], ['#d8f4ff', 2, 1], ['#d8f4ff', 1, 2]]);
+    const leafTex = [pix(2, 2, [['#b8d65a', 0, 0], ['#8fb43c', 1, 0], ['#b8d65a', 1, 1]]), pix(2, 2, [['#c98a2e', 0, 0], ['#a8681f', 1, 1], ['#c98a2e', 0, 1]])];
+    const steamTex = pix(3, 3, [['#f2f2ee', 1, 0], ['#f2f2ee', 0, 1], ['#ffffff', 1, 1], ['#f2f2ee', 2, 1], ['#f2f2ee', 1, 2]]);
+    const ambTex = [sparkTex, ...leafTex, steamTex];
     app.stage.addChild(cam);
 
     const chunks = [];
@@ -135,8 +150,8 @@
       return frames[k] || (frames[k] = new P.Texture({ source: src, frame: new P.Rectangle(f.x, f.y, f.w, f.h) }));
     };
     let sprites = chunks.length;
-    const glows = new Set();
-    const place = (type, x, y) => {
+    const glows = new Set(), trees = new Map(); // trees: decor index -> colour sprite (ambient sway)
+    const place = (type, x, y, decorId) => {
       const f = atlas.frames[type];
       if (!f) return;
       const [sx, sy] = project(x, y, 0), px = Math.round(sx - f.ax), py = Math.round(sy - f.ay);
@@ -144,6 +159,7 @@
         const s = new P.Sprite(frameTex(src, type));
         s.position.set(px, py); s.cullable = true; s.zIndex = depthOf(x, y);
         layer.addChild(s); sprites++;
+        if (layer === world && /^tree/.test(type)) { s.pivot.set(f.ax, f.ay); s.position.set(px + f.ax, py + f.ay); trees.set(decorId, s); } // sway skews about the foot
       }
       if (f.glow && hasGlow) { // lit windows: just after the colour sprite, untinted; alpha set by applyGraphics
         // Drawn over the pane, not added: the day pane is near-white, so adding warm light to it at night clips to white.
@@ -163,7 +179,32 @@
       }
     };
     for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);
-    for (const d of map.decor) place(d.type, d.x, d.y);
+    map.decor.forEach((d, i) => place(d.type, d.x, d.y, i));
+
+    // Ambient (town step 4): sprites made once; animate(t) shows what the plan for G.ambient asks for.
+    const AMB = root.TownAmbient, sparkles = [], parts = [];
+    for (const q of AMB.plan(map, 'water').water) {
+      const [sx, sy] = project(q.x, q.y, 0), s = new P.Sprite(sparkTex);
+      s.position.set(Math.round(sx) - 1, Math.round(sy) - 1); s.cullable = true; s.visible = false;
+      ambLow.addChild(s); sparkles.push(s); sprites++;
+    }
+    for (let i = 0; i < AMB.MAX_LIVE; i++) { const s = new P.Sprite(P.Texture.EMPTY); s.cullable = true; s.visible = false; ambHigh.addChild(s); parts.push(s); sprites++; }
+    const START = { leaf: [-4, -44], steam: [-30, -96] }; // particle start, screen px from the emitter's ground point (canopy; karinderya roof)
+    let plan = AMB.plan(map, 'off'), swaying = new Set(), ambRaf = 0, ambLast = -1e9, ambT = 0, renderTs = -1;
+    const replan = () => { plan = AMB.plan(map, G.ambient); swaying = new Set(plan.trees.map(t => t.id)); };
+    function animate(t) {
+      ambT = t;
+      sparkles.forEach((s, i) => { s.visible = plan.water.length > 0 && AMB.sparkleOn(i, t); });
+      for (const [id, s] of trees) s.skew.x = swaying.has(id) ? -AMB.sway(id, t) / s.pivot.y : 0; // crown moves sway px (sin x ~ x)
+      const live = AMB.particles(plan.particles, t);
+      parts.forEach((s, i) => {
+        const q = live[i];
+        if (!q || q.a <= 0) { s.visible = false; return; }
+        const [sx, sy] = project(q.x, q.y, 0), o = START[q.kind];
+        s.texture = q.kind === 'steam' ? steamTex : leafTex[i % 2];
+        s.position.set(Math.round(sx) + o[0] + q.dx, Math.round(sy) + o[1] + q.dy); s.alpha = q.a; s.visible = true;
+      });
+    }
 
     // Player: one sprite whose texture comes from a small LRU of OfficeSprites canvases.
     const player = new P.Sprite(P.Texture.EMPTY);
@@ -212,7 +253,7 @@
       lightKey = key;
       const h = hourNow();
       const L = lightAt(h, G.lighting);
-      tintNow = ground.tint = L.tint;
+      tintNow = ground.tint = ambLow.tint = ambHigh.tint = L.tint;
       // world is tinted per sprite, not as a container: a container tint would also darken the additive glow sprites in it
       for (const s of world.children) if (!glows.has(s)) s.tint = L.tint;
       for (const s of glows) { s.alpha = L.glow; s.visible = L.glow > 0; }
@@ -234,9 +275,10 @@
       for (const ch of chunks) ch.s.visible = on.has(ch.r * 100 + ch.c);
     }
 
-    function render() {
+    function render(ts) {
       raf = 0;
       if (dead || !dirty || document.hidden) return;
+      renderTs = ts;
       const t0 = performance.now();
       applyGraphics();
       layout();
@@ -248,7 +290,18 @@
       lastRenderMs = performance.now() - t0;
     }
     const mark = () => { dirty = true; if (!raf && !dead && !document.hidden) raf = requestAnimationFrame(render); };
-    const onVis = () => { if (!document.hidden && (dirty || lightStale())) mark(); };
+    const ambOn = () => !dead && !document.hidden && G.ambientFps > 0 && !AMB.isEmpty(plan);
+    function ambTick(now) {
+      ambRaf = 0;
+      if (!ambOn()) return; // hidden, ambient off or 0 fps: the loop ends; onVis / setGraphics restart it
+      if (AMB.frameDue(ambLast, now, G.ambientFps)) {
+        ambLast = now; animate(now);
+        if (raf || now === renderTs) mark(); else { dirty = true; render(now); } // a render already queued or done this rAF draws it
+      }
+      ambRaf = requestAnimationFrame(ambTick);
+    }
+    const ambStart = () => { if (!ambRaf && ambOn()) ambRaf = requestAnimationFrame(ambTick); };
+    const onVis = () => { if (!document.hidden && (dirty || lightStale())) mark(); ambStart(); };
     document.addEventListener('visibilitychange', onVis);
     canvas.addEventListener('webglcontextrestored', mark);
     app.stage.eventMode = 'none'; // input is DOM-only: skip Pixi's per-move hit-testing
@@ -261,6 +314,7 @@
       mark();
     }
     resize();
+    replan(); animate(0); ambStart();
 
     return {
       setPlayer({ x, y, face = 's', pose = 'stand', frame = 0, look }) {
@@ -295,17 +349,23 @@
       toWorld(cx, cy) { layout(); const k = viewW / canvas.clientWidth; return unproject(left + cx * k / zoom, top + cy * k / zoom); },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
-      setGraphics(g) { const rs = G.renderScale; G = g; lightKey = ''; if (g.renderScale !== rs) resize(); else mark(); },
+      setGraphics(g) {
+        const rs = G.renderScale, amb = G.ambient; G = g; lightKey = '';
+        if (g.ambient !== amb) { replan(); animate(ambT); }
+        if (g.renderScale !== rs) resize(); else mark();
+        ambStart();
+      },
       frameCount: () => frames_,
       stats: () => ({ textureBytes, sprites, drawCalls: lastDraws, lastRenderMs, graphics: G }),
       destroy() {
         dead = true;
         clearInterval(hourTimer);
         if (raf) cancelAnimationFrame(raf);
+        if (ambRaf) cancelAnimationFrame(ambRaf);
         document.removeEventListener('visibilitychange', onVis);
         canvas.removeEventListener('webglcontextrestored', mark);
         for (const t of charTex.values()) t.destroy(true);
-        blobTex.destroy(true); poolTex.destroy(true);
+        blobTex.destroy(true); poolTex.destroy(true); for (const t of ambTex) t.destroy(true);
         charTex.clear();
         app.destroy({ removeView: false }, { children: true });
         P.Assets.unload(urls);

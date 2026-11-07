@@ -24,6 +24,7 @@
 <script src="/world-model.js"></script>
 <script src="/world-player.js"></script>
 <script src="/town-map.js"></script>
+<script src="/town-ambient.js"></script>
 <script src="/town-render.js"></script>
 <script src="/agent-travel.js"></script>
 <script>
@@ -36,9 +37,14 @@
     const map = await TownMap.load('/town/town.json'), grid = TownMap.grid(map);
     // ?hour=<0-23> is only for visual and perf checks: a fixed time of day.
     const hq = /[?&]hour=(\d+)/.exec(location.search), hour = hq ? Math.min(23, +hq[1]) : null;
-    const G = Graphics.resolve(await Graphics.load(), Graphics.env());
-    const api = await TownRender.mount(canvas, { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: G, hour });
-    Graphics.onChange(s => api.setGraphics(Graphics.resolve(s, Graphics.env())));
+    let stored = await Graphics.load();
+    const api = await TownRender.mount(canvas, { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: Graphics.resolve(stored, Graphics.env()), hour });
+    // Re-resolve on a settings change, and when power saver (8 fps ambient) or reduced motion (ambient off) changes.
+    const regraph = () => api.setGraphics(Graphics.resolve(stored, Graphics.env()));
+    Graphics.onChange(s => { stored = s; regraph(); });
+    addEventListener('storage', e => { if (e.key === 'ao.powerSaver') regraph(); });
+    matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', regraph);
+    new MutationObserver(regraph).observe(document.documentElement, { attributes: true, attributeFilter: ['data-anim'] });
     // #from=<lot>: back out of a scene, so start at that lot's door (town step 2)
     const fromLot = map.lots.find(l => l.id === (/[#&]from=([^&]*)/.exec(location.hash) || [])[1]), at = fromLot ? fromLot.door : map.spawn;
     const p = WP.unstick(WP.create(at.x, at.y), grid);

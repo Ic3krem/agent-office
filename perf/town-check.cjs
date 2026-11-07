@@ -12,7 +12,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, info) => { if (!ok) failed++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (info !== undefined ? '  ' + JSON.stringify(info) : '')); };
 const done = code => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); };
-setTimeout(() => { console.log('FAIL watchdog: harness exceeded 90 s'); done(1); }, 90000).unref();
+setTimeout(() => { console.log('FAIL watchdog: harness exceeded 120 s'); done(1); }, 120000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 
 app.whenReady().then(async () => {
@@ -56,7 +56,8 @@ app.whenReady().then(async () => {
   const p3 = await pos(); await wait(500); const p4 = await pos();
   check('blur clears held keys', p3.x === p4.x && p3.y === p4.y, { p3, p4 });
   key_('keyUp', 'A');
-  // idle: no frames
+  // idle: no frames (Low: ambient animation off)
+  await js(`__town.api.setGraphics(Graphics.resolve({ preset: 'low' }, Graphics.env()))`); await wait(300);
   const f1 = await js('__town.api.frameCount()'); await wait(500);
   check('idle renders nothing', (await js('__town.api.frameCount()')) === f1);
 
@@ -98,6 +99,34 @@ app.whenReady().then(async () => {
   await js(`__town.api.setGraphics(Graphics.resolve({ preset: 'low' }, Graphics.env()))`); await wait(300);
   check('setGraphics re-renders with the new settings', (await js('__town.api.frameCount()')) > fr && (await js('__town.api.stats().graphics.shadows')) === 'off');
   check('no console errors after graphics changes', errors.length === 0, errors);
+
+  // Ambient animation (town step 4): idle frame counts at the fps cap, and Ultra shots a few frames apart.
+  const boot = async (preset, saver) => {
+    await js(`localStorage.setItem('ao.powerSaver', '${saver}'); Graphics.save({ preset: '${preset}' })`);
+    await w.loadURL(base + '/town?hour=12');
+    for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
+    await wait(800);
+  };
+  const idleFrames = async ms => { const a = await js('__town.api.frameCount()'); await wait(ms); return (await js('__town.api.frameCount()')) - a; };
+  await boot('low', '1');
+  const lowF = await idleFrames(3000);
+  check('Low (ambient off): 0 frames in 3 s idle', lowF === 0, lowF);
+  await boot('high', '1');
+  const hiF = await idleFrames(3000);
+  check('High + power saver: ambient runs, <= 30 frames in 3 s (8 fps cap)', hiF > 0 && hiF <= 30, hiF);
+  await js(`document.documentElement.dataset.anim = 'off'`); await wait(300);
+  const offF = await idleFrames(3000);
+  check('html[data-anim=off]: 0 frames in 3 s', offF === 0, offF);
+  await boot('ultra', '0');
+  const ulF = await idleFrames(1000);
+  check('Ultra, power saver off: ambient near 60 fps', ulF >= 30, ulF);
+  for (const n of [1, 2]) {
+    const f = path.join(shotDir, `town-ambient-ultra-${n}.png`);
+    fs.writeFileSync(f, (await w.webContents.capturePage()).toPNG());
+    console.log('screenshot', f);
+    await wait(170);
+  }
+  check('no console errors with ambient on', errors.length === 0, errors);
 
   // WebGL failure shows the message box
   await w.loadURL(base + '/town?failgl=1'); await wait(2000);
