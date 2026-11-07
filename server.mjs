@@ -525,7 +525,7 @@ function snapshot() {
   const deskCap = roster.keys().length; // one desk per role in the layout (at most 12); the hire cap stays MAX_SPECIALISTS
   const shown = list.slice(0, deskCap).sort((x, y) => x.id.localeCompare(y.id)); // stable desks while ranking picks who is in the room
   const out = (bossAgent ? [bossAgent, ...shown] : shown);
-  for (const id of statusSince.keys()) if (!out.some(a => a.id === id)) statusSince.delete(id);
+  for (const id of statusSince.keys()) if (!agents.has(id)) statusSince.delete(id); // prune gone agents only: one dropped from the room for a while keeps its stamp
   return {
     worldVersion: Object.fromEntries(SCENES.map(s => [s, worldStore.version(s)])), // per scene: a window reacts only to its own room
     guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, looks: lookBox.get(), party: partyClient.view(), hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
