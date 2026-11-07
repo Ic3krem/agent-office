@@ -243,20 +243,23 @@
   }
   // One pattern fill clipped to the zone's floor polygon (water: the ellipse inside its rect, the pond's shape), the tile
   // pixel (ax, ay) on P(0, 0, 0) so every zone shares one tile grid and neighbouring floors meet without a seam.
-  function zoneFill(g, q, T) {
+  function zoneFill(g, q, T, a) {
     const [x0, y0, x1, y1] = q.rect;
-    g.save(); g.beginPath();
+    g.save(); g.beginPath(); if (a != null) g.globalAlpha = a;
     if (q.type === 'water') { g.save(); g.transform(K, K2, -K, K2, OXS, OYS); g.ellipse((x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, (y1 - y0) / 2, 0, 0, 6.2832); g.restore(); }
     else [P(x0, y0, 0), P(x1, y0, 0), P(x1, y1, 0), P(x0, y1, 0)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
     g.closePath(); g.translate(OXS - T.f.ax, OYS - T.f.ay); g.imageSmoothingEnabled = false; g.fillStyle = T.pat; g.fill(); g.restore();
   }
   function bakeZoneFloor(g, zones) {
     flat(g, 0, 0, WXm(), WYm(), '#4a4a55'); // neutral base: a removed or shrunk zone leaves plain floor, not a hole
+    const outdoors = q => { const cx = (q.rect[0] + q.rect[2]) / 2, cy = (q.rect[1] + q.rect[3]) / 2; return zones.some(z => z.type === 'garden' && z.rect[0] <= cx && cx <= z.rect[2] && z.rect[1] <= cy && cy <= z.rect[3]); };
     for (const q of zones) {
       const [x0, y0, x1, y1] = q.rect, A = floorPattern(g, q.type);
-      if (A) zoneFill(g, q, A);
+      // office art: a path is pavers in the garden and park; indoors only a faint paver tint with no border (walkers' strips)
+      const faint = A && q.type === 'path' && !outdoors(q);
+      if (A) zoneFill(g, q, A, faint ? .15 : null);
       const T = ZONE_TEX[q.type]; if (!T) continue; // water: the pond pieces draw it
-      if (A) { Fg(g, 0, () => { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x0, y0, x1 - x0, 2); g.fillRect(x0, y1 - 2, x1 - x0, 2); g.fillRect(x0, y0, 2, y1 - y0); g.fillRect(x1 - 2, y0, 2, y1 - y0); }); continue; }
+      if (A) { if (!faint) Fg(g, 0, () => { g.fillStyle = 'rgba(0,0,0,.15)'; g.fillRect(x0, y0, x1 - x0, 1); g.fillRect(x0, y1 - 1, x1 - x0, 1); g.fillRect(x0, y0, 1, y1 - y0); g.fillRect(x1 - 1, y0, 1, y1 - y0); }); continue; }
       flat(g, x0, y0, x1 - x0, y1 - y0, T.c);
       Fg(g, 0, () => {
         g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip(); T.t(g, x0, y0, x1, y1); g.restore();
@@ -281,33 +284,33 @@
     // ---- left wall (plane x=0) and right wall (plane y=0) ----
     if (A && A['wall@x'] && A['wall@y']) { // office art: one strip per wall; after dusk the glow sheet lays a night sky on the panes
       for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow) sprite(g, n, 0, 0, nt, null, ATLAS.glow); }
-      return;
-    }
-    const WYv = WYm(), WXv = WXm();
-    const gl = g.createLinearGradient(P(0, 0, 0)[0], 0, P(0, WYv, 0)[0], 0); gl.addColorStop(0, '#34376a'); gl.addColorStop(1, '#262850');
-    poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, WH), P(0, 0, WH)], gl, null);
-    const gr = g.createLinearGradient(P(0, 0, 0)[0], 0, P(WXv, 0, 0)[0], 0); gr.addColorStop(0, '#2a2c58'); gr.addColorStop(1, '#202244');
-    poly(g, [P(0, 0, 0), P(WXv, 0, 0), P(WXv, 0, WH), P(0, 0, WH)], gr, null);
-    // wall panel lines and rails
-    g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 1; g.beginPath();
-    for (let y = 0; y <= WYv; y += 60) { const a = P(0, y, 0), b = P(0, y, WH); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
-    for (let x = 0; x <= WXv; x += 60) { const a = P(x, 0, 0), b = P(x, 0, WH); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
-    g.stroke();
-    poly(g, [P(0, 0, WH), P(0, WYv, WH), P(0, WYv, WH + 7), P(0, 0, WH + 7)], '#4a4d86', null);
-    poly(g, [P(0, 0, WH), P(WXv, 0, WH), P(WXv, 0, WH + 7), P(0, 0, WH + 7)], '#3f4276', null);
-    poly(g, [P(0, 0, WH + 7), P(WXv, 0, WH + 7), P(WXv, -6, WH + 7), P(0, -6, WH + 7)], '#5a5e9a', null);
-    poly(g, [P(0, 0, WH + 7), P(0, WYv, WH + 7), P(-6, WYv, WH + 7), P(-6, 0, WH + 7)], '#5a5e9a', null);
-    // baseboards and a wainscot band
-    poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, 10), P(0, 0, 10)], '#6b4a2e', null);
-    poly(g, [P(0, 0, 0), P(WXv, 0, 0), P(WXv, 0, 10), P(0, 0, 10)], '#5a3d25', null);
-    poly(g, [P(0, 0, 34), P(0, WYv, 34), P(0, WYv, 37), P(0, 0, 37)], 'rgba(255,255,255,.07)', null);
-    poly(g, [P(0, 0, 34), P(WXv, 0, 34), P(WXv, 0, 37), P(0, 0, 37)], 'rgba(255,255,255,.06)', null);
+    } else {
+      const WYv = WYm(), WXv = WXm();
+      const gl = g.createLinearGradient(P(0, 0, 0)[0], 0, P(0, WYv, 0)[0], 0); gl.addColorStop(0, '#34376a'); gl.addColorStop(1, '#262850');
+      poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, WH), P(0, 0, WH)], gl, null);
+      const gr = g.createLinearGradient(P(0, 0, 0)[0], 0, P(WXv, 0, 0)[0], 0); gr.addColorStop(0, '#2a2c58'); gr.addColorStop(1, '#202244');
+      poly(g, [P(0, 0, 0), P(WXv, 0, 0), P(WXv, 0, WH), P(0, 0, WH)], gr, null);
+      // wall panel lines and rails
+      g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 1; g.beginPath();
+      for (let y = 0; y <= WYv; y += 60) { const a = P(0, y, 0), b = P(0, y, WH); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
+      for (let x = 0; x <= WXv; x += 60) { const a = P(x, 0, 0), b = P(x, 0, WH); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
+      g.stroke();
+      poly(g, [P(0, 0, WH), P(0, WYv, WH), P(0, WYv, WH + 7), P(0, 0, WH + 7)], '#4a4d86', null);
+      poly(g, [P(0, 0, WH), P(WXv, 0, WH), P(WXv, 0, WH + 7), P(0, 0, WH + 7)], '#3f4276', null);
+      poly(g, [P(0, 0, WH + 7), P(WXv, 0, WH + 7), P(WXv, -6, WH + 7), P(0, -6, WH + 7)], '#5a5e9a', null);
+      poly(g, [P(0, 0, WH + 7), P(0, WYv, WH + 7), P(-6, WYv, WH + 7), P(-6, 0, WH + 7)], '#5a5e9a', null);
+      // baseboards and a wainscot band
+      poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, 10), P(0, 0, 10)], '#6b4a2e', null);
+      poly(g, [P(0, 0, 0), P(WXv, 0, 0), P(WXv, 0, 10), P(0, 0, 10)], '#5a3d25', null);
+      poly(g, [P(0, 0, 34), P(0, WYv, 34), P(0, WYv, 37), P(0, 0, 37)], 'rgba(255,255,255,.07)', null);
+      poly(g, [P(0, 0, 34), P(WXv, 0, 34), P(WXv, 0, 37), P(0, 0, 37)], 'rgba(255,255,255,.06)', null);
 
-    // windows: left wall (office + two in the focus band), right wall (garden panorama)
-    const winL = (y0, y1) => { Fx(g, 0, y1, 128, () => { const w = y1 - y0, h = 78; g.fillStyle = '#16183a'; g.fillRect(-4, -4, w + 8, h + 8); g.fillStyle = '#7a4a22'; g.fillRect(-2, -2, w + 4, h + 4); const sg = g.createLinearGradient(0, 0, 0, h); sg.addColorStop(0, SK0); sg.addColorStop(1, SK1); g.fillStyle = sg; g.fillRect(0, 0, w, h); stars(w, h); g.fillStyle = CLOUD; g.beginPath(); g.ellipse(w * .3, h * .35, 20, 7, 0, 0, 6.2832); g.ellipse(w * .5, h * .4, 16, 6, 0, 0, 6.2832); g.fill(); g.fillStyle = '#4a8a4a'; g.fillRect(0, h * .78, w, h * .22); g.fillStyle = '#7a4a22'; g.fillRect(w / 2 - 1.5, 0, 3, h); g.fillRect(0, h / 2 - 1.5, w, 3); g.fillStyle = '#9a6a3a'; g.fillRect(-4, h + 2, w + 8, 4); }); };
-    winL(60, 125); winL(135, 200); winL(280, 360); winL(400, 480);
-    const winR = (x0, x1) => { Fy(g, 0, 128, () => { g.translate(x0, 0); const w = x1 - x0, h = 80; g.fillStyle = '#16183a'; g.fillRect(-4, -4, w + 8, h + 8); const sg = g.createLinearGradient(0, 0, 0, h); sg.addColorStop(0, SK0); sg.addColorStop(1, SK1); g.fillStyle = sg; g.fillRect(0, 0, w, h); stars(w, h); g.fillStyle = CLOUD; g.beginPath(); g.ellipse(w * .25, h * .3, 24, 8, 0, 0, 6.2832); g.ellipse(w * .62, h * .45, 18, 6, 0, 0, 6.2832); g.fill(); g.fillStyle = '#54925a'; g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * .72); g.quadraticCurveTo(w * .3, h * .55, w * .5, h * .72); g.quadraticCurveTo(w * .8, h * .6, w, h * .74); g.lineTo(w, h); g.fill(); g.fillStyle = '#7a4a22'; for (let i = 0; i <= 3; i++) g.fillRect(i * w / 3 - 1.5, 0, 3, h); g.fillRect(0, h / 2 - 1.5, w, 3); g.fillRect(-4, h + 2, w + 8, 4); }); };
-    winR(500, 640); winR(660, 800); winR(820, 960); winR(40, 120); winR(980, 1100); winR(1120, 1220);
+      // windows: left wall (office + two in the focus band), right wall (garden panorama)
+      const winL = (y0, y1) => { Fx(g, 0, y1, 128, () => { const w = y1 - y0, h = 78; g.fillStyle = '#16183a'; g.fillRect(-4, -4, w + 8, h + 8); g.fillStyle = '#7a4a22'; g.fillRect(-2, -2, w + 4, h + 4); const sg = g.createLinearGradient(0, 0, 0, h); sg.addColorStop(0, SK0); sg.addColorStop(1, SK1); g.fillStyle = sg; g.fillRect(0, 0, w, h); stars(w, h); g.fillStyle = CLOUD; g.beginPath(); g.ellipse(w * .3, h * .35, 20, 7, 0, 0, 6.2832); g.ellipse(w * .5, h * .4, 16, 6, 0, 0, 6.2832); g.fill(); g.fillStyle = '#4a8a4a'; g.fillRect(0, h * .78, w, h * .22); g.fillStyle = '#7a4a22'; g.fillRect(w / 2 - 1.5, 0, 3, h); g.fillRect(0, h / 2 - 1.5, w, 3); g.fillStyle = '#9a6a3a'; g.fillRect(-4, h + 2, w + 8, 4); }); };
+      winL(60, 125); winL(135, 200); winL(280, 360); winL(400, 480);
+      const winR = (x0, x1) => { Fy(g, 0, 128, () => { g.translate(x0, 0); const w = x1 - x0, h = 80; g.fillStyle = '#16183a'; g.fillRect(-4, -4, w + 8, h + 8); const sg = g.createLinearGradient(0, 0, 0, h); sg.addColorStop(0, SK0); sg.addColorStop(1, SK1); g.fillStyle = sg; g.fillRect(0, 0, w, h); stars(w, h); g.fillStyle = CLOUD; g.beginPath(); g.ellipse(w * .25, h * .3, 24, 8, 0, 0, 6.2832); g.ellipse(w * .62, h * .45, 18, 6, 0, 0, 6.2832); g.fill(); g.fillStyle = '#54925a'; g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * .72); g.quadraticCurveTo(w * .3, h * .55, w * .5, h * .72); g.quadraticCurveTo(w * .8, h * .6, w, h * .74); g.lineTo(w, h); g.fill(); g.fillStyle = '#7a4a22'; for (let i = 0; i <= 3; i++) g.fillRect(i * w / 3 - 1.5, 0, 3, h); g.fillRect(0, h / 2 - 1.5, w, 3); g.fillRect(-4, h + 2, w + 8, 4); }); };
+      winR(500, 640); winR(660, 800); winR(820, 960); winR(40, 120); winR(980, 1100); winR(1120, 1220);
+    }
     // left wall: ivy trellis and framed prints in the utility strip
     Fx(g, 0, 780, 130, () => { for (const [y0, w, c] of [[8, 50, '#c95a3a'], [66, 38, '#3d8aa8']]) { g.fillStyle = '#3a2a18'; g.fillRect(y0, 0, w, 40); g.fillStyle = c; g.fillRect(y0 + 3, 3, w - 6, 34); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(y0 + 8, 12, w - 16, 3); g.fillRect(y0 + 8, 20, (w - 16) * .6, 3); } });
   }

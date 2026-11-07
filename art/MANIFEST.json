@@ -3,7 +3,7 @@
  "files": [
   {
    "file": "art/palette-office.json",
-   "sha256": "bc2bf71eb883c9eb684cc5f3c189b022f7063fb48ac0c4b9ee4627c057362534",
+   "sha256": "8f048e68b8089d2b632bfb859e9f22dc7e67fe9bc8fce56249298b7d907566fe",
    "script": "art/post.py",
    "date": "2026-11-07",
    "license": "Apache-2.0 (original)"
@@ -38,7 +38,7 @@
   },
   {
    "file": "public/art/office/atlas.png",
-   "sha256": "aaec49527d210acf036fa136cf8124c8ca291d105b5ae97281cc0773e0487efc",
+   "sha256": "f7acb671314e6bbead86d7427fdae839101a77a221073737ea47c32765f0be2e",
    "script": "art/blender/office_assets.py + art/blender/office_shell.py + art/post.py",
    "date": "2026-11-07",
    "license": "Apache-2.0 (original)"

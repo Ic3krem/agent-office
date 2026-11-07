@@ -98,6 +98,12 @@ test('bake with default zones is unchanged', () => {
   assert.ok(!w.WorldModel.isDefaultZones(z));
 });
 
+test('without the office art, bake still draws the 1.2.9 floor and walls (draw-log pin)', () => {
+  const calls = bakeLog(loadWorld());
+  assert.equal(calls.length, 3670);
+  assert.equal(hashLog(calls), '6e7a22f9c25e593d6924cfc3810085866ffc7978');
+});
+
 // ---- the office art room shell (floor tiles, wall strips) ----
 const KINDS = ['wood', 'carpet', 'grass', 'concrete', 'asphalt', 'pavers', 'water', 'rug', 'terracotta'];
 const SHELL = Object.fromEntries([...KINDS.map(k => ['floor@' + k, { x: 0, y: 0, w: 128, h: 64, ax: 64, ay: 32 }]),
@@ -129,7 +135,19 @@ test('with the office art, bake draws both wall strips, and lays the glow sheet 
   const calls = [], ctx = recorder(calls); ctx.globalAlpha = 1; F.state.night = .6; F.bake(ctx);
   assert.deepEqual(img(calls), ['IMG 600', 'GLOW 600', 'IMG 100', 'GLOW 100']);
   const i = calls.findIndex(a => a[0] === 'drawImage' && a[1] === 'GLOW');
-  assert.ok(calls.slice(i - 3, i).some(a => a[0] === '=' && a[1] === 'globalAlpha' && a[2] === .6), 'glow fades in with the night');
+  assert.ok(calls.slice(i - 3, i).some(a => a[0] === '=' && a[1] === 'globalAlpha'), 'glow fades in with the night'); // (the recorder has no save/restore, so the value is not checked)
+});
+
+test('with the office art, paths are pavers in the garden and only a faint borderless tint indoors; the left-wall prints stay', () => {
+  const w = shellWorld(), F = w.OfficeFurniture, Z = w.WorldModel.defaultLayout().zones, calls = bakeLog(w);
+  const alphas = calls.filter((a, i) => a[0] === '=' && a[1] === 'globalAlpha' && calls.slice(i, i + 12).some(b => b[0] === '=' && b[1] === 'fillStyle' && b[2] === 'pattern')).map(a => a[2]);
+  const inside = (q, t) => Z.some(z => z.type === t && z.rect[0] <= (q.rect[0] + q.rect[2]) / 2 && (q.rect[0] + q.rect[2]) / 2 <= z.rect[2] && z.rect[1] <= (q.rect[1] + q.rect[3]) / 2 && (q.rect[1] + q.rect[3]) / 2 <= z.rect[3]);
+  const indoor = Z.filter(q => q.type === 'path' && !inside(q, 'garden'));
+  assert.ok(indoor.length > 10 && Z.some(q => q.type === 'path' && inside(q, 'garden')));
+  assert.equal(alphas.filter(a => a === .15).length, indoor.length, 'one faint fill per indoor path');
+  const borders = calls.filter(a => a[0] === 'fillRect' && (a[3] === 1 || a[4] === 1)).length;
+  assert.equal(borders, 4 * Z.filter(q => q.type !== 'water' && !indoor.includes(q)).length, '1-unit borders, none on indoor paths');
+  assert.ok(calls.some(a => a[0] === 'fillRect' && a[1] === 8 && a[3] === 50 && a[4] === 40), 'framed prints on the left wall');
 });
 
 test('floor patterns are made once per atlas, and every zone type has a tile', () => {

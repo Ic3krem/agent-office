@@ -60,12 +60,12 @@ def speckle(x0, y0, q, n, cols, h=.2, s=1.2):
 
 
 def wood(x0, y0, q):
-    B(x0, y0, -1, S, S, 1, '#b88d5e')  # the gaps between boards
-    rows, cols = 6, ['#e4c79c', '#dcbb8c', '#e9d0a8', '#d6b282', '#e0c293']
+    B(x0, y0, -1, S, S, 1, '#a17a55')  # the gaps between boards: about half the old contrast, so light furniture keeps its edges
+    rows, cols = 6, ['#c69e72', '#c69e72', '#d0a97c']  # one honey mid-tone and a lighter board (two palette steps)
     for r in range(rows):
         y, w, j = y0 + r * S / rows, S / rows, q.random() * S
         for k in range(2):  # two boards a row, the joint at a random place; the second runs on into the next cell
-            a = j + k * S / 2; B(x0 + a + .4, y + .4, 0, S / 2 - .8, w - .8, .6, q.choice(cols))
+            a = j + k * S / 2; B(x0 + a + .5, y + .5, 0, S / 2 - 1, w - 1, .05, q.choice(cols))  # flush: the gap shows the base, not grey board sides
 
 
 def carpet(x0, y0, q):
