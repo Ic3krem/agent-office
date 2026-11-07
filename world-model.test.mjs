@@ -154,3 +154,29 @@ test('town step 3: play and garden spots are optional in the office (PLAY travel
   assert.ok(req.includes('cool:1') && req.includes('queue:1'));
   assert.deepEqual(J(req.filter((id) => /^(play|garden|pk):/.test(id))), []);
 });
+
+// Task 5 fix round 1: the migrated office is what the page shows by default, with no leftover playroom, garden or pond.
+test('officeLayout(): the migrated default; no play or garden zones (their decor goes too), no pond water, the old pond area is walkable', () => {
+  const d = J(WM.defaultLayout()), o = J(WM.officeLayout());
+  assert.deepEqual(o, J(WM.migrateV2(WM.defaultLayout())));
+  assert.deepEqual(J(WM.validate(o)), { ok: true, errors: [] });
+  const gone = (q) => q.type === 'play' || q.type === 'garden' || q.id === 'pond' || q.id === 'pond-east';
+  assert.deepEqual(o.zones, d.zones.filter((q) => !gone(q)), 'only the playroom, garden and pond-water zones go');
+  assert.ok(d.zones.filter(gone).length >= 5);
+  assert.equal(WM.isDefaultZones(o.zones), false, 'so the default play rug and garden beds are not drawn');
+  const g = WM.gridOf(o), reach = W.reachFrom(g, o.spawn);
+  for (const p of [{ x: 790, y: 105 }, { x: 1120, y: 290 }]) {
+    assert.equal(g.blocked[W.cellOf(g, p)], 0, 'not blocked at ' + p.x + ',' + p.y);
+    assert.ok(reach(p), 'reachable from spawn: ' + p.x + ',' + p.y);
+  }
+  const dg = WM.gridOf(d);
+  assert.ok(dg.blocked[W.cellOf(dg, { x: 790, y: 105 })], 'it was water before');
+});
+
+test('the page never falls back to the classic office: reset, visit, Build and boot use the migrated office', () => {
+  const src = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /WorldModel\.defaultLayout\(\)/);
+  assert.match(src, /resetDefault:.*SCENE==='office'\?WorldModel\.officeLayout\(\)/);
+  assert.doesNotMatch(src, /j\.source!=='default'/, 'the server default (migrated) is applied too');
+  assert.match(src, /mountWorld/);
+});

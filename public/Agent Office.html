@@ -615,7 +615,7 @@ class Component extends DCLogic {
       onFollow:(sx,sy)=>this.followCeo(sx,sy),onToast:t=>this.showToast(t),onInteract:n=>this.openNear(n),
       onNear:n=>{const m=this.state.menu;if(m&&(!n||n.id!==m.id))this.setState({menu:null});}});}; // a layout rebuilds OfficeMotion.TEAM with default names
     if(SCENE!=='office'&&window.OfficeWorld)OfficeWorld.setScene(SCENE); // before any layout: only the CEO walks an interior
-    fetch(WORLD_URL,{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout){this.layout=j.layout;this.box=boxOf(j.layout);this.fit&&this.fit();}if(j&&j.layout&&(j.source!=='default'||SCENE!=='office')&&window.OfficeWorld)OfficeWorld.applyLayout(j.layout);if(!j&&SCENE!=='office')this.showToast('Could not load the '+SCENE_NAME.toLowerCase());if(j&&j.warning)this.showToast(j.warning);mountWorld();});
+    fetch(WORLD_URL,{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout){this.layout=j.layout;this.box=boxOf(j.layout);this.fit&&this.fit();}if(window.OfficeWorld&&(j&&j.layout||SCENE==='office'))OfficeWorld.applyLayout(j&&j.layout||WorldModel.officeLayout());if(!j&&SCENE!=='office')this.showToast('Could not load the '+SCENE_NAME.toLowerCase());if(j&&j.warning)this.showToast(j.warning);mountWorld();});
     if(SCENE==='office')setTimeout(mountWorld,400); // an interior waits for its layout: the office never flashes up first
     // Town step 3: the town map gives trip lengths (route per lot pair); an interior judges trips against the office layout.
     if(window.TownMap&&window.AgentTravel&&window.OfficeWorld)TownMap.load('/town/town.json').then(t=>OfficeWorld.setTravel({routes:(a,b)=>AgentTravel.route(t,a,b)})).catch(e=>console.info('No agent travel:',e.message));
@@ -870,7 +870,7 @@ class Component extends DCLogic {
   insets(){if(!this.session)return {l:0,t:0,b:0};return window.innerWidth<700?{l:0,t:100,b:Math.round(window.innerHeight*.38)+52}:{l:286,t:0,b:0};}
   enterBuild(){
     const W=window.OfficeWorld,E=window.WorldEdit;if(!W||!E||!W.setBuild||this.session||this.state.demo)return;
-    this.session=E.createSession(this.layout||WorldModel.defaultLayout());
+    this.session=E.createSession(this.layout||WorldModel.officeLayout());
     W.setBuild(this.session,{onChange:st=>this.setState({bst:st}),onSelect:(id,kind)=>this.setState(s=>({bst:{...(s.bst||{}),selected:id,selectedKind:kind}})),onToast:t=>this.showToast(t),
       onRetire:(o,go)=>{const r=RoleCatalog.get(WorldModel.deskRole(o));this.askUser('Retire '+this.roleName(r)+' ('+r.role+')? Their memory is kept and they come back if you place their desk again.',[['Retire',go,'danger'],['Cancel']]);}});
     this.worldStale=false;document.body.classList.add('ao-building');
@@ -881,7 +881,7 @@ class Component extends DCLogic {
     if(!this.session)return;this.session=null;
     const W=window.OfficeWorld;W.setBuild(null);document.body.classList.remove('ao-building');
     if(this.worldStale){this.worldStale=false;this.reloadWorld();} // another window saved meanwhile: show theirs
-    else if(discard)W.applyLayout(this.layout||WorldModel.defaultLayout());
+    else if(discard)W.applyLayout(this.layout||WorldModel.officeLayout());
     this.setState({building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,ask:null});
     this.fit&&this.fit();
   }
@@ -950,14 +950,14 @@ class Component extends DCLogic {
     const W=window.OfficeWorld;if(!W)return;if(this.session)return this.showToast('Leave Build mode first.');
     api('/api/party/office',{id}).then(j=>{
       const o=j.office;if(!o)throw new Error(name+' has not shared an office yet.');
-      const L=o.layout&&WorldModel.validate(o.layout).ok?o.layout:WorldModel.defaultLayout();
+      const L=o.layout&&WorldModel.validate(o.layout).ok?o.layout:WorldModel.officeLayout();
       if(this.state.demo){W.setDemo(null);this.setState({demo:''});}
       W.applyLayout(L);SP.setCostumes(o.looks||{});
       const T=OfficeMotion.TEAM,agents=o.agents.map(a=>{const tiro=a.key==='tiro',t=T.find(x=>x.key===a.key);return {id:'visit-'+a.id,isManager:tiro,name:a.name,role:tiro?'Manager':t?t.role:'Helper',profile:tiro?{...OfficeMotion.TIRO,name:a.name}:t?{key:t.key,name:a.name,role:t.role,color:t.color,accent:t.accent,desk:t.desk}:undefined,model:'',status:a.state,task:a.state==='idle'?'':a.bubble,turnTok:0,logs:[],perm:null};});
       W.setVisit({agents,goals:[],boss:{active:true,running:0,max:8},demo:true});
       this.setState({visit:{id,name},partyOpen:false,selectedId:null});this.syncGuests(this.state.party,{id,name});
     }).catch(e=>this.showToast(e.message));}
-  goHome(){if(!this.state.visit)return;const W=window.OfficeWorld;W.setVisit(null);W.applyLayout(this.layout||WorldModel.defaultLayout());SP.setCostumes((this.live||{}).looks);if(this.live)W.setSnapshot(this.live);this.setState({visit:null});this.syncGuests(this.state.party,null);}
+  goHome(){if(!this.state.visit)return;const W=window.OfficeWorld;W.setVisit(null);W.applyLayout(this.layout||WorldModel.officeLayout());SP.setCostumes((this.live||{}).looks);if(this.live)W.setSnapshot(this.live);this.setState({visit:null});this.syncGuests(this.state.party,null);}
   // Wardrobe (phase 5): each button steps one preset list and saves at once; Reset drops the costume.
   wardrobe(c){const W=RoleCatalog.WARDROBE,key=c.key,cur=(this.state.looks||{})[key]||{},n={hair:W.hair.length,skin:W.skin.length,style:W.styles.length,outfit:W.outfits.length};
     const set=costume=>api('/api/looks/set',{key,costume}).then(j=>{SP.setCostumes(j.looks);this.setState({looks:j.looks});}).catch(e=>this.showToast(e.message));
@@ -1014,7 +1014,7 @@ class Component extends DCLogic {
       tpls:s.tpls.filter(t=>t.scene===SCENE).map(t=>({name:t.name,mine:!t.builtIn,onLoad:()=>this.loadInto(t.name,()=>getJ('/api/world/template?id='+encodeURIComponent(t.id)).then(j=>j.layout)),
         onDelete:()=>this.askUser('Delete the template '+t.name+'?',[['Delete',()=>api('/api/world/template/delete',{id:t.id}).then(r=>{this.showToast(r.ok?'Deleted '+t.name:'Could not delete '+t.name);this.refreshTpls();}).catch(e=>this.showToast(e.message)),'danger'],['Cancel']])})),
       tplName:s.tplName,onTplName:e=>this.setState({tplName:e.target.value}),onTplKey:e=>{if(e.key==='Enter')this.saveTpl();},saveTpl:()=>this.saveTpl(),
-      resetDefault:()=>this.loadInto('The default layout',()=>SCENE==='office'?WorldModel.defaultLayout():getJ('/api/world/template?id=interior-'+SCENE).then(j=>j.layout)),
+      resetDefault:()=>this.loadInto('The default layout',()=>SCENE==='office'?WorldModel.officeLayout():getJ('/api/world/template?id=interior-'+SCENE).then(j=>j.layout)),
       catItems,deskCards,deskSel:!!sr,deskSelName:sr?this.roleName(sr):'',deskSelRole:sr?sr.role:'',deskSelAccent:sr?sr.accent:'#fff',
       hasAsk:!!s.ask,askText:s.ask?s.ask.text:'',askCancel:closeAsk,
       askBtns:s.ask?s.ask.btns.map(([label,fn,kind])=>({label,cls:kind==='danger'?'pill sm danger':kind?'pill sm cta':'pill sm',onClick:()=>{closeAsk();fn&&fn();}})):[],

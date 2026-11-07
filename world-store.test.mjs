@@ -158,7 +158,10 @@ test('migration: a saved default layout loses the playroom and garden pieces and
   assert.ok(l.objects.filter((o) => moved(l, o)).length >= 25, 'the default had a playroom and a garden');
   assert.deepEqual(r.layout.objects.filter((o) => o.type === 'dept-desk'), l.objects.filter((o) => o.type === 'dept-desk'), 'every desk kept');
   for (const keep of ['tiro-desk', 'tiro-chair', 'water-cooler', 'coffee-counter', 'hot-desk-1', 'hedge-1', 'plant-2', 'garage', 'mailbox', 'pennants']) assert.ok(r.layout.objects.some((o) => o.id === keep), keep);
-  assert.deepEqual(r.layout.zones, l.zones, 'zones untouched');
+  const zoneGone = (q) => q.type === 'play' || q.type === 'garden' || (q.type === 'water' && (q.id === 'pond' || q.id === 'pond-east'));
+  assert.deepEqual(r.layout.zones, l.zones.filter((q) => !zoneGone(q)), 'playroom, garden and pond-water zones go; the rest stay');
+  const g = WMv.gridOf(Jv(r.layout)), reach = VW.WorldPath.reachFrom(g, r.layout.spawn);
+  for (const p of [{ x: 790, y: 105 }, { x: 1120, y: 290 }]) assert.ok(!g.blocked[VW.WorldPath.cellOf(g, p)] && reach(p), 'the old pond area is walkable: ' + p.x + ',' + p.y);
   const spots = WMv.spotsOf(Jv(r.layout));
   assert.deepEqual([...OMv.PLAY, ...OMv.GARDEN].filter((id) => spots[id]), [], 'their spots moved with them');
   for (const id of WMv.requiredSpots(Jv(r.layout))) assert.ok(spots[id], 'required ' + id);
@@ -185,7 +188,7 @@ test('migration: a second load is a no-op; a migrated layout with its own playro
 
 test('migration: a layout with no playroom or garden pieces gets only migrated: 2', () => {
   const d = tmp(), base = Jv(WMv.defaultLayout());
-  const l = { ...base, objects: base.objects.filter((o) => !moved(base, o)), spots: base.spots.filter((q) => !/^(play|garden|pk):/.test(q.id)) };
+  const l = { ...base, zones: base.zones.filter((q) => q.type !== 'play' && q.type !== 'garden'), objects: base.objects.filter((o) => !moved(base, o)), spots: base.spots.filter((q) => !/^(play|garden|pk):/.test(q.id)) };
   oldOffice(d, l);
   assert.deepEqual(createWorldStore(d).load().layout, { ...l, migrated: 2 });
 });

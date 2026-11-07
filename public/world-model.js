@@ -119,17 +119,21 @@
 
   // Town step 3: the playroom moved to the game hall and the garden outdoors. An office layout saved before then drops
   // these types (the step 2 play pieces and both ponds), garden trees and benches standing in a garden zone, and the
-  // play and garden spots. Zones stay. Returns a new layout with migrated: 2; world-store backs up and writes it.
+  // play and garden spots, the play and garden zones (their floor decor goes with them) and the water zones under removed
+  // ponds (water with no pond is an invisible wall). Returns a new layout with migrated: 2; world-store backs up and writes it.
   const MIGRATE_V2 = ['arcade', 'arcade-race', 'jukebox', 'sofa3', 'snack-table', 'beanbag', 'ball-pit', 'hoop', 'dartboard', 'toy-bin', 'pond', 'pond-east'];
   const MIGRATE_V2_GARDEN = ['tree', 'bench', 'bench-side'];
   function migrateV2(layout) {
     const M = root.OfficeMotion, spots = new Set([...M.PLAY, ...M.GARDEN]), garden = rectsOf(layout, 'garden');
-    const inGarden = o => garden.some(([x0, y0, x1, y1]) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1);
+    const within = (o, [x0, y0, x1, y1]) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1, inGarden = o => garden.some(r => within(o, r));
+    const ponds = layout.objects.filter(o => o.type === 'pond' || o.type === 'pond-east');
     return Object.assign({}, layout, {
+      zones: layout.zones.filter(q => q.type !== 'play' && q.type !== 'garden' && !(q.type === 'water' && ponds.some(o => within(o, q.rect)))),
       objects: layout.objects.filter(o => !MIGRATE_V2.includes(o.type) && !(MIGRATE_V2_GARDEN.includes(o.type) && inGarden(o))),
       spots: layout.spots.filter(s => !spots.has(s.id)), migrated: 2,
     });
   }
+  const officeLayout = () => migrateV2(defaultLayout()); // the office a fresh install, Reset and every page fallback show
 
   function validate(layout) {
     const errors = [];
@@ -181,6 +185,6 @@
     }
   }
 
-  root.WorldModel = { VERSION, INTERIORS, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS, MIGRATE_V2, MIGRATE_V2_GARDEN, migrateV2 };
+  root.WorldModel = { VERSION, INTERIORS, ZONE_TYPES: [...ZONE_TYPES], defaultLayout, isDefaultZones, validate, spotsOf, gridOf, requiredSpots, deskRole, MAX_DESKS, MIGRATE_V2, MIGRATE_V2_GARDEN, migrateV2, officeLayout };
   if (root.OfficeMotion && typeof root.OfficeMotion.useLayout === 'function') root.OfficeMotion.useLayout(defaultLayout());
 })(globalThis);
