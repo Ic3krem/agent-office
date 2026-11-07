@@ -1,5 +1,5 @@
 # Office interior sprites: modern-cozy work furniture (light oak, warm white, sage/terracotta/mustard accents), a fun and cozy
-# playroom, and the rustic karinderya. Original art, Apache-2.0.
+# playroom, the rustic karinderya, and the garden, park, garage and glass partitions. Original art, Apache-2.0.
 # Run: blender -b -P art/blender/office_assets.py -- <catalog.json> <office-footprints.json> <out raw dir> [frame,frame]
 # catalog.json (scripts/export-catalog.mjs) names every frame the painters ask for, with its instance's home anchor and
 # footprint. Each frame is modelled in world units around that home (x east, y south, z up; 1 world unit = 1 px, so
@@ -369,6 +369,159 @@ def k_cat():
     B(189.5, 153, 6.5, 2, .4, 1.6, '#f3ede2'); B(188.6, 153, 8.8, 1, .3, 1, '#ffd23f'); B(191.4, 153, 8.8, 1, .3, 1, '#ffd23f')
 
 
+# ---------------- batch C: garden, utility, glass and doors ----------------
+BARK, IRON, GLASS, FROST = '#6b4a2e', '#3a3a40', '#bfe0f0', '#eef6fa'
+FRAME_L, FRAME_D = '#c9ced6', '#9aa1ad'
+STONE = ['#a39f99', '#8d8a86', '#b3aea6', '#99938a']
+
+
+def glass(x, y, z, w, d, h, col=GLASS, alpha=.28):
+    """Translucent pane: a blended material keyed (col, -alpha) in kit.MATS, so it batches like any box and never glows."""
+    k = (col, -alpha)
+    if k not in kit.MATS:
+        m = kit.mat(col).copy(); m.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = alpha
+        m.surface_render_method = 'BLENDED'; kit.MATS[k] = m
+    B(x, y, z, w, d, h, col, glow=-alpha)
+
+
+def g_bench(_):
+    """Garden bench 56 wide, seat facing +y: cast legs, oak slats."""
+    for x in (-28, 23): B(x, -7, 0, 5, 14, 3, IRON); B(x + 1, -6, 3, 3, 12, 9, IRON); B(x + 1, -9, 12, 3, 3, 19, IRON)
+    for k in range(4): B(-28, -8 + k * 4, 12, 56, 3.4, 3, OAK if k % 2 else '#c99d6a')
+    for k in range(3): B(-28, -9.5, 17 + k * 5, 56, 2.6, 3.6, OAK)
+
+
+def bench_side(_):
+    """The pond bench seen from its side: seat facing +x, back along x = -10."""
+    for y in (-28, 24): B(-7, y, 0, 14, 5, 3, IRON); B(-6, y + 1, 3, 12, 3, 9, IRON); B(-10, y + 1, 12, 3, 3, 19, IRON)
+    for k in range(4): B(-8 + k * 4, -28, 12, 3.4, 57, 3, OAK if k % 2 else '#c99d6a')
+    for k in range(3): B(-10.5, -28, 17 + k * 5, 2.6, 57, 3.6, OAK)
+
+
+def tree(s):
+    import random
+    q = random.Random(int(s * 100)); k = 0.7071
+    C(0, 0, 0, 6 * s, 50 * s, BARK, 10); C(0, 0, 0, 8 * s, 3 * s, '#5a3d25', 10)
+    for (dx, dy, r, col) in [(-22, -2, 22, LEAVES[0]), (24, 0, 20, LEAVES[0]), (0, -14, 28, LEAVES[1]), (-12, -34, 20, LEAVES[2]),
+                             (14, -32, 17, LEAVES[2]), (0, -52, 14, LEAVES[3])]:
+        ball(dx * s * k, -dx * s * k, 50 * s - dy * s, r * s, col, .9, 12)
+        for _ in range(3):  # small lumps break up the silhouette
+            a = q.random() * 6.283; u, v = math.cos(a) * r * .8, math.sin(a) * r * .55
+            ball((dx + u) * s * k, -(dx + u) * s * k, 50 * s - (dy + v) * s, r * .45 * s, q.choice(LEAVES[1:]), .9, 8)
+
+
+def bird_feeder(_):
+    C(0, 0, 0, 4, 2, IRON, 10); C(0, 0, 0, 1.8, 52, '#5a3d25', 8)
+    B(-10, -10, 50, 20, 20, 2, OAK_D)  # seed tray
+    B(-7, -7, 52, 14, 14, 10, '#d9a46a'); B(-4, 7, 54, 8, .4, 5, '#2a1a10')  # house, opening
+    kit.prism([(-11 / 10, 62 / 10), (11 / 10, 62 / 10), (0, 72 / 10)], -11 / 10, 11 / 10, TERRA)  # gable roof, ridge along y
+    for (u, c) in ((-6, '#e8c86a'), (5, '#b98a57')): C(u, 8, 52, 1.6, 1.2, c, 6)  # seed
+
+
+def hedge(_):
+    B(0, 0, 0, 34, 7, 14, '#2f6a34')
+    for i in range(4): ball(4 + i * 9, 3.5, 13, 6, ('#3f8a44', '#4f9a4c')[i % 2], .8, 10)
+    for i in range(3): ball(8.5 + i * 9, 4, 18, 4, '#5aa858', .8, 8)
+
+
+def fence(_):
+    for y in (0, 19): B(0, y, 0, 3, 3, 16, WHITE); B(-.3, y - .3, 16, 3.6, 3.6, 1, WHITE_S)
+    for z in (4, 10): B(.5, 0, z, 2, 22, 2, WHITE_S)
+    for y in (5, 9.5, 14): B(.8, y, 1, 1.6, 2.4, 13, WHITE)
+
+
+def gate(_):
+    for y in (0, 30): B(0, y, 0, 7, 4, 26, OAK_D); B(-.5, y - .5, 26, 8, 5, 2, OAK); C(3.5, y + 2, 28, 1.6, 3, MUST, 8, glow=1.2)
+
+
+def lamp_post(_):
+    C(0, 0, 0, 4, 3, IRON, 10); C(0, 0, 3, 1.6, 62, IRON, 8)
+    B(-3.5, -3.5, 63, 7, 7, 1.5, IRON); B(-3, -3, 64.5, 6, 6, 8, '#ffe8a8', glow=2.0)
+    for (u, v) in ((-3.5, -3.5), (2.5, -3.5), (-3.5, 2.5), (2.5, 2.5)): B(u, v, 64.5, 1, 1, 8, IRON)
+    B(-4, -4, 72.5, 8, 8, 1.5, IRON); C(0, 0, 74, 2, 2, IRON, 8)
+
+
+def pond(r0):
+    """Floor pond: a stone ring (world radius r0) round a deep-to-shallow blue basin; ripples, koi and pads are live."""
+    import random
+    q = random.Random(r0); n = int(r0 * .9)
+    C(0, 0, 0, r0 - 2, .3, '#7a705f', 32)
+    for k in range(n):
+        a = k * 2 * math.pi / n; r = r0 - 3 + q.random() * 1.5
+        ball(r * math.cos(a), r * math.sin(a), 0, 3.4 + q.random() * 1.2, q.choice(STONE), .5, 8)
+    rw = r0 - 9
+    for (f, c, dx) in ((1, '#2f7aa8', 0), (.82, '#3d8cbc', -4), (.62, '#4c9fcd', -8), (.4, '#5fb4dc', -14)):
+        C(dx * rw / 49, 0, .3 + (1 - f), rw * f, .3, c, 28)  # the shallow centre drifts toward the light (screen up-left)
+
+
+def picnic_table(_):
+    for x in (-30, 24):  # A-frame legs with a cross beam carrying the benches
+        B(x, -10, 0, 6, 4, 14, OAK_D); B(x, 12, 0, 6, 4, 14, OAK_D); B(x, -22, 7, 6, 54, 3, OAK_D)
+    for y in (-22, 22): B(-36, y, 10, 72, 10, 3, OAK)
+    for k in range(4): B(-34, -12 + k * 8, 14, 68, 7.6, 4, ('#c99d6a', OAK)[k % 2])
+    C(-10, 0, 18, 3.2, 5, MUST, 10); B(12, 4, 18, 14, 10, 3, '#d35a4a'); B(13, 5, 21, 12, 8, 1, '#f3d9a0')  # mug, a lunch box
+
+
+def mail_bench(_):
+    for (x, y) in [(4, 3), (62, 3), (4, 17), (62, 17)]: B(x, y, 0, 5, 5, 20, OAK_D)
+    B(6, 4, 6, 60, 18, 2, OAK_D)  # low shelf
+    B(14, 5, 8, 14, 10, 7, '#c9a477'); B(32, 6, 8, 10, 8, 5, '#d9b88a')  # parcels
+    B(0, 0, 20, 72, 26, 4, OAK); B(.5, 25.6, 20.4, 71, .4, 1, OAK_L)
+    B(18, 8, 24, 22, 3, 14, INK); B(26, 9, 24, 6, 2, 2, CHAR); B(22, 9, 38, 14, 1.5, 2, CHAR)  # monitor (its screen is live)
+    B(40, 8, 24, 14, 10, 1.5, WHITE); B(44, 10, 25.5, 14, 10, 1.5, CREAM)  # letters
+    B(60, 14, 24, 8, 6, 5, SAGE)  # stamp tin
+
+
+def mailbox(_):
+    C(12, 9, 0, 2.2, 34, OAK_D, 8)
+    B(2, 0, 34, 22, 18, 12, '#3a7ad0'); B(1.5, -.5, 46, 23, 19, 2, '#5a9af0')
+    B(5, 18, 37, 16, .4, 7, '#10305a')  # slot
+    B(23.6, 5, 38, 1, 2, 2, STEEL)  # flag pivot (the flag is live)
+
+
+def garage(_):
+    """Scheduler garage 190 x 100 x 96, a half-open roller door on the +y front; the status screen and sign are live."""
+    WALL, ROOF = '#a7a59f', '#4a4f5a'
+    B(0, 0, 0, 190, 60, 96, WALL)  # the body behind the bay; the bay (x 16..120, y 60..100) is open to the front
+    B(0, 60, 0, 16, 40, 96, WALL); B(120, 60, 0, 70, 40, 96, WALL); B(16, 60, 70, 104, 40, 26, WALL)
+    for z in (8, 23, 38, 53, 68, 83): B(0, 99.8, z, 190, .4, .8, '#9a9893')  # panel seams
+    B(16, 60, 0, 104, 40, .4, '#5a5a62')  # bay floor
+    B(16, 60, 0, 104, 2, 70, '#3a3d4e')  # bay back wall
+    B(24, 64, 8, 88, 12, 30, '#3a3d4e'); B(28, 76, 18, 20, .4, 14, '#20222c'); B(52, 76, 18, 20, .4, 14, '#20222c')  # workbench, drawers
+    B(84, 74, 16, 20, 2, 14, '#5fd38d', glow=1.0); B(86, 76, 18, 16, .3, 10, '#0d2a1c')  # charger
+    B(24, 64, 38, 88, 14, 2, '#8d6840')  # bench top
+    B(60, 62, 46, 16, 2, 2, '#ffe8a8', glow=1.6)  # strip light
+    for i in range(4): B(16, 96 + i * .5, 70 - 6 * (i + 1), 104, 2, 5.4, ('#c9ccd4', '#b4b8c2')[i % 2])  # roller door, half up
+    B(12, 99, 0, 4, 2, 74, '#7a4a22'); B(120, 99, 0, 4, 2, 74, '#7a4a22'); B(12, 99, 70, 112, 2, 4, '#7a4a22')  # door frame
+    B(-4, -4, 96, 198, 108, 6, ROOF); B(-4, -4, 102, 198, 3, 3, '#5a606c'); B(-4, 101, 102, 198, 3, 3, '#5a606c')
+    for x in (30, 150): B(x, 30, 102, 14, 12, 6, '#8a909c')  # roof units
+
+
+def glass_x(L):
+    """Partition pane on the plane x = 0 from y 0 to L: clear glass, a frosted band, light frame rails, a mullion at y 0."""
+    L = float(L)
+    glass(-1, 0, 5, 2, L, 41); glass(-1.2, 0, 46, 2.4, L, 10, FROST, .55); glass(-1, 0, 56, 2, L, 39)
+    B(-2, 0, 0, 4, L, 5, FRAME_D); B(-2, 0, 95, 4, L, 5, FRAME_L); B(-2, -1.5, 0, 4, 3, 100, FRAME_L)
+
+
+def glass_y(L, x0=0.0, ends=(0, 60, 120)):
+    """The same pane on the plane y = 0 from x x0 to x0 + L, with mullions at x0 + each of ends below L."""
+    L = float(L)
+    glass(x0, -1, 5, L, 2, 41); glass(x0, -1.2, 46, L, 2.4, 10, FROST, .55); glass(x0, -1, 56, L, 2, 39)
+    B(x0, -2, 0, L, 4, 5, FRAME_D); B(x0, -2, 95, L, 4, 5, FRAME_L)
+    for u in ends:
+        if u <= L: B(x0 + u - 1.5, -2, 0, 3, 4, 100, FRAME_L)
+
+
+def door(_):
+    """Door frame at y 0 from x -25 to 25 and the open glass leaf on x = 25 (the sign over it is live)."""
+    for x in (-28, 22): B(x, -3, 0, 6, 6, 100, FRAME_D)
+    B(-28, -3, 100, 56, 6, 8, FRAME_L)
+    glass(24.2, 3, 2, 1.6, 28, 84); B(24, 2, 0, 2, 31, 2, FRAME_D); B(24, 2, 86, 2, 31, 2, FRAME_L); B(24, 30, 2, 2, 3, 84, FRAME_L)
+    B(24.5, 26, 40, 3, 1.5, 12, STEEL)  # handle
+    B(-22, -2, 0, 44, 8, .5, '#8f3b2e'); B(-22, 2, .5, 44, 1.6, .1, MUST)  # doormat
+
+
 KAR = {0: k_floor, 1: k_back, 2: k_left, 3: k_pugon, 4: k_counter, 5: k_fridge, 6: k_table,
        7: lambda: k_chair(80), 8: lambda: k_chair(120), 9: lambda: k_chair(160), 10: k_bangko, 11: k_lamp,
        12: lambda: at(12, 166, plant, .9), 13: k_cat}
@@ -383,7 +536,11 @@ MODELS = {
     'plant': lambda v: plant(float(v or 1)), 'server-plant': lambda v: plant(1.1 + int(v) * .07, WHITE, SAGE),
     'arcade': lambda v: arcade('#ff6a6a'), 'arcade-race': lambda v: arcade('#3dd6ff'), 'jukebox': jukebox, 'sofa3': sofa3,
     'snack-table': snack_table, 'beanbag': beanbag, 'ball-pit': ball_pit, 'hoop': hoop, 'dartboard': dartboard, 'toy-bin': toy_bin,
-    'broom-corner': broom_corner, **{'karinderya.%d' % k: (lambda f: lambda v: f())(f) for k, f in KAR.items()},
+    'broom-corner': broom_corner,
+    'bench': g_bench, 'bench-side': bench_side, 'tree': lambda v: tree(float(v or 1)), 'bird-feeder': bird_feeder, 'hedge': hedge,
+    'fence': fence, 'gate': gate, 'lamp-post': lamp_post, 'pond': lambda v: pond(58), 'pond-east': lambda v: pond(66),
+    'picnic-table': picnic_table, 'mail-bench': mail_bench, 'mailbox': mailbox, 'garage': garage,
+    'glass-x': glass_x, 'glass-y': glass_y, 'office-door.0': lambda v: glass_y(25, 25, (0,)), 'office-door.1': door, **{'karinderya.%d' % k: (lambda f: lambda v: f())(f) for k, f in KAR.items()},
 }
 
 # the fixture is the footprint truth: report any frame whose model sits off its frozen footprint
@@ -406,7 +563,10 @@ for i, (name, f) in enumerate(sorted(cat['frames'].items())):
     sun = sc.objects['sun'].data; sun.shadow_maximum_resolution = 0.002; sun.shadow_filter_radius = 0; sun.angle = 0; sun.use_shadow_jitter = False; sc.eevee.shadow_ray_count = 1  # interior pieces are small: finer, crisper shadows
     sc.render.dither_intensity = 0  # 8-bit output dither is the +-1 noise that speckled flat faces after the palette snap
     MODELS[f['base']](f['variant']); objs = kit.flush(name)
-    glows = {m for (col, g), m in kit.MATS.items() if g}
+    glows = {m for (col, g), m in kit.MATS.items() if g > 0}
+    clear = {m for (col, g), m in kit.MATS.items() if g < 0}  # glass: casts no shadow, keeps its alpha through post
+    for o in objs:
+        if o.data.materials[0] in clear: o.visible_shadow = False
     fp = FROZEN.get((f['id'], f['part']), f['fp'])
     # ground-level extent of the model vs the footprint it stands on (both in world units, relative to the home)
     xs, ys, top = [], [], 0
@@ -431,6 +591,6 @@ for i, (name, f) in enumerate(sorted(cat['frames'].items())):
         for o in objs:
             if o.data.materials[0] not in glows: o.data.materials[0] = holdout()
         kit.render(os.path.join(out, name + '.glow.png'))
-    json.dump({'anchor': [ox, oy], 'footprint': fp, 'glow': bool(glows)}, open(os.path.join(out, name + '.json'), 'w', newline='\n'))
+    json.dump({'anchor': [ox, oy], 'footprint': fp, 'glow': bool(glows), 'alpha': bool(clear)}, open(os.path.join(out, name + '.json'), 'w', newline='\n'))
     print('OFFICE', name, bw, bh, ox, oy)
 print('DONE')

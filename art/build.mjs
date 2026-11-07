@@ -1,5 +1,5 @@
 // npm run art: Blender terrain + town asset + office piece renders -> art/.raw, then art/post.py -> public/art/town and
-// public/art/office (one shared palette), then art/MANIFEST.json. The office frame list comes from scripts/export-catalog.mjs.
+// public/art/office (town palette art/palette.json, kept once cut; office palette art/palette-office.json), then art/MANIFEST.json. The office frame list comes from scripts/export-catalog.mjs.
 // Developer-only (needs Blender, Python 3 and Pillow); npm test and packaging use the committed PNG/JSON.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,10 +30,10 @@ run(python, [path.join(ROOT, 'art/post.py'), RAW, OUT, OFFICE]);
 
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 const date = new Date().toISOString().slice(0, 10), license = 'Apache-2.0 (original)';
-const scriptOf = rel => rel === 'art/palette.json' ? 'art/post.py'
+const scriptOf = rel => rel.startsWith('art/palette') ? 'art/post.py'
   : rel.includes('/terrain') ? 'art/blender/town_terrain.py + art/post.py' : rel.startsWith('public/art/office/') ? 'art/blender/office_assets.py + art/post.py'
   : 'art/blender/town_assets.py + art/post.py';
-const files = [...walk(OUT), ...walk(OFFICE), path.join(ROOT, 'art/palette.json')].map(f => {
+const files = [...walk(OUT), ...walk(OFFICE), path.join(ROOT, 'art/palette.json'), path.join(ROOT, 'art/palette-office.json')].map(f => {
   const rel = path.relative(ROOT, f).split(path.sep).join('/');
   return { file: rel, sha256: crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex'), script: scriptOf(rel), date, license };
 }).sort((a, b) => a.file.localeCompare(b.file));

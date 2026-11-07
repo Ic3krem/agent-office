@@ -124,3 +124,32 @@ test('batch B live bits stay procedural over the sprites', () => {
   assert.ok(draw(kar[1]).some(c => c[0] === 'fillText'), 'karinderya sign lettering');
   assert.ok(draw(kar[6]).filter(c => c[0] === 'ellipse').length >= 9, 'plates and food on the long table');
 });
+
+// ---------- batch C: garden, utility, glass and doors ----------
+const BATCH_C = ['pond', 'pond-east', 'bench', 'bench-side', 'tree', 'bird-feeder', 'hedge', 'fence', 'gate', 'lamp-post', 'garage', 'mail-bench',
+  'mailbox', 'tires', 'picnic-table', 'glass-x', 'glass-y', 'office-door'];
+const withC = F => F.defaultInstances().filter(p => BATCH_C.includes(p.type));
+
+test('every batch C part draws from a frame the shipped atlas has, with unchanged footprints and depths', () => {
+  const a = boot(), b = boot({ image: IMG, frames: REAL().frames }), Fa = a.OfficeFurniture, Fb = b.OfficeFurniture, inst = withC(Fb);
+  assert.deepEqual([...new Set(inst.map(p => p.type))].sort(), [...BATCH_C].sort());
+  for (const p of inst) Fb.parts(p).forEach(({ it }, i) => assert.ok(usesAtlas(draw(it)), p.id + '.' + i + ' draws its sprite'));
+  const shape = F => J(withC(F).map(p => F.parts(p).map(({ it, rec }) => [it.d, it.fp, rec, !!it.o.floor, !!it.o.nofp])));
+  assert.deepEqual(shape(Fb), shape(Fa));
+});
+
+test('batch C live bits stay procedural over the sprites', () => {
+  const w = boot({ image: IMG, frames: REAL().frames }), F = w.OfficeFurniture, ST = F.state;
+  const part = (id, i = 0) => F.parts(F.defaultInstances().find(p => p.id === id))[i].it;
+  const at = (it, T) => { ST.T = T; return JSON.stringify(draw(it)); };
+  for (const id of ['pond', 'pond-east', 'bird-feeder']) assert.notEqual(at(part(id), 0.1), at(part(id), 0.9), id + ' moves with time');
+  ST.night = 0; const day = JSON.stringify(draw(part('lamp-post-1'))); ST.night = 1;
+  assert.notEqual(JSON.stringify(draw(part('lamp-post-1'))), day, 'lamp-post light follows the night'); ST.night = 0;
+  assert.ok(draw(part('office-door', 1)).some(c => c[0] === 'fillText'), 'office door sign');
+  ST.ex.scheduler = null; const g0 = draw(part('garage')), m0 = JSON.stringify(draw(part('mailbox'))), s0 = JSON.stringify(draw(part('mail-bench')));
+  assert.ok(g0.some(c => c[0] === 'fillText'), 'garage status screen');
+  ST.ex.scheduler = { present: true, itemsFound: 2, lastCheck: new Date().toISOString() };
+  assert.notEqual(JSON.stringify(draw(part('mailbox'))), m0, 'mailbox flag goes up');
+  assert.notEqual(JSON.stringify(draw(part('mail-bench'))), s0, 'mail-bench screen follows the scheduler');
+  ST.ex.scheduler = null;
+});

@@ -650,19 +650,20 @@
     poly(g, [P(x0, y, h), P(x1, y, h), P(x1, y, h - 5), P(x0, y, h - 5)], '#b9c0cc', null); poly(g, [P(x0, y, 5), P(x1, y, 5), P(x1, y, 0), P(x0, y, 0)], '#8a909c', null);
     for (let x = x0; x <= x1 + .1; x += 60) poly(g, [P(x - 1.5, y, h), P(x + 1.5, y, h), P(x + 1.5, y, 0), P(x - 1.5, y, 0)], '#a9b0bc', null);
   }
-  def('glass-x', [470, 0], (p, x, y) => add(x + y + 23, g => glassX(g, x, y, Math.min(230, y + 46)), { fp: [x - 2, y, x + 2, Math.min(230, y + 46)] }));
+  def('glass-x', [470, 0], (p, x, y) => add(x + y + 23, spriteOr('glass-x@' + (Math.min(230, y + 46) - y), g => glassX(g, x, y, Math.min(230, y + 46))), { fp: [x - 2, y, x + 2, Math.min(230, y + 46)] }));
   for (let y = 0; y < 230; y += 46) put('glass-x-' + (y / 46 + 1), 'glass-x', 470, y);
-  def('glass-y', [0, 230], (p, a, y) => { const b = a + p.w; add((a + b) / 2 + y + 2, g => glassY(g, y, a, b), { fp: [a, y - 2, b, y + 2] }); }); // p.w = pane length
+  def('glass-y', [0, 230], (p, a, y) => { const b = a + p.w; add((a + b) / 2 + y + 2, spriteOr('glass-y@' + p.w, g => glassY(g, y, a, b)), { fp: [a, y - 2, b, y + 2] }); }); // p.w = pane length
   [[0, 130], [130, 260], [260, 395]].forEach(([a, b], i) => put('glass-y-' + (i + 1), 'glass-y', a, 230, { w: b - a }));
   def('office-door', [420, 230], () => { // the short pane east of the door, then the door itself
-  add(445 + 230 + 2, g => glassY(g, 230, 445, 470), { fp: [445, 228, 470, 232] });
-  add(420 + 230 + 4, g => { // door frame + open door leaf + sign
+  add(445 + 230 + 2, spriteOr('office-door.0', g => glassY(g, 230, 445, 470)), { fp: [445, 228, 470, 232] });
+  const doorSign = g => Fy(g, 230, 124, () => { g.translate(395, 0); g.fillStyle = '#2a2030'; g.fillRect(0, 0, 50, 15); g.strokeStyle = '#ffcf6b'; g.strokeRect(.5, .5, 49, 14); txt(g, "TIRO'S OFFICE", 25, 10.5, 6.4, '#ffcf6b', 'center'); });
+  add(420 + 230 + 4, spriteOr('office-door.1', g => { // door frame + open door leaf + sign (the sign stays live: crisp text)
     const h = 100; [395, 445].forEach(x => { poly(g, [P(x - 3, 230, h), P(x + 3, 230, h), P(x + 3, 230, 0), P(x - 3, 230, 0)], '#8a909c', null); });
     poly(g, [P(395, 230, h + 8), P(445, 230, h + 8), P(445, 230, h), P(395, 230, h)], '#b9c0cc', null);
-    Fy(g, 230, h + 24, () => { g.translate(395, 0); g.fillStyle = '#2a2030'; g.fillRect(0, 0, 50, 15); g.strokeStyle = '#ffcf6b'; g.strokeRect(.5, .5, 49, 14); txt(g, "TIRO'S OFFICE", 25, 10.5, 6.4, '#ffcf6b', 'center'); });
+    doorSign(g);
     poly(g, [P(445, 230, h), P(445, 230, 0), P(445, 262, 0), P(445, 262, h - 12)], 'rgba(200,225,240,.22)', 'rgba(210,235,250,.6)', 1);
     Fg(g, .5, () => { g.fillStyle = '#8f3b2e'; g.fillRect(398, 228, 44, 8); g.fillStyle = '#d6b13a'; g.fillRect(398, 232, 44, 1.6); });
-  }); });
+  }, { over: doorSign })); });
   put('office-door', 'office-door', 420, 230);
 
   // ---------- focus area furniture: pendant lights ----------
@@ -670,40 +671,45 @@
   walls.push(g => { }); // reserved
 
   // ---------- garden ----------
-  def('pond', [790, 105], () => add(790 + 105 + 2, g => { // pond with koi and lily pads
+  def('pond', [790, 105], () => add(790 + 105 + 2, spriteOr('pond', g => { // pond with koi and lily pads: rim and water are the sprite
     const c = P(790, 105, 0); g.fillStyle = '#9a8f7a'; g.beginPath(); g.ellipse(c[0], c[1], 58, 29, 0, 0, 6.2832); g.fill();
     g.fillStyle = '#7a705f'; g.beginPath(); g.ellipse(c[0], c[1] + 1, 54, 27, 0, 0, 6.2832); g.fill();
     const gr = g.createRadialGradient(c[0] - 12, c[1] - 6, 3, c[0], c[1], 52); gr.addColorStop(0, '#6ec2e6'); gr.addColorStop(1, '#2f7aa8'); g.fillStyle = gr; g.beginPath(); g.ellipse(c[0], c[1], 49, 24.5, 0, 0, 6.2832); g.fill();
+    pondLive(g);
+  }, { over: pondLive }), { floor: true }), { walkable: true }); // flat water: always under the walkers
+  function pondLive(g) { // the shimmer rings, the koi and the lily pads
+    const c = P(790, 105, 0);
     g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; for (let i = 0; i < 3; i++) { const r = 8 + ((ST.T * 6 + i * 11) % 30); g.globalAlpha = Math.max(0, 1 - r / 38) * .8; g.beginPath(); g.ellipse(c[0] + 14, c[1] + 4, r, r / 2, 0, 0, 6.2832); g.stroke(); } g.globalAlpha = 1;
     [['#ff9a4a', 0, 1], ['#fff', 2.4, -1.2], ['#ff6a5a', 4.4, .8]].forEach(([col, ph, sp], i) => { const a = ST.T * .5 * sp + ph, kx = c[0] + Math.cos(a) * (28 - i * 4), ky = c[1] + Math.sin(a) * (14 - i * 2); g.save(); g.translate(kx, ky); g.rotate(a + (sp > 0 ? Math.PI / 2 : -Math.PI / 2)); g.fillStyle = col; g.beginPath(); g.ellipse(0, 0, 6, 2.4, 0, 0, 6.2832); g.fill(); g.beginPath(); g.moveTo(-5, 0); g.lineTo(-9, -2.4); g.lineTo(-9, 2.4); g.fill(); g.restore(); });
     [[-22, 6], [18, -10], [26, 8]].forEach(([dx, dy]) => { g.fillStyle = '#3d8a4a'; g.beginPath(); g.ellipse(c[0] + dx, c[1] + dy, 7, 3.4, 0, 0, 6.2832); g.fill(); g.fillStyle = '#ffb3d1'; g.beginPath(); g.arc(c[0] + dx + 1, c[1] + dy - 1, 1.8, 0, 6.2832); g.fill(); });
-  }, { floor: true }), { walkable: true }); // flat water: always under the walkers
+  }
   put('pond', 'pond', 790, 105);
-  def('bench', [700, 24], (p, x, y) => add(x + y, g => bench(g, x, y, 56)), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 's', zone: 'garden', seat: true }] }); // p.spot = its seat id
+  def('bench', [700, 24], (p, x, y) => add(x + y, spriteOr('bench', g => bench(g, x, y, 56))), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 's', zone: 'garden', seat: true }] }); // p.spot = its seat id
   put('bench-1', 'bench', 700, 24, { spot: 'garden:b1' });
   put('bench-2', 'bench', 860, 24, { spot: 'garden:b2' });
-  def('bench-side', [585, 118], () => add(585 + 118, g => { // bench facing the pond, seen from its side
+  def('bench-side', [585, 118], () => add(585 + 118, spriteOr('bench-side', g => { // bench facing the pond, seen from its side
     box(g, 578, 90, 0, 14, 5, 12, COL.dwood); box(g, 578, 142, 0, 14, 5, 12, COL.dwood); box(g, 578, 90, 12, 14, 57, 3, '#b98a57'); box(g, 575, 90, 15, 3, 57, 16, '#a5764a');
-  }), { spots: [{ id: 'garden:b3', dx: 0, dy: 0, face: 'e', zone: 'garden', seat: true }] });
+  })), { spots: [{ id: 'garden:b3', dx: 0, dy: 0, face: 'e', zone: 'garden', seat: true }] });
   put('bench-side', 'bench-side', 585, 118);
   // tree; p.s = scale, p.dd = depth tweak against x + y + 4
-  def('tree', [560, 36], (p, x, y) => add(x + y + 4 + (p.dd || 0), g => tree(g, x, y, p.s)));
+  def('tree', [560, 36], (p, x, y) => add(x + y + 4 + (p.dd || 0), spriteOr('tree@' + (p.s || 1), g => tree(g, x, y, p.s))));
   put('tree-1', 'tree', 560, 36, { s: 1.05 }); put('tree-2', 'tree', 950, 44, { s: 1.2, dd: -4 });
   def('server-plant', [945, 196], () => { // grows a size per three filed reports: one frame per level
     const lv = () => Math.min(6, ST.ex.plantLevel || 0), grown = [0, 1, 2, 3, 4, 5, 6].map(l => spriteOr('server-plant@' + l, g => plant(g, 945, 196, 1.1 + l * .07)));
     const plantItem = add(940 + 190, g => grown[lv()] ? grown[lv()](g) : plant(g, 945, 196, 1.1 + lv() * .07));
     reg('plant', 'Server plant', [938, 190, 0, 14, 14, 70], plantItem); });
   put('server-plant', 'server-plant', 945, 196);
-  def('bird-feeder', [930, 100], () => add(930 + 100, g => { // bird feeder on a pole
+  const bird = g => { const c = P(930, 99, 80); g.fillStyle = '#e0573f'; g.beginPath(); g.ellipse(c[0] + 8 + Math.sin(ST.T) * 1, c[1] - 6, 3, 2, 0, 0, 6.2832); g.fill(); };
+  def('bird-feeder', [930, 100], () => add(930 + 100, spriteOr('bird-feeder', g => { // bird feeder on a pole; the bird bobs live
     cyl(g, 930, 100, 0, 1.8, 52, '#5a3d25'); box(g, 922, 92, 52, 16, 16, 10, '#a65f2c'); poly(g, [P(920, 90, 62), P(940, 90, 62), P(930, 99, 74)], '#7a3b1c', null); poly(g, [P(920, 90, 62), P(920, 110, 62), P(930, 99, 74)], '#6a321a', null);
-    const c = P(930, 99, 80); g.fillStyle = '#e0573f'; g.beginPath(); g.ellipse(c[0] + 8 + Math.sin(ST.T) * 1, c[1] - 6, 3, 2, 0, 0, 6.2832); g.fill();
-  }));
+    bird(g);
+  }, { over: bird })));
   put('bird-feeder', 'bird-feeder', 930, 100);
   // lantern string lights along the right wall
   fixture('string-lights', () => add(10, g => { const n = 11; g.strokeStyle = '#2b2b36'; g.lineWidth = 1; g.beginPath(); for (let i = 0; i <= 60; i++) { const x = 490 + i * 8.5, z = 118 - Math.sin(i / 60 * Math.PI * 4) ** 2 * 0 - 8 * Math.sin((i / 15) * Math.PI) ** 2 * 1 - 4; const p = P(x, 3, z); i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); } g.stroke();
     for (let i = 0; i < n * 3; i++) { const x = 500 + i * (480 / (n * 3 - 1)), z = 118 - 8 * Math.sin((((x - 490) / 8.5) / 15) * Math.PI) ** 2 - 8, p = P(x, 3, z - 4); const on = ST.night > .1 || ST.dim > .3 || true; g.fillStyle = ['#ffd36b', '#ffb3d1', '#9de4e8', '#c9f0a0'][i % 4]; g.beginPath(); g.arc(p[0], p[1] + 2, 2.6, 0, 6.2832); g.fill(); if (on) { const gr = g.createRadialGradient(p[0], p[1] + 2, 1, p[0], p[1] + 2, 12); gr.addColorStop(0, 'rgba(255,225,150,' + (.25 + .35 * ST.night) + ')'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(p[0] - 12, p[1] - 10, 24, 24); } } }));
   // hedge along the garden's south edge (gate at x=500)
-  def('hedge', [545, 222], (p, x) => add(x + 18 + 224, g => { box(g, x, 222, 0, 34, 7, 16, '#2f6a34', { t: '#3f8a44' }); [0, 1, 2].forEach(i => { const c = P(x + 6 + i * 11, 225, 18); g.fillStyle = '#3f8a44'; g.beginPath(); g.arc(c[0], c[1], 6, 0, 6.2832); g.fill(); }); }));
+  def('hedge', [545, 222], (p, x) => add(x + 18 + 224, spriteOr('hedge', g => { box(g, x, 222, 0, 34, 7, 16, '#2f6a34', { t: '#3f8a44' }); [0, 1, 2].forEach(i => { const c = P(x + 6 + i * 11, 225, 18); g.fillStyle = '#3f8a44'; g.beginPath(); g.arc(c[0], c[1], 6, 0, 6.2832); g.fill(); }); })));
   for (let x = 545; x < 1000; x += 36) put('hedge-' + ((x - 545) / 36 + 1), 'hedge', x, 222);
 
   // ---------- playroom ----------
@@ -940,38 +946,53 @@
 
   // ---------- east park ----------
   // low fence along the focus band's east edge, with a gate gap at the aisle (y 380..412)
-  def('fence', [999, 236], (p, x, y) => add(1000 + y + 12, g => { box(g, 999, y, 0, 3, 22, 14, '#d8d2c6', { t: '#efe9dc' }); box(g, 999, y, 8, 3, 22, 3, '#c9c2b4'); }));
+  def('fence', [999, 236], (p, x, y) => add(1000 + y + 12, spriteOr('fence', g => { box(g, 999, y, 0, 3, 22, 14, '#d8d2c6', { t: '#efe9dc' }); box(g, 999, y, 8, 3, 22, 3, '#c9c2b4'); })));
   let fenceN = 0; [[236, 380], [412, 548]].forEach(([y0, y1]) => { for (let y = y0; y < y1; y += 24) put('fence-' + ++fenceN, 'fence', 999, y); });
-  def('gate', [997, 379], () => add(1000 + 396, g => { [380, 410].forEach(y => box(g, 997, y - 1, 0, 7, 4, 26, '#7a5230', { t: '#9a6a3c' })); }, { fp: [997, 379, 1004, 413] }), { gaps: true });
+  def('gate', [997, 379], () => add(1000 + 396, spriteOr('gate', g => { [380, 410].forEach(y => box(g, 997, y - 1, 0, 7, 4, 26, '#7a5230', { t: '#9a6a3c' })); }), { fp: [997, 379, 1004, 413] }), { gaps: true });
   put('gate', 'gate', 997, 379);
-  def('pond-east', [1120, 290], () => add(1120 + 290 + 2, g => { // east pond, a little bigger than the garden one
+  def('pond-east', [1120, 290], () => add(1120 + 290 + 2, spriteOr('pond-east', g => { // east pond, a little bigger than the garden one
     const c = P(1120, 290, 0); g.fillStyle = '#9a8f7a'; g.beginPath(); g.ellipse(c[0], c[1], 66, 33, 0, 0, 6.2832); g.fill();
     g.fillStyle = '#7a705f'; g.beginPath(); g.ellipse(c[0], c[1] + 1, 62, 31, 0, 0, 6.2832); g.fill();
     const gr = g.createRadialGradient(c[0] - 14, c[1] - 7, 3, c[0], c[1], 58); gr.addColorStop(0, '#6ec2e6'); gr.addColorStop(1, '#2f7aa8'); g.fillStyle = gr; g.beginPath(); g.ellipse(c[0], c[1], 57, 28.5, 0, 0, 6.2832); g.fill();
+    pondEastLive(g);
+  }, { over: pondEastLive }), { floor: true }), { walkable: true });
+  function pondEastLive(g) { // the shimmer rings and the lily pads
+    const c = P(1120, 290, 0);
     g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; for (let i = 0; i < 2; i++) { const r = 8 + ((ST.T * 5 + i * 14) % 34); g.globalAlpha = Math.max(0, 1 - r / 44) * .8; g.beginPath(); g.ellipse(c[0] - 12, c[1] + 3, r, r / 2, 0, 0, 6.2832); g.stroke(); } g.globalAlpha = 1;
     [[-30, 6], [22, -9], [34, 8]].forEach(([dx, dy]) => { g.fillStyle = '#3d8a4a'; g.beginPath(); g.ellipse(c[0] + dx, c[1] + dy, 7, 3.4, 0, 0, 6.2832); g.fill(); g.fillStyle = '#ffd1e0'; g.beginPath(); g.arc(c[0] + dx + 1, c[1] + dy - 1, 1.8, 0, 6.2832); g.fill(); });
-  }, { floor: true }), { walkable: true });
+  }
   put('pond-east', 'pond-east', 1120, 290);
   put('bench-3', 'bench', 1050, 440, { spot: 'pk:b1' }); put('bench-4', 'bench', 1150, 440, { spot: 'pk:b2' });
-  def('picnic-table', [1100, 150], () => add(1100 + 150, g => { // picnic table with two benches
+  def('picnic-table', [1100, 150], () => add(1100 + 150, spriteOr('picnic-table', g => { // picnic table with two benches
     box(g, 1070, 140, 0, 6, 26, 14, COL.dwood); box(g, 1124, 140, 0, 6, 26, 14, COL.dwood);
     box(g, 1064, 128, 10, 72, 10, 3, '#a5764a'); box(g, 1064, 172, 10, 72, 10, 3, '#a5764a'); box(g, 1066, 138, 14, 68, 32, 4, '#b98a57');
     mug(g, 1090, 150, 18, '#ffcf6b'); box(g, 1112, 154, 18, 14, 10, 3, '#d35a4a');
-  }));
+  })));
   put('picnic-table', 'picnic-table', 1100, 150);
   [[1190, 44, 1.15], [1205, 200, 1.0], [1040, 470, 1.0], [1212, 440, 1.1], [1045, 150, .95], [1070, 330, 1.0]].forEach(([x, y, s], i) => put('tree-' + (i + 3), 'tree', x, y, { s }));
   put('plant-4', 'plant', 1180, 120, { s: 1.1 }); put('plant-5', 'plant', 1012, 252, { s: 1, dd: -4 });
-  def('lamp-post', [1010, 330], (p, x, y) => add(x + y + 2, g => { // lamp posts
+  const postGlow = (g, x, y) => { const c = P(x, y, 70), gr = g.createRadialGradient(c[0], c[1], 1, c[0], c[1], 24); gr.addColorStop(0, 'rgba(255,225,150,' + (.3 + .3 * ST.night) + ')'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(c[0] - 24, c[1] - 24, 48, 48); };
+  def('lamp-post', [1010, 330], (p, x, y) => add(x + y + 2, spriteOr('lamp-post', g => { // lamp posts; the light pool follows the night live
     cyl(g, x, y, 0, 2, 66, '#2b2b36'); const c = P(x, y, 70); g.fillStyle = '#ffe8a8'; g.beginPath(); g.arc(c[0], c[1], 5, 0, 6.2832); g.fill();
-    const gr = g.createRadialGradient(c[0], c[1], 1, c[0], c[1], 24); gr.addColorStop(0, 'rgba(255,225,150,' + (.3 + .3 * ST.night) + ')'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(c[0] - 24, c[1] - 24, 48, 48);
-  }));
+    postGlow(g, x, y);
+  }, { over: g => postGlow(g, x, y) })));
   put('lamp-post-1', 'lamp-post', 1010, 330); put('lamp-post-2', 'lamp-post', 1190, 280);
 
   // ---------- garage + scheduler station ----------
   // Status comes from /api/scheduler (the scheduler job writes scheduler.json); ST.ex.scheduler is that payload, or null = no data yet.
   const sched = () => ST.ex.scheduler || null;
   const ago = iso => { if (!iso) return 'never'; const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
-  def('garage', [1030, 590], () => { const garageItem = add(1220 + 690, g => { // building with a half-open roller door, status screen and a bay interior
+  // the status screen and the sign over the door, drawn on the garage front (local u from x0, v down from the eave): live
+  function garageScreen(g, S) {
+    g.fillStyle = '#20222c'; g.fillRect(134, 22, 50, 42); g.fillStyle = '#0d2a1c'; g.fillRect(136, 24, 46, 38);
+    const ok = S && S.present;
+    txt(g, 'SCHEDULER', 159, 32, 6, '#7cf0b0', 'center');
+    txt(g, ok ? 'check ' + ago(S.lastCheck) : 'no data yet', 159, 42, 5.2, ok && S.stale ? '#ffb547' : '#cfe0d0', 'center');
+    txt(g, ok ? S.itemsFound + ' item' + (S.itemsFound === 1 ? '' : 's') : '--', 159, 50, 5.2, '#cfe0d0', 'center');
+    txt(g, ok ? 'Tiro ' + ago(S.lastUpdateToTiro) : '', 159, 58, 5.2, '#ffcf6b', 'center');
+    g.fillStyle = '#2a2030'; g.fillRect(24, 6, 88, 13); g.strokeStyle = '#ffcf6b'; g.strokeRect(24.5, 6.5, 87, 12); txt(g, 'SCHEDULER GARAGE', 68, 15.5, 6.6, '#ffcf6b', 'center');
+  }
+  def('garage', [1030, 590], () => { const garageItem = add(1220 + 690, spriteOr('garage', g => { // building with a half-open roller door, status screen and a bay interior
     const x0 = 1030, y0 = 590, w = 190, d = 100, h = 96, S = sched();
     box(g, x0, y0, 0, w, d, h, '#8f95a3', { t: '#6e7482', l: '#9aa0ae', r: '#6f7583' });
     box(g, x0 - 4, y0 - 4, h, w + 8, d + 8, 6, '#3a3f4e', { t: '#4a5062' });
@@ -984,34 +1005,30 @@
       g.fillStyle = '#3a3d4e'; g.fillRect(24, 56, 88, 30); g.fillStyle = '#20222c'; g.fillRect(28, 62, 20, 14); g.fillRect(52, 62, 20, 14); g.fillStyle = '#d6b13a'; g.fillRect(34, 66, 8, 2); g.fillRect(58, 70, 8, 2);
       g.fillStyle = '#8d6840'; g.fillRect(24, 82, 88, 6); g.fillStyle = '#5fd38d'; g.fillRect(84, 66, 20, 14); g.fillStyle = '#0d2a1c'; g.fillRect(86, 68, 16, 10);
       g.fillStyle = '#ffe8a8'; g.fillRect(60, 48, 16, 2);
-      g.fillStyle = '#20222c'; g.fillRect(134, 22, 50, 42); g.fillStyle = '#0d2a1c'; g.fillRect(136, 24, 46, 38);
-      const ok = S && S.present;
-      txt(g, 'SCHEDULER', 159, 32, 6, '#7cf0b0', 'center');
-      txt(g, ok ? 'check ' + ago(S.lastCheck) : 'no data yet', 159, 42, 5.2, ok && S.stale ? '#ffb547' : '#cfe0d0', 'center');
-      txt(g, ok ? S.itemsFound + ' item' + (S.itemsFound === 1 ? '' : 's') : '--', 159, 50, 5.2, '#cfe0d0', 'center');
-      txt(g, ok ? 'Tiro ' + ago(S.lastUpdateToTiro) : '', 159, 58, 5.2, '#ffcf6b', 'center');
-      g.fillStyle = '#2a2030'; g.fillRect(24, 6, 88, 13); g.strokeStyle = '#ffcf6b'; g.strokeRect(24.5, 6.5, 87, 12); txt(g, 'SCHEDULER GARAGE', 68, 15.5, 6.6, '#ffcf6b', 'center');
+      garageScreen(g, S);
     });
-  });
+  }, { over: g => Fy(g, 690, 96, () => { g.translate(1030, 0); garageScreen(g, sched()); }) }));
   reg('garage', 'Garage: scheduler status', [1030, 590, 0, 190, 100, 102], garageItem); });
   // The bench and the mailbox are separate pieces with their own footprints: as one piece its footprint stretched over the
   // mailbox post and swallowed the Scheduler character, who then sorted behind the bench and the mailbox.
-  def('mail-bench', [1068, 704], () => { const stationItem = add(1140 + 730, g => { // mail-sorting bench with a monitor
+  const mailScreen = (g, S) => Fy(g, 715, 38, () => { g.translate(1088, 0); g.fillStyle = S && S.present ? '#0d2a1c' : '#0c1024'; g.fillRect(0, 0, 18, 11); g.fillStyle = '#5ef0a0'; for (let i = 0; i < 3; i++) g.fillRect(2, 2 + i * 3, 4 + ((i * 5) % 7), 1.2); });
+  def('mail-bench', [1068, 704], () => { const stationItem = add(1140 + 730, spriteOr('mail-bench', g => { // mail-sorting bench with a monitor (its screen is live)
     const S = sched();
     box(g, 1072, 707, 0, 5, 5, 20, '#4a3420'); box(g, 1130, 707, 0, 5, 5, 20, '#4a3420'); box(g, 1072, 721, 0, 5, 5, 20, '#4a3420'); box(g, 1130, 721, 0, 5, 5, 20, '#4a3420');
     box(g, 1068, 704, 20, 72, 26, 4, '#b98a57', { t: '#d8b27a' });
     box(g, 1086, 712, 24, 22, 3, 14, '#20222a'); box(g, 1090, 713, 38, 14, 1.5, 2, '#3a3a44');
-    Fy(g, 715, 38, () => { g.translate(1088, 0); g.fillStyle = S && S.present ? '#0d2a1c' : '#0c1024'; g.fillRect(0, 0, 18, 11); g.fillStyle = '#5ef0a0'; for (let i = 0; i < 3; i++) g.fillRect(2, 2 + i * 3, 4 + ((i * 5) % 7), 1.2); });
+    mailScreen(g, S);
     box(g, 1108, 712, 24, 14, 10, 1.5, '#fff'); box(g, 1112, 714, 25.5, 14, 10, 1.5, '#f3ede2');
-  }, { fp: [1068, 704, 1140, 730] });
+  }, { over: g => mailScreen(g, sched()) }), { fp: [1068, 704, 1140, 730] });
   reg('scheduler', 'Scheduler station: mail and check-ins', [1068, 704, 0, 72, 26, 48], stationItem); });
-  def('mailbox', [1166, 726], () => { const mailboxItem = add(1190 + 740, g => { // mailbox on a post whose flag goes up when items were found
-    const S = sched(), up = S && S.present && S.itemsFound > 0;
+  const mailFlag = (g, S) => { const up = S && S.present && S.itemsFound > 0, fl = P(1190, 732, up ? 58 : 40); g.fillStyle = '#e0573f'; g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 3, up ? 14 : 5); g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 7, 4); };
+  def('mailbox', [1166, 726], () => { const mailboxItem = add(1190 + 740, spriteOr('mailbox', g => { // mailbox on a post whose flag goes up when items were found (the flag is live)
+    const S = sched();
     cyl(g, 1178, 735, 0, 2.2, 34, '#6b4220');
     box(g, 1168, 726, 34, 22, 18, 14, '#3a7ad0', { t: '#5a9af0', l: '#3a7ad0', r: '#2a5aa0' });
     Fy(g, 744, 48, () => { g.translate(1168, 0); g.fillStyle = '#10305a'; g.fillRect(3, 4, 16, 7); });
-    const fl = P(1190, 732, up ? 58 : 40); g.fillStyle = '#e0573f'; g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 3, up ? 14 : 5); g.fillRect(fl[0] - 1.5, fl[1] - (up ? 14 : 5), 7, 4);
-  }, { fp: [1166, 724, 1190, 746] });
+    mailFlag(g, S);
+  }, { over: g => mailFlag(g, sched()) }), { fp: [1166, 724, 1190, 746] });
   reg('mailbox', 'Mailbox: scheduler check-ins', [1166, 726, 0, 24, 20, 58], mailboxItem); });
   def('tires', [1022, 760], (p, x, y) => add(x + y, spriteOr('tires', g => { cyl(g, x, y, 0, 8, 6, '#2a2a30'); cyl(g, x, y, 6, 8, 6, '#34343c'); })));
   // the garage is listed after the bench and mailbox so the click objects keep their 1.2.9 order
