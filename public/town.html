@@ -40,29 +40,56 @@
     // ?hour=<0-23> is only for visual and perf checks: a fixed time of day.
     const hq = /[?&]hour=(\d+)/.exec(location.search), hour = hq ? Math.min(23, +hq[1]) : null;
     let stored = await Graphics.load();
-    // Renderer: Canvas2D for G.renderer 'canvas' or when the GPU mount fails (logged once), else PixiJS/WebGL.
-    // A WebGL canvas cannot become 2D, so a swap mounts on a fresh element (same id, listeners re-wired by wire()).
-    const fresh = () => { const c = canvas.cloneNode(false), had = document.activeElement === canvas; canvas.replaceWith(c); canvas = c; if (wire) wire(c); if (had) c.focus(); return c; };
-    const mountOn = async (cv, g) => {
-      const o = { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: g, hour };
-      if (g.renderer === 'canvas' || gpuFailed) return TownRender2D.mount(cv, o);
-      try { return await TownRender.mount(cv, o); } catch (e) {
-        gpuFailed = true; console.info('Town: the GPU renderer failed (' + (e && e.message || e) + '); using Canvas2D.');
-        return TownRender2D.mount(fresh(), o);
+    // Settings -> G. GPU asked for (preset or 'GPU if available') but no WebGL, or the GPU mount failed: the town runs
+    // with Low's values (spec: the Canvas2D fallback draws the scene at the Low preset). An explicit Canvas2D choice
+    // in Custom keeps its other settings.
+    const resolveG = () => {
+      const env = { ...Graphics.env() }, s = Graphics.normalize(stored);
+      if (gpuFailed) env.webgl = false;
+      const g = Graphics.resolve(stored, env), asked = s ? (s.preset === 'custom' ? s.custom : Graphics.PRESETS[s.preset]).renderer : 'auto';
+      return g.renderer === 'canvas' && asked !== 'canvas' ? Graphics.resolve({ preset: 'low' }, env) : g;
+    };
+    // Mount the renderer G asks for on a hidden sibling canvas (a WebGL canvas cannot become 2D, so every mount gets a
+    // fresh element, same id). A GPU reject is logged once and retried with Canvas2D at Low. -> {api, cv}; a failed
+    // attempt's canvas is removed.
+    const mountHidden = async g => {
+      const attempt = async (mount, g) => {
+        const cv = canvas.cloneNode(false);
+        cv.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden'; // laid out at full size, not shown
+        canvas.after(cv);
+        try { return { api: await mount(cv, { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: g, hour }), cv }; } catch (e) { cv.remove(); throw e; }
+      };
+      if (g.renderer === 'canvas') return attempt(TownRender2D.mount, g);
+      try { return await attempt(TownRender.mount, g); } catch (e) {
+        gpuFailed = true; console.info('Town: the GPU renderer failed (' + (e && e.message || e) + '); using Canvas2D at Low.');
+        return attempt(TownRender2D.mount, resolveG());
       }
     };
-    let wire = null, lastTrav = [];
-    api = await mountOn(canvas, Graphics.resolve(stored, Graphics.env()));
+    // Show a mounted renderer in place of the current canvas; input listeners are re-wired, focus kept.
+    const place = m => {
+      const had = document.activeElement === canvas;
+      canvas.remove(); canvas = m.cv; canvas.style.cssText = ''; api = m.api;
+      if (wire) wire(canvas);
+      if (had) canvas.focus();
+      api.resize();
+    };
+    let wire = null, lastTrav = [], swapping = false;
+    place(await mountHidden(resolveG()));
     // Re-resolve on a settings change, and when power saver (8 fps ambient) or reduced motion (ambient off) changes.
-    // A renderer change mounts the other one on a fresh canvas, carries the player, camera and travellers over, then
-    // destroys the old one (it stays usable until then). Changes queue so two swaps never overlap.
+    // A renderer change mounts the other one hidden while the old one keeps drawing, then swaps it in and carries the
+    // player, camera and travellers over. Input is ignored while a swap is pending; changes queue so swaps never overlap.
+    // If the new mount fails, the old renderer stays (one console.info).
     let queue = Promise.resolve();
     const regraph = () => { queue = queue.then(async () => {
-      const g = Graphics.resolve(stored, Graphics.env()), kind = g.renderer === 'canvas' || gpuFailed ? 'canvas' : 'gpu';
-      if (kind === api.kind) return api.setGraphics(g);
-      const old = api;
-      api = await mountOn(fresh(), g);
-      old.destroy(); draw(); if (lastTrav.length) api.setTravellers(lastTrav);
+      const g = resolveG();
+      if (g.renderer === api.kind) return api.setGraphics(g);
+      swapping = true;
+      try {
+        const m = await mountHidden(g), old = api;
+        place(m); old.destroy(); draw();
+        if (lastTrav.length) api.setTravellers(lastTrav);
+      } catch (e) { console.info('Town: could not switch renderer (' + (e && e.message || e) + '); keeping the current one.'); }
+      finally { swapping = false; }
     }).catch(fail); };
     Graphics.onChange(s => { stored = s; regraph(); });
     addEventListener('storage', e => { if (e.key === 'ao.powerSaver') regraph(); });
@@ -159,6 +186,7 @@
     const go = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } };
     const state = e => ({ shown: true, canvas });
     addEventListener('keydown', e => {
+      if (swapping) return; // a renderer swap is pending
       const act = WP.takesKey(e, state(e));
       if (act === 'interact') { if (near) { e.preventDefault(); enter(); } return; }
       if (act !== 'move') return;
@@ -172,6 +200,7 @@
       c.addEventListener('pointermove', e => { const r = c.getBoundingClientRect(); hover = { x: e.clientX - r.left, y: e.clientY - r.top }; }); // the traveller loop shows the tag
       c.addEventListener('pointerleave', () => { hover = null; tag.hidden = true; });
       c.addEventListener('pointerdown', e => {
+        if (swapping) return;
         const r = c.getBoundingClientRect(), [x, y] = api.toWorld(e.clientX - r.left, e.clientY - r.top);
         if (WP.walkTo(p, { x, y }, grid)) go();
       });

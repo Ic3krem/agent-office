@@ -80,6 +80,36 @@
     return best && { id: best.id, name: best.name, sx: best.sx, sy: best.sy };
   }
 
+  // View rect in terrain px for a camera on world (x, y): centred on it, clamped to the map (centred when the map is
+  // smaller than the view). viewW/viewH: backing px. -> {left, top, w, h}. Shared by both renderers.
+  function cameraRect(x, y, viewW, viewH, zoom, terrain) {
+    const [px, py] = project(x, y, 0), w = viewW / zoom, h = viewH / zoom, [tw, th] = terrain.size;
+    const cl = (v, half, size) => size <= half * 2 ? size / 2 : Math.min(size - half, Math.max(half, v));
+    return { left: cl(px, w / 2, tw) - w / 2, top: cl(py, h / 2, th) - h / 2, w, h };
+  }
+  // css px inside the canvas -> world x,y at ground level, for a laid-out view (k: backing px per css px).
+  const toWorldAt = (cx, cy, left, top, zoom, k) => unproject(left + cx * k / zoom, top + cy * k / zoom);
+  // Backing store = css px x renderScale (G.renderScale already has the HiDPI cap applied, so dpr is 1 here), and the zoom.
+  function backingSize(canvas, G) {
+    const rs = G.renderScale, cw = canvas.clientWidth, ch = canvas.clientHeight;
+    return { w: Math.max(1, Math.round(cw * rs)), h: Math.max(1, Math.round(ch * rs)), zoom: zoomFor(cw, ch, 1, G) };
+  }
+  // Day/night clock for render on demand: changed(G) is true once per move of the light key (night tenth | lighting |
+  // shadows); a 60 s timer calls onStale only when the tenth moved and the page is visible. stop() on destroy.
+  function lightClock(hour, onStale) {
+    let key = '';
+    const now = () => hour != null ? hour : new Date().getHours() + new Date().getMinutes() / 60;
+    const bucket = () => Math.round(root.Graphics.nightOf(now()) * 10); // tints change per tenth of night, as the office's ensureBG
+    const stale = () => !key.startsWith(bucket() + '|');
+    const timer = setInterval(() => { if (!root.document.hidden && stale()) onStale(); }, 60000);
+    return {
+      now, stale,
+      changed(G) { const k = bucket() + '|' + G.lighting + '|' + G.shadows; if (k === key) return false; key = k; return true; },
+      reset() { key = ''; },
+      stop() { clearInterval(timer); },
+    };
+  }
+
   // cam: top-left of the view in terrain px; view: its size in terrain px.
   function visibleChunks(cam, view, terrain) {
     const n = terrain.chunk, cl = v => Math.max(0, v);
@@ -257,15 +287,12 @@
 
     let camX = map.spawn.x, camY = map.spawn.y, zoom = 1, viewW = 1, viewH = 1;
     let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, dead = false;
-    let G = graphics, lightKey = '', tintNow = 0xffffff;
-    const hourNow = () => hour != null ? hour : new Date().getHours() + new Date().getMinutes() / 60;
-    const bucket = () => Math.round(root.Graphics.nightOf(hourNow()) * 10); // tints change per tenth of night, as the office's ensureBG
+    let G = graphics, tintNow = 0xffffff;
+    const clock = lightClock(hour, () => mark()); // render on demand: once a minute (and on becoming visible), re-render only if the night tenth moved
     function applyGraphics() {
       shade.visible = G.shadows !== 'off'; blobs.visible = G.shadows === 'blob'; soft.visible = G.shadows === 'soft' || G.shadows === 'tint';
-      const key = bucket() + '|' + G.lighting + '|' + G.shadows;
-      if (key === lightKey) return;
-      lightKey = key;
-      const h = hourNow();
+      if (!clock.changed(G)) return;
+      const h = clock.now();
       const L = lightAt(h, G.lighting);
       tintNow = ground.tint = ambLow.tint = ambHigh.tint = L.tint;
       // world is tinted per sprite, not as a container: a container tint would also darken the additive glow sprites in it
@@ -274,15 +301,11 @@
       pools.alpha = L.pools; pools.visible = L.pools > 0;
       soft.tint = G.shadows === 'tint' ? root.Graphics.tintOf(root.Graphics.nightOf(h)) : 0xffffff;
     }
-    // Render on demand: once a minute (and on becoming visible), re-render only if the night bucket moved.
-    const lightStale = () => !lightKey.startsWith(bucket() + '|');
-    const hourTimer = setInterval(() => { if (!document.hidden && lightStale()) mark(); }, 60000);
     const view = new P.Rectangle();
 
     function layout() {
-      const [px, py] = project(camX, camY, 0), vw = viewW / zoom, vh = viewH / zoom, [tw, th] = terrain.size;
-      const cl = (v, half, size) => size <= half * 2 ? size / 2 : Math.min(size - half, Math.max(half, v));
-      left = cl(px, vw / 2, tw) - vw / 2; top = cl(py, vh / 2, th) - vh / 2;
+      const v = cameraRect(camX, camY, viewW, viewH, zoom, terrain), vw = v.w, vh = v.h;
+      left = v.left; top = v.top;
       cam.scale.set(zoom);
       cam.position.set(-Math.round(left * zoom), -Math.round(top * zoom));
       const on = new Set(visibleChunks({ x: left, y: top }, { w: vw, h: vh }, terrain).map(o => o.r * 100 + o.c));
@@ -315,15 +338,14 @@
       ambRaf = requestAnimationFrame(ambTick);
     }
     const ambStart = () => { if (!ambRaf && ambOn()) ambRaf = requestAnimationFrame(ambTick); };
-    const onVis = () => { if (!document.hidden && (dirty || lightStale())) mark(); ambStart(); };
+    const onVis = () => { if (!document.hidden && (dirty || clock.stale())) mark(); ambStart(); };
     document.addEventListener('visibilitychange', onVis);
     canvas.addEventListener('webglcontextrestored', mark);
     app.stage.eventMode = 'none'; // input is DOM-only: skip Pixi's per-move hit-testing
 
     function resize() {
-      // Backing store = css px x renderScale (G.renderScale already has the HiDPI cap applied), so dpr is 1 here.
-      const rs = G.renderScale, w = Math.max(1, Math.round(canvas.clientWidth * rs)), h = Math.max(1, Math.round(canvas.clientHeight * rs));
-      zoom = zoomFor(canvas.clientWidth, canvas.clientHeight, 1, G);
+      const { w, h, zoom: z } = backingSize(canvas, G);
+      zoom = z;
       if (w !== viewW || h !== viewH) { viewW = w; viewH = h; app.renderer.resize(w, h); }
       mark();
     }
@@ -353,11 +375,11 @@
         return travellerHit(shown, cx, cy, left, top, zoom, viewW / canvas.clientWidth);
       },
       // css px inside the canvas -> world x,y at ground level (uses the last laid-out camera, so call after a render)
-      toWorld(cx, cy) { layout(); const k = viewW / canvas.clientWidth; return unproject(left + cx * k / zoom, top + cy * k / zoom); },
+      toWorld(cx, cy) { layout(); return toWorldAt(cx, cy, left, top, zoom, viewW / canvas.clientWidth); },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
       setGraphics(g) {
-        const rs = G.renderScale, amb = G.ambient; G = g; lightKey = '';
+        const rs = G.renderScale, amb = G.ambient; G = g; clock.reset();
         if (g.ambient !== amb) { replan(); animate(ambT); }
         if (g.renderScale !== rs) resize(); else mark();
         ambStart();
@@ -366,7 +388,7 @@
       stats: () => ({ textureBytes, sprites, drawCalls: lastDraws, lastRenderMs, graphics: G }),
       destroy() {
         dead = true;
-        clearInterval(hourTimer);
+        clock.stop();
         if (raf) cancelAnimationFrame(raf);
         if (ambRaf) cancelAnimationFrame(ambRaf);
         document.removeEventListener('visibilitychange', onVis);
@@ -381,5 +403,5 @@
     };
   }
 
-  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, travellerHit, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
+  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
 })(globalThis);

@@ -169,14 +169,26 @@ app.whenReady().then(async () => {
   fs.writeFileSync(fs2, (await w.webContents.capturePage()).toPNG());
   console.log('screenshot', fs2);
   check('no console errors after swaps', errors.length === 0, errors);
+  // A swap whose new mount fails keeps the old renderer and canvas: no error box, one canvas, still renders.
+  const infos = [];
+  const onInfo = e => { if (e.level === 'info') infos.push(e.message); };
+  w.webContents.on('console-message', onInfo);
+  await js(`TownRender2D.mount = () => Promise.reject(new Error('test: Canvas2D unavailable')); Graphics.save({ preset: 'low' })`); await wait(1500);
+  const sf0 = await js('__town.api.frameCount()');
+  await js('__town.api.setCamera(__town.p.x + 1, __town.p.y)'); await wait(300);
+  const sf = await js(`({ kind: __town.api.kind, canvases: document.querySelectorAll('canvas#town').length, err: getComputedStyle(document.getElementById('err')).display, frames: __town.api.frameCount() - ${sf0} })`);
+  w.webContents.off('console-message', onInfo);
+  check('failed swap keeps the GPU renderer, no error box, one console.info', sf.kind === 'gpu' && sf.canvases === 1 && sf.err === 'none' && sf.frames > 0 && infos.filter(m => /could not switch renderer/.test(m)).length === 1, { sf, infos });
 
   // WebGL failure falls back to Canvas2D: the town loads, no error box
-  await w.loadURL(base + '/town?failgl=1&hour=22'); // stored preset is High: the 2D path draws soft shadows, night tint and window glow
+  await js(`Graphics.save({ preset: 'high' })`);
+  await w.loadURL(base + '/town?failgl=1&hour=22'); // stored preset is High (GPU): without the GPU the town runs at Low
   for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
   await wait(800);
-  const box = await js(`(() => { const e = document.getElementById('err'); return { shown: getComputedStyle(e).display !== 'none', kind: window.__town && __town.api.kind, frames: window.__town && __town.api.frameCount(), ms: window.__town && __town.api.stats().lastRenderMs } })()`);
+  const box = await js(`(() => { const e = document.getElementById('err'); return { shown: getComputedStyle(e).display !== 'none', kind: window.__town && __town.api.kind, frames: window.__town && __town.api.frameCount(), ms: window.__town && __town.api.stats().lastRenderMs, g: window.__town && __town.api.stats().graphics, w: document.getElementById('town').width, cw: document.getElementById('town').clientWidth } })()`);
   check('WebGL failure falls back to Canvas2D, no error box', !box.shown && box.kind === 'canvas' && box.frames > 0, box);
-  const fg = path.join(shotDir, 'town-failgl-high-22.png');
+  check('the fallback runs at Low: 50% backing store, shadows and lighting off', box.g && box.g.renderScale === .5 && box.w === Math.round(box.cw / 2) && box.g.shadows === 'off' && box.g.lighting === 'off', box);
+  const fg = path.join(shotDir, 'town-failgl-22.png');
   fs.writeFileSync(fg, (await w.webContents.capturePage()).toPNG());
   console.log('screenshot', fg);
 

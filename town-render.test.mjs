@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { loadWorld } from './world-vm.mjs';
 
-const ctx = loadWorld({ extra: ['town-map.js', 'town-render.js'] });
+const ctx = loadWorld({ extra: ['town-map.js', 'town-render.js'], globals: { setInterval, clearInterval } });
 const { TownRender: R } = ctx;
 const terrain = JSON.parse(fs.readFileSync(new URL('./public/art/town/terrain.json', import.meta.url), 'utf8'));
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -134,4 +134,36 @@ test('zoomFor: render scale shrinks the backing store the zoom is computed from'
   assert.equal(R.zoomFor(1000, 600, 1, { renderScale: .5 }), R.zoomFor(500, 300, 1, { renderScale: 1 }));
   assert.equal(R.zoomFor(1800, 1120, 1, { renderScale: .5 }), R.zoomFor(900, 560, 1, { renderScale: 1 }));
   assert.equal(R.zoomFor(1800, 1120, 1, { renderScale: 1 }), 2);
+});
+
+// ---------- town step 4: shared by the GPU and Canvas2D renderers ----------
+test('cameraRect: centred on the camera, clamped at the map edges, centred when the map is smaller', () => {
+  const t = { size: [2000, 1000] }, [px, py] = R.project(1085, 585, 0);
+  const mid = R.cameraRect(1085, 585, 800, 400, 2, t); // view 400 x 200 terrain px
+  assert.deepEqual(plain(mid), { left: px - 200, top: py - 100, w: 400, h: 200 });
+  const tl = R.cameraRect(-5000, 0, 800, 400, 1, t); // far top-left: pinned to 0,0
+  assert.deepEqual([tl.left, tl.top], [0, 0]);
+  const br = R.cameraRect(5000, 0, 800, 400, 1, t); // far bottom-right: right/bottom edges meet the map's
+  assert.equal(br.left + br.w, 2000); assert.equal(br.top + br.h, 1000);
+  const big = R.cameraRect(1085, 585, 3000, 1500, 1, t); // view larger than the map: the map sits centred
+  assert.deepEqual([big.left, big.top], [-500, -250]);
+});
+
+test('backingSize: css px x renderScale, at least 1, with the zoom for that scale', () => {
+  assert.deepEqual(plain(R.backingSize({ clientWidth: 1280, clientHeight: 800 }, { renderScale: .5 })), { w: 640, h: 400, zoom: 1 });
+  assert.deepEqual(plain(R.backingSize({ clientWidth: 1800, clientHeight: 1120 }, { renderScale: 1 })), { w: 1800, h: 1120, zoom: 2 });
+  assert.deepEqual(plain(R.backingSize({ clientWidth: 0, clientHeight: 0 }, { renderScale: 1 })), { w: 1, h: 1, zoom: 1 });
+});
+
+test('lightClock: changed once per light key, stale when the night tenth moves', () => {
+  const c = R.lightClock(22, () => {});
+  try {
+    assert.equal(c.stale(), true, 'nothing applied yet');
+    assert.equal(c.changed({ lighting: 'tint', shadows: 'off' }), true);
+    assert.equal(c.changed({ lighting: 'tint', shadows: 'off' }), false);
+    assert.equal(c.stale(), false);
+    assert.equal(c.changed({ lighting: 'glow', shadows: 'off' }), true, 'a setting change re-applies');
+    c.reset(); assert.equal(c.changed({ lighting: 'glow', shadows: 'off' }), true);
+    assert.equal(c.now(), 22);
+  } finally { c.stop(); }
 });

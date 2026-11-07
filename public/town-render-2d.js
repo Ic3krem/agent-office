@@ -73,25 +73,16 @@
 
     let camX = map.spawn.x, camY = map.spawn.y, zoom = 1, viewW = 1, viewH = 1;
     let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, draws = 0, lastDraws = 0, dead = false;
-    let G = graphics, lightKey = '', L = R.lightAt(12, 'off'), shadowTint = 0xffffff;
-    const hourNow = () => hour != null ? hour : new Date().getHours() + new Date().getMinutes() / 60;
-    const bucket = () => Math.round(root.Graphics.nightOf(hourNow()) * 10); // tints change per tenth of night, as the GPU path
+    let G = graphics, L = R.lightAt(12, 'off'), shadowTint = 0xffffff;
+    const clock = R.lightClock(hour, () => mark()); // the GPU path's day/night clock: no extra frames
     function applyGraphics() {
-      const key = bucket() + '|' + G.lighting + '|' + G.shadows;
-      if (key === lightKey) return;
-      lightKey = key;
-      const h = hourNow();
+      if (!clock.changed(G)) return;
+      const h = clock.now();
       L = R.lightAt(h, G.lighting);
       shadowTint = G.shadows === 'tint' ? root.Graphics.tintOf(root.Graphics.nightOf(h)) : 0xffffff;
     }
-    const lightStale = () => !lightKey.startsWith(bucket() + '|');
-    const hourTimer = setInterval(() => { if (!document.hidden && lightStale()) mark(); }, 60000);
 
-    function layout() {
-      const [px, py] = R.project(camX, camY, 0), vw = viewW / zoom, vh = viewH / zoom, [tw, th] = terrain.size;
-      const cl = (v, half, size) => size <= half * 2 ? size / 2 : Math.min(size - half, Math.max(half, v));
-      left = cl(px, vw / 2, tw) - vw / 2; top = cl(py, vh / 2, th) - vh / 2;
-    }
+    function layout() { ({ left, top } = R.cameraRect(camX, camY, viewW, viewH, zoom, terrain)); }
 
     const gcv = document.createElement('canvas'), gx = gcv.getContext('2d'); // night ground scratch (view-sized when used)
     const draw = (...a) => { cx.drawImage(...a); draws++; };
@@ -151,13 +142,12 @@
       lastRenderMs = performance.now() - t0;
     }
     const mark = () => { dirty = true; if (!raf && !dead && !document.hidden) raf = requestAnimationFrame(render); };
-    const onVis = () => { if (!document.hidden && (dirty || lightStale())) mark(); };
+    const onVis = () => { if (!document.hidden && (dirty || clock.stale())) mark(); };
     document.addEventListener('visibilitychange', onVis);
 
     function resize() {
-      // Backing store = css px x renderScale, as the GPU path; the browser upscales it pixelated.
-      const rs = G.renderScale, w = Math.max(1, Math.round(canvas.clientWidth * rs)), h = Math.max(1, Math.round(canvas.clientHeight * rs));
-      zoom = R.zoomFor(canvas.clientWidth, canvas.clientHeight, 1, G);
+      const { w, h, zoom: z } = R.backingSize(canvas, G); // the browser upscales it pixelated
+      zoom = z;
       if (w !== viewW || h !== viewH) { viewW = canvas.width = w; viewH = canvas.height = h; }
       mark();
     }
@@ -177,18 +167,18 @@
         mark();
       },
       travellerAt(x, y) { layout(); return R.travellerHit(shown, x, y, left, top, zoom, viewW / canvas.clientWidth); },
-      toWorld(x, y) { layout(); const k = viewW / canvas.clientWidth; return R.unproject(left + x * k / zoom, top + y * k / zoom); },
+      toWorld(x, y) { layout(); return R.toWorldAt(x, y, left, top, zoom, viewW / canvas.clientWidth); },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
       setGraphics(g) {
-        const rs = G.renderScale; G = g; lightKey = '';
+        const rs = G.renderScale; G = g; clock.reset();
         if (g.renderScale !== rs) resize(); else mark();
       },
       frameCount: () => frames_,
       stats: () => ({ textureBytes, sprites: items.length + chars().length, drawCalls: lastDraws, lastRenderMs, graphics: G }),
       destroy() {
         dead = true;
-        clearInterval(hourTimer);
+        clock.stop();
         if (raf) cancelAnimationFrame(raf);
         document.removeEventListener('visibilitychange', onVis);
         for (const i of imgs) if (i.close) i.close();
