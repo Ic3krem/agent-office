@@ -22,11 +22,15 @@
   }
 
   // Trip reducer: the page keeps the returned record per agent and passes it back next tick. Times come only from
-  // agent.statusAt (when the status changed) or `now`; dest null means stay home. Record: {dest, fromLot, departAt,
-  // returnAt, prev?}; `prev` is a trip still walking home when the agent was needed again (the new one waits for it).
-  function trip(prev, agent, dest, now, fromLot = 'home') {
-    const at = agent && typeof agent.statusAt === 'number' ? agent.statusAt : now;
-    const fresh = p => Object.assign({ dest, fromLot, departAt: at, returnAt: null }, p ? { prev: p } : {});
+  // agent.statusAt (when the status changed; `now` only if it is missing), never later than needed and never before the
+  // current trip's departure, so pages polling the same history at different times build identical records.
+  // dest null means stay home. Record (plain JSON): {dest, fromLot, departAt, returnAt, prev?}; `prev` is the chain of
+  // trips still walking home when the agent was needed again (the new one waits for them). With `routes`, chain entries
+  // that ended by the transition time are pruned; without it the chain is kept whole.
+  function trip(prev, agent, dest, now, fromLot = 'home', routes) {
+    let at = agent && typeof agent.statusAt === 'number' ? agent.statusAt : now;
+    if (prev && typeof prev.departAt === 'number') at = Math.max(at, prev.departAt);
+    const fresh = p => prune(Object.assign({ dest, fromLot, departAt: at, returnAt: null }, p ? { prev: p } : {}), at, routes);
     if (!prev) return dest ? fresh() : null;
     if (prev.returnAt == null) {
       if (dest === prev.dest) return prev;
@@ -35,10 +39,18 @@
     }
     if (!dest) return prev;
     // Flapping inside the exit leg: the agent has not turned yet, so the return is simply cancelled (one trip, no gap).
-    if (dest === prev.dest && now < prev.departAt + EXIT_MS) return Object.assign({}, prev, { returnAt: null });
-    // ponytail: keeps one level of `prev`; a third change while the oldest trip still walks may make it jump.
-    const p = Object.assign({}, prev); delete p.prev;
-    return fresh(p);
+    if (dest === prev.dest && at < prev.departAt + EXIT_MS) return Object.assign({}, prev, { returnAt: null });
+    return fresh(prev);
+  }
+
+  // Drop chain entries that ended by `at`, folding their end into the next trip's departAt (the start where() would use).
+  function prune(tr, at, routes) {
+    if (!tr.prev || typeof routes !== 'function') return tr;
+    const e = endOf(tr.prev, routes), out = Object.assign({}, tr);
+    if (e > at) { out.prev = prune(tr.prev, at, routes); return out; }
+    delete out.prev;
+    if (e > out.departAt) out.departAt = e;
+    return out;
   }
 
   // Leg plan of a trip: [{leg, scene, ms, dir?: 1 | -1 (town legs)}], ending at the turn (forward) or back home.

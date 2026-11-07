@@ -139,3 +139,74 @@ test('unknown dest or no route -> office home, never a throw', () => {
   assert.deepEqual(W({}, 9000), home);
   assert.equal(T.trip(null, lim(0), null, 0), null);
 });
+
+// Review fixes: determinism, dest change without a status change, whole queued chain, JSON round trip.
+const line = { pts: [[0, 0], [800, 0]], len: 800 }; // town leg 10000 ms
+const lr = (a, b) => (b === 'kain' || b === 'games') ? line : null;
+const feed = (steps, nowOf) => steps.reduce((tr, [statusAt, dest], i) => T.trip(tr, { statusAt }, dest, nowOf(statusAt, i), 'home', lr), null);
+// No teleport: town positions move at most walking speed between samples; a scene change happens only at a leg boundary.
+const continuous = (trip, from, to, step = 100) => {
+  let last = null;
+  for (let now = from; now <= to; now += step) {
+    const w = W(trip, now, lr);
+    assert.ok(typeof w.scene === 'string' && w.scene, 'scene at ' + now);
+    if (last && last.pos && w.pos) assert.ok(Math.hypot(w.pos.x - last.pos.x, w.pos.y - last.pos.y) <= T.TOWN_SPEED * step / 1000 + 1e-6, 'jump at ' + now);
+    if (last && last.leg === w.leg && last.scene === w.scene && w.t < last.t) assert.fail('went backwards at ' + now);
+    last = w;
+  }
+};
+
+test('fix 1: same statusAt history polled at different now builds identical records', () => {
+  const hist = [[0, 'kain'], [1000, null], [2000, 'kain'], [40000, null], [41000, 'games']];
+  const a = feed(hist, (s) => s), b = feed(hist, (s, i) => s + 7000 + i * 3000);
+  assert.deepEqual(plain(a), plain(b));
+  const f1 = feed([[0, 'kain'], [1000, null], [2000, 'kain']], s => s), f2 = feed([[0, 'kain'], [1000, null], [2000, 'kain']], s => s + 9000);
+  assert.deepEqual(plain(f1), plain(f2));
+  assert.equal(f1.returnAt, null, 'flapping inside the exit leg is still one trip');
+});
+
+test('fix 2: dest switches with statusAt unchanged -> never before departure, no teleport', () => {
+  const t0 = T.trip(null, { statusAt: 0 }, 'kain', 0, 'home', lr);
+  const t1 = T.trip(t0, { statusAt: 0 }, 'games', 3000, 'home', lr);
+  assert.ok(t1.departAt >= t0.departAt);
+  assert.deepEqual(W(t0, 3000, lr), W(t1, 3000, lr), 'same spot at the switch');
+  const W2 = now => W(now < 3000 ? t0 : t1, now, lr);
+  for (let now = 0; now < 30000; now += 100) assert.ok(W2(now).scene);
+  assert.equal(W(t1, 1e9, lr).scene, 'games');
+  // stale statusAt older than the trip: transition is clamped to departAt
+  const t2 = T.trip({ dest: 'kain', fromLot: 'home', departAt: 5000, returnAt: null }, { statusAt: 100 }, null, 6000, 'home', lr);
+  assert.equal(t2.returnAt, 5000);
+});
+
+test('fix 3: the whole queued chain is kept (A returning, B made and returned, C needed)', () => {
+  // A: departs -1000, exit until 5000, town until 15000; reset at 6000 -> turns at 15000, back-town 25000, back-enter 30000.
+  let A = T.trip(null, { statusAt: -1000 }, 'kain', -1000, 'home', lr);
+  A = T.trip(A, { statusAt: 6000 }, null, 6000, 'home', lr);
+  const B = T.trip(A, { statusAt: 15000 }, 'kain', 15000, 'home', lr);
+  const Bret = T.trip(B, { statusAt: 16000 }, null, 16000, 'home', lr);
+  for (const dest of ['kain', 'games']) {
+    const C = T.trip(Bret, { statusAt: 17000 }, dest, 17000, 'home', lr);
+    assert.equal(W(C, 20000, lr).leg, 'back-town', dest + ': A still walks home');
+    assert.equal(W(C, 29000, lr).leg, 'back-enter');
+    const w = W(C, 31000, lr);
+    assert.deepEqual([w.leg, w.scene], ['exit', 'office'], dest + ': C leaves after A is home');
+    continuous(C, -1000, 80000);
+    assert.equal(W(C, 1e9, lr).scene, dest);
+  }
+  const C = T.trip(Bret, { statusAt: 17000 }, 'games', 17000, 'home', lr);
+  assert.ok(C.prev && C.prev.prev, 'three-deep chain kept');
+  // pruning: a later transition drops entries that ended, folding their end into departAt
+  const D = T.trip(T.trip(C, { statusAt: 90000 }, null, 90000, 'home', lr), { statusAt: 120000 }, 'kain', 120000, 'home', lr);
+  assert.equal(D.prev, undefined, 'finished trips pruned');
+  assert.equal(D.departAt, 120000);
+  assert.ok(!/ponytail/.test(fs.readFileSync(new URL('./public/agent-travel.js', import.meta.url), 'utf8')));
+});
+
+test('fix 4: records survive JSON', () => {
+  let tr = T.trip(null, { statusAt: -1000 }, 'kain', 0, 'home', lr);
+  tr = T.trip(tr, { statusAt: 6000 }, null, 0, 'home', lr);
+  tr = T.trip(tr, { statusAt: 15000 }, 'games', 0, 'home', lr);
+  const back = JSON.parse(JSON.stringify(tr));
+  for (let now = -2000; now < 80000; now += 250) assert.deepEqual(W(back, now, lr), W(tr, now, lr));
+  assert.deepEqual(W(JSON.parse(JSON.stringify(T.trip(null, lim(0), 'kain', 0))), 9000), W(T.trip(null, lim(0), 'kain', 0), 9000));
+});
