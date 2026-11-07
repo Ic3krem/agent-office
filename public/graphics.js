@@ -11,6 +11,15 @@
   const OK = { renderScale: [.5, .75, 1, 2], fps: [15, 30, 60], shadows: ['off', 'blob', 'soft', 'tint'],
     ambient: ['off', 'water', 'all', 'particles'], lighting: ['off', 'tint', 'glow', 'pools'], renderer: ['canvas', 'auto', 'gpu'] };
 
+  // Panel rows: [value, label] per allowed value, same order as OK (the test compares them).
+  const L = {
+    renderScale: ['50%', '75%', '100%', '100% (2× HiDPI)'], fps: ['15', '30', '60'],
+    shadows: ['Off', 'Simple', 'Soft', 'Soft + time of day'], ambient: ['Off', 'Water only', 'All', 'All + particles'],
+    lighting: ['Off', 'Tint', 'Tint + window glow', 'Tint + glow + lamp light'], renderer: ['Canvas2D', 'GPU if available', 'GPU'],
+  };
+  const NAMES = { renderScale: 'Render scale', fps: 'Frame rate cap', shadows: 'Shadows', ambient: 'Ambient animation', lighting: 'Day and night', renderer: 'Renderer' };
+  const UI = Object.keys(OK).map(key => ({ key, label: NAMES[key], options: OK[key].map((v, i) => [v, L[key][i]]) }));
+
   // Stored value -> {preset, custom?}, or null (junk = not set, so detect).
   function normalize(raw) {
     if (!raw || typeof raw !== 'object') return null;
@@ -101,5 +110,5 @@
   }
   function onStorage(e) { if (e.key === KEY) { let g = null; try { g = normalize(JSON.parse(e.newValue)); } catch {} if (g) emit(g); } }
 
-  root.Graphics = { PRESETS, normalize, resolve, detect, isIntegrated, nightOf, tintOf, probe, load, save, onChange, env };
+  root.Graphics = { PRESETS, VALUES: OK, UI, normalize, resolve, detect, isIntegrated, nightOf, tintOf, probe, load, save, onChange, env };
 })(globalThis);

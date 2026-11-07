@@ -114,3 +114,9 @@ test('Graphics.env reads live: saver default on, reduced from media or data-anim
   c.store['ao.powerSaver'] = '0'; c.document.documentElement.dataset.anim = 'off';
   const e = c.Graphics.env(); assert.equal(e.saver, false); assert.equal(e.reduced, true);
 });
+test('UI: six rows in order, option values equal the allowed sets', () => {
+  assert.deepEqual(plain(G.UI.map(r => r.key)), ['renderScale', 'fps', 'shadows', 'ambient', 'lighting', 'renderer']);
+  for (const r of G.UI) assert.deepEqual(plain(r.options.map(o => o[0])), plain(G.VALUES[r.key]), r.key);
+  assert.deepEqual(plain(G.UI[0].options.map(o => o[1])), ['50%', '75%', '100%', '100% (2× HiDPI)']);
+  assert.deepEqual(plain(G.UI[4].options.map(o => o[1])), ['Off', 'Tint', 'Tint + window glow', 'Tint + glow + lamp light']);
+});
