@@ -117,6 +117,7 @@
     g.restore();
     return true;
   }
+  // ponytail: a piece whose variant frame is missing from the atlas (only from hand-edited layouts or templates) draws as a grey placeholder among the sprites; upgrade if users get colour pickers.
   const spriteOr = (name, fn, o) => {
     const [x, y] = HOME, t = CUR ? [K * (CUR.dx - CUR.dy), K2 * (CUR.dx + CUR.dy)] : null; // the same translate add() applies
     return g => {

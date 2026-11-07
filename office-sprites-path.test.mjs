@@ -95,7 +95,11 @@ test('live bits stay procedural over the sprites', () => {
   const part = (id, i = 0) => F.parts(F.defaultInstances().find(p => p.id === id))[i].it;
   assert.ok(draw(part('desk-1')).some(c => c[0] === 'fillText'), 'desk name plate');
   const chair = draw(part('desk-1', 1));
-  assert.ok(usesAtlas(chair) && chair.some(c => c[0] === 'fill' || c[0] === 'fillRect'), 'chair team accent');
+  const rgb = c => /^#/.test(c) ? [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)) : c.match(/\d+/g).map(Number);
+  const sh = (c, f) => 'rgb(' + rgb(c).slice(0, 3).map(v => Math.max(0, Math.min(255, Math.round(v * f)))).join(',') + ')';
+  const team = w.OfficeMotion.TEAM.find(t => t.desk === 'desk-1'), at = chair.findIndex(c => c[0] === 'drawImage');
+  assert.ok(at >= 0, 'chair sprite');
+  assert.ok(chair.slice(at).some(c => c[0] === '=' && c[1] === 'fillStyle' && c[2] === sh(sh(team.color, .85), 1.14)), 'chair backrest top in the team colour');
   const n0 = draw(part('printer')).length; ST.printer = 2; assert.ok(draw(part('printer')).length > n0, 'printer paper'); ST.printer = 0;
   const c0 = draw(part('coffee-counter')).length; ST.ex.switches = { espresso: true }; assert.ok(draw(part('coffee-counter')).length > c0, 'coffee steam');
   const t0 = draw(part('trophy-shelf')); assert.ok(t0.some(c => c[0] === 'fillText'), 'goals plaque');

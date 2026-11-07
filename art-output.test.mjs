@@ -138,3 +138,10 @@ test('the room shell is in the office atlas: an opaque 128x64 tile per floor, bo
   for (const n of ['wall-today', 'wall-usage', 'wall-whiteboard', 'wall-clock', 'wall-cork', 'wall-breaker']) assert.ok(F[n], n);
   assert.ok(F['karinderya.0'].w < 120, 'the karinderya floor sprite is only its rug: the tiles are the kain zone floor');
 });
+
+test('town art and town palette are frozen at step 1: bytes match MANIFEST (a rebuild that re-cuts the town palette fails)', () => {
+  const sha = f => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, f))).digest('hex');
+  const entries = readJson('art/MANIFEST.json').files.filter(e => e.file === 'art/palette.json' || e.file.startsWith('public/art/town/'));
+  assert.ok(entries.length > 10);
+  for (const e of entries) assert.equal(sha(e.file), e.sha256, e.file);
+});

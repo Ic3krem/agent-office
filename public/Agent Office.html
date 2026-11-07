@@ -638,7 +638,7 @@ class Component extends DCLogic {
     window.addEventListener('beforeunload',e=>{if(this.session&&this.session.dirty()){e.preventDefault();e.returnValue='';}});
     // Deep links from the Tiro island dock: #today, #reports, #usage.
     this.onHash=()=>{const h=location.hash.slice(1);if(!h)return;const m=/(?:^|&)scene=([^&]*)/.exec(h);
-      if(m){if((['office','kain','games'].includes(m[1])?m[1]:'office')!==SCENE)location.reload();return;} // back/forward to another scene: load it afresh
+      if(m){if((['office','kain','games'].includes(m[1])?m[1]:'office')!==SCENE){if(this.session&&this.session.dirty())history.replaceState(null,'',location.pathname+location.search+(SCENE==='office'?'':'#scene='+SCENE));else location.reload();}return;} // back/forward to another scene: load it afresh
       history.replaceState(null,'',location.pathname+location.search+(SCENE==='office'?'':'#scene='+SCENE));if(h==='usage')this.setState({usageOpen:true});else if(h==='reports')this.openReports();else if(h==='today')this.setState({todayOpen:true});};
     window.addEventListener('hashchange',this.onHash);this.onHash();
   }
