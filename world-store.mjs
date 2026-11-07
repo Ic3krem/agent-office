@@ -10,13 +10,13 @@ const FILES = { office: 'layout.json', kain: 'kain.json', games: 'games.json' };
 export const parseScene = (v) => v == null ? 'office' : SCENES.includes(v) ? v : null;
 
 // The office layout on disk. Validation is the page's own WorldModel, loaded once per store.
-export function createWorldStore(dir) {
+export function createWorldStore(dir, opts = {}) {
   const fileOf = (scene) => { if (!SCENES.includes(scene)) throw new Error('unknown scene'); return path.join(dir, FILES[scene]); };
-  const builtinDir = fileURLToPath(new URL('./public/world-templates/', import.meta.url));
+  const builtinDir = opts.builtinDir || fileURLToPath(new URL('./public/world-templates/', import.meta.url)); // opts.builtinDir: tests
   const userDir = path.join(dir, 'templates');
   const BUILT_IN_NAMES = { 'startup-loft': 'Startup Loft', 'agency-floor': 'Agency Floor', 'hotel-back-office': 'Hotel Back-Office' };
   const SLUG = /^[a-z0-9-]{1,40}$/;
-  let ver = 0;
+  const ver = Object.fromEntries(SCENES.map((s) => [s, 0])); // per scene: saving one room never looks like a change to another
   // Painters only run when measuring, so a no-op 2D context is enough here.
   const noop = new Proxy(function () {}, { get: () => noop, apply: () => noop, set: () => true });
   const WM = loadWorld({ ctxFactory: () => noop }).WorldModel;
@@ -32,7 +32,16 @@ export function createWorldStore(dir) {
     fs.renameSync(f + '.tmp', f);
   };
   // A missing or bad file means the scene's default: the office's built-in layout, an interior's template.
-  const defaultOf = (scene) => scene === 'office' ? J(WM.defaultLayout()) : readJson(path.join(builtinDir, 'interior-' + scene + '.json'));
+  // A missing interior template is a broken install: say so once, then show an empty room with its door, never the office.
+  const missingLogged = {};
+  const emptyRoom = (scene) => ({ version: 1, scene, size: { w: 600, h: 400 }, spawn: { x: 300, y: 330 }, zones: [{ id: 'floor', type: 'office', rect: [0, 0, 600, 400] }], objects: [], spots: [{ id: 'door', x: 300, y: 390, face: 's', zone: 'door' }] });
+  const defaultOf = (scene) => {
+    if (scene === 'office') return J(WM.defaultLayout());
+    const f = path.join(builtinDir, 'interior-' + scene + '.json'), l = readJson(f);
+    if (l && sceneOk(l, scene) && WM.validate(J(l)).ok) return l;
+    if (!missingLogged[scene]) { missingLogged[scene] = true; console.error('[world] the built-in interior template ' + f + ' is missing or invalid; showing an empty ' + scene + ' room'); }
+    return emptyRoom(scene);
+  };
   const sceneOk = (layout, scene) => (layout?.scene ?? 'office') === scene;
   return {
     load(scene = 'office') {
@@ -56,13 +65,13 @@ export function createWorldStore(dir) {
       if (!r.ok) return { ok: false, errors: J(r.errors) };
       if (!sceneOk(layout, scene)) return { ok: false, errors: ['this layout is for ' + (layout.scene ?? 'office') + ', not ' + scene] };
       writeAtomic(file, layout);
-      ver++;
+      ver[scene]++;
       return { ok: true };
     },
-    version: () => ver,
+    version: (scene = 'office') => ver[scene],
     listTemplates() {
-      const built = builtIds().map((id) => ({ id, name: BUILT_IN_NAMES[id] || id, builtIn: true }));
-      const mine = ids(userDir).filter((id) => !built.some((b) => b.id === id)).map((id) => ({ id, name: readJson(path.join(userDir, id + '.json'))?.name || id, builtIn: false }));
+      const built = builtIds().map((id) => ({ id, name: BUILT_IN_NAMES[id] || id, builtIn: true, scene: readJson(path.join(builtinDir, id + '.json'))?.scene || 'office' }));
+      const mine = ids(userDir).filter((id) => !built.some((b) => b.id === id)).map((id) => { const t = readJson(path.join(userDir, id + '.json')); return { id, name: t?.name || id, builtIn: false, scene: t?.layout?.scene || 'office' }; });
       return [...built, ...mine];
     },
     getTemplate(id) {

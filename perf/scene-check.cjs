@@ -85,6 +85,19 @@ app.whenReady().then(async () => {
     await shot(lot);
     if (lot === 'kain') { // Build mode inside the interior saves to kain.json, never to the office layout
       const btn = t => js(`(() => { const b = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(t)}); if (b) b.click(); return !!b; })()`);
+      // Two office windows watch: one in Build mode, one not. Saving the karinderya must not touch either (per-scene versions).
+      const watch = [];
+      for (const building of [true, false]) {
+        const o = new BrowserWindow({ width: 1280, height: 800, show: false, webPreferences: { offscreen: true, contextIsolation: false } });
+        o.webContents.on('console-message', e => { if (e.level === 'error') errors.push('office window: ' + e.message); });
+        await o.loadURL(base + '/');
+        const oj = s => o.webContents.executeJavaScript(s);
+        await until(() => oj(`!!(window.OfficeWorld && OfficeWorld.framesDrawn() > 0 && [...document.querySelectorAll('button')].some(b => b.textContent === 'Back to town'))`));
+        await oj(`(() => { const f = OfficeWorld.applyLayout; window.__applied = 0; OfficeWorld.applyLayout = l => { window.__applied++; return f(l); }; })()`);
+        if (building) await oj(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Build').click()`);
+        await wait(400);
+        watch.push({ o, oj, building });
+      }
       check('kain: Build opens', await btn('Build')); await wait(400);
       const at = await js(`(() => { const c = document.querySelector('canvas').getBoundingClientRect(), P = OfficeFurniture.P, a = P(450, 123, 0), b = P(490, 123, 0), s = q => [Math.round(c.left + q[0] / 1480 * c.width), Math.round(c.top + q[1] / 920 * c.height)]; return [s(a), s(b)]; })()`);
       const m = (type, [x, y]) => w.webContents.sendInputEvent({ type, x, y, button: 'left', clickCount: 1 });
@@ -96,6 +109,12 @@ app.whenReady().then(async () => {
       const saved = kf && JSON.parse(fs.readFileSync(path.join(tmp, kf), 'utf8')), pt = saved && saved.objects.find(o => o.id === 'picnic-table');
       check('kain: Build mode saves to kain.json', !!(saved && saved.scene === 'kain' && pt && pt.x !== 450), pt);
       check('kain: the office layout is not written', !files.some(f => /[\\/]world[\\/]layout\.json$/.test(f)));
+      await wait(1500); // a stream message carries the new versions
+      for (const { o, oj, building } of watch) {
+        const r = await oj(`({ warned: document.body.innerText.includes('Layout changed in another window'), applied: window.__applied, building: document.body.classList.contains('ao-building') })`);
+        check('kain save: an office window ' + (building ? 'in Build mode sees no "Layout changed"' : 'outside Build does not re-apply its layout'), building ? r.building && !r.warned : r.applied === 0 && !r.warned, r);
+        o.destroy();
+      }
       await btn('Done'); await wait(300);
     }
     check(lot + ': walking onto the door offers Leave', await walkToExit());

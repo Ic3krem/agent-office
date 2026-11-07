@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createWorldStore, parseScene } from './world-store.mjs';
+import { loadWorld } from './world-vm.mjs';
+const noop = new Proxy(function () {}, { get: () => noop, apply: () => noop, set: () => true });
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'world-store-'));
 
@@ -112,4 +114,29 @@ test("an interior's default is fetchable by id (Build's reset) but never listed 
   assert.equal(s.getTemplate('interior-kain').layout.scene, 'kain');
   assert.equal(s.saveTemplate('interior kain', s.load('kain').layout).id, 'interior-kain-mine');
   assert.equal(s.getTemplate('interior-kain').layout.scene, 'kain');
+});
+
+test('versions are per scene: a kain save leaves the office version alone', () => {
+  const s = createWorldStore(tmp());
+  assert.equal(s.save(s.load('kain').layout, 'kain').ok, true);
+  assert.deepEqual([s.version(), s.version('office'), s.version('kain'), s.version('games')], [0, 0, 1, 0]);
+  assert.equal(s.save(s.load().layout).ok, true);
+  assert.deepEqual([s.version(), s.version('kain')], [1, 1]);
+});
+
+test('a missing interior template: one clear error, an empty interior with a door and a spawn, never the office', (t) => {
+  const logged = [];
+  t.mock.method(console, 'error', (...a) => logged.push(a.join(' ')));
+  const s = createWorldStore(tmp(), { builtinDir: tmp() });
+  const r = s.load('games');
+  assert.equal(r.layout.scene, 'games');
+  assert.deepEqual(r.layout.objects, []);
+  assert.ok(r.layout.spots.some((q) => q.id === 'door'));
+  assert.ok(r.layout.spawn);
+  assert.equal(r.source, 'default');
+  s.load('games');
+  assert.equal(logged.length, 1, 'logged once');
+  assert.match(logged[0], /interior-games\.json/);
+  const W = loadWorld({ ctxFactory: () => noop }).WorldModel;
+  assert.equal(W.validate(JSON.parse(JSON.stringify(r.layout))).ok, true);
 });

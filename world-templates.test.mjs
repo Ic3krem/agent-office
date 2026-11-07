@@ -27,7 +27,7 @@ test('built-in templates validate and differ from the default', () => {
 test('save, list, get, delete user template', () => {
   const st = createWorldStore(tmp());
   assert.deepEqual(st.saveTemplate('My Room', def), { ok: true, id: 'my-room' });
-  assert.deepEqual(st.listTemplates().find((t) => t.id === 'my-room'), { id: 'my-room', name: 'My Room', builtIn: false });
+  assert.deepEqual(st.listTemplates().find((t) => t.id === 'my-room'), { id: 'my-room', name: 'My Room', builtIn: false, scene: 'office' });
   assert.deepEqual(st.getTemplate('my-room').layout, def);
   assert.equal(st.deleteTemplate('my-room').ok, true);
   assert.equal(st.getTemplate('my-room'), null);
@@ -103,4 +103,14 @@ test('interiors: no desks, a door is required, the office stays the only scene w
   assert.match(WM.validate(J({ ...k, scene: '../x' })).errors.join(), /scene/);
   const S = loadWorld({ ctxFactory: () => noop }).WorldEdit.createSession(J(k));
   assert.match(S.add('dept-desk', 300, 300, { role: 'researcher' }).reason, /desks belong in the office/);
+});
+
+test('templates say which scene they are for: each room lists only its own', () => {
+  const st = createWorldStore(tmp());
+  assert.ok(st.listTemplates().every((t) => t.scene === 'office'), 'built-ins are office layouts');
+  assert.equal(st.saveTemplate('My Kain', interior('kain')).ok, true);
+  assert.equal(st.listTemplates().find((t) => t.id === 'my-kain').scene, 'kain');
+  const src = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
+  assert.match(src, /s\.tpls\.filter\(t=>t\.scene===SCENE\)/, 'the page lists only this scene');
+  assert.match(src, /That template is for another room/, 'loadInto refuses another scene');
 });
