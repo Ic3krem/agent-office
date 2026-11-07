@@ -162,7 +162,9 @@ const SPECS = {
 // Display data comes from the page's own catalog script, so the two can never drift.
 const box = {};
 vm.runInNewContext(fs.readFileSync(new URL('./public/role-catalog.js', import.meta.url), 'utf8'), box, { filename: 'role-catalog.js' });
+vm.runInNewContext(fs.readFileSync(new URL('./public/graphics.js', import.meta.url), 'utf8'), box, { filename: 'graphics.js' });
 export const RoleCatalog = box.RoleCatalog;
+const Graphics = box.Graphics;
 const BUILTIN = Object.values(RoleCatalog.BUILTIN_DESKS);
 const BUILTIN_DESK = Object.fromEntries(Object.entries(RoleCatalog.BUILTIN_DESKS).map(([d, k]) => [k, d]));
 // Every catalog role, key = subagent_type. desk is set only for the eight built-ins (their desk in the default layout).
@@ -270,6 +272,17 @@ export function lookStore(file) {
       const cur = read(), next = RoleCatalog.cleanLooks(cur.looks), c = RoleCatalog.cleanCostume(costume);
       if (c) next[key] = c; else delete next[key];
       cur.looks = next; fs.writeFileSync(file, JSON.stringify(cur)); return next;
+    },
+  };
+}
+// Graphics settings live in kiro.json under graphics {preset, custom?}; validation is the page script's Graphics.normalize.
+export function graphicsStore(file) {
+  const read = () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; } };
+  return {
+    get: () => Graphics.normalize(read().graphics),
+    set(raw) {
+      const g = Graphics.normalize(raw); if (!g) throw new Error('Invalid graphics settings');
+      const cur = read(); cur.graphics = g; fs.writeFileSync(file, JSON.stringify(cur)); return g;
     },
   };
 }

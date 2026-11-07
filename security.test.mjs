@@ -173,6 +173,10 @@ test('server: credentials are separated, decisions need the UI cookie and nonce,
     assert.equal((await call(s.port, p, { headers: ui, body: { id: 'x' } })).status, 403, p + ' with the cookie but no nonce');
   }
   assert.equal((await call(s.port, '/api/hire/decide', { headers: { ...ui, 'x-nonce': nonce }, body: { id: 'nope', approve: true } })).status, 404, 'with cookie and nonce the request is processed');
+  // graphics settings: like looks/set, a write needs the UI cookie and the nonce; reads need the cookie
+  assert.equal((await call(s.port, '/api/graphics/set', { headers: ui, body: { preset: 'low' } })).status, 403, 'graphics/set without nonce');
+  assert.equal((await call(s.port, '/api/graphics/set', { headers: { 'x-key': bridge.key }, body: { preset: 'low' } })).status, 401, 'graphics/set with the bridge key');
+  assert.equal((await call(s.port, '/api/graphics/set', { headers: uiN, body: { preset: 'nope' } })).status, 400, 'invalid preset');
   assert.equal((await call(s.port, '/', { method: 'GET' })).headers['set-cookie'], undefined, 'no nonce for an anonymous page load');
 
   // the bridge key opens /bridge/* only

@@ -47,5 +47,59 @@
   const mix = (a, b, t) => [16, 8, 0].reduce((n, sh) => n | Math.round(((a >> sh & 255) * (1 - t) + (b >> sh & 255) * t)) << sh, 0);
   const tintOf = n => n <= .5 ? mix(0xffffff, 0xffd2a8, n * 2) : mix(0xffd2a8, 0x6f7fb8, (n - .5) * 2);
 
-  root.Graphics = { PRESETS, normalize, resolve, detect, isIntegrated, nightOf, tintOf };
+  // ---- client side (browser only; the pure functions above stay DOM-free) ----
+  const KEY = 'ao.graphics', subs = new Set();
+  const lsGet = k => { try { return root.localStorage.getItem(k); } catch { return null; } };
+  const lsSet = (k, v) => { try { root.localStorage.setItem(k, v); } catch {} };
+  const nonce = () => (String(root.document.cookie).match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
+  let probed;
+  // One throwaway WebGL context per page, released straight away.
+  function probe() {
+    if (probed) return probed;
+    const out = { webgl: false, gpuName: '', deviceMemory: root.navigator.deviceMemory, cores: root.navigator.hardwareConcurrency };
+    try {
+      const gl = root.document.createElement('canvas').getContext('webgl');
+      if (gl) {
+        out.webgl = true;
+        const x = gl.getExtension('WEBGL_debug_renderer_info');
+        out.gpuName = String(x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '');
+        const l = gl.getExtension('WEBGL_lose_context'); if (l) l.loseContext();
+      }
+    } catch {}
+    return (probed = out);
+  }
+  const env = () => ({
+    dpr: root.devicePixelRatio || 1,
+    reduced: !!(root.matchMedia('(prefers-reduced-motion: reduce)').matches || root.document.documentElement.dataset.anim === 'off'),
+    saver: lsGet('ao.powerSaver') !== '0',
+    webgl: root.Graphics.probe().webgl,
+  });
+  const emit = s => subs.forEach(fn => { try { fn(s); } catch {} });
+  async function save(stored) {
+    const r = await root.fetch('/api/graphics/set', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(stored) });
+    if (!r.ok) throw new Error('graphics save failed');
+    const g = normalize((await r.json()).graphics) || stored;
+    lsSet(KEY, JSON.stringify(g)); emit(g); return g;
+  }
+  async function load() {
+    let g = null;
+    try {
+      const r = await root.fetch('/api/graphics', { headers: { 'x-nonce': nonce() } });
+      if (!r.ok) throw new Error('graphics load failed');
+      g = normalize((await r.json()).graphics);
+      if (!g) g = await save({ preset: detect(root.Graphics.probe()) }); // first run: pick for this machine
+    } catch {
+      try { g = normalize(JSON.parse(lsGet(KEY))); } catch {}
+      g = g || { preset: detect(root.Graphics.probe()) };
+    }
+    lsSet(KEY, JSON.stringify(g)); return g;
+  }
+  function onChange(fn) {
+    if (!subs.size) root.addEventListener('storage', onStorage);
+    subs.add(fn);
+    return () => { subs.delete(fn); if (!subs.size) root.removeEventListener('storage', onStorage); };
+  }
+  function onStorage(e) { if (e.key === KEY) { let g = null; try { g = normalize(JSON.parse(e.newValue)); } catch {} if (g) emit(g); } }
+
+  root.Graphics = { PRESETS, normalize, resolve, detect, isIntegrated, nightOf, tintOf, probe, load, save, onChange, env };
 })(globalThis);

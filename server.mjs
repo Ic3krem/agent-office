@@ -17,7 +17,7 @@ import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
 import { createPartyClient } from './party-client.mjs';
 import { feedOf, cleanAvatar } from './party/protocol.mjs';
-import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, lookStore, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
+import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, lookStore, graphicsStore, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
@@ -81,6 +81,7 @@ try { AH.ensureAll(); } catch (e) { console.error('agent homes:', e.message); }
 const hireGoal = {};   // roster key -> goal id of the approved hire request, used to link the task in history
 const dnames = () => displayNames(nameBox.get());
 const lookBox = lookStore(path.join(CFG_DIR, 'kiro.json')); // wardrobe costumes (kiro.json looks)
+const graphicsBox = graphicsStore(path.join(CFG_DIR, 'kiro.json')); // graphics preset (kiro.json graphics)
 // Party (phase 7): one optional connection to a party server. What leaves this machine is feedOf() only (party/protocol.mjs).
 const partyClient = createPartyClient({ onChange: () => bump() });
 let partyAvatar = null; // the CEO's position, from the page
@@ -776,6 +777,8 @@ async function handle(req, res) {
       case '/api/party/presence': return json(res, (await partyClient.setPresence(b.presence)) ? 200 : 400, { party: partyClient.view() });
       case '/api/party/avatar': { partyAvatar = cleanAvatar(b); return json(res, 200, {}); }
       case '/api/party/office': { const o = await partyClient.office(String(b.id || '')).catch(() => null); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'not in the party' }); }
+      case '/api/graphics': return json(res, 200, { graphics: graphicsBox.get() });
+      case '/api/graphics/set': { try { graphicsBox.set(b); } catch (e) { return json(res, 400, { error: e.message }); } return json(res, 200, { graphics: graphicsBox.get() }); }
       case '/api/looks/set': { try { lookBox.set(String(b.key), b.costume); } catch (e) { return json(res, 400, { error: e.message }); } bump(); return json(res, 200, { looks: lookBox.get() }); }
       case '/api/names/reset': { if (b.key) nameBox.set(String(b.key), ''); else nameBox.reset(); bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }
       case '/api/hire/decide': { if (!hires.decide(String(b.id), !!b.approve, String(b.note || '').slice(0, 200))) return json(res, 404, { error: 'That request was already answered.' }); bump(); return json(res, 200, { ok: true }); }
