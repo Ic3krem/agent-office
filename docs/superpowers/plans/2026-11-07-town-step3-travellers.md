@@ -226,3 +226,16 @@ Steps:
 - [ ] Measure the town walk p95 with 8 forced travellers (< 8 ms), and check the office idle budget is still met.
 - [ ] Write the numbers in the perf doc.
 - [ ] The full `npm test` passes, and the scene-check, office-check and travel-check scripts print ALL PASSED. Commit: `Town step 3: travel live checks and budgets`.
+
+### Task 8: Agent height in the wardrobe (user request 2026-11-07)
+
+**Files:** `public/role-catalog.js` (cleanCostume), `public/office-sprites.js` (lookOf sig + body drawing), the wardrobe window, and their tests.
+
+- A new costume field `height`, one of `short | average | tall`, defaulting to `average`. `cleanCostume` drops any other value.
+- Drawn as pixel rows, never by scaling: short removes 2 leg/torso rows and tall adds 2, so the art stays crisp. Feet stay on the same ground point, and the head and name tag move up or down.
+- `height` joins `look.sig`, so the sprite cache stays correct.
+- It applies everywhere `OfficeSprites` is drawn: office, interiors and town travellers.
+- Hit boxes and the name-tag y follow the sprite height.
+- The wardrobe gets a 3-button height picker with the live preview. It is saved with the other costume fields; the CEO avatar and visitors follow the same rules as the other fields.
+- Tests: `cleanCostume` validation, sig changes with height, sprite pixel height differs by ±2 rows with the same foot row, and a costume saved before this change still renders as average.
+- Commit: `Agents: height in the wardrobe`.
