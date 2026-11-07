@@ -101,10 +101,11 @@
     Object.assign(SPOTS, WM.spotsOf(layout));
     SPAWN.x = layout.spawn.x; SPAWN.y = layout.spawn.y;
     GRID = WM.gridOf(layout);
-    standSpots();
+    if (layout.scene) standSpots(); // interiors only: an office with its own karinderya keeps exactly its layout's spots
     if (layout.scene === 'games') floorSpots();
   }
-  // Game hall standing room: open floor on a 40-unit lattice, clear of every spot and the door, nearest the play spots first.
+  // Game hall standing room: open floor on a 40-unit lattice, clear of every spot and the door, nearest the play spots
+  // first, capped at twice the desk limit (room for a full team plus a party's).
   function floorSpots() {
     const P = PLAY.map(id => SPOTS[id]).filter(Boolean), all = Object.values(SPOTS), pts = [];
     if (!P.length) return;
@@ -113,7 +114,7 @@
       if (GRID.blocked[root.WorldPath.cellOf(GRID, { x, y })] || all.some(q => Math.hypot(q.x - x, q.y - y) < (q.id === 'door' ? 50 : 28))) continue;
       pts.push([Math.hypot(x - cx, y - cy), x, y]);
     }
-    pts.sort((a, b) => a[0] - b[0]).forEach(([, x, y], i) => spot('play-stand:' + (i + 1), x, y, faceOf(cx - x, cy - y, 's'), 'play'));
+    pts.sort((a, b) => a[0] - b[0]).slice(0, 2 * root.WorldModel.MAX_DESKS).forEach(([, x, y], i) => spot('play-stand:' + (i + 1), x, y, faceOf(cx - x, cy - y, 's'), 'play'));
   }
   // Standing room for eaters past the stools: open floor beside the table (south of the back row, then east and west of
   // the rows), never a seat. Derived here (kain-stand:N), not layout spots.
@@ -270,7 +271,7 @@
       return coolOf[id] || null;
     };
     // Visiting players past the game hall's play spots stand on its free open floor (play-stand:N), never the door.
-    const standPlay = id => { const used = held(id), s = openFloor().filter(x => x.startsWith('play-stand:')).find(x => !used.has(x)); if (s) playOf[id] = s; return s || null; };
+    const standPlay = (id, cur) => { const used = held(id); if (cur && SPOTS[cur] && !used.has(cur)) return (playOf[id] = cur); const s = openFloor().filter(x => x.startsWith('play-stand:')).find(x => !used.has(x)); if (s) playOf[id] = s; return s || null; };
 
     // playroom: take the free spot farthest from everyone already playing (ties keep list order), so the room fills evenly
     const plays = () => PLAY.filter(x => SPOTS[x]); // the game hall has only some of the office's play spots
@@ -387,12 +388,13 @@
         else if (st === S.WINDOW) spotId = 'tiro:window';
         else if (st === S.PLAY) {
           let s = playOf[a.id];
+          const stand = s && s.startsWith('play-stand:') ? s : null; // a stander keeps its spot unless a play spot frees up
           if (!s || !PLAY.includes(s)) s = claimPlay(playOf, a.id);
           else if (rotateNow && !rotated && (rotIdx % Math.max(1, agentsIn.length)) === agentsIn.indexOf(a)) {
             const f = farFrom(playOf, a.id);
             if (f) { s = f; playOf[a.id] = s; rotated = true; }
           }
-          spotId = s || (a.at && standPlay(a.id)) || home();
+          spotId = s || (a.at && standPlay(a.id, stand)) || home();
         } else if (st === S.COOLER) spotId = claimEat(a.id, !!a.at) || home();
         else spotId = home();
         if (st !== S.PLAY || a.leave) delete playOf[a.id];

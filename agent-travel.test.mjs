@@ -265,7 +265,13 @@ test('destOf: limited -> kain, idle on an empty board -> games, only when the of
     assert.equal(T.destOf({ status, perm }, none, empty), want, status + ' ' + !!perm + ' ' + empty);
     if (want === 'games') {
       assert.notEqual(ns(OM.IDLE_DELAY - 1), OM.S.PLAY, 'not before the delay');
-      assert.equal(T.departAt({ status, perm, statusAt: 0 }, 'games', { emptyAt: 0 }), OM.IDLE_DELAY, 'departAt carries the same delay');
+      // departAt is the first time nextState plays (emptyFor >= idleDelay) and never before the agent went idle
+      for (const [s, e] of [[0, 0], [-3600e3, 0], [0, -3600e3], [5000, 0], [0, 5000], [30000, 0]]) {
+        const t = T.departAt({ status, perm, statusAt: s }, 'games', { emptyAt: e });
+        assert.equal(ns(t - e), OM.S.PLAY, 'plays at departAt ' + [s, e]);
+        assert.ok(t >= s, 'not before going idle');
+        if (t > s) assert.notEqual(ns(t - 1 - e), OM.S.PLAY, 'not a ms earlier ' + [s, e]);
+      }
     }
   }
 });
@@ -295,10 +301,13 @@ test('sync: one record per travelling agent, ids gone are dropped, nothing chang
 test('departAt: games leave IDLE_DELAY after going idle and not before the board was seen empty; they return when it was seen full', () => {
   assert.equal(T.IDLE_DELAY, OM.IDLE_DELAY);
   const idle = { id: 'a', status: 'idle', statusAt: 1000 };
-  assert.equal(T.departAt(idle, 'games', { emptyAt: 0 }), 1000 + T.IDLE_DELAY);
-  assert.equal(T.departAt(idle, 'games', { emptyAt: 90000 }), 90000, 'an old idle: leaves when the board was first seen empty');
-  assert.equal(T.departAt(idle, null, { fullAt: 150000 }), 150000, 'back when the board was first seen full');
-  assert.equal(T.departAt({ status: 'working', statusAt: 200000 }, null, { fullAt: 150000 }), 200000);
+  assert.equal(T.departAt(idle, 'games', { emptyAt: 0 }), T.IDLE_DELAY, 'R2: emptyAt + IDLE_DELAY, as the office counts emptyFor');
+  assert.equal(T.departAt(idle, 'games', { emptyAt: 90000 }), 90000 + T.IDLE_DELAY, 'idle well before the board emptied: waits 20 s after it empties');
+  assert.equal(T.departAt({ status: 'idle', statusAt: 500000 }, 'games', { emptyAt: 0 }), 500000, 'just went idle on a long-empty board: goes at statusAt');
+  const out = { dest: 'games', returnAt: null };
+  assert.equal(T.departAt(idle, null, { fullAt: 150000 }, out), 150000, 'back when the board was first seen full');
+  assert.equal(T.departAt({ status: 'working', statusAt: 200000 }, null, { fullAt: 150000 }, out), 200000);
+  assert.equal(T.departAt(idle, null, { fullAt: 150000 }), 1000, 'no games trip out: plain statusAt');
   assert.equal(T.departAt({ status: 'limited', statusAt: 5 }, 'kain', { emptyAt: 90000 }), 5, 'kain trips keep statusAt');
   assert.equal(T.departAt(idle, 'games'), 1000 + T.IDLE_DELAY, 'no board info: just the delay');
 });
@@ -306,10 +315,24 @@ test('departAt: games leave IDLE_DELAY after going idle and not before the board
 test('sync with board times: an agent idle for an hour starts at the exit leg when the board is first seen empty, and walks back when it fills', () => {
   const dest = a => T.destOf(a, none, true), idle = { id: 'a', status: 'idle', statusAt: -3600e3 };
   const seen = 1e6, r1 = T.sync({}, [idle], dest, seen, routes, { emptyAt: seen });
-  assert.deepEqual(plain(W(r1.a, seen + 1000)).leg, 'exit', 'walks out, no jump to there');
-  assert.equal(W(r1.a, seen - 1).leg, 'home');
+  assert.equal(W(r1.a, seen + T.IDLE_DELAY + 1000).leg, 'exit', 'walks out, no jump to there');
+  assert.equal(W(r1.a, seen + T.IDLE_DELAY - 1).leg, 'home', 'waits 20 s after the board empties');
   assert.equal(T.sync(r1, [idle], dest, seen + 5000, routes, { emptyAt: seen }), r1, 'stable');
   const full = seen + 120000, r2 = T.sync(r1, [idle], a => T.destOf(a, none, false), full, routes, { fullAt: full });
   assert.equal(r2.a.returnAt, full);
   assert.equal(W(r2.a, full + 1000).leg, 'back-exit');
+});
+
+test('R2 fullAt scope: a kain return keeps its statusAt; a games return does not flip-flop between windows', () => {
+  const kain = T.trip(null, lim(0), 'kain', 0, 'home', routes);
+  const back = T.sync({ a: kain }, [{ id: 'a', status: 'working', statusAt: 100 }], a => T.destOf(a, none, false), 9e6, routes, { fullAt: 9e6 });
+  assert.equal(back.a.returnAt, 100, 'kain return is not snapped to page-open time');
+  const idle = { id: 'a', status: 'idle', statusAt: 0 }, dest = a => T.destOf(a, none, false);
+  const g = T.sync({}, [idle], a => T.destOf(a, none, true), 1000, routes, { emptyAt: 0 });
+  const F1 = 300000, F2 = 400000, r1 = T.sync(g, [idle], dest, F2, routes, { fullAt: F1 });
+  assert.equal(r1.a.returnAt, F1);
+  const r2 = T.sync(r1, [idle], dest, F2, routes, { fullAt: F2 }); // another window saw the board full later
+  assert.equal(r2.a.returnAt, F1);
+  assert.equal(T.sync(r2, [idle], dest, F2, routes, { fullAt: F1 }), r2, 'stable across windows: no flip-flop');
+  assert.equal(T.sync(r2, [idle], dest, F2, routes, { fullAt: F2 }), r2);
 });

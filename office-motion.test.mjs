@@ -590,8 +590,9 @@ test('games trips: not the instant the board empties; ao.boardEmptyAt is kept, c
   assert.equal(store['ao.boardEmptyAt'], String(T0));
   assert.equal(v.dbg('a-tally'), undefined, 'still walking out of the office, not already there');
   const rec = JSON.parse(store['ao.trips'])['a-tally'];
-  assert.equal(v.AT.where(rec, T0 + 1000, v.routes).leg, 'exit');
-  v.at(T0 + v.AT.EXIT_MS + v.routes('home', 'games').len / v.AT.TOWN_SPEED * 1000 + 100); v.OW.advance(0.1);
+  assert.equal(v.AT.where(rec, T0 + v.AT.IDLE_DELAY - 1, v.routes).leg, 'home', '20 s after the board empties');
+  assert.equal(v.AT.where(rec, T0 + v.AT.IDLE_DELAY + 1000, v.routes).leg, 'exit');
+  v.at(T0 + v.AT.IDLE_DELAY + v.AT.EXIT_MS + v.routes('home', 'games').len / v.AT.TOWN_SPEED * 1000 + 100); v.OW.advance(0.1);
   const a = v.dbg('a-tally'), door = v.w.OfficeMotion.SPOTS.door;
   assert.ok(a && Math.hypot(a.x - door.x, a.y - door.y) < 20, 'walks in at the door ' + JSON.stringify(a));
   // the board fills: the stored time is cleared and the return trip departs now
@@ -606,7 +607,7 @@ test('a reload keeps the first-seen empty time from storage', () => {
   const store = { 'ao.boardEmptyAt': String(1e12 - 5000) }, v = travelWorld('games', { kain: false, play: false }, store);
   v.at(1e12); v.OW.setSnapshot(snap([tiro('idle'), ag('tally', 'idle', { statusAt: 0 })])); v.OW.advance(0.1);
   assert.equal(store['ao.boardEmptyAt'], String(1e12 - 5000));
-  assert.equal(JSON.parse(store['ao.trips'])['a-tally'].departAt, 1e12 - 5000);
+  assert.equal(JSON.parse(store['ao.trips'])['a-tally'].departAt, 1e12 - 5000 + 20000);
 });
 
 test('bad stored records are dropped; a where() that throws counts as home', () => {
@@ -630,4 +631,30 @@ test('games hall overflow stands on distinct open floor, never the door', () => 
     assert.ok(!spots.includes('door'));
     for (const id of spots.filter(x => !x.startsWith('play:'))) assert.ok(/^play-stand:/.test(id) && !M.grid().blocked[ctx.WorldPath.cellOf(M.grid(), M.SPOTS[id])], id);
   } finally { M.useLayout(W.defaultLayout()); }
+});
+
+test('R2 stand spots: only interiors get them; the game hall is capped near twice the desk limit', () => {
+  try {
+    M.useLayout(W.defaultLayout());
+    assert.ok(!Object.keys(M.SPOTS).some(k => /-stand:/.test(k)));
+    M.useLayout(interior('games'));
+    const n = Object.keys(M.SPOTS).filter(k => k.startsWith('play-stand:')).length;
+    assert.ok(n >= 8 && n <= 2 * W.MAX_DESKS, 'play-stand count ' + n);
+    M.useLayout(interior('kain'));
+    assert.ok(Object.keys(M.SPOTS).some(k => k.startsWith('kain-stand:')));
+  } finally { M.useLayout(W.defaultLayout()); }
+});
+
+test('R2 stander churn: when an earlier stander leaves, the others keep their stand spots', () => {
+  for (const [sc, st, n] of [['games', 'idle', 16], ['kain', 'limited', 10]]) {
+    M.useLayout(interior(sc));
+    try {
+      const all = Array.from({ length: n }, (_, i) => ({ id: 'p' + String(i).padStart(2, '0'), status: st, at: sc, logs: [], profile: null }));
+      const b = M.createBrain({ wall: () => 1e12 }), f1 = b.update(snap(all), 0);
+      const stand = f1.agents.filter(a => /-stand:/.test(a.spot));
+      assert.ok(stand.length >= 3, sc + ' standers ' + stand.length);
+      const f2 = b.update(snap(all.filter(a => a.id !== stand[0].id)), 1000);
+      for (const a of stand.slice(1)) assert.equal(find(f2, a.id).spot, a.spot, sc + ' ' + a.id + ' keeps its spot');
+    } finally { M.useLayout(W.defaultLayout()); }
+  }
 });

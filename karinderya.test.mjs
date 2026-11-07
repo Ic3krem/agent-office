@@ -98,3 +98,10 @@ test('fix round 1: the eaters open-floor fallback skips claimed spots and office
     assert.equal(new Set([...placed, ...pl]).size, placed.length + pl.length, 'no spot shared with a player or another eater');
   } finally { M.useLayout(WM.defaultLayout()); }
 });
+
+test('R2: an office with its own karinderya gets no derived stand spots', () => {
+  try {
+    M.useLayout(withPieces());
+    assert.ok(!Object.keys(M.SPOTS).some(k => /-stand:/.test(k)));
+  } finally { M.useLayout(WM.defaultLayout()); }
+});

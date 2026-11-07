@@ -125,14 +125,15 @@
     return empty && !office.play ? 'games' : null;
   }
 
-  // The time a trip decision takes effect (trip()'s statusAt). A games trip starts IDLE_DELAY after the agent went idle (as
-  // nextState waits before the playroom) and not before the board was first seen empty; staying home (dest null) starts
-  // no earlier than the board was first seen full, so an idle agent walks back then. board: {emptyAt?, fullAt?}, times
-  // the pages store when they first see the board empty / full.
-  function departAt(agent, dest, board) {
+  // The time a trip decision takes effect (trip()'s statusAt). A games trip starts once the board has been empty for
+  // IDLE_DELAY (the office's emptyFor >= idleDelay), never before the agent went idle: max(statusAt, emptyAt + IDLE_DELAY).
+  // While a games trip is still out (prev, returnAt null), staying home starts no earlier than the board was first seen
+  // full, so the idle agent walks back then; every other case keeps statusAt. board: {emptyAt?, fullAt?}, times the
+  // pages store when they first see the board empty / full.
+  function departAt(agent, dest, board, prev) {
     const s = agent.statusAt, b = board || {};
-    if (dest === 'games') return Math.max(s + IDLE_DELAY, typeof b.emptyAt === 'number' ? b.emptyAt : -Infinity);
-    if (!dest && typeof b.fullAt === 'number') return Math.max(s, b.fullAt);
+    if (dest === 'games') return Math.max(s, (typeof b.emptyAt === 'number' ? b.emptyAt : s) + IDLE_DELAY);
+    if (!dest && prev && prev.dest === 'games' && prev.returnAt == null && typeof b.fullAt === 'number') return Math.max(s, b.fullAt);
     return s;
   }
 
@@ -142,8 +143,8 @@
     const prev = records || {}, out = {};
     let same = !!records;
     for (const a of agents || []) {
-      const dest = destFn(a), at = typeof a.statusAt === 'number' ? departAt(a, dest, board) : a.statusAt;
-      const r = trip(prev[a.id] || null, at === a.statusAt ? a : { statusAt: at }, dest, now, 'home', routes);
+      const p = prev[a.id] || null, dest = destFn(a), at = typeof a.statusAt === 'number' ? departAt(a, dest, board, p) : a.statusAt;
+      const r = trip(p, at === a.statusAt ? a : { statusAt: at }, dest, now, 'home', routes);
       if (r) out[a.id] = r;
       if (r !== (prev[a.id] || null)) same = false;
     }
