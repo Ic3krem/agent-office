@@ -66,6 +66,28 @@ app.whenReady().then(async () => {
   fs.writeFileSync(shot, (await w.webContents.capturePage()).toPNG());
   console.log('screenshot', shot);
 
+  // Graphics (town step 4): High and Medium at noon and 22:00. Shots go to $TOWN_SHOTS (default art/.raw).
+  const shotDir = process.env.TOWN_SHOTS || path.dirname(shot);
+  for (const preset of ['high', 'medium']) {
+    await js(`Graphics.save({ preset: '${preset}' })`);
+    for (const hour of [12, 22]) {
+      await w.loadURL(base + '/town?hour=' + hour);
+      for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
+      await wait(800);
+      const g = await js(`(() => { const s = __town.api.stats().graphics, c = document.getElementById('town'); return { shadows: s.shadows, lighting: s.lighting, rs: s.renderScale, w: c.width, cw: c.clientWidth }; })()`);
+      const want = preset === 'high' ? { shadows: 'soft', lighting: 'glow', rs: 1 } : { shadows: 'blob', lighting: 'tint', rs: .75 };
+      check(`${preset} ${hour}h: graphics applied, backing store = css px x renderScale`, g.shadows === want.shadows && g.lighting === want.lighting && g.rs === want.rs && g.w === Math.round(g.cw * want.rs), g);
+      const f = path.join(shotDir, `town-${preset}-${hour}.png`);
+      fs.writeFileSync(f, (await w.webContents.capturePage()).toPNG());
+      console.log('screenshot', f);
+    }
+  }
+  // a live preset change re-renders without a reload
+  const fr = await js('__town.api.frameCount()');
+  await js(`__town.api.setGraphics(Graphics.resolve({ preset: 'low' }, Graphics.env()))`); await wait(300);
+  check('setGraphics re-renders with the new settings', (await js('__town.api.frameCount()')) > fr && (await js('__town.api.stats().graphics.shadows')) === 'off');
+  check('no console errors after graphics changes', errors.length === 0, errors);
+
   // WebGL failure shows the message box
   await w.loadURL(base + '/town?failgl=1'); await wait(2000);
   const box = await js(`(() => { const e = document.getElementById('err'); return { shown: getComputedStyle(e).display !== 'none', text: e.textContent } })()`);

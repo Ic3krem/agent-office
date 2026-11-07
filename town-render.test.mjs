@@ -110,3 +110,25 @@ test('walkFrame advances with distance travelled, as the player does', () => {
   const S = R.STRIDE;
   assert.deepEqual([0, S * 0.5, S, S * 1.5, S * 2].map(R.walkFrame), [1, 1, 2, 2, 1]);
 });
+
+// ---------- town step 4: graphics ----------
+test('blobOf: ellipse at the frame anchor, half-axes from the projected footprint', () => {
+  const r2 = v => Math.round(v * 100) / 100;
+  assert.deepEqual(plain(R.blobOf({ ax: 6, ay: 13, footprint: [-5, -5, 5, 5] })), { cx: 6, cy: 13, rx: r2(R.K * 10), ry: r2(R.K * 5) });
+});
+
+test('lightAt: tint, window glow and lamp pools by hour and lighting level', () => {
+  assert.deepEqual(plain(R.lightAt(12, 'glow')), { tint: 0xffffff, glow: 0, pools: 0 });
+  assert.equal(R.lightAt(22, 'glow').glow, 1);
+  assert.equal(R.lightAt(22, 'tint').glow, 0);
+  assert.notEqual(R.lightAt(22, 'tint').tint, 0xffffff);
+  assert.equal(R.lightAt(22, 'off').tint, 0xffffff);
+  assert.equal(R.lightAt(22, 'pools').pools, 1);
+  assert.equal(R.lightAt(22, 'glow').pools, 0);
+});
+
+test('zoomFor: render scale shrinks the backing store the zoom is computed from', () => {
+  assert.equal(R.zoomFor(1000, 600, 1, { renderScale: .5 }), R.zoomFor(500, 300, 1, { renderScale: 1 }));
+  assert.equal(R.zoomFor(1800, 1120, 1, { renderScale: .5 }), R.zoomFor(900, 560, 1, { renderScale: 1 }));
+  assert.equal(R.zoomFor(1800, 1120, 1, { renderScale: 1 }), 2);
+});

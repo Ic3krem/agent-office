@@ -2,7 +2,7 @@
 // something changed. Classic script: root.TownRender. The pure helpers never touch PIXI, so tests load this without it.
 // Contract: input is DOM events only. While mounted, PIXI.Ticker.system is stopped (Pixi's scheduler and pointer-move
 // ticking would otherwise run a rAF loop forever), so Pixi pointer events, AnimatedSprite and video textures do not tick.
-// destroy() restores the ticker's previous state.
+// destroy() restores the ticker's previous state and clears the one 60 s hour timer (it only marks when the night tenth changes).
 (function (root) {
   'use strict';
   const K = 0.7071, K2 = 0.3536;
@@ -51,6 +51,18 @@
     return Math.max(1, Math.floor(Math.min(viewW * s / MIN_W, viewH * s / MIN_H)));
   }
 
+  const r2 = v => Math.round(v * 100) / 100;
+  // Blob shadow of an atlas frame: centre at the anchor, half-width = half the footprint diamond's projected width.
+  function blobOf(f) {
+    const [x0, y0, x1, y1] = f.footprint, rx = K * (x1 - x0 + y1 - y0) / 2;
+    return { cx: f.ax, cy: f.ay, rx: r2(rx), ry: r2(rx / 2) };
+  }
+  // Day/night light at an hour for a lighting level: sprite tint, window glow alpha and lamp pool alpha (0..1).
+  function lightAt(hour, lighting) {
+    const n = root.Graphics.nightOf(hour), glow = lighting === 'glow' || lighting === 'pools';
+    return { tint: lighting === 'off' ? 0xffffff : root.Graphics.tintOf(n), glow: glow ? n : 0, pools: lighting === 'pools' ? n : 0 };
+  }
+
   // cam: top-left of the view in terrain px; view: its size in terrain px.
   function visibleChunks(cam, view, terrain) {
     const n = terrain.chunk, cl = v => Math.max(0, v);
@@ -62,7 +74,8 @@
     return out;
   }
 
-  async function mount(canvas, { map, atlasUrl, terrainUrl, shadows = 'soft' }) {
+  // graphics: Graphics.resolve(...) output. hour: a fixed hour (visual checks), else the clock.
+  async function mount(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.high, hour = null }) {
     const P = root.PIXI, SP = root.OfficeSprites;
     const getJson = async u => { const r = await fetch(u); if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r.json(); };
     const [atlas, terrain] = await Promise.all([getJson(atlasUrl), getJson(terrainUrl)]);
@@ -86,9 +99,17 @@
     for (const u of urls) textureBytes += tex[u].source.pixelWidth * tex[u].source.pixelHeight * 4;
 
     const cam = new P.Container(), ground = new P.Container(), shade = new P.Container(), world = new P.Container();
+    const blobs = new P.Container(), soft = new P.Container(); // shade holds one of: blob ellipses, the shadow atlas
     world.sortableChildren = true;
-    shade.visible = shadows !== 'off';
+    shade.addChild(blobs, soft);
     cam.addChild(ground, shade, world);
+    // One ellipse texture for every blob shadow, scaled per sprite.
+    const BW = 64, BH = 32, bcv = document.createElement('canvas');
+    bcv.width = BW; bcv.height = BH;
+    const bx = bcv.getContext('2d');
+    bx.fillStyle = 'rgba(26,34,64,0.35)'; bx.beginPath(); bx.ellipse(BW / 2, BH / 2, BW / 2, BH / 2, 0, 0, Math.PI * 2); bx.fill();
+    const blobTex = new P.Texture({ source: new P.CanvasSource({ resource: bcv }) });
+    textureBytes += BW * BH * 4;
     app.stage.addChild(cam);
 
     const chunks = [];
@@ -107,10 +128,15 @@
       const f = atlas.frames[type];
       if (!f) return;
       const [sx, sy] = project(x, y, 0), px = Math.round(sx - f.ax), py = Math.round(sy - f.ay);
-      for (const [layer, src] of [[world, tex[colourUrl].source], [shade, tex[shadowUrl].source]]) {
+      for (const [layer, src] of [[world, tex[colourUrl].source], [soft, tex[shadowUrl].source]]) {
         const s = new P.Sprite(frameTex(src, type));
         s.position.set(px, py); s.cullable = true; s.zIndex = depthOf(x, y);
         layer.addChild(s); sprites++;
+      }
+      if (f.footprint) {
+        const b = blobOf(f), s = new P.Sprite(blobTex);
+        s.anchor.set(0.5); s.position.set(px + b.cx, py + b.cy); s.scale.set(b.rx * 2 / BW, b.ry * 2 / BH); s.cullable = true;
+        blobs.addChild(s); sprites++;
       }
     };
     for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);
@@ -153,6 +179,20 @@
 
     let camX = map.spawn.x, camY = map.spawn.y, zoom = 1, viewW = 1, viewH = 1;
     let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, dead = false;
+    let G = graphics, lightKey = '';
+    const hourNow = () => hour != null ? hour : new Date().getHours() + new Date().getMinutes() / 60;
+    const bucket = () => Math.round(root.Graphics.nightOf(hourNow()) * 10); // tints change per tenth of night, as the office's ensureBG
+    function applyGraphics() {
+      shade.visible = G.shadows !== 'off'; blobs.visible = G.shadows === 'blob'; soft.visible = G.shadows === 'soft' || G.shadows === 'tint';
+      const key = bucket() + '|' + G.lighting + '|' + G.shadows;
+      if (key === lightKey) return;
+      lightKey = key;
+      const h = hourNow();
+      ground.tint = world.tint = lightAt(h, G.lighting).tint;
+      soft.tint = G.shadows === 'tint' ? root.Graphics.tintOf(root.Graphics.nightOf(h)) : 0xffffff;
+    }
+    // Render on demand: once a minute, re-render only if the night bucket moved.
+    const hourTimer = setInterval(() => { if (!lightKey.startsWith(bucket() + '|')) mark(); }, 60000);
     const view = new P.Rectangle();
 
     function layout() {
@@ -169,6 +209,7 @@
       raf = 0;
       if (dead || !dirty || document.hidden) return;
       const t0 = performance.now();
+      applyGraphics();
       layout();
       view.width = viewW; view.height = viewH;
       P.Culler.shared.cull(app.stage, view, false); // false: cull with this frame's transforms, not the last render's
@@ -184,9 +225,9 @@
     app.stage.eventMode = 'none'; // input is DOM-only: skip Pixi's per-move hit-testing
 
     function resize() {
-      const dpr = root.devicePixelRatio || 1;
-      const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
-      zoom = zoomFor(canvas.clientWidth, canvas.clientHeight, dpr, { renderScale: 1 });
+      // Backing store = css px x renderScale (G.renderScale already has the HiDPI cap applied), so dpr is 1 here.
+      const rs = G.renderScale, w = Math.max(1, Math.round(canvas.clientWidth * rs)), h = Math.max(1, Math.round(canvas.clientHeight * rs));
+      zoom = zoomFor(canvas.clientWidth, canvas.clientHeight, 1, G);
       if (w !== viewW || h !== viewH) { viewW = w; viewH = h; app.renderer.resize(w, h); }
       mark();
     }
@@ -225,15 +266,17 @@
       toWorld(cx, cy) { layout(); const k = viewW / canvas.clientWidth; return unproject(left + cx * k / zoom, top + cy * k / zoom); },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
-      setShadows(mode) { shade.visible = mode !== 'off'; mark(); },
+      setGraphics(g) { const rs = G.renderScale; G = g; lightKey = ''; if (g.renderScale !== rs) resize(); else mark(); },
       frameCount: () => frames_,
-      stats: () => ({ textureBytes, sprites, drawCalls: lastDraws, lastRenderMs }),
+      stats: () => ({ textureBytes, sprites, drawCalls: lastDraws, lastRenderMs, graphics: G }),
       destroy() {
         dead = true;
+        clearInterval(hourTimer);
         if (raf) cancelAnimationFrame(raf);
         document.removeEventListener('visibilitychange', onVis);
         canvas.removeEventListener('webglcontextrestored', mark);
         for (const t of charTex.values()) t.destroy(true);
+        blobTex.destroy(true);
         charTex.clear();
         app.destroy({ removeView: false }, { children: true });
         P.Assets.unload(urls);
@@ -242,5 +285,5 @@
     };
   }
 
-  root.TownRender = { project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
+  root.TownRender = { K, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
 })(globalThis);
