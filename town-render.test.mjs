@@ -59,3 +59,44 @@ test('unproject inverts project at ground level', () => {
     assert.ok(Math.abs(ux - x) < 1e-6 && Math.abs(uy - y) < 1e-6);
   }
 });
+
+// ---------- town step 3: travellers ----------
+test('syncPool: n travellers -> n visible sprites; one fewer -> one hidden, not destroyed; ids keep their sprite', () => {
+  const pool = R.pool(), made = [];
+  const make = () => { const s = { visible: false, n: made.length }; made.push(s); return s; };
+  const list = n => Array.from({ length: n }, (_, i) => ({ id: 'a' + i }));
+  const p1 = R.syncPool(pool, list(3), make);
+  assert.equal(made.length, 3);
+  assert.equal(made.filter(s => s.visible).length, 3);
+  const keep = new Map(p1.map(([t, s]) => [t.id, s]));
+  const p2 = R.syncPool(pool, list(2), make);
+  assert.equal(made.length, 3, 'nothing new made');
+  assert.equal(made.filter(s => s.visible).length, 2);
+  assert.equal(made.find(s => !s.visible), keep.get('a2'), 'the gone id is hidden, kept for reuse');
+  for (const [t, s] of p2) assert.equal(s, keep.get(t.id), 'same sprite for the same id');
+  R.syncPool(pool, [{ id: 'a0' }, { id: 'b' }], make);
+  assert.equal(made.length, 3, 'a hidden sprite is reused before making one');
+  assert.equal(R.syncPool(pool, [], make).length, 0);
+  assert.equal(made.filter(s => s.visible).length, 0);
+});
+
+test('charPlace: z-order x+y (after sprites at the same depth), view/flip from the face', () => {
+  const s = R.charPlace(500, 510, 's'), n = R.charPlace(500, 510, 'w');
+  assert.equal(s.z, 1010 + 1e-3);
+  assert.ok(R.charPlace(500, 500, 'e').z < s.z, 'a character further back draws first');
+  assert.deepEqual([s.view, s.dir, s.flip], ['f', -1, false]);
+  assert.deepEqual([n.view, n.dir, n.flip], ['b', 0, true]);
+  assert.deepEqual([R.charPlace(0, 0, 'e').view, R.charPlace(0, 0, 'n').flip], ['f', false]);
+});
+
+test('faceAlong: facing follows the path segment direction', () => {
+  assert.equal(R.faceAlong({ x: 0, y: 0 }, { x: 10, y: 1 }, 's'), 'e');
+  assert.equal(R.faceAlong({ x: 0, y: 0 }, { x: -10, y: 1 }, 's'), 'w');
+  assert.equal(R.faceAlong({ x: 0, y: 0 }, { x: 1, y: -10 }, 's'), 'n');
+  assert.equal(R.faceAlong({ x: 0, y: 0 }, { x: 0, y: 0 }, 'w'), 'w', 'no movement keeps the old face');
+});
+
+test('walkFrame advances with distance travelled, as the player does', () => {
+  const S = R.STRIDE;
+  assert.deepEqual([0, S * 0.5, S, S * 1.5, S * 2].map(R.walkFrame), [1, 1, 2, 2, 1]);
+});

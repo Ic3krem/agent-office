@@ -7,7 +7,7 @@
   'use strict';
   const K = 0.7071, K2 = 0.3536;
   const MIN_W = 900, MIN_H = 560; // css px of map that must stay in view
-  const CHAR_CAP = 64;
+  const CHAR_CAP = 128; // up to 12 travellers (MAX_DESKS) x 4 faces x 2 walk frames, plus the player: no eviction while walking
   const FEET = [9, 25]; // OfficeSprites pixel under the feet (same as office-world drawPerson)
   let O = [961, 4]; // terrain.json originPx; mount() replaces it with the loaded value
 
@@ -15,6 +15,30 @@
   // Inverse of project at z = 0: terrain px -> world units.
   const unproject = (sx, sy) => { const u = (sx - O[0]) / K, v = (sy - O[1]) / K2; return [(u + v) / 2, (v - u) / 2]; };
   const depthOf = (x, y) => x + y;
+
+  // Character placement on screen: the OfficeSprites view/dir for a face, a mirror for west, and depth after sprites at the same x+y.
+  function charPlace(x, y, face) {
+    const front = face === 'e' || face === 's', [sx, sy] = project(x, y, 0), flip = !front && face === 'w';
+    return { view: front ? 'f' : 'b', dir: front ? (face === 's' ? -1 : 1) : 0, flip,
+      px: Math.round(sx) + (flip ? FEET[0] : -FEET[0]), py: Math.round(sy) - FEET[1], z: depthOf(x, y) + 1e-3 };
+  }
+  // Travellers: the face is the path segment's direction; the walk frame flips every STRIDE units (the player's stride:
+  // it flips 6 times a second at WorldPlayer.SPEED).
+  const STRIDE = root.WorldPlayer.SPEED / 6;
+  const faceAlong = (a, b, fallback) => root.OfficeMotion.faceOf(b.x - a.x, b.y - a.y, fallback);
+  const walkFrame = dist => 1 + (Math.floor(dist / STRIDE) % 2);
+  // Sprite pool keyed by id: an id keeps its sprite; ids that left hide theirs for reuse (never destroyed). -> [[item, sprite]]
+  const pool = () => ({ byId: new Map(), free: [] });
+  function syncPool(pl, list, make) {
+    const out = [], seen = new Set();
+    for (const t of list) {
+      let s = pl.byId.get(t.id);
+      if (!s) { s = pl.free.pop() || make(); pl.byId.set(t.id, s); }
+      s.visible = true; seen.add(t.id); out.push([t, s]);
+    }
+    for (const [id, s] of pl.byId) if (!seen.has(id)) { s.visible = false; pl.byId.delete(id); pl.free.push(s); }
+    return out;
+  }
 
   function zoomFor(viewW, viewH, dpr, preset) {
     const s = dpr * ((preset && preset.renderScale) || 1);
@@ -89,7 +113,8 @@
     // Player: one sprite whose texture comes from a small LRU of OfficeSprites canvases.
     const player = new P.Sprite(P.Texture.EMPTY);
     player.visible = false; world.addChild(player); sprites++;
-    const charTex = new Map();
+    const charTex = new Map(), crowd = pool(), shown = new Map(); // shown: traveller id -> {x, y, name}
+    let crowdOn = false;
     function charTexture(look, view, pose, frame, dir) {
       const key = [look.sig, view, pose, frame, dir].join('/');
       let t = charTex.get(key);
@@ -102,6 +127,15 @@
         charTex.delete(k0); t0.destroy(true); textureBytes -= SP.W * SP.H * 4;
       }
       return t;
+    }
+
+    function put(s, x, y, face, pose, frame, look) {
+      const c = charPlace(x, y, face);
+      s.texture = charTexture(look, c.view, pose, frame, c.dir);
+      s.scale.x = c.flip ? -1 : 1;
+      s.position.set(c.px, c.py);
+      s.zIndex = c.z; // ties: characters after sprites
+      s.visible = true;
     }
 
     // Count GL draw calls per render (WebGL only).
@@ -155,14 +189,31 @@
 
     return {
       setPlayer({ x, y, face = 's', pose = 'stand', frame = 0, look }) {
-        const front = face === 'e' || face === 's', dir = front ? (face === 's' ? -1 : 1) : 0;
-        player.texture = charTexture(look, front ? 'f' : 'b', pose, frame, dir);
-        const [sx, sy] = project(x, y, 0), flip = !front && face === 'w';
-        player.scale.x = flip ? -1 : 1;
-        player.position.set(Math.round(sx) + (flip ? FEET[0] : -FEET[0]), Math.round(sy) - FEET[1]);
-        player.zIndex = depthOf(x, y) + 1e-3; // ties: characters after sprites
-        player.visible = true;
+        put(player, x, y, face, pose, frame, look);
         mark();
+      },
+      // Agents walking the town: [{id, x, y, face, frame, look, name}]. Pooled sprites; renders only when something shows or just hid.
+      setTravellers(list) {
+        if (!list.length && !crowdOn) return;
+        shown.clear();
+        for (const [t, s] of syncPool(crowd, list, () => { const s = new P.Sprite(P.Texture.EMPTY); world.addChild(s); sprites++; return s; })) {
+          put(s, t.x, t.y, t.face, 'walk', t.frame, t.look);
+          shown.set(t.id, { x: t.x, y: t.y, name: t.name });
+        }
+        crowdOn = list.length > 0;
+        mark();
+      },
+      // The traveller under css px (cx, cy) inside the canvas, as {id, name, sx, sy (css px of its head)}, or null.
+      travellerAt(cx, cy) {
+        layout();
+        const k = viewW / canvas.clientWidth, tx = left + cx * k / zoom, ty = top + cy * k / zoom;
+        let best = null;
+        for (const [id, t] of shown) {
+          const [sx, sy] = project(t.x, t.y, 0);
+          if (Math.abs(tx - sx) <= 10 && ty <= sy + 3 && ty >= sy - 30 && (!best || depthOf(t.x, t.y) > best.d))
+            best = { id, name: t.name, d: depthOf(t.x, t.y), sx: (sx - left) * zoom / k, sy: (sy - 30 - top) * zoom / k };
+        }
+        return best && { id: best.id, name: best.name, sx: best.sx, sy: best.sy };
       },
       // css px inside the canvas -> world x,y at ground level (uses the last laid-out camera, so call after a render)
       toWorld(cx, cy) { layout(); const k = viewW / canvas.clientWidth; return unproject(left + cx * k / zoom, top + cy * k / zoom); },
@@ -185,5 +236,5 @@
     };
   }
 
-  root.TownRender = { project, unproject, zoomFor, visibleChunks, depthOf, mount };
+  root.TownRender = { project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, mount };
 })(globalThis);

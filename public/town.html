@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office - Town</title>
 <script>if(/[#&]from=/.test(location.hash))document.documentElement.classList.add('ao-fade');</script>
-<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}#door{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 16px;border-radius:999px;border:1.5px solid #2a1a0c;background:#ffcf6b;color:#2a1a0c;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}#door.wait{background:#3a2e25;color:#e8e6df;border-color:#8a5a1c;cursor:default}html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
+<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}#door{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 16px;border-radius:999px;border:1.5px solid #2a1a0c;background:#ffcf6b;color:#2a1a0c;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}#tag{position:fixed;transform:translate(-50%,-100%);padding:1px 6px;border:1.2px solid #1b1220;border-radius:4px;color:#1b1220;font:11px ui-monospace,Consolas,monospace;pointer-events:none;white-space:nowrap;box-shadow:0 2px 0 rgba(0,0,0,.3)}#door.wait{background:#3a2e25;color:#e8e6df;border-color:#8a5a1c;cursor:default}html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
 </head>
 <body>
 <a href="/">Back to the office</a>
 <canvas id="town" tabindex="0"></canvas>
 <button id="door" hidden></button>
+<div id="tag" hidden></div>
 <div id="err" role="alert"><div id="errmsg"></div><a href="/">Back to the office</a></div>
 <script src="/vendor/pixi.min.js"></script>
 <script src="/office-objects.js"></script>
@@ -23,6 +24,7 @@
 <script src="/world-player.js"></script>
 <script src="/town-map.js"></script>
 <script src="/town-render.js"></script>
+<script src="/agent-travel.js"></script>
 <script>
 (async function () {
   const canvas = document.getElementById('town'), WP = WorldPlayer;
@@ -51,12 +53,61 @@
     let look = OfficeSprites.lookOf({ look: 'ceo' }), pose = 'stand', frame = 0;
     const draw = () => { api.setPlayer({ x: p.x, y: p.y, face: p.face, pose, frame, look }); api.setCamera(p.x, p.y); showDoor(); };
     draw();
-    try { // the CEO's saved wardrobe: first stream message, then done
+
+    // Town step 3: agents walking to the karinderya or game hall. Same trip records and sync as the office page (shared
+    // localStorage), judged against the office layout's flags; only travellers whose where() is in town are drawn.
+    // The rAF runs only while one is on the road; otherwise one timeout waits for the next town leg to start.
+    const AT = AgentTravel, routes = (a, b) => AT.route(map, a, b), trips_ = AT.store(), walked = new Map(), tag = document.getElementById('tag');
+    let snap = null, office = null, trips = {}, tRaf = 0, tWake = 0, owv = {}, looksSig = '', hover = null;
+    const officeFlags = () => fetch('/api/world', { headers: { 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' } }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.layout) { office = OfficeMotion.travelFlags(WorldModel.spotsOf(j.layout)); resync(); } }).catch(() => {});
+    const resync = () => { if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes); kick(); };
+    const kick = () => { if (!tRaf) tRaf = requestAnimationFrame(tTick); };
+    function travellers(now) {
+      const out = [], seen = new Map();
+      for (const a of (snap && snap.agents) || []) {
+        const rec = trips[a.id]; if (!rec) continue;
+        let w, n, b; try { w = AT.where(rec, now, routes); n = AT.where(rec, now + 50, routes); b = AT.where(rec, now - 50, routes); } catch (e) { continue; }
+        if (w.scene !== 'town' || !w.pos) continue;
+        const pos = w.pos, last = walked.get(a.id), [p0, p1] = n.pos ? [pos, n.pos] : [b.pos || pos, pos]; // the path segment it is on
+        const face = TownRender.faceAlong(p0, p1, last ? last.face : 's'), dist = last ? last.dist + Math.hypot(pos.x - last.x, pos.y - last.y) : 0;
+        seen.set(a.id, { x: pos.x, y: pos.y, dist, face });
+        out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a), name: a.name || 'Helper', accent: a.profile && a.profile.accent });
+      }
+      walked.clear(); for (const [k, v] of seen) walked.set(k, v);
+      return out;
+    }
+    function tTick() {
+      tRaf = 0; clearTimeout(tWake); tWake = 0;
+      const now = Date.now(), list = travellers(now);
+      api.setTravellers(list); showTag(list);
+      if (list.length) { tRaf = requestAnimationFrame(tTick); return; }
+      let next = Infinity;
+      for (const id in trips) next = Math.min(next, AT.nextIn(trips[id], 'town', now, routes));
+      if (next < Infinity) tWake = setTimeout(kick, Math.min(next - now + 1, 2147483647));
+    }
+    // Hover shows the name only (the desk card stays on the office page).
+    function showTag(list) {
+      const t = hover && list.length ? api.travellerAt(hover.x, hover.y) : null, a = t && list.find(o => o.id === t.id);
+      if (!a) { tag.hidden = true; return; }
+      const r = canvas.getBoundingClientRect();
+      tag.textContent = a.name; tag.style.background = a.accent || '#d8d2c4';
+      tag.style.left = (r.left + t.sx) + 'px'; tag.style.top = (r.top + t.sy - 2) + 'px'; tag.hidden = false;
+    }
+    canvas.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); hover = { x: e.clientX - r.left, y: e.clientY - r.top }; }); // the traveller loop shows the tag
+    canvas.addEventListener('pointerleave', () => { hover = null; tag.hidden = true; });
+    try { // the stream: the CEO's saved wardrobe and the agents (trips); the office layout's flags when it changes
       const es = new EventSource('/api/stream');
-      es.onmessage = ev => { es.close(); try { OfficeSprites.setCostumes(JSON.parse(ev.data).looks); look = OfficeSprites.lookOf({ look: 'ceo' }); draw(); } catch (e) {} };
-      es.onerror = () => es.close();
+      es.onmessage = ev => {
+        try {
+          const d = JSON.parse(ev.data), sig = JSON.stringify(d.looks || null);
+          if (sig !== looksSig) { looksSig = sig; OfficeSprites.setCostumes(d.looks); look = OfficeSprites.lookOf({ look: 'ceo' }); draw(); } // only on change: idle stays idle
+          const v = d.worldVersion && d.worldVersion.office;
+          if (v !== owv) { owv = v; officeFlags(); }
+          snap = d; resync();
+        } catch (e) {}
+      };
     } catch (e) {}
-    window.__town = { api, p, grid, map, toWorld: api.toWorld, near: () => near && near.id }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { api, p, grid, map, toWorld: api.toWorld, near: () => near && near.id, travellers: () => travellers(Date.now()), trips: () => trips }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;

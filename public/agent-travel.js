@@ -151,5 +151,47 @@
     return same && Object.keys(out).length === Object.keys(prev).length ? records : out;
   }
 
-  root.AgentTravel = { route, trip, where, destOf, departAt, sync, EXIT_MS, ENTER_MS, TOWN_SPEED, IDLE_DELAY };
+  // The next time after `now` that a leg of this trip (or of a trip it waits on) starts in `scene`, or Infinity. Lets a
+  // page sleep until a traveller next appears there (one timeout instead of polling).
+  function nextIn(tr, scene, now, routes) {
+    let best = tr && tr.prev ? nextIn(tr.prev, scene, now, routes) : Infinity;
+    const r = valid(tr, routes);
+    if (r) for (const l of timeline(tr, r, startOf(tr, routes))) if (l.scene === scene && l.from > now && l.from < best) best = l.from;
+    return best;
+  }
+
+  // The trip records every page of this origin shares: localStorage 'ao.trips', plus 'ao.boardEmptyAt' (when the board was
+  // first seen empty). Memory only when storage is unavailable. One store per page; sync(agents, office, empty, now,
+  // routes) reads the stored records, runs sync() with destOf, writes them back when they changed, and returns them.
+  function store() {
+    const TRIPS_KEY = 'ao.trips', EMPTY_KEY = 'ao.boardEmptyAt';
+    // fullAt: when this page first saw the board full again (the return time; the stored records hold it after that).
+    let trips = {}, emptyAt = null, fullAt = null;
+    const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
+    function boardTimes(empty, now) {
+      if (!empty) {
+        emptyAt = null; if (fullAt == null) fullAt = now;
+        try { localStorage.removeItem(EMPTY_KEY); } catch (e) { /* memory only */ }
+        return { fullAt };
+      }
+      fullAt = null;
+      try { const v = Number(localStorage.getItem(EMPTY_KEY)); if (localStorage.getItem(EMPTY_KEY) != null && isFinite(v)) emptyAt = v; } catch (e) { /* memory only */ }
+      if (emptyAt == null) emptyAt = now;
+      try { localStorage.setItem(EMPTY_KEY, String(emptyAt)); } catch (e) { /* memory only */ }
+      return { emptyAt };
+    }
+    return {
+      sync(agents, office, empty, now, routes) {
+        let stored = null;
+        try { stored = JSON.parse(localStorage.getItem(TRIPS_KEY)); } catch (e) { /* no storage: memory only */ }
+        let prev = plain(stored) ? stored : trips;
+        if (Object.values(prev).some(r => !plain(r))) prev = Object.fromEntries(Object.entries(prev).filter(([, r]) => plain(r))); // drop junk records
+        trips = sync(prev, agents, a => destOf(a, office, empty), now, routes, boardTimes(empty, now));
+        if (trips !== stored) try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { /* memory only */ }
+        return trips;
+      },
+    };
+  }
+
+  root.AgentTravel = { route, trip, where, nextIn, destOf, departAt, sync, store, EXIT_MS, ENTER_MS, TOWN_SPEED, IDLE_DELAY };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

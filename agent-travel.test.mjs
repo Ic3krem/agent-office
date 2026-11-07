@@ -336,3 +336,47 @@ test('R2 fullAt scope: a kain return keeps its statusAt; a games return does not
   assert.equal(T.sync(r2, [idle], dest, F2, routes, { fullAt: F1 }), r2, 'stable across windows: no flip-flop');
   assert.equal(T.sync(r2, [idle], dest, F2, routes, { fullAt: F2 }), r2);
 });
+
+// ---------- town step 3, task 4: the town page shares the office's trip store ----------
+const fakeStorage = data => ({ getItem: k => k in data ? data[k] : null, setItem: (k, v) => { data[k] = String(v); }, removeItem: k => { delete data[k]; } });
+const withStorage = data => loadWorld({ extra: ['town-map.js', 'agent-travel.js'], globals: data ? { localStorage: fakeStorage(data) } : {} }).AgentTravel;
+
+test('store: two pages on one storage agree, and the second reuses the records the first wrote', () => {
+  const data = {}, A = withStorage(data), B = withStorage(data), rs = (a, b) => A.route(town, a, b);
+  const agents = [{ id: 'a', status: 'limited', statusAt: 0 }, { id: 't', isManager: true, status: 'limited', statusAt: 0 }];
+  const office = { kain: false, play: false }, sa = A.store(), sb = B.store();
+  const ra = sa.sync(agents, office, false, 1000, rs);
+  assert.deepEqual(Object.keys(ra), ['a'], 'Tiro never travels');
+  assert.deepEqual(plain(JSON.parse(data['ao.trips'])), plain(ra));
+  assert.deepEqual(plain(sb.sync(agents, office, false, 9000, rs)), plain(ra), 'same records from the other page');
+  // games: the board-empty time is shared through storage
+  const idle = [{ id: 'a', status: 'idle', statusAt: 0 }];
+  sa.sync(idle, office, true, 5000, rs);
+  assert.equal(data['ao.boardEmptyAt'], '5000');
+  assert.equal(sb.sync(idle, office, true, 7000, rs).a.departAt, 25000, 'the other page used the stored board time');
+  assert.equal(data['ao.boardEmptyAt'], '5000', 'first sighting kept');
+  sb.sync(idle, office, false, 8000, rs);
+  assert.equal(data['ao.boardEmptyAt'], undefined, 'cleared when full');
+});
+
+test('store: no storage -> memory only; junk stored records are dropped', () => {
+  const A = withStorage(null), rs = (a, b) => A.route(town, a, b), s = A.store();
+  const r = s.sync([{ id: 'a', status: 'limited', statusAt: 0 }], { kain: false, play: false }, false, 10, rs);
+  assert.equal(r.a.dest, 'kain');
+  assert.equal(s.sync([{ id: 'a', status: 'limited', statusAt: 0 }], { kain: false, play: false }, false, 20, rs), r, 'kept in memory');
+  const data = { 'ao.trips': JSON.stringify({ x: [1], y: 'no', z: null }) }, B = withStorage(data);
+  assert.deepEqual(plain(B.store().sync([], { kain: false, play: false }, false, 0, (a, b) => B.route(town, a, b))), {});
+});
+
+test('nextIn: the next start of a town leg (for one timeout instead of polling), Infinity when none is ahead', () => {
+  const tr = T.trip(null, lim(0), 'kain', 0);
+  assert.equal(T.nextIn(tr, 'town', 0, routes), T.EXIT_MS);
+  assert.equal(T.nextIn(tr, 'town', T.EXIT_MS + 1, routes), Infinity, 'in the town leg now: nothing ahead');
+  const back = T.trip(tr, { status: 'working', statusAt: 20000 + TOWN }, null, 0, 'home', routes);
+  assert.equal(T.nextIn(back, 'town', 20000 + TOWN, routes), 20000 + TOWN + T.EXIT_MS, 'the walk home');
+  // a games trip that departs later
+  const g = T.trip(null, { statusAt: 50000 }, 'games', 0);
+  assert.equal(T.nextIn(g, 'town', 0, routes), 50000 + T.EXIT_MS);
+  assert.equal(T.nextIn(null, 'town', 0, routes), Infinity);
+  assert.equal(T.nextIn({ dest: 'nowhere', departAt: 0 }, 'town', 0, routes), Infinity);
+});

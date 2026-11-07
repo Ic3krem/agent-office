@@ -22,34 +22,13 @@
   // Trips: records {[agentId]: record} shared by every page of this origin in localStorage (a reload or a second window
   // continues the same trip; memory only if storage is unavailable). travel: {routes, office} from the page; routes
   // unset = nobody travels. office: {kain, play} of the office layout (an interior page sets it; the office reads SPOTS).
-  const TRIPS_KEY = 'ao.trips', EMPTY_KEY = 'ao.boardEmptyAt';
-  // emptyAt: when the board was first seen empty (shared in storage like the trips); fullAt: when this page first saw it
-  // full again (the return time; the stored records already hold it after that).
-  let trips = {}, travel = {}, emptyAt = null, fullAt = null;
+  let trips = {}, travel = {}, tripStore = null;
   const travelOn = () => !!(root.AgentTravel && travel.routes && !demo); // not in a preview or a party visit (another office's layout)
-  const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
-  function boardTimes(empty, now) {
-    if (!empty) {
-      emptyAt = null; if (fullAt == null) fullAt = now;
-      try { localStorage.removeItem(EMPTY_KEY); } catch (e) { /* memory only */ }
-      return { fullAt };
-    }
-    fullAt = null;
-    try { const v = Number(localStorage.getItem(EMPTY_KEY)); if (localStorage.getItem(EMPTY_KEY) != null && isFinite(v)) emptyAt = v; } catch (e) { /* memory only */ }
-    if (emptyAt == null) emptyAt = now;
-    try { localStorage.setItem(EMPTY_KEY, String(emptyAt)); } catch (e) { /* memory only */ }
-    return { emptyAt };
-  }
   function syncTrips(s) {
     const flags = inOffice() ? M.travelFlags() : travel.office;
     if (!travelOn() || !s || !flags) return;
-    let stored = null;
-    try { stored = JSON.parse(localStorage.getItem(TRIPS_KEY)); } catch (e) { /* no storage: memory only */ }
-    let prev = plain(stored) ? stored : trips;
-    if (Object.values(prev).some(r => !plain(r))) prev = Object.fromEntries(Object.entries(prev).filter(([, r]) => plain(r))); // drop junk records
-    const now = Date.now(), empty = M.boardOf(s).empty, board = boardTimes(empty, now);
-    trips = root.AgentTravel.sync(prev, s.agents || [], a => root.AgentTravel.destOf(a, flags, empty), now, travel.routes, board);
-    if (trips !== stored) try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { /* memory only */ }
+    tripStore = tripStore || root.AgentTravel.store(); // localStorage 'ao.trips' + 'ao.boardEmptyAt', shared with the town page
+    trips = tripStore.sync(s.agents || [], flags, M.boardOf(s).empty, Date.now(), travel.routes);
   }
   // The snapshot this scene's brain sees: only agents whose trip puts them here, with door hints for the walk in or out.
   function sceneSnap(s) {
