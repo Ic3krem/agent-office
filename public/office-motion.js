@@ -494,22 +494,25 @@
   //   moving     a character, fade, bubble or easing is mid-motion: needs smooth frames
   //   active     seated animations (typing, playing, thinking, music, pulses) but nothing travelling
   //   blurred    the window is visible but not focused: everything runs slower
+  //   fps        the graphics frame-rate cap (0/absent = none): caps every cadence; with saver off it is the flat rate
   // saver off keeps the old behaviour (30 fps flat). Reduced motion never animates, only follows changes.
   const FRAME = { MIN_GAP: 16, SMOOTH: 33, WORK: 125, IDLE: 500, INTERACT_MS: 1500, BLUR_SMOOTH: 66, BLUR_WORK: 250, BLUR_IDLE: 1000 };
+  const capMs = s => s.fps ? Math.round(1000 / s.fps) : 0;
   function nextFrameDelay(s) {
     if (s.hidden) return -1;
     if (s.reduced) return s.dirty ? 0 : 500;
     if (s.dirty) return 0;
-    if (!s.saver) return FRAME.SMOOTH;
+    const smooth = Math.max(FRAME.SMOOTH, capMs(s)); // 60 fps only raises the flat saver-off rate
+    if (!s.saver) return s.fps ? capMs(s) : FRAME.SMOOTH;
     const bl = !!s.blurred;
-    if (s.moving) return bl ? FRAME.BLUR_SMOOTH : FRAME.SMOOTH;
-    if (s.interactMs < FRAME.INTERACT_MS) return FRAME.SMOOTH;
+    if (s.moving) return bl ? Math.max(FRAME.BLUR_SMOOTH, capMs(s)) : smooth;
+    if (s.interactMs < FRAME.INTERACT_MS) return smooth;
     if (s.active) return bl ? FRAME.BLUR_WORK : FRAME.WORK;
     return bl ? FRAME.BLUR_IDLE : FRAME.IDLE;
   }
 
   // ms to wait before drawing, given the time since the last draw; never faster than MIN_GAP; -1 = paused
-  const frameWait = (st, since) => { const d = nextFrameDelay(st); return d < 0 ? -1 : Math.max(FRAME.MIN_GAP - since, d - since, 0); };
+  const frameWait = (st, since) => { const d = nextFrameDelay(st); return d < 0 ? -1 : Math.max(Math.max(FRAME.MIN_GAP, capMs(st)) - since, d - since, 0); };
   const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, deskAt, TIRO_DESK, OBSTACLES, SPOTS, SPAWN, GARDEN, PLAY, COOLER, HOT, OVER, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
     boardOf, nextState, createBrain, useLayout, EXIT, exitId, spotOf, travelFlags, grid: () => GRID, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
   root.OfficeMotion = api;

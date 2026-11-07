@@ -15,6 +15,7 @@
   let npcs = {}, npcChat = 0; // zero-token NPCs (cook, sweeper) and when one may speak next
   let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, renderMs = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
+  let G = null; // graphics settings (Graphics.resolve); null until the page applies them = today's drawing
   // Town step 2: 'office', or an interior ('kain' | 'games'). Town step 3: each scene shows the agents whose trip
   // (AgentTravel.where) puts them there; party guest avatars stay office-only.
   let scene = 'office', freshCeo = false; // freshCeo: the scene's first layout puts the CEO at its spawn
@@ -263,8 +264,8 @@
   // ---------- background (floor and walls) baked once per sky bucket ----------
   function ensureBG() {
     const hr = hourOverride != null ? hourOverride : new Date().getHours() + new Date().getMinutes() / 60;
-    F.state.night = root.Graphics.nightOf(hr);
-    const key = res + '|' + Math.round(F.state.night * 10);
+    F.state.night = F.state.lighting === 'off' ? 0 : root.Graphics.nightOf(hr);
+    const key = res + '|' + Math.round(F.state.night * 10) + '|' + F.state.lighting + '|' + F.state.shadows;
     if (bg && bgKey === key) return;
     bgKey = key; bg = document.createElement('canvas'); bg.width = Math.round(STW * res); bg.height = Math.round(STH * res);
     const b = bg.getContext('2d'); b.setTransform(res, 0, 0, res, 0, 0); F.bake(b);
@@ -358,7 +359,7 @@
     const alpha = (w.alpha == null ? 1 : w.alpha) * (w.fadeDir || w.fade < 1 ? Math.max(0, w.fade) : 1);
     g.save(); g.globalAlpha = alpha;
     // contact shadow
-    g.fillStyle = 'rgba(12,6,24,.3)'; g.beginPath(); g.ellipse(sx, sy0 + 1, 13, 6.5, 0, 0, 6.2832); g.fill();
+    if (F.state.shadows !== 'off') { g.fillStyle = 'rgba(12,6,24,.3)'; g.beginPath(); g.ellipse(sx, sy0 + 1, 13, 6.5, 0, 0, 6.2832); g.fill(); }
     if (selected === a.id) { g.strokeStyle = '#ffcf6b'; g.lineWidth = 1.6; g.setLineDash([5, 3]); g.beginPath(); g.ellipse(sx, sy0 + 1, 19, 9.5, 0, 0, 6.2832); g.stroke(); g.setLineDash([]); g.fillStyle = 'rgba(255,207,107,.14)'; g.fill(); }
     g.imageSmoothingEnabled = false;
     const dx = sx - 9 * sc, dy = sy - (19 + spr.h - SP.H) * sc + bob + jump; // taller/shorter sprites keep their feet
@@ -496,7 +497,7 @@
     return frame.agents.some(a => a.working || a.state === M.S.WINDOW || A.includes(a.pose));
   }
   function frameState() {
-    return { hidden: typeof document !== 'undefined' && document.hidden, reduced: reduced(), saver, dirty, interactMs: nowMs() - lastInput, moving: isMoving(), active: isActive(), blurred: typeof document !== 'undefined' && document.hasFocus && !document.hasFocus() };
+    return { hidden: typeof document !== 'undefined' && document.hidden, reduced: reduced(), saver, dirty, interactMs: nowMs() - lastInput, fps: G ? G.fps : 0, moving: isMoving(), active: isActive(), blurred: typeof document !== 'undefined' && document.hasFocus && !document.hasFocus() };
   }
   function schedule() {
     if (!running) return;
@@ -773,11 +774,15 @@
       .then(a => { if (!a || typeof a.frames !== 'object') throw new Error('atlas.json has no frames'); return a; })
       .then(a => new Promise((ok, no) => { const image = new Image(); image.onload = () => ok(Object.assign({}, a, { image })); image.onerror = () => no(new Error('atlas.png did not load')); image.src = '/art/office/atlas.png'; }))
       .then(a => new Promise(ok => { const glow = new Image(); glow.onload = () => ok(Object.assign(a, { glow })); glow.onerror = () => ok(a); glow.src = '/art/office/atlas-glow.png'; })) // night windows; optional
+      .then(a => new Promise(ok => { const shadow = new Image(); shadow.onload = () => ok(Object.assign(a, { shadow })); shadow.onerror = () => ok(a); shadow.src = '/art/office/atlas-shadow.png'; })) // ground shadows (Soft); optional
       .then(a => { F.useAtlas(a); bg = null; rebuildObjects(); wake(); }) // re-bake: floors and walls come from the atlas too
       .catch(e => console.info('Office art not loaded, drawing placeholder boxes instead:', e.message));
   }
   function setScale(s) { // css scale of the stage * device pixel ratio -> internal canvas resolution
-    scaleCss = s; const r = Math.max(1, Math.min(3, Math.round(s * (root.devicePixelRatio || 1) * 4) / 4)); if (!cv) return;
+    scaleCss = s; let r = Math.max(1, Math.min(3, Math.round(s * (root.devicePixelRatio || 1) * 4) / 4));
+    if (G) r = Math.max(.5, Math.min(3, Math.round(r * G.renderScale * 4) / 4)); // graphics render scale
+    if (!cv) return;
+    if (cv.style) cv.style.imageRendering = G && G.renderScale < 1 ? 'pixelated' : ''; // below 100%: blocky pixels, not blur
     if (r !== res || cv.width !== Math.round(STW * r)) { res = r; cv.width = Math.round(STW * res); cv.height = Math.round(STH * res); bg = null; }
     wake();
   }
@@ -823,6 +828,9 @@
     setLegend(on) { wake(); legend = !!on; F.state.labels = on ? 1 : (F.state.labels > 0 ? F.state.labels : 0); if (on) F.state.labels = 1; born = clock; },
     legend: () => legend,
     setHour(h) { hourOverride = h; bg = null; wake(); },
+    // Graphics.resolve(...) output: render scale, fps cap, shadows and lighting (the office has no ambient layer of its own)
+    setGraphics(g) { G = g; F.state.shadows = g.shadows; F.state.lighting = g.lighting; bg = null; setScale(scaleCss); },
+    graphics: () => G,
     setDemo(scene) { // scene string, or null to return to live data
       wake();
       if (!scene) { demo = null; reset(); lastDemoSig = ''; return; }

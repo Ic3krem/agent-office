@@ -625,17 +625,18 @@ const boxOf=L=>{if(!L||!L.scene)return {cx:740,cy:460,w:1480,h:920};const P=Offi
 class Component extends DCLogic {
   state={catGroup:'furniture',off:{x:0,y:0},nameDraft:{},hires:[],names:null,agents:[],overflow:0,selectedId:null,hoveredId:null,scale:1,input:'',dispatchOpen:false,dispatchText:'',modifyOpen:false,modifyText:'',toast:'',manager:null,goals:[],boss:null,vw:window.innerWidth,popout:false,todayOpen:window.innerWidth>=700,goalText:'',music:'',demo:'',roster:null,rosterOpen:false,deskInfo:null,legend:false,doneN:0,reportsN:0,usage:null,usageOpen:false,gfxOpen:false,gfx:null,tasksDone:0,nudged:{},cleared:{},local:{},online:null,view:{z:1,x:0,y:0},building:false,bst:null,armed:null,brush:null,buildErrs:null,tplOpen:false,tpls:[],tplName:'',ask:null,menu:null,follow:lsGet('ao.follow','1')!=='0'};
   wrapRef=React.createRef(); termRef=React.createRef(); canvasRef=React.createRef();
+  useGfx(g){this.setState({gfx:g});window.OfficeWorld&&OfficeWorld.setGraphics(Graphics.resolve(g,Graphics.env()));} // the office and the interiors draw with these settings
   gfxView(s){
     const G=window.Graphics,st=s.gfx;if(!G||!st)return {gfxName:'...',gfxPresets:[],gfxRows:[],gfxNote:false};
     const cur=st.preset==='custom'?st.custom:G.PRESETS[st.preset],e=G.env(),bd=on=>on?'var(--gold)':'var(--line)';
-    const set=v=>{this.setState({gfx:v});G.save(v).catch(()=>this.showToast('Could not save graphics settings'));}; // optimistic; save() echoes back via onChange
+    const set=v=>{this.useGfx(v);G.save(v).catch(()=>this.showToast('Could not save graphics settings'));}; // optimistic; save() echoes back via onChange
     const custom=(k,v)=>set({preset:'custom',custom:{...cur,[k]:v}});
     return {gfxName:st.preset[0].toUpperCase()+st.preset.slice(1),gfxNote:!!(e.reduced||e.saver),
       gfxPresets:[...Object.keys(G.PRESETS),'custom'].map(p=>({label:p[0].toUpperCase()+p.slice(1),pressed:st.preset===p,border:bd(st.preset===p),on:()=>p==='custom'?set({preset:'custom',custom:{...cur}}):set({preset:p})})),
       gfxRows:G.UI.map(r=>({label:r.label,options:r.options.map(([v,l])=>({label:l,pressed:cur[r.key]===v,border:bd(cur[r.key]===v),on:()=>custom(r.key,v)}))}))};
   }
   componentDidMount(){
-    if(window.Graphics){Graphics.load().then(g=>this.setState({gfx:g}));this.gfxOff=Graphics.onChange(g=>this.setState({gfx:g}));}
+    if(window.Graphics){Graphics.load().then(g=>this.useGfx(g));this.gfxOff=Graphics.onChange(g=>this.useGfx(g));}
     this.gameTimer=setInterval(()=>{const G=this.state.party&&this.state.party.game;if(this.state.partyOpen&&G&&(G.race||G.quiz))this.setState({gameTick:Date.now()});},250);
     this.avTimer=setInterval(()=>{const P=this.state.party;if(SCENE!=='office'||!P||!P.connected||!window.OfficeWorld)return;const c=OfficeWorld.ceo(),v=this.state.visit,k=[Math.round(c.x),Math.round(c.y),v?v.id:''].join(',');if(k===this.avKey)return;this.avKey=k;api('/api/party/avatar',{x:c.x,y:c.y,room:v?'office:'+v.id:'home'}).catch(()=>{this.avKey='';});},1000);
     const fit=()=>{const el=this.wrapRef.current;if(!el)return;const r=el.getBoundingClientRect(),i=this.insets();const B=this.box||boxOf(null),sc=Math.min((r.width-i.l)/B.w,(r.height-40-i.t-i.b)/B.h);this.fitSc=sc;this.vp={w:r.width-i.l,h:r.height-i.t-i.b};this.off={x:i.l/2,y:(i.t-i.b)/2};this.setView(this.state.view,sc);this.setState({scale:sc,off:this.off});};

@@ -58,7 +58,8 @@
   const txt = (g, s, x, y, size, col, al) => { g.font = size + 'px ' + FONT; g.fillStyle = col; g.textAlign = al || 'left'; g.textBaseline = 'alphabetic'; g.fillText(s, x, y); };
 
   // live values the painters read (set by the world loop and by the page)
-  const state = { T: 0, night: 0, dim: 0, desk: {}, ex: {}, board: { todo: 0, doing: 0, done: 0, total: 0 }, hover: null, selected: null, reportIcon: false, printer: 0, labels: 1, tiroBusy: false, tiroLook: false };
+  const state = { T: 0, night: 0, dim: 0, desk: {}, ex: {}, board: { todo: 0, doing: 0, done: 0, total: 0 }, hover: null, selected: null, reportIcon: false, printer: 0, labels: 1, tiroBusy: false, tiroLook: false,
+    shadows: 'blob', lighting: 'glow' }; // graphics settings (OfficeWorld.setGraphics); the defaults draw what the office always drew
   const ST = state;
   const objects = []; // interactive things: { key, label, box:[x,y,z,w,d,h] }
   const items = [];   // depth-sorted painters
@@ -92,7 +93,7 @@
     DEFAULTS.push(p);
   };
   const homeOf = (T, p) => T.home ? T.home(p) : p.home || T.anchor;
-  // Sprite painters. useAtlas({image, frames: {name: {x, y, w, h, ax, ay}}, glow?}) registers the office atlas once its image
+  // Sprite painters. useAtlas({image, frames: {name: {x, y, w, h, ax, ay}}, glow?, shadow?}) registers the office atlas once its image
   // has loaded. Frame names: '<type>' for a type whose build calls add() once, '<type>.<part>' otherwise, where part is the
   // 0-based add() index within the build (dept-desk.0 the desk, dept-desk.1 the chair). sprite() puts the frame's (ax, ay)
   // on P(x, y, 0). spriteOr(name, fn), called inside a build, returns a painter that draws the frame at the build's home
@@ -113,7 +114,9 @@
     const f = ATLAS && ATLAS.frames[name]; if (!f) return false;
     const p = P(x, y, 0), tx = t ? t[0] : 0, ty = t ? t[1] : 0;
     g.save(); g.imageSmoothingEnabled = false; if (a != null) g.globalAlpha *= a;
-    g.drawImage(img || ATLAS.image, f.x, f.y, f.w, f.h, Math.round(p[0] - f.ax + tx) - tx, Math.round(p[1] - f.ay + ty) - ty, f.w, f.h);
+    const dx = Math.round(p[0] - f.ax + tx) - tx, dy = Math.round(p[1] - f.ay + ty) - ty;
+    if (!img && !REC && ATLAS.shadow && (ST.shadows === 'soft' || ST.shadows === 'tint')) g.drawImage(ATLAS.shadow, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h); // the rendered ground shadow (atlas.png has none); never in a click silhouette
+    g.drawImage(img || ATLAS.image, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h);
     g.restore();
     return true;
   }
@@ -238,7 +241,7 @@
     // ---- left wall (plane x=0) and right wall (plane y=0) ----
     if (ROOM) return bakeRoom(g);
     if (A && A['wall@x'] && A['wall@y']) { // office art: one strip per wall; after dusk the glow sheet lays a night sky on the panes
-      for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow) sprite(g, n, 0, 0, nt, null, ATLAS.glow); }
+      for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow && ST.lighting !== 'tint') sprite(g, n, 0, 0, nt, null, ATLAS.glow); }
     } else { // the atlas is missing: two plain wall planes
       const WYv = WYm(), WXv = WXm();
       poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, WH), P(0, 0, WH)], '#8d919b', null);
@@ -313,7 +316,7 @@
     if (on) lampLight(g, x, y, z);
   }
   function lampLight(g, x, y, z) { const c = P(x - 5, y + 2, z + 20); const gr = g.createRadialGradient(c[0], c[1], 1, c[0], c[1] + 6, 30); gr.addColorStop(0, 'rgba(255,225,150,.35)'); gr.addColorStop(1, 'rgba(255,225,150,0)'); g.fillStyle = gr; g.fillRect(c[0] - 32, c[1] - 6, 64, 40); }
-  const contact = (x, y, r) => g => gell(g, x, y, 0, r, 'rgba(10,5,20,.25)'); // a chair's ground shadow, under its sprite
+  const contact = (x, y, r) => g => { if (ST.shadows !== 'off') gell(g, x, y, 0, r, 'rgba(10,5,20,.25)'); }; // a chair's ground shadow, under its sprite
   function led(g, x, y, z, col, blink) { const c = P(x, y, z); g.fillStyle = col; g.globalAlpha = blink ? .55 + .45 * Math.sin(ST.T * 7 + x) : 1; g.fillRect(c[0] - 1.5, c[1] - 1.5, 3, 3); g.globalAlpha = 1; }
 
   // monitor with a drawn screen. x,y = left/back corner of the panel on the desk top.
