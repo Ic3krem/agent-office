@@ -213,3 +213,34 @@ test('fix 4: records survive JSON', () => {
   for (let now = -2000; now < 80000; now += 250) assert.deepEqual(W(back, now, lr), W(tr, now, lr));
   assert.deepEqual(W(JSON.parse(JSON.stringify(T.trip(null, lim(0), 'kain', 0))), 9000), W(T.trip(null, lim(0), 'kain', 0), 9000));
 });
+
+test('statusAt stays current: a status change with the same dest, then a layout edit, does not jump', () => {
+  const t0 = T.trip(null, lim(0), 'kain', 0, 'home', routes);
+  const t1 = T.trip(t0, { status: 'limited', statusAt: 100 }, 'kain', 100, 'home', routes);
+  assert.equal(t1.statusAt, 100);
+  const t2 = T.trip(t1, { status: 'limited', statusAt: 100 }, 'games', 50000, 'home', routes);
+  assert.equal(t2, t1);
+  assert.deepEqual(W(t2, 50000), W(t0, 50000));
+});
+
+test('statusAt stays current on the way home: a layout edit after a non-travel status change starts no retroactive trip', () => {
+  const ret = T.trip(T.trip(null, lim(0), 'kain', 0), { status: 'working', statusAt: 100 }, null, 100);
+  assert.equal(ret.statusAt, 100);
+  const t1 = T.trip(ret, { status: 'thinking', statusAt: 200 }, null, 200);
+  assert.equal(t1.statusAt, 200);
+  const t2 = T.trip(t1, { status: 'thinking', statusAt: 200 }, 'games', 30000);
+  assert.equal(t2, t1);
+  for (const now of [200, 5000, 30000, 1e9]) assert.deepEqual(W(t2, now), W(ret, now));
+});
+
+test('without routes the queued chain is capped at 4', () => {
+  let tr = null;
+  for (let i = 0; i < 50; i++) {
+    tr = T.trip(tr, { statusAt: i * 2000 }, 'kain', i * 2000);
+    tr = T.trip(tr, { statusAt: i * 2000 + 1000 }, null, i * 2000 + 1000);
+    tr = T.trip(tr, { statusAt: i * 2000 + 1500 }, 'games', i * 2000 + 1500);
+  }
+  let depth = 0; for (let t = tr; t; t = t.prev) depth++;
+  assert.ok(depth <= 4, 'depth ' + depth);
+  assert.ok(W(tr, 1e6).scene);
+});

@@ -4,7 +4,7 @@
 (function (root) {
   'use strict';
   const EXIT_MS = 6000, ENTER_MS = 5000, TOWN_SPEED = 80; // walk to a door; walk in from a door; town units per second
-  const DESTS = ['kain', 'games'];
+  const DESTS = ['kain', 'games'], MAX_CHAIN = 4;
   const cache = new WeakMap(); // town data -> { grid, pairs }
 
   // A* path between two lot doors as {pts: [[x,y]...], len}, or null for an unknown lot or no path. Cached per pair.
@@ -34,19 +34,21 @@
     const fresh = p => prune(Object.assign({ dest, fromLot, departAt: at, returnAt: null, statusAt: at }, p ? { prev: p } : {}), at, routes);
     if (!prev) return dest ? fresh() : null;
     if (prev.returnAt == null) {
-      if (dest === prev.dest) return prev;
+      if (dest === prev.dest) return Object.assign({}, prev, { statusAt: at });
       const back = Object.assign({}, prev, { returnAt: at, statusAt: at });
       return dest ? fresh(back) : back;
     }
-    if (!dest) return prev;
+    if (!dest) return Object.assign({}, prev, { statusAt: at });
     // Flapping inside the exit leg: the agent has not turned yet, so the return is simply cancelled (one trip, no gap).
     if (dest === prev.dest && at < prev.departAt + EXIT_MS) return Object.assign({}, prev, { returnAt: null, statusAt: at });
     return fresh(prev);
   }
 
   // Drop chain entries that ended by `at`, folding their end into the next trip's departAt (the start where() would use).
-  function prune(tr, at, routes) {
-    if (!tr.prev || typeof routes !== 'function') return tr;
+  function prune(tr, at, routes, depth = 1) {
+    if (!tr.prev) return tr;
+    // Without routes the end times are unknown: keep the newest MAX_CHAIN entries (dropping older ones may make one jump).
+    if (typeof routes !== 'function') { const out = Object.assign({}, tr); if (depth >= MAX_CHAIN) delete out.prev; else out.prev = prune(tr.prev, at, routes, depth + 1); return out; }
     const e = endOf(tr.prev, routes), out = Object.assign({}, tr);
     if (e > at) { out.prev = prune(tr.prev, at, routes); return out; }
     delete out.prev;
