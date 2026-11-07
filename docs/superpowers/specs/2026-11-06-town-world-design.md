@@ -220,7 +220,9 @@ the office interior has all of today's features.
 - **Party:**
   - `room` gains one value, `town`, using the town map's coordinates. Friends on the plaza are shown in real time as
     guests, like today.
-  - Friends' agents never travel in your town. They stay inside their own office and are seen only when visiting.
+  - (User, 2026-11-07) Friends' agents travel too. A friend's limited agent walks from that friend's lot to the shared
+    karinderya and back, using the `state` the party feed already carries (no new protocol fields). Their other states
+    keep them inside their own office.
   - The shared layout is still the office interior only, under the 300 KB cap, plus the building style (`country` | `japanese` | `modern`).
   - The share-ready, protocol and party tests are updated with the change.
 - **"Idle" in the budgets** means no characters moving, with the preset's ambient animation running.
