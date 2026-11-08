@@ -124,3 +124,47 @@ Diagnosis of the creep (item 7), 40 town <-> office cycles in the app-shaped win
 - The atlas images, and the bitmap loader, are not the cause either.
 - The creep comes with loading the Agent Office page itself. The JS heap stays flat, and Task 10's memory-infra dumps found no tracked allocator growing.
 - It is not fixed. Next step, if wanted: memory-infra dumps on the atlas-blocked variant, and bisecting the page's scripts.
+
+## Fix wave B round 1: memory budget changed (user's decision, 2026-11-08), creep dig
+
+**Budget change.** The user decided on 2026-11-08 to replace the private-bytes plateau budget ("cycles 11-20 rise <= 3%") with an absolute one. Over 40 town <-> office cycles, the least-squares slope of renderer private bytes (after `clearCache()` + `gc()`) must be <= 0.3 MB per cycle. The JS heap budget (every cycle within +-10% of cycle 1) is unchanged. office-perf now runs 40 office cycles; the interiors pair stays at 20 cycles, for information only.
+
+The creep measures 0.12 to 0.31 MB per cycle across control runs (0.16 in the first diagnosis run). It comes from loading the Agent Office page. **Its root cause is an open follow-up.**
+
+office-perf also gates ambient off: on Low, office idle frames in 10 s must be 0, and so must the frames in the settled 3 s after a mouse move (the old 2 fps cadence drew 6).
+
+Creep dig, round 1. Each variant is 40 town <-> office cycles in the app-shaped window; the slope is fitted over cycles 11-40, in MB per cycle.
+
+| Variant | Slope |
+|---|---|
+| control (4 runs on this machine) | 0.16, 0.28, 0.31, 0.12 |
+| session history cleared every cycle | 0.22 |
+| office atlas PNGs blocked | 0.12 |
+| `/api/stream` (SSE) blocked | 0.39 |
+| `/fonts/` blocked | 0.10 |
+| V8 compilation cache off (`--no-compilation-cache`: the page compiles its app with `new Function` on every load) | 0.17 |
+| `office-world.js` blocked (no canvas world) | 0.13 |
+| `support.js` blocked (no app runs at all) | 0.03 (flat after a 10-cycle warm-up) |
+| town <-> town, no office page | -0.10 |
+
+- Only "no app at all" clearly separates from the control spread (0.12 to 0.31). No single script, resource or connection explains the creep.
+- The new blob atlas loader creates no object URLs, and the page creates none either.
+- AudioContext is made only when music plays.
+- The JS heap stays flat in every variant.
+- Next steps, if wanted: memory-infra dumps on a long run (more than 100 cycles) to see whether it levels off; bisecting inside the dc-runtime app (its components); a native heap profiler (ETW heap tracing) on the renderer, since none of Chromium's tracked allocators owns the growth.
+
+Gate runs after round 1 (`08ccf63`), two each:
+
+| Measure | Run 1; run 2 | Budget |
+|---|---|---|
+| Low: office idle frames in 10 s (ambient off) / settled frames after a mouse move | 0 / 0; 0 / 0 | 0 / 0 |
+| High: office idle frames / settled after mouse | 19 / 6; 19 / 6 | <= 21 / <= 7 |
+| Low / High: office hidden frames | 0 / 0; 0 / 0 | 0 |
+| Low / High: office work draw p95 (shadow layer cached) | 3.7 / 3.6 ms; 3.3 / 3.1 ms | < 8 ms |
+| Low / High: office private (work scene, single sample) | 94.6 / 95.6 MB; 93.3 / 94.6 MB | < 180 / < 250 MB |
+| 40 town <-> office cycles: JS heap worst cycle | 1.2%; 0.9% | +-10% |
+| 40 town <-> office cycles: private slope (fitted over all 40, cache cleared) | 0.268; 0.272 MB per cycle | <= 0.3 |
+| renderer private after 40 cycles (raw sample, cache cleared) | 87.0; 87.0 MB | < 250 MB |
+| town-perf | ALL PASSED; ALL PASSED (High walk p95 1.2 ms, private 65.7 / 64.8 MB) | |
+
+Both runs pass the slope budget, but by only about 0.03 MB per cycle. A noisy run can miss it.
