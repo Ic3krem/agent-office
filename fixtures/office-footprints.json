@@ -128,5 +128,10 @@
   {"id":"karinderya","type":"karinderya","part":11,"fp":[200,160,208,168],"d":368,"floor":false,"nofp":false},
   {"id":"karinderya","type":"karinderya","part":12,"fp":[3.9,157.9,20.1,174.1],"d":178,"floor":false,"nofp":false},
   {"id":"karinderya","type":"karinderya","part":13,"fp":[187,148,194,153],"d":340,"floor":false,"nofp":false},
+  {"id":"kain-table","type":"kain-table","part":0,"fp":[-60,-12,60,12],"d":0,"floor":false,"nofp":false},
+  {"id":"kain-table","type":"kain-table","part":1,"fp":null,"d":-61,"floor":false,"nofp":true},
+  {"id":"kain-table","type":"kain-table","part":2,"fp":null,"d":-21,"floor":false,"nofp":true},
+  {"id":"kain-table","type":"kain-table","part":3,"fp":null,"d":19,"floor":false,"nofp":true},
+  {"id":"kain-table","type":"kain-table","part":4,"fp":[-54,17,54,26],"d":21,"floor":false,"nofp":true},
   {"id":"broom-corner","type":"broom-corner","part":0,"fp":[-3,-3,11,11],"d":8,"floor":false,"nofp":false}
 ]

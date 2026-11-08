@@ -524,17 +524,20 @@ test('frame budget on a fake clock: idle, working, moving, hidden', () => {
 // ---------- town step 3: agents leave and arrive through doors ----------
 const town = JSON.parse(fs.readFileSync(new URL('./public/town/town.json', import.meta.url), 'utf8'));
 const interior = s => JSON.parse(fs.readFileSync(new URL('./public/world-templates/interior-' + s + '.json', import.meta.url), 'utf8'));
+// The kain interior as it was before town step 5's second table: six stools (a saved interior may still look like this).
+const sixStools = () => { const l = interior('kain'); l.objects = l.objects.filter(o => o.type !== 'kain-table'); return l; };
+const seat = s => /^kain:\d+$/.test(s); // kain:q* is the take-out line, not a seat
 // The office page in a vm with a fake wall clock (AgentTravel.where reads Date.now()).
 const J = v => JSON.parse(JSON.stringify(v));
 // storage: a plain object standing in for localStorage (omit: no storage, memory only).
 const fakeStorage = data => ({ getItem: k => k in data ? data[k] : null, setItem: (k, v) => { data[k] = String(v); }, removeItem: k => { delete data[k]; } });
-function travelWorld(sceneName, office = { kain: false, play: true }, storage) {
+function travelWorld(sceneName, office = { kain: false, play: true }, storage, layout) {
   const w = loadWorld({ extra: ['town-map.js', 'agent-travel.js', 'office-world.js'], globals: { OfficeSprites: { lookOf: () => ({}), W: 32, H: 48 }, ...(storage ? { localStorage: fakeStorage(storage) } : {}) } });
   w.document.documentElement = { dataset: {} };
   let t = 1e12; vm.runInContext("Date", w).now = () => t;
   const AT = w.AgentTravel, routes = (a, b) => AT.route(town, a, b);
   const OW = w.OfficeWorld;
-  if (sceneName) { OW.setScene(sceneName); OW.applyLayout(interior(sceneName)); }
+  if (sceneName) { OW.setScene(sceneName); OW.applyLayout(layout || interior(sceneName)); }
   OW.setTravel({ routes, office: sceneName ? office : undefined });
   const R = routes('home', 'kain'), TOWN = R.len / AT.TOWN_SPEED * 1000;
   return { w, OW, AT, routes, TOWN, T0: 1e12, at: v => { t = v; }, dbg: id => (OW.debug() || { agents: [] }).agents.find(a => a.id === id) };
@@ -585,14 +588,15 @@ test('kain scene: an agent on the enter leg appears at the door and claims a fre
 });
 
 test('eight eaters, six stools: the two extra stand near the counter, never stacked', () => {
-  M.useLayout(interior('kain'));
+  M.useLayout(sixStools());
   try {
     const keys = Object.keys(ROSTER).slice(0, 8);
     const f = M.createBrain({ wall: () => 1e12 }).update(snap(keys.map(k => ag(k, 'limited', { at: 'kain' }))), 0);
     const spots = f.agents.map(a => a.spot);
     assert.equal(new Set(spots).size, 8, 'no two on one spot: ' + spots);
-    assert.equal(spots.filter(s => s.startsWith('kain:')).length, 6);
-    const extra = f.agents.filter(a => !a.spot.startsWith('kain:'));
+    assert.equal(spots.filter(seat).length, 6);
+    const extra = f.agents.filter(a => !seat(a.spot));
+    assert.deepEqual(J(extra.map(a => a.spot)), ['kain:q1', 'kain:q2'], 'the take-out line at the counter');
     assert.deepEqual(J(extra.map(a => a.id)), keys.slice(6).map(k => 'a-' + k), 'the list order claims the stools first');
     for (const a of extra) { const sp = M.SPOTS[a.spot]; assert.ok(sp && !sp.seat && !sp.desk && a.spot !== 'door', a.spot); assert.equal(a.pose, 'cooler'); }
     // and every stand spot is open floor
@@ -664,8 +668,8 @@ test('R2 stand spots: only interiors get them; the game hall is capped near twic
 });
 
 test('R2 stander churn: when an earlier stander leaves, the others keep their stand spots', () => {
-  for (const [sc, st, n] of [['games', 'idle', 16], ['kain', 'limited', 10]]) {
-    M.useLayout(interior(sc));
+  for (const [sc, st, n] of [['games', 'idle', 16], ['kain', 'limited', 14]]) { // kain: 6 stools, 4 take-out spots, then standers
+    M.useLayout(sc === 'kain' ? sixStools() : interior(sc));
     try {
       const all = Array.from({ length: n }, (_, i) => ({ id: 'p' + String(i).padStart(2, '0'), status: st, at: sc, logs: [], profile: null }));
       const b = M.createBrain({ wall: () => 1e12 }), f1 = b.update(snap(all), 0);
@@ -701,7 +705,7 @@ test('a migrated office (no play spots) sends an idle agent on an empty board to
 
 // ---------- town step 3, task 6: friends' agents in the karinderya ----------
 test('kain: friends eat on free stools; six own eaters take the stools back and the two friends stand, never stacked', () => {
-  const v = travelWorld('kain'), T0 = v.T0, AT = v.AT;
+  const v = travelWorld('kain', undefined, undefined, sixStools()), T0 = v.T0, AT = v.AT;
   const FT = v.routes('friend-1', 'kain').len / AT.TOWN_SPEED * 1000;
   const crew = [{ id: 'x1', name: 'Pixel', key: 'pixel', state: 'limited', bubble: 'On break' }, { id: 'x2', name: 'Forge', key: 'forge', state: 'limited', bubble: 'On break' }];
   const keys = Object.keys(ROSTER).slice(0, 6), late = T0 + AT.EXIT_MS + FT + AT.ENTER_MS + 1000;
@@ -715,8 +719,8 @@ test('kain: friends eat on free stools; six own eaters take the stools back and 
   assert.equal(v.dbg('friend:m1:x1').name, 'Pixel · Ana');
   v.at(late + 3600e3); v.OW.setSnapshot(s); v.OW.advance(0.1);
   const own = keys.map(k => v.dbg('a-' + k)), fr = ['friend:m1:x1', 'friend:m1:x2'].map(v.dbg);
-  assert.ok(own.every(a => a && a.spot.startsWith('kain:')), 'own agents sit: ' + own.map(a => a && a.spot));
-  assert.ok(fr.every(a => a && !a.spot.startsWith('kain:') && a.pose === 'cooler'), 'friends stand: ' + fr.map(a => a && a.spot));
+  assert.ok(own.every(a => a && seat(a.spot)), 'own agents sit: ' + own.map(a => a && a.spot));
+  assert.ok(fr.every(a => a && !seat(a.spot) && a.pose === 'cooler'), 'friends stand: ' + fr.map(a => a && a.spot));
   const spots = [...own, ...fr].map(a => a.spot);
   assert.equal(new Set(spots).size, 8, 'never stacked: ' + spots);
   // the office never shows friends' agents (their home is their own lot)
