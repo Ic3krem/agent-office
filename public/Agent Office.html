@@ -671,6 +671,7 @@ class Component extends DCLogic {
     this.onKey=e=>{
       if(this.state.ask){if(e.key==='Escape'){e.preventDefault();this.setState({ask:null});}else if(e.key==='Tab'){const bs=[...document.querySelectorAll('[role=dialog] button')],i=bs.indexOf(document.activeElement);if(bs.length){e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}}return;}
       const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;
+      if(this.state.gfxOpen||this.state.usageOpen){if(e.key==='Escape')this.setState({gfxOpen:false,usageOpen:false});return;} // a modal swallows keys: Y/N must never decide a permission hidden under it
       if(this.state.menu&&e.key==='Escape'){e.preventDefault();this.setState({menu:null});return;}
       const a=this.sel();
       if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&!document.querySelector('.oo-win')){if(e.key==='+'||e.key==='=')this.zoomBy(1.25);else if(e.key==='-'||e.key==='_')this.zoomBy(0.8);else if(e.key==='0')this.setView({z:1,x:0,y:0});}

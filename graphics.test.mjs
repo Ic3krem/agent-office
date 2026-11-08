@@ -120,3 +120,12 @@ test('UI: six rows in order, option values equal the allowed sets', () => {
   assert.deepEqual(plain(G.UI[0].options.map(o => o[1])), ['50%', '75%', '100%', '100% (2× HiDPI)']);
   assert.deepEqual(plain(G.UI[4].options.map(o => o[1])), ['Off', 'Tint', 'Tint + window glow', 'Tint + glow + lamp light']);
 });
+
+test('desktop prefs save keeps the server-owned graphics setting, and the open panel swallows Y/N', () => {
+  const main = fs.readFileSync(new URL('./desktop/main.mjs', import.meta.url), 'utf8');
+  assert.match(main, /for \(const k of \[[^\]]*'graphics'[^\]]*\]\)/);
+  const html = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
+  const onKey = html.slice(html.indexOf('this.onKey=e=>{'), html.indexOf("window.addEventListener('keydown',this.onKey)"));
+  const guard = onKey.indexOf('if(this.state.gfxOpen||this.state.usageOpen){'), perm = onKey.indexOf("this.decide(a,'allow')");
+  assert.ok(guard > 0 && perm > guard, 'modal key guard must run before the Y/N permission keys');
+});
