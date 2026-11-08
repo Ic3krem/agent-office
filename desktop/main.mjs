@@ -59,13 +59,19 @@ const logEvent = ev => logLine(restartLogLine(Date.now(), ev));
 function logText(t) { logLine(new Date().toISOString() + ' prefs ' + String(t).slice(0, 300)); }
 const restart = createRestartPolicy();
 let quitting = false, gaveUp = false, restartTimer = null;
+// The server's stderr goes to server.log (rotated at 200 KB) so a start failure on someone else's PC can be diagnosed.
+function serverErr() {
+  const f = path.join(CFG_DIR, 'server.log');
+  try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(f).size > 200000) fs.renameSync(f, f + '.1'); } catch {} return fs.openSync(f, 'a'); } catch { return 'ignore'; }
+}
 function spawnServer() {
   // Electron's own Node runs the server, so the app needs no separate Node install.
   // Packaged, ROOT is inside app.asar, which the OS sees as a file: a cwd there fails the spawn with ENOENT. Electron still
   // reads server.mjs from the archive, so only the working directory has to be a real folder.
   const started = Date.now();
-  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: app.isPackaged ? process.resourcesPath : ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY }, stdio: 'ignore', windowsHide: true });
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: app.isPackaged ? process.resourcesPath : ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY, AGENT_OFFICE_PARENT_PIPE: '1' }, stdio: ['pipe', 'ignore', serverErr()], windowsHide: true });
   server = child;
+  child.stdin.on('error', () => {}); // the pipe is only held open: the server exits when it closes
   child.on('error', e => logEvent({ event: 'spawn-error', error: e?.code }));
   child.on('exit', (code, signal) => {
     if (server === child) server = null;
@@ -83,16 +89,36 @@ function spawnServer() {
 }
 // Our own server answers the UI key; anything else on the published port does not.
 async function waitForServer() {
-  for (let i = 0; i < 60; i++) { followPort(); if (await signedIn()) return true; if (gaveUp) return false; await new Promise(r => setTimeout(r, 500)); }
+  for (let i = 0; i < 120; i++) { followPort(); if (await signedIn()) return true; /* 60 s: a first start can wait on antivirus scans */ if (gaveUp) return false; await new Promise(r => setTimeout(r, 500)); }
   return false;
+}
+// Windows, packaged: a process running this same executable that listens on our port can only be a leftover server of
+// ours (one copy of the app runs at a time), e.g. from an app ended in Task Manager by a build whose server outlived it.
+// Stop it so the app can start. Get-NetTCPConnection, not netstat: its state names are not localised.
+function stopLeftoverServer(port) {
+  if (process.platform !== 'win32' || !app.isPackaged) return false;
+  try {
+    const ps = `Get-NetTCPConnection -LocalPort ${+port} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess.ToString() + '|' + (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).Path }`;
+    const out = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', windowsHide: true, timeout: 15000 }).stdout || '';
+    let stopped = false;
+    for (const line of out.split(String.fromCharCode(10))) {
+      const [pid, exe] = line.trim().split('|');
+      if (+pid > 0 && +pid !== process.pid && exe && path.resolve(exe).toLowerCase() === path.resolve(process.execPath).toLowerCase()) {
+        try { process.kill(+pid); stopped = true; logEvent({ event: 'stopped-leftover-server', pid: +pid }); } catch {}
+      }
+    }
+    return stopped;
+  } catch { return false; }
 }
 async function ensureServer() {
   followPort();
   if (await signedIn()) return;
-  if (await isAgentOffice(new URL(BASE).port)) throw new Error('Another Agent Office or TiroAgents is already running on ' + BASE + '. Quit it from its tray icon, then click Retry.');
+  const port = new URL(BASE).port;
+  if (await isAgentOffice(port) && stopLeftoverServer(port)) await new Promise(r => setTimeout(r, 1500));
+  if (await isAgentOffice(port)) throw new Error('Another Agent Office or TiroAgents is already running on ' + BASE + '. Quit it from its tray icon, then click Retry.');
   gaveUp = false; restart.reset(); // a Retry after the server gave up starts the count afresh
   spawnServer();
-  if (!(await waitForServer())) throw new Error('The TiroAgents server did not start. Details: ' + LOG_FILE);
+  if (!(await waitForServer())) throw new Error('The TiroAgents server did not start. Details: ' + LOG_FILE + ' and ' + path.join(CFG_DIR, 'server.log'));
 }
 function relocateWindows() {
   signInWindows();

@@ -56,6 +56,13 @@ const { key: BRIDGE_KEY, rotated: KEY_ROTATED } = loadBridgeKey(CFG_FILE); // th
 // Electron hands the UI key over in the environment and sets the cookie itself; take it out of the environment so no child process inherits it.
 const ENV_UI_KEY = typeof process.env.AGENT_OFFICE_UI_KEY === 'string' && process.env.AGENT_OFFICE_UI_KEY.length >= 32 ? process.env.AGENT_OFFICE_UI_KEY : '';
 delete process.env.AGENT_OFFICE_UI_KEY;
+// Started by the desktop app: stdin is a pipe from the app that closes however the app ends (crash, Task Manager), so
+// the server never outlives it and keeps the port with a UI key no new app knows.
+if (process.env.AGENT_OFFICE_PARENT_PIPE === '1') {
+  delete process.env.AGENT_OFFICE_PARENT_PIPE;
+  const gone = () => process.exit(0);
+  process.stdin.on('end', gone); process.stdin.on('error', gone); process.stdin.resume();
+}
 // The HMAC key that proves a weaker Security Guard setting was confirmed in the desktop app (never in kiro.json, never in an agent's environment).
 const GUARD_KEY = typeof process.env.AGENT_OFFICE_GUARD_KEY === 'string' && process.env.AGENT_OFFICE_GUARD_KEY.length >= 32 ? process.env.AGENT_OFFICE_GUARD_KEY : '';
 delete process.env.AGENT_OFFICE_GUARD_KEY;
