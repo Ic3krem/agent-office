@@ -63,7 +63,9 @@
       "NOTICE",
       "THIRD_PARTY_NOTICES.md",
       "node_modules/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+      "!node_modules/@anthropic-ai/claude-agent-sdk-*/**",
+      "!node_modules/exceljs/dist/**",
+      "!node_modules/**/*.{map,d.ts,d.cts,d.mts}"
     ],
     "publish": [
       {
