@@ -15,6 +15,7 @@ import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyB
 import { officeNav } from './office-nav.mjs';
 import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
 import { candidatePorts, publishedPort, isAgentOffice } from '../ports.mjs';
+import { readForWrite } from '../prefs-file.mjs';
 import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -38,8 +39,8 @@ app.setAppUserModelId('io.github.ic3krem.agentoffice');
 let server, office, kiro, island, tray;
 const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')))); } catch { return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
 // agentNames, looks and graphics are owned by the server (rename, wardrobe and Graphics UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
-// A corrupt or half-written kiro.json skips this save (the next one writes) rather than dropping those keys.
-const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
+// A torn kiro.json is re-read once; a corrupt one is moved aside to kiro.json.bad-<time> and logged (readForWrite), so saves never stall.
+const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk; try { disk = readForWrite(KIRO_FILE, { log: logText }); } catch (e) { logText('prefs not saved: ' + e.message); return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 // The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly
@@ -51,7 +52,9 @@ const uiPost = (p, body) => uiNonce().then(nonce => fetch(BASE + p, { method: 'P
 const signedIn = () => uiPost('/api/roster', {}).then(r => r.ok, () => false);
 // Event log for the desktop shell: no environment, arguments or keys, only the event, exit code or signal, and the retry plan. Capped in size.
 const LOG_FILE = path.join(CFG_DIR, 'desktop.log');
-const logEvent = ev => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, restartLogLine(Date.now(), ev) + String.fromCharCode(10)); } catch {} };
+const logLine = line => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, line + String.fromCharCode(10)); } catch {} };
+const logEvent = ev => logLine(restartLogLine(Date.now(), ev));
+function logText(t) { logLine(new Date().toISOString() + ' prefs ' + String(t).slice(0, 300)); }
 const restart = createRestartPolicy();
 let quitting = false, gaveUp = false, restartTimer = null;
 function spawnServer() {

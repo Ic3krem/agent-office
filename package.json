@@ -40,6 +40,7 @@
       "agent-home.mjs",
       "auth.mjs",
       "ports.mjs",
+      "prefs-file.mjs",
       "permissions.mjs",
       "guard/*.mjs",
       "redact.mjs",

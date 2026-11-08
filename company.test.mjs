@@ -192,23 +192,43 @@ test('server clears hires on every manager end path', () => {
 });
 
 import { lookStore, graphicsStore } from './company.mjs';
-test('kiro.json stores: missing file is created, corrupt file is never overwritten, normal file merges', () => {
+import { readForWrite } from './prefs-file.mjs';
+test('kiro.json stores: missing file is created, a corrupt file is moved aside and the save goes through, normal file merges', () => {
   const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ao-kiro-'));
   const writes = [st => st.set('tiro', 'Boss'), st => st.reset()].map(f => [nameStore, f])
     .concat([[lookStore, st => st.set('tiro', { hat: 'cap' })], [graphicsStore, st => st.set({ preset: 'low' })]]);
-  for (const [make, write] of writes) {
-    const missing = path.join(dir(), 'kiro.json');
-    write(make(missing));
-    assert.equal(typeof JSON.parse(fs.readFileSync(missing, 'utf8')), 'object', make.name + ' creates a missing file');
-    const corrupt = path.join(dir(), 'kiro.json'), torn = '{"x":5,"islandMode":"sm';
-    fs.writeFileSync(corrupt, torn);
-    assert.throws(() => write(make(corrupt)), e => e.status === 500, make.name + ' throws a 500 on a corrupt file');
-    assert.equal(fs.readFileSync(corrupt, 'utf8'), torn, make.name + ' leaves a corrupt file untouched');
-    assert.doesNotThrow(() => make(corrupt).get(), make.name + ' get stays usable');
-    const normal = path.join(dir(), 'kiro.json');
-    fs.writeFileSync(normal, JSON.stringify({ x: 5, islandMode: 'smart' }));
-    write(make(normal));
-    const d = JSON.parse(fs.readFileSync(normal, 'utf8'));
-    assert.equal(d.x, 5); assert.equal(d.islandMode, 'smart', make.name + ' merges');
-  }
+  const err = console.error; console.error = () => {}; // the move-aside is logged
+  try {
+    for (const [make, write] of writes) {
+      const missing = path.join(dir(), 'kiro.json');
+      write(make(missing));
+      assert.equal(typeof JSON.parse(fs.readFileSync(missing, 'utf8')), 'object', make.name + ' creates a missing file');
+      const d0 = dir(), corrupt = path.join(d0, 'kiro.json'), torn = '{"x":5,"islandMode":"sm';
+      fs.writeFileSync(corrupt, torn);
+      assert.doesNotThrow(() => write(make(corrupt)), make.name + ' saves over a corrupt file');
+      assert.equal(typeof JSON.parse(fs.readFileSync(corrupt, 'utf8')), 'object', make.name + ' wrote fresh prefs');
+      const bad = fs.readdirSync(d0).filter(f => f.startsWith('kiro.json.bad-'));
+      assert.equal(bad.length, 1); assert.equal(fs.readFileSync(path.join(d0, bad[0]), 'utf8'), torn, make.name + ' keeps the corrupt file aside');
+      fs.writeFileSync(corrupt, torn);
+      assert.doesNotThrow(() => make(corrupt).get(), make.name + ' get stays usable');
+      const normal = path.join(dir(), 'kiro.json');
+      fs.writeFileSync(normal, JSON.stringify({ x: 5, islandMode: 'smart' }));
+      write(make(normal));
+      const d = JSON.parse(fs.readFileSync(normal, 'utf8'));
+      assert.equal(d.x, 5); assert.equal(d.islandMode, 'smart', make.name + ' merges');
+    }
+  } finally { console.error = err; }
+});
+test('readForWrite: a torn file that heals within the retry is used as is; a persistent one is moved aside and logged once', () => {
+  const d0 = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-kiro-')), f = path.join(d0, 'kiro.json'), logs = [];
+  fs.writeFileSync(f, '{"agentNames":{"tiro":"Bo');
+  let waited = 0;
+  const v = readForWrite(f, { log: m => logs.push(m), wait: ms => { waited = ms; fs.writeFileSync(f, JSON.stringify({ agentNames: { tiro: 'Boss' }, x: 1 })); } });
+  assert.deepEqual(v, { agentNames: { tiro: 'Boss' }, x: 1 }); assert.ok(waited >= 50 && waited <= 100, 'short wait ' + waited); assert.equal(logs.length, 0);
+  assert.deepEqual(fs.readdirSync(d0), ['kiro.json'], 'nothing moved');
+  fs.writeFileSync(f, '[1,2]'); // valid JSON, not an object: still corrupt
+  assert.deepEqual(readForWrite(f, { log: m => logs.push(m), wait: () => {}, now: () => Date.UTC(2026, 10, 8, 9, 30) }), {});
+  assert.deepEqual(fs.readdirSync(d0), ['kiro.json.bad-2026-11-08T09-30-00-000Z']);
+  assert.equal(logs.length, 1); assert.match(logs[0], /kiro\.json was not valid JSON; moved it to kiro\.json\.bad-/); assert.doesNotMatch(logs[0], /[\/]/, 'no path in the log');
+  assert.deepEqual(readForWrite(path.join(d0, 'none.json')), {}, 'missing: {}');
 });

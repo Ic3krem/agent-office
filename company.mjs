@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
+import { readForWrite, readSoft } from './prefs-file.mjs';
 
 export const MAX_SPECIALISTS = 8;
 const OPEN = ['todo', 'doing'];
@@ -253,16 +254,8 @@ export function setAgentName(names, key, name) {
   next[key] = n; return next;
 }
 export const displayNames = names => ({ tiro: 'Tiro', ...Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])), ...sanitizeNames(names) });
-// kiro.json is shared with the desktop app: only a missing file reads as {}. A corrupt or half-written one throws (HTTP 500) so a write never
-// replaces it and wipes the other prefs; get() reads it as {} so the page still works.
-const prefsError = msg => Object.assign(new Error(msg), { status: 500 });
-export function readPrefs(file) {
-  let s; try { s = fs.readFileSync(file, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return {}; throw prefsError('Cannot read kiro.json: ' + e.code); }
-  let j; try { j = JSON.parse(s); } catch { throw prefsError('kiro.json is not valid JSON; not overwriting it'); }
-  if (!j || typeof j !== 'object' || Array.isArray(j)) throw prefsError('kiro.json is not a JSON object; not overwriting it');
-  return j;
-}
-const softPrefs = file => { try { return readPrefs(file); } catch { return {}; } };
+// kiro.json writes go through readForWrite (prefs-file.mjs): a torn or corrupt file is retried, then moved aside, never a dead end.
+const softPrefs = readSoft, readPrefs = file => readForWrite(file, { log: m => console.error(m) });
 // Names live in kiro.json under agentNames; merge on write so the desktop app's own prefs are never lost.
 export function nameStore(file) {
   const read = () => readPrefs(file);
