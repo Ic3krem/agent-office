@@ -163,7 +163,7 @@ test('open windows block CEO keys and only unreachable floor clicks toast', () =
   assert.match(src, /return onFloor \? 'blocked' : false/);
   assert.match(src, /=== 'blocked'\) opts\.onToast/);
   const html = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
-  assert.match(html, /role="dialog" aria-modal="true" aria-label="Usage"/);
+  assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="usage-title"/);
 });
 
 test('walkTo paths on a custom grid and goes around its wall', () => {
