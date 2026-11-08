@@ -170,3 +170,78 @@ test('review fixes: malformed request, helper names, layout-free relays, global 
     assert.equal(last, 429);
   } finally { server.close(); server.closeAllConnections(); }
 });
+
+test('poll: first poll gets the hello, then events; queue overflow resyncs with a fresh hello; one poll at a time', () => {
+  const party = createParty({ code: 'POLL01' });
+  const a = party.join({ code: 'POLL01', name: 'Ana' }, '1.1.1.1').body, b = party.join({ code: 'POLL01', name: 'Ben' }, '2.2.2.2').body;
+  const A = party.member(a.token), B = party.member(b.token), got = [];
+  const reply = s => got.push(JSON.parse(s));
+  party.poll(B, reply);
+  assert.equal(got[0].length, 1); assert.equal(got[0][0].t, 'hello'); assert.equal(got[0][0].members[0].name, 'Ana');
+  party.poll(B, reply); party.say(A, 'hi');
+  assert.deepEqual(got[1].map(e => e.t), ['chat']); assert.equal(got[1][0].line.text, 'hi');
+  const cancel = party.poll(B, s => reply(s)); party.poll(B, reply);
+  assert.deepEqual(got[2], [], 'a newer poll ends the older one with []');
+  cancel(); party.say(A, 'x'); assert.equal(got[3][0].line.text, 'x', 'a stale cancel leaves the newer poll alone');
+  for (let i = 0; i < 300; i++) party.say(A, 'spam ' + i); // nobody polling: the queue overflows
+  party.poll(B, reply);
+  assert.equal(got[4][0].t, 'hello', 'overflow resyncs'); assert.ok(got[4].length <= 200);
+  assert.equal(got[4][0].chat.at(-1).text, 'spam ' + (300 - got[4].length), 'the snapshot holds the dropped events');
+  assert.equal(got[4].at(-1).line.text, 'spam 299', 'later events follow it');
+  // a polling member is not reaped while polling, but is once it stops
+  const P = createParty({ code: 'POLL02', now: () => t }); let t = 0;
+  const c = P.join({ code: 'POLL02', name: 'C' }, '3.3.3.3').body, C = P.member(c.token);
+  const stop = P.poll(C, () => {}); t = 60_000; stop(); P.poll(C, () => {}); t = 120_000; P.reap(); assert.equal(P.size(), 1);
+  t = 300_000; P.reap(); assert.equal(P.size(), 0);
+});
+
+test('http poll: auth required, hello then events, long-poll timeout returns []', async () => {
+  const { server, port } = await startParty({ port: 0, host: '127.0.0.1', code: 'POLL03', adminKey: 'p'.repeat(32), pollMs: 300 });
+  const U = p => 'http://127.0.0.1:' + port + p, post = (p, b, h = {}) => fetch(U(p), { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(b) });
+  try {
+    assert.equal((await fetch(U('/poll'))).status, 401);
+    assert.equal((await fetch(U('/poll'), { headers: { authorization: 'Bearer ' + 'a'.repeat(48) } })).status, 401);
+    const a = await (await post('/join', { code: 'POLL03', name: 'A' })).json(), b = await (await post('/join', { code: 'POLL03', name: 'B' })).json();
+    const poll = () => fetch(U('/poll'), { headers: { authorization: 'Bearer ' + b.token } });
+    const r = await poll(); assert.equal(r.status, 200); assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal((await r.json())[0].t, 'hello');
+    const t0 = Date.now(); assert.deepEqual(await (await poll()).json(), []); assert.ok(Date.now() - t0 >= 250, 'held until the timeout');
+    const p = poll(); await new Promise(r => setTimeout(r, 50));
+    await post('/chat', { text: 'kumusta' }, { authorization: 'Bearer ' + a.token });
+    const evs = await (await p).json(); assert.equal(evs[0].t, 'chat'); assert.equal(evs[0].line.text, 'kumusta');
+  } finally { server.close(); server.closeAllConnections(); }
+});
+
+test('client falls back to long polling when a proxy buffers the SSE stream (like a quick tunnel)', async () => {
+  const http = await import('node:http');
+  const { createPartyClient } = await import('./party-client.mjs');
+  const { server, port } = await startParty({ port: 0, host: '127.0.0.1', code: 'TUNNEL', adminKey: 't'.repeat(32), pollMs: 1000 });
+  // forwards each request, sends the headers at once but holds the body until the response ends
+  const seen = [];
+  const proxy = http.createServer((req, res) => {
+    seen.push(req.url);
+    const up = http.request({ host: '127.0.0.1', port, method: req.method, path: req.url, headers: req.headers }, pr => {
+      res.writeHead(pr.statusCode, pr.headers); res.flushHeaders();
+      const chunks = []; pr.on('data', c => chunks.push(c)); pr.on('end', () => res.end(Buffer.concat(chunks)));
+    });
+    up.on('error', () => res.destroy()); res.on('close', () => up.destroy());
+    req.pipe(up);
+  });
+  await new Promise(ok => proxy.listen(0, '127.0.0.1', ok));
+  const until = async (f, ms = 6000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise(r => setTimeout(r, 20)); } };
+  const A = createPartyClient({ firstByteMs: 300 }), B = createPartyClient();
+  try {
+    await A.join('http://127.0.0.1:' + proxy.address().port, 'TUNNEL', 'Ana');
+    await B.join('http://127.0.0.1:' + port, 'TUNNEL', 'Ben');
+    await until(() => A.view().live && A.view().members.length === 1 && B.view().live);
+    assert.ok(seen.includes('/events') && seen.includes('/poll'), 'tried SSE, then polled');
+    await B.say('Tara, kain!');
+    await until(() => A.view().chat.some(l => l.text === 'Tara, kain!' && l.name === 'Ben'));
+    await A.say('Sige!');
+    await until(() => B.view().chat.some(l => l.text === 'Sige!'));
+    await A.leave();
+    const n = seen.length; await new Promise(r => setTimeout(r, 1500));
+    assert.equal(seen.length, n, 'leave stops the poll loop');
+    await until(() => B.view().members.length === 0);
+  } finally { await A.leave(); await B.leave(); proxy.close(); proxy.closeAllConnections(); server.close(); server.closeAllConnections(); }
+});

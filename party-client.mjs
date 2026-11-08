@@ -1,4 +1,5 @@
-// The app's side of a party (phase 7): joins a party server, keeps one SSE stream open, publishes this office's feed
+// The app's side of a party (phase 7): joins a party server, keeps one SSE stream open (or long-polls where a tunnel
+// buffers SSE), publishes this office's feed
 // (party/protocol.mjs feedOf: no task text, prompts, commands or paths) and the CEO avatar, and keeps what the others
 // share. Everything that arrives is re-cleaned with the same protocol cleaners; party data is never trusted.
 import crypto from 'node:crypto';
@@ -16,7 +17,7 @@ export function partyUrl(v) {
   return u.origin + u.pathname.replace(/\/+$/, '');
 }
 
-export function createPartyClient({ onChange = () => {}, fetchImpl = fetch } = {}) {
+export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firstByteMs = 5000 } = {}) {
   let st = null; // { base, token, you, name, members: Map, chat: [], presence, ctrl, retry, lastOffice, avatar }
   let error = '';
   const salt = crypto.randomBytes(16).toString('hex');
@@ -54,23 +55,43 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch } = {
   }
   function addChat(l) { if (!l || typeof l !== 'object') return; const text = cleanChat(l.text); if (!text) return; st.chat.push({ name: cleanName(l.name) || 'Guest', text, mine: l.id === st.you, at: Number.isFinite(l.at) ? l.at : Date.now() }); if (st.chat.length > LIMITS.chatKeep) st.chat.shift(); }
 
+  // SSE first. The server sends the hello at once, so a stream with no bytes after firstByteMs is being buffered
+  // (Cloudflare quick tunnels do that): switch this session to the /poll long poll.
   async function stream(me, tries = 0) {
+    if (me.poll) return poll(me);
+    const quiet = new AbortController(), t = setTimeout(() => { me.poll = true; quiet.abort(); }, firstByteMs);
     try {
-      const r = await fetchImpl(me.base + '/events', { headers: { authorization: 'Bearer ' + me.token }, redirect: 'error', signal: me.ctrl.signal });
+      const r = await fetchImpl(me.base + '/events', { headers: { authorization: 'Bearer ' + me.token }, redirect: 'error', signal: AbortSignal.any([me.ctrl.signal, quiet.signal]) });
       if (r.status === 401) return st === me && drop('The party no longer knows you (it may have restarted).');
       if (!r.ok || !r.body) throw new Error('stream ' + r.status);
-      tries = 0; me.live = true; onChange();
       const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
       for (;;) {
         const { value, done } = await rd.read(); if (done) break;
+        if (!me.live) { clearTimeout(t); tries = 0; me.live = true; onChange(); }
         buf += dec.decode(value, { stream: true });
         if (buf.length > STREAM_MAX) throw new Error('event too large');
         let i; while ((i = buf.indexOf('\n\n')) >= 0) { const chunk = buf.slice(0, i); buf = buf.slice(i + 2); const line = chunk.split('\n').find(l => l.startsWith('data: ')); if (line) { try { onEvent(JSON.parse(line.slice(6))); } catch {} } }
       }
-    } catch (e) { if (me.ctrl.signal.aborted) return; }
+    } catch (e) { if (me.ctrl.signal.aborted) return; } finally { clearTimeout(t); }
     if (st !== me) return;
     me.live = false; onChange();
+    if (me.poll) return poll(me);
     me.retry = setTimeout(() => stream(me, tries + 1), Math.min(30_000, 1000 * 2 ** tries)); // reconnect with backoff
+  }
+  // Long poll: each answer is a JSON array of events (the first one starts with a hello); errors back off.
+  async function poll(me, tries = 0) {
+    try {
+      const r = await fetchImpl(me.base + '/poll', { headers: { authorization: 'Bearer ' + me.token }, redirect: 'error', signal: AbortSignal.any([me.ctrl.signal, AbortSignal.timeout(45_000)]) });
+      if (r.status === 401) return st === me && drop('The party no longer knows you (it may have restarted).');
+      if (!r.ok) throw new Error('poll ' + r.status);
+      const text = await r.text(); if (text.length > STREAM_MAX) throw new Error('poll too large');
+      const evs = JSON.parse(text); if (!Array.isArray(evs)) throw new Error('not a poll answer');
+      if (st !== me) return;
+      tries = 0; if (!me.live) { me.live = true; onChange(); }
+      for (const ev of evs) onEvent(ev);
+    } catch (e) { if (me.ctrl.signal.aborted) return; tries++; if (st === me && me.live) { me.live = false; onChange(); } }
+    if (st !== me) return;
+    me.retry = setTimeout(() => poll(me, tries), tries ? Math.min(30_000, 1000 * 2 ** (tries - 1)) : 0);
   }
 
   return {

@@ -13,6 +13,7 @@ services:
       PARTY_ADMIN_KEY: ${PARTY_ADMIN_KEY:-}
       PARTY_TRUST_PROXY: cloudflared   # believe CF-Connecting-IP only from the tunnel container
       PARTY_TUNNEL_METRICS: http://cloudflared:2000
+      PARTY_PUBLIC_PORT: ${PARTY_PORT:-4880}   # only for the log line: the host port friends use
     ports:
       - "${PARTY_PORT:-4880}:4880"
     mem_limit: 256m
