@@ -483,6 +483,8 @@
       },
       // css px inside the canvas -> world x,y at ground level (uses the last laid-out camera, so call after a render)
       toWorld(cx, cy) { layout(); return toWorldAt(cx, cy, left, top, zoom, viewW / canvas.clientWidth); },
+      // world (x, y), `up` terrain px above the ground -> css px inside the canvas (the scenery bubble's anchor)
+      toScreen(x, y, up = 0) { layout(); const [sx, sy] = atGround(x, y), k = viewW / canvas.clientWidth; return [(sx - left) * zoom / k, (sy - up - top) * zoom / k]; },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
       setGraphics(g) {

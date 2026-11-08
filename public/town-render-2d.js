@@ -194,6 +194,7 @@
       },
       travellerAt(x, y) { layout(); return R.travellerHit(shown, x, y, left, top, zoom, viewW / canvas.clientWidth); },
       toWorld(x, y) { layout(); return R.toWorldAt(x, y, left, top, zoom, viewW / canvas.clientWidth); },
+      toScreen(x, y, up = 0) { layout(); const [sx, sy] = R.ground(x, y), k = viewW / canvas.clientWidth; return [(sx - left) * zoom / k, (sy - up - top) * zoom / k]; },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
       setGraphics(g) {

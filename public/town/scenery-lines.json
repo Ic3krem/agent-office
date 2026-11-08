@@ -1,0 +1,33 @@
+{
+ "spots": {
+  "waterfall": {
+   "day": ["Water lets go of the cliff and never looks back. The mist remembers a little longer.", "The falls keep talking. No one has ever needed to answer."],
+   "night": ["In the dark it is only sound, a long, soft applause."]
+  },
+  "tree": {
+   "day": ["Its roots hold the hill together. Every leaf here has been a different green.", "Older than the town. It was here first and seems happy to share."],
+   "night": ["The branches hold the stars like fruit no one is allowed to pick."]
+  },
+  "park": {
+   "day": ["Benches warm from the afternoon. Somewhere a dog has found the best stick in the world.", "Paths that go in a circle, for people with nowhere to be."],
+   "night": ["The lamps hum. The grass keeps the day's warmth a little longer."]
+  },
+  "court": {
+   "day": ["Chalk lines, a tired hoop, the echo of a game that ended at sunset."],
+   "night": ["The ball sleeps by the post. Tomorrow it will be thrown again."]
+  },
+  "pasture": {
+   "day": ["The cows have no deadlines. They chew on that thought slowly."],
+   "night": ["Dark shapes in the field, breathing. The fence keeps nothing in; they just stay."]
+  }
+ },
+ "kain": {
+  "day": ["Rice steam, a radio, someone's tita laughing. The pot never seems to empty."],
+  "night": []
+ },
+ "animals": {
+  "cow": ["The cow considers you. The cow returns to the grass."],
+  "dog": ["A tail goes faster. You have been chosen."],
+  "cat": ["The cat opens one eye, decides you are fine, and closes it."]
+ }
+}

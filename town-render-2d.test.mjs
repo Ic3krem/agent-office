@@ -32,7 +32,7 @@ const mountIn = async s => s.ctx.TownRender2D.mount(s.canvas, { map, atlasUrl: '
 test('kind is canvas, with the same api as the GPU renderer', async () => {
   const s = sandbox(), api = await mountIn(s);
   assert.equal(api.kind, 'canvas');
-  for (const k of ['setPlayer', 'setTravellers', 'travellerAt', 'toWorld', 'setCamera', 'resize', 'setGraphics', 'frameCount', 'stats', 'destroy'])
+  for (const k of ['setPlayer', 'setTravellers', 'travellerAt', 'toWorld', 'toScreen', 'setCamera', 'resize', 'setGraphics', 'frameCount', 'stats', 'destroy'])
     assert.equal(typeof api[k], 'function', k);
   s.flush();
   assert.equal(api.frameCount(), 1);
