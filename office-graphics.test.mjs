@@ -6,7 +6,7 @@ import { loadWorld } from './world-vm.mjs';
 
 // A 2D context that swallows everything and logs ellipse fills (with their colour) and drawImage sources.
 function logCtx(log) {
-  const st = {};
+  const st = { globalAlpha: 1 };
   const p = new Proxy(function () { }, {
     get: (_, k) => {
       if (k in st) return st[k];
@@ -25,7 +25,8 @@ function logCtx(log) {
 function mounted(dpr = 1, log = []) {
   let now = 0, timers = [], rafs = [];
   const on = () => { };
-  const doc = { createElement: () => ({ width: 0, height: 0, getContext: () => logCtx([]) }), addEventListener: on, documentElement: { dataset: {} }, hidden: false, hasFocus: () => true };
+  const made = [];
+  const doc = { createElement: () => { const c = { width: 0, height: 0, log: [] }; c.getContext = () => logCtx(c.log); made.push(c); return c; }, addEventListener: on, documentElement: { dataset: {} }, hidden: false, hasFocus: () => true };
   const w = loadWorld({
     extra: ['office-world.js'],
     globals: {
@@ -56,7 +57,7 @@ function mounted(dpr = 1, log = []) {
     }
     return { n: OW.framesDrawn() - d0, walked };
   };
-  return { w, OW, run, cv };
+  return { w, OW, run, cv, made };
 }
 
 const G = (o = {}) => ({ renderScale: 1, fps: 30, ambientFps: 30, shadows: 'blob', ambient: 'all', lighting: 'glow', renderer: 'canvas', ...o });
@@ -86,14 +87,27 @@ test('shadows off: no contact ellipse under a chair; soft draws the shadow sheet
   assert.equal(sheet(p, 'SHADOW'), p.length, 'the shadow pass draws only shadow frames (no colour, contact or placeholder)');
 });
 
-test('soft shadows go down in one pass before every piece: a shadow never darkens an earlier piece', () => {
-  const log = [], { w, OW } = mounted(1, log), F = w.OfficeFurniture;
-  F.useAtlas({ image: 'COLOUR', shadow: 'SHADOW', frames: FRAMES });
-  OW.setGraphics(G({ shadows: 'soft' })); OW.setHour(12); OW.render(); log.length = 0; OW.render();
-  const idx = name => log.map((e, i) => e[0] === 'img' && e[1] === name ? i : -1).filter(i => i >= 0);
-  const sh = idx('SHADOW'), col = idx('COLOUR');
-  assert.ok(sh.length >= 2 && col.length >= 2, 'both pieces draw a shadow and a sprite: ' + sh.length + '/' + col.length);
-  assert.ok(Math.max(...sh) < Math.min(...col), 'every shadow frame before the first sprite');
+test('soft shadows: one cached layer, drawn after the floor pieces (ponds, tile floors) and before every other piece', () => {
+  const log = [], { w, OW, made } = mounted(1, log), F = w.OfficeFurniture;
+  F.useAtlas({ image: 'COLOUR', shadow: 'SHADOW', frames: { ...FRAMES, pond: { x: 20, y: 0, w: 10, h: 10, ax: 5, ay: 9 } } });
+  assert.ok(F.items.some(it => it.o.floor && it.d === -1e9), 'the default office has a floor piece (the pond)');
+  OW.setGraphics(G({ shadows: 'soft' })); OW.setHour(12); OW.render();
+  const layer = made.find(c => sheet(c.log, 'SHADOW') >= 2);
+  assert.ok(layer, 'the shadow frames go to their own canvas');
+  const n0 = sheet(layer.log, 'SHADOW');
+  log.length = 0; OW.render();
+  assert.equal(sheet(layer.log, 'SHADOW'), n0, 'cached: the next frame does not redraw the shadows');
+  const at = log.findIndex(e => e[0] === 'img' && e[1] === layer), col = log.map((e, i) => e[0] === 'img' && e[1] === 'COLOUR' ? i : -1).filter(i => i >= 0);
+  assert.ok(at > 0, 'the layer is drawn on the stage');
+  assert.ok(col.filter(i => i < at).length >= 1, 'the floor piece (pond) is drawn before the shadows');
+  assert.ok(col.filter(i => i > at).length >= 2, 'the chair and the tires come after the shadows');
+  OW.setHour(22); OW.render();
+  assert.ok(sheet(layer.log, 'SHADOW') > n0, 'a new sky bucket (bgKey) redraws the layer');
+  const n1 = sheet(layer.log, 'SHADOW');
+  F.place(w.WorldModel.defaultLayout().objects); OW.render();
+  assert.ok(sheet(layer.log, 'SHADOW') > n1, 'a new layout (place, as a Build drag) redraws the layer');
+  OW.setGraphics(G({ shadows: 'off' })); log.length = 0; OW.render();
+  assert.equal(log.findIndex(e => e[0] === 'img' && e[1] === layer), -1, 'off: no layer');
 });
 
 test("'tint' shadows take the time-of-day tint (as the town's); 'soft' and daytime 'tint' use the plain sheet", () => {
@@ -110,6 +124,16 @@ test("'tint' shadows take the time-of-day tint (as the town's); 'soft' and dayti
   const night = shadowImgs();
   assert.ok(night.length >= 2 && night.every(s => s !== SHEET && s.width === 20 && s.height === 10), 'tint at night: a tinted copy of the sheet');
   assert.equal(shadowImgs()[0], night[0], 'the tinted copy is cached while the tint holds');
+});
+
+test("'tint' is a true multiply (as the town's GPU tint): night shadows are darker than day, alpha kept", () => {
+  const w = loadWorld(), F = w.OfficeFurniture, Gx = w.Graphics;
+  const px = tint => { const d = new Uint8ClampedArray([0x1a, 0x22, 0x40, 153, 0, 0, 0, 0]); F.mulTint(d, tint); return [...d]; };
+  assert.deepEqual(px(0xffffff), [0x1a, 0x22, 0x40, 153, 0, 0, 0, 0], 'white: unchanged');
+  const night = px(Gx.tintOf(1)), dusk = px(Gx.tintOf(.5));
+  for (const c of [0, 1, 2]) assert.ok(night[c] < [0x1a, 0x22, 0x40][c] && dusk[c] <= [0x1a, 0x22, 0x40][c], 'night darker than day, channel ' + c);
+  assert.equal(night[3], 153, 'alpha kept'); assert.deepEqual(night.slice(4), [0, 0, 0, 0], 'transparent stays transparent');
+  const t = Gx.tintOf(1); assert.deepEqual(night.slice(0, 3), [0x1a * (t >> 16 & 255), 0x22 * (t >> 8 & 255), 0x40 * (t & 255)].map(v => Math.round(v / 255)));
 });
 
 test('ambient off: an idle office stops its loops (fan, fire, screens); on, idle keeps the saver cadence or the ambient fps', () => {
@@ -180,11 +204,11 @@ test('render scale at dpr 2: Low halves the backing store, High and Ultra stay n
 test('below 1x the canvas pixel is a whole number of device pixels, at any stage scale and dpr', () => {
   for (const dpr of [1, 1.25, 1.5, 2]) {
     const { OW, cv } = mounted(dpr);
-    for (const s of [.6, .8, 1, 1.3]) {
+    for (const s of [.6, .8, .97, 1, 1.3, 1.75]) { // dev .97 (dpr 1) and 3.5 (dpr 2): outside the 1..3 native clamp
       OW.setScale(s);
       for (const [rs, k] of [[.5, 2], [.75, 1], [.6, 2], [.3, 3]]) {
         OW.setGraphics(G({ renderScale: rs }));
-        const dev = s * dpr; if (dev < 1 || dev > 3) continue; // outside the clamp the canvas is 1x or 3x the stage
+        const dev = s * dpr;
         const ratio = dev / (cv.width / 1480);
         if (k > 1) assert.ok(Math.abs(ratio - k) < .01, `dpr ${dpr} scale ${s} renderScale ${rs}: ${ratio.toFixed(3)} device px per canvas px, want ${k}`);
         assert.equal(cv.style.imageRendering, k > 1 ? 'pixelated' : ''); // k 1: native and smooth, as High
@@ -194,8 +218,8 @@ test('below 1x the canvas pixel is a whole number of device pixels, at any stage
 });
 
 test('atlas sheets load as fetch -> blob -> createImageBitmap, with the <img> fallback', async () => {
-  const run = async bitmapOk => {
-    const imgs = [];
+  const run = async (bitmapOk, missing = []) => {
+    const imgs = [], fetched = [];
     let atlas = null;
     const later = fn => Promise.resolve().then(fn);
     const w = loadWorld({
@@ -203,7 +227,7 @@ test('atlas sheets load as fetch -> blob -> createImageBitmap, with the <img> fa
       globals: {
         OfficeSprites: { lookOf: () => ({}), W: 18, H: 26, get: () => ({ cv: {}, w: 18, h: 26 }) },
         performance: { now: () => 0 }, addEventListener: () => { }, devicePixelRatio: 1, setTimeout: () => 0, clearTimeout: () => { }, requestAnimationFrame: () => 0, cancelAnimationFrame: () => { },
-        fetch: async url => url.endsWith('.json') ? { ok: true, json: async () => ({ frames: {} }) } : { ok: true, blob: async () => ({ blob: url }) },
+        fetch: async url => { fetched.push(url); return missing.includes(url) ? { ok: false, status: 404 } : url.endsWith('.json') ? { ok: true, json: async () => ({ frames: {} }) } : { ok: true, blob: async () => ({ blob: url }) }; },
         createImageBitmap: async src => { if (!bitmapOk && src.blob) throw new Error('no decode'); return { bitmap: src.blob || src.src }; },
         Image: class { set src(v) { this._src = v; imgs.push(v); later(() => this.onload()); } get src() { return this._src; } },
       },
@@ -212,7 +236,7 @@ test('atlas sheets load as fetch -> blob -> createImageBitmap, with the <img> fa
     w.OfficeFurniture.useAtlas = a => { atlas = a; };
     w.OfficeWorld.mount({ width: 0, height: 0, style: {}, getContext: () => logCtx([]), addEventListener: () => { }, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1, height: 1 }) }, {});
     for (let i = 0; i < 100 && !atlas; i++) await new Promise(r => setImmediate(r));
-    return { atlas, imgs };
+    return { atlas, imgs, fetched };
   };
   const sheets = ['/art/office/atlas.png', '/art/office/atlas-glow.png', '/art/office/atlas-shadow.png'];
   const ok = await run(true);
@@ -223,6 +247,10 @@ test('atlas sheets load as fetch -> blob -> createImageBitmap, with the <img> fa
   assert.ok(fb.atlas, 'the atlas registered through the fallback');
   assert.deepEqual(fb.imgs, sheets, 'blob decode failed: each sheet loads through an <img>');
   assert.deepEqual(['image', 'glow', 'shadow'].map(k => fb.atlas[k] && fb.atlas[k].bitmap), sheets, 'and is still made an ImageBitmap from the <img>');
+  const gone = await run(true, sheets.slice(1));
+  assert.ok(gone.atlas && !gone.atlas.glow && !gone.atlas.shadow, 'missing optional sheets: the atlas still registers, without them');
+  assert.deepEqual(gone.imgs, [], 'a 404 is not retried through an <img>');
+  assert.deepEqual(gone.fetched.filter(u => u.endsWith('.png')), sheets, 'each sheet fetched once');
 });
 
 test('ambient off, empty office: no frames while still, but the simulation clock keeps going', () => {
@@ -235,4 +263,18 @@ test('ambient off, empty office: no frames while still, but the simulation clock
   assert.ok(c1 - c0 >= 110000, 'simulated ms over those 2 minutes: ' + (c1 - c0));
   OW.setGraphics(G({ ambient: 'all' })); run(1000);
   assert.ok(run(10000).n >= 15, 'ambient on: the idle cadence again');
+});
+
+test("lighting 'tint' at night: the window panes darken with a night-sky fill (no glow); 'glow' lays the glow sheet", () => {
+  const made = [];
+  const w = loadWorld({ ctxFactory: () => { const l = []; made.push(l); return logCtx(l); } }), F = w.OfficeFurniture;
+  F.useAtlas({ image: 'COLOUR', glow: 'GLOW', frames: { 'wall@y': { x: 0, y: 0, w: 10, h: 10, ax: 0, ay: 5, glow: true }, 'wall@x': { x: 10, y: 0, w: 10, h: 10, ax: 9, ay: 5, glow: true } } });
+  const bake = (lighting, night) => { F.state.lighting = lighting; F.state.night = night; made.length = 0; const log = []; F.bake(logCtx(log)); return log.filter(e => e[0] === 'img').map(e => e[1]); };
+  assert.equal(bake('glow', 1).filter(s => s === 'GLOW').length, 2, 'glow: the glow sheet on both walls');
+  const tint = bake('tint', 1);
+  assert.equal(tint.filter(s => s === 'GLOW').length, 0, 'tint: no glow sheet');
+  assert.equal(tint.filter(s => typeof s === 'object' && s !== null).length, 2, 'tint: a night-pane mask drawn on both walls');
+  assert.ok(made.some(l => l.some(e => e[0] === 'img' && e[1] === 'GLOW')), 'the mask is cut from the glow sheet\'s panes');
+  const day = bake('tint', 0);
+  assert.equal(day.filter(s => typeof s === 'object' && s !== null).length, 0, 'tint by day: plain day panes');
 });

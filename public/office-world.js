@@ -422,6 +422,19 @@
     return {};
   }
 
+  // Soft ground shadows, rendered once into a layer per layout (OfficeFurniture.version, Build drags included) and sky
+  // bucket (bgKey: res, night, lighting, shadows), then drawn with one drawImage per frame.
+  let shadowCv = null, shadowKey = '';
+  function shadowLayer() {
+    if (!F.shadowsOn()) { shadowCv = null; shadowKey = ''; return; }
+    const key = F.version() + '|' + bgKey;
+    if (!shadowCv || key !== shadowKey) {
+      shadowKey = key; shadowCv = shadowCv || document.createElement('canvas');
+      shadowCv.width = Math.round(STW * res); shadowCv.height = Math.round(STH * res);
+      const s = shadowCv.getContext('2d'); s.setTransform(res, 0, 0, res, 0, 0); F.shadowPass(s);
+    }
+    g.drawImage(shadowCv, 0, 0, STW, STH);
+  }
   // ---------- render ----------
   function render() {
     if (!g || !frame) return;
@@ -438,11 +451,12 @@
     for (const n of Object.values(npcs)) people.push({ d: n.w.x + n.w.y + 3, x: n.w.x, y: n.w.y, extra: n });
     if (ceoOn()) { const p = ceoPlayer(); people.push({ d: p.x + p.y + 3, x: p.x, y: p.y, a: CEO_AGENT, w: p }); }
     for (const gh of ghosts) people.push({ d: gh.w.x + gh.w.y + 3, x: gh.w.x, y: gh.w.y, ghost: gh });
-    F.shadowPass(g); // soft ground shadows under every piece and walker
     const all = F.layer(people); // furniture and walkers, ordered by each piece's tight ground footprint
     hits = []; let npcPos = null, ceoPos = null;
     const posOf = new Map();
+    let shaded = false;
     for (const it of all) {
+      if (!shaded && !(it.fn && it.o.floor)) { shaded = true; shadowLayer(); } // soft shadows: over the floor pieces, under the rest
       if (it.fn) { it.fn(g); continue; }
       if (it.npc) { const nw = npcWalker(), p = drawPerson(NPC.a, nw); hits.push({ id: 'sched-npc', l: p.hit.l, r: p.hit.r, t: p.hit.t, b: p.hit.b }); npcPos = p; continue; }
       if (it.extra) { const n = it.extra; n.pos = drawPerson(n.a, n.w); if (n.kind === 'sweep' && !n.w.moving && !reduced()) dust(n.w); continue; }
@@ -509,7 +523,8 @@
     timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(loop); }, wait);
   }
   // Ambient off and nothing animating: no frames, but the agents' idle timers (play after 20 s, ...) keep running.
-  // Whatever starts to move or animate gets its frames from the next schedule().
+  // Whatever starts to move or animate gets its frames from the next schedule(), so a timer-driven change (an agent
+  // standing up to play) shows up to FRAME.SIM (1 s) late; data, input and wake() still draw at once.
   function still() { timer = 0; const n = nowMs(); if (!last) last = n; if (!build) tick(Math.min(1, (n - last) / 1000)); last = n; schedule(); }
   function wake() { dirty = true; if (running) schedule(); }
   function loop(t) {
@@ -779,8 +794,10 @@
   // fallback where that fails.
   const bitmap = im => typeof createImageBitmap === 'function' ? createImageBitmap(im).catch(() => im) : Promise.resolve(im);
   const viaImg = url => new Promise((ok, no) => { const im = new Image(); im.onload = () => bitmap(im).then(ok); im.onerror = () => no(new Error(url + ' did not load')); im.src = url; });
-  const sheet = url => (typeof createImageBitmap === 'function' ? fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); }).then(b => createImageBitmap(b)) : Promise.reject(new Error('no createImageBitmap')))
-    .catch(() => viaImg(url));
+  // an HTTP error (a missing optional sheet) is final; only a failed fetch or decode retries through an <img>
+  const sheet = url => typeof createImageBitmap !== 'function' ? viaImg(url)
+    : fetch(url).then(r => { if (!r.ok) throw Object.assign(new Error(url + ': HTTP ' + r.status), { http: true }); return r.blob(); }).then(b => createImageBitmap(b))
+      .catch(e => e.http ? Promise.reject(e) : viaImg(url));
   function loadAtlas() {
     if (typeof fetch !== 'function' || typeof Image !== 'function') return;
     fetch('/art/office/atlas.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -797,7 +814,7 @@
     // device pixels (k = 1/renderScale rounded): pixelated at 0.75 x dpr 2 drew uneven 1-2 px columns. Medium's 0.75
     // rounds to k = 1, native and smooth; Low's 0.5 is k = 2.
     const k = G && G.renderScale < 1 ? Math.max(1, Math.round(1 / G.renderScale)) : 1;
-    if (k > 1) r = Math.max(1, Math.min(3, dev)) / k;
+    if (k > 1) r = Math.max(.05, dev) / k; // from the real dev, also below 1 and above 3
     if (!cv) return;
     if (cv.style) cv.style.imageRendering = k > 1 ? 'pixelated' : ''; // blocky pixels, not blur
     if (r !== res || cv.width !== Math.round(STW * r)) { res = r; cv.width = Math.round(STW * res); cv.height = Math.round(STH * res); bg = null; }
