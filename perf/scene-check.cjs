@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
 const root = path.join(__dirname, '..'), port = 4797, base = 'http://127.0.0.1:' + port, key = crypto.randomBytes(24).toString('hex');
 const shots = process.argv.slice(2).find(a => !a.startsWith('-') && !a.endsWith('.cjs')) || path.join(root, 'art', '.raw');
+require('./tmp-sweep.cjs').sweep();
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-scenecheck-'));
 app.setPath('userData', path.join(tmp, 'electron'));
 const child = spawn(process.execPath, [path.join(root, 'server.mjs')], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', USERPROFILE: tmp, HOME: tmp, APPDATA: path.join(tmp, 'AppData'), LOCALAPPDATA: path.join(tmp, 'Local'), AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: key, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });

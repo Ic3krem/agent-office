@@ -12,6 +12,7 @@ const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
 const root = path.join(__dirname, '..'), port = 4796, base = 'http://127.0.0.1:' + port, key = crypto.randomBytes(24).toString('hex');
 const shots = process.argv.slice(2).find(a => !a.startsWith('-') && !a.endsWith('.cjs')) || path.join(root, 'art', '.raw');
+require('./tmp-sweep.cjs').sweep();
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-travelcheck-'));
 app.setPath('userData', path.join(tmp, 'electron'));
 // the perf window must count as visible even when other desktop windows cover it (else the town, hidden, draws nothing)

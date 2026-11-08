@@ -8,6 +8,7 @@ const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
 app.commandLine.appendSwitch('js-flags', '--expose-gc'); // a gc() before each cycle's memory sample keeps the drift honest
 const root = path.join(__dirname, '..'), port = 4794, base = 'http://127.0.0.1:' + port, key = crypto.randomBytes(24).toString('hex');
+require('./tmp-sweep.cjs').sweep();
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-officeperf-'));
 app.setPath('userData', path.join(tmp, 'electron'));
 // Chromium keeps decoded images and resources of earlier pages in the renderer's memory cache, which grows for the first
