@@ -31,7 +31,7 @@ const ICON = nativeImage.createFromPath(path.join(ROOT, 'desktop', 'icon.png'));
 const KIRO_W = 380, KIRO_H = 600;
 
 // A debugging port or inspector would let any local program drive the app's signed-in windows: refuse to start with one.
-{ const bad = [...unsafeSwitches(process.argv), ...unsafeEnv().map(k => k + '=' + process.env[k])]; if (bad.length) { dialog.showErrorBox('Agent Office', unsafeMessage(bad)); process.exit(2); } }
+{ const bad = [...unsafeSwitches(process.argv), ...unsafeEnv().map(k => k + '=' + process.env[k])]; if (bad.length) { dialog.showErrorBox('TiroAgents', unsafeMessage(bad)); process.exit(2); } }
 if (!app.requestSingleInstanceLock()) app.quit();
 if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transparent-visuals'); // Tiro's see-through window
 app.setAppUserModelId('io.github.ic3krem.agentoffice');
@@ -72,7 +72,7 @@ function spawnServer() {
     if (quitting) return;
     const r = restart.onExit(Date.now() - started);
     logEvent({ event: 'exited', code, signal, attempt: r.attempt, delayMs: r.retry ? r.delayMs : undefined });
-    if (!r.retry) { gaveUp = true; logEvent({ event: 'gave-up', attempt: r.attempt }); try { tray?.displayBalloon?.({ title: 'Agent Office', content: 'The office server stopped and could not be restarted. Quit and reopen Agent Office.' }); } catch {} return; }
+    if (!r.retry) { gaveUp = true; logEvent({ event: 'gave-up', attempt: r.attempt }); try { tray?.displayBalloon?.({ title: 'TiroAgents', content: 'The office server stopped and could not be restarted. Quit and reopen Agent Office.' }); } catch {} return; }
     restartTimer = setTimeout(async () => {
       restartTimer = null; if (quitting || (await signedIn())) return;
       const before = BASE;
@@ -89,9 +89,9 @@ async function waitForServer() {
 async function ensureServer() {
   followPort();
   if (await signedIn()) return;
-  if (await isAgentOffice(new URL(BASE).port)) throw new Error('Agent Office is already running on ' + BASE + ' (started by another program). Quit it, then start the app again.');
+  if (await isAgentOffice(new URL(BASE).port)) throw new Error('TiroAgents is already running on ' + BASE + ' (started by another program). Quit it, then start the app again.');
   spawnServer();
-  if (!(await waitForServer())) throw new Error('The Agent Office server did not start. Details: ' + LOG_FILE);
+  if (!(await waitForServer())) throw new Error('The TiroAgents server did not start. Details: ' + LOG_FILE);
 }
 function relocateWindows() {
   signInWindows();
@@ -118,7 +118,7 @@ function applyMgrName(force) {
   mgrName = n;
   try { if (kiro && !kiro.isDestroyed()) kiro.setTitle(n); } catch {}
   try { if (island && !island.isDestroyed()) island.setTitle(`${n} Island`); } catch {}
-  try { tray?.setToolTip(`Agent Office - ${n}`); } catch {}
+  try { tray?.setToolTip(`TiroAgents - ${n}`); } catch {}
 }
 const keepTitle = w => w.on('page-title-updated', e => e.preventDefault());
 
@@ -127,7 +127,7 @@ const VIEWS = new Set(['today', 'reports', 'usage', 'office']);
 function openOffice(view) {
   view = typeof view === 'string' && VIEWS.has(view) && view !== 'office' ? view : ''; // 'office' = just open the window
   if (!office) {
-    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'Agent Office', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { preload: path.join(ROOT, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
+    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'TiroAgents', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { preload: path.join(ROOT, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
     office.loadURL(url('/') + (view ? '#' + view : ''));
     external(office.webContents);
     // The page refuses to unload while Build mode has unsaved changes: ask here, or the window would silently stay open.
@@ -330,7 +330,7 @@ async function runInstall() {
   if (upd.busy || upd.state !== 'available') return;
   if (!upd.url || !upd.sha256) { upd = { ...upd, error: 'The signed manifest lists a new version but no installer for this platform.' }; return pushUpdate(); }
   upd = { ...upd, busy: 'confirm', error: '' }; pushUpdate();
-  const { response } = await dialog.showMessageBox({ type: 'question', title: 'Install Agent Office update', message: `Install Agent Office ${upd.available}?`, detail: `You are running ${CURRENT}. The installer is downloaded, checked against the signed release manifest, and then started; Agent Office will close while it installs.`, buttons: ['Cancel', 'Download and install'], defaultId: 0, cancelId: 0, noLink: true });
+  const { response } = await dialog.showMessageBox({ type: 'question', title: 'Install TiroAgents update', message: `Install TiroAgents ${upd.available}?`, detail: `You are running ${CURRENT}. The installer is downloaded, checked against the signed release manifest, and then started; Agent Office will close while it installs.`, buttons: ['Cancel', 'Download and install'], defaultId: 0, cancelId: 0, noLink: true });
   if (response !== 1) { upd = { ...upd, busy: '' }; return pushUpdate(); }
   const job = { url: upd.url, sha256: upd.sha256, name: upd.name, version: upd.available };
   upd = { ...upd, busy: 'download' }; pushUpdate();
@@ -442,7 +442,7 @@ function startVisibilityReports() {
 // ---------- tray ----------
 function buildTray() {
   tray = new Tray(ICON.resize({ width: 16, height: 16 }));
-  tray.setToolTip(`Agent Office - ${mgrName}`);
+  tray.setToolTip(`TiroAgents - ${mgrName}`);
   const menu = () => Menu.buildFromTemplate([
     { label: 'Open office', click: () => openOffice() },
     { label: 'Show notch', type: 'checkbox', checked: notchOn(), click: i => setNotch(i.checked) },
@@ -458,7 +458,7 @@ function buildTray() {
     { label: `Show ${mgrName}`, type: 'checkbox', checked: !!kiro && kiro.isVisible(), click: i => { prefs.hidden = !i.checked; savePrefs(); i.checked ? showKiro() : kiro?.hide(); } },
     { label: 'Start with Windows', type: 'checkbox', checked: app.isPackaged && prefs.autostart !== false, enabled: app.isPackaged, click: i => { prefs.autostart = i.checked; savePrefs(); syncLogin(); } },
     { type: 'separator' },
-    { label: 'Quit Agent Office', click: () => app.quit() },
+    { label: 'Quit TiroAgents', click: () => app.quit() },
   ]);
   tray.on('click', () => openOffice());
   tray.on('right-click', () => tray.popUpContextMenu(menu()));
@@ -481,7 +481,7 @@ app.whenReady().then(async () => {
   setInterval(() => applyMgrName(), 10000).unref();
   startVisibilityReports();
   try { await ensureServer(); await signInWindows(); }
-  catch (e) { tray.displayBalloon?.({ title: 'Agent Office', content: e.message }); return; }
+  catch (e) { tray.displayBalloon?.({ title: 'TiroAgents', content: e.message }); return; }
   if (!prefs.hidden) showKiro();
   watchDisplays();
   applyIsland();

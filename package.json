@@ -25,10 +25,10 @@
     "electron": "43.8.7",
     "electron-builder": "26.15.3"
   },
-  "productName": "Agent Office",
+  "productName": "TiroAgents",
   "build": {
-    "appId": "io.github.ic3krem.agentoffice",
-    "productName": "Agent Office",
+    "appId": "io.github.ic3krem.tiroagents",
+    "productName": "TiroAgents",
     "directories": {
       "output": "dist"
     },
@@ -78,7 +78,7 @@
     "win": {
       "target": "nsis",
       "icon": "desktop/icon.png",
-      "artifactName": "Agent-Office-Setup-${version}.${ext}"
+      "artifactName": "TiroAgents-Setup-${version}.${ext}"
     },
     "nsis": {
       "license": "LICENSE.txt",
@@ -86,7 +86,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Agent Office",
+      "shortcutName": "TiroAgents",
       "runAfterFinish": true
     },
     "mac": {
@@ -96,7 +96,7 @@
       ],
       "icon": "desktop/icon.png",
       "category": "public.app-category.developer-tools",
-      "artifactName": "Agent-Office-${version}-${arch}.${ext}"
+      "artifactName": "TiroAgents-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -105,7 +105,7 @@
       ],
       "icon": "desktop/icon.png",
       "category": "Development",
-      "artifactName": "Agent-Office-${version}-${arch}.${ext}",
+      "artifactName": "TiroAgents-${version}-${arch}.${ext}",
       "maintainer": "Ic3krem <Ic3krem@users.noreply.github.com>"
     },
     "asarUnpack": [

@@ -3,9 +3,9 @@
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
 
-## Unreleased — Tiro Workspace (v2)
+## Unreleased — TiroAgents (v2)
 
-The next major version, coming soon. Agent Office is being renamed **Tiro Workspace**, after Tiro, the manager agent. Everything below is built and tested on the development branch and not released yet; the current download stays 1.2.8. A **2.0.0-beta.1** Windows build is being shared for live testing; it is unsigned (Windows SmartScreen warns); updates arrive only once a signed release is published.
+The next major version, coming soon. Agent Office is being renamed **TiroAgents**, after Tiro, the manager agent. Everything below is built and tested on the development branch and not released yet; the current download stays 1.2.8. A **2.0.0-beta.1** Windows pre-release (`TiroAgents-Setup-2.0.0-beta.1.exe`) is out for live testing. It installs beside Agent Office 1.2.x and shares its settings; only one can run at a time. It is unsigned (Windows SmartScreen warns); updates arrive only once a signed release is published.
 
 - **Build mode.** A Gather.town-style editor for the office: drag, add, duplicate and delete furniture, paint and resize zones, undo and redo, and start from a workspace template (Startup Loft, Agency Floor, Hotel Back-Office). Works with mouse and touch.
 - **Department desks.** Place desks to choose Tiro's team. New roles: IT (Byte), Accounting (Ledger), Marketing (Spark), Auditor (Vera) and Notetaker (Memo), alongside the original eight. Removing a desk retires the role and keeps its memory.

@@ -4,7 +4,7 @@ const UNSAFE = /^--?(remote-debugging-(port|pipe|address)|remote-allow-origins|i
 
 export const unsafeSwitches = (argv = process.argv) => argv.slice(1).filter(a => UNSAFE.test(String(a)));
 
-export const unsafeMessage = list => `Agent Office will not start with debugging switches (${list.join(' ')}). They would let any program on this PC control its windows. Remove them and start the app again.`;
+export const unsafeMessage = list => `TiroAgents will not start with debugging switches (${list.join(' ')}). They would let any program on this PC control its windows. Remove them and start the app again.`;
 
 // Environment variables that turn on the same capability for Node/Electron.
 export const unsafeEnv = (env = process.env) => ['NODE_OPTIONS', 'ELECTRON_EXTRA_LAUNCH_ARGS'].filter(k => /inspect|remote-debugging|--debug/i.test(String(env[k] || '')));

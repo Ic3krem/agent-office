@@ -86,10 +86,10 @@ button:disabled{opacity:.45;cursor:default}
       </sc-for>
     </div>
 
-    <sc-if value="{{ offlineBanner }}" hint-placeholder-val="{{ false }}"><div class="offline" role="alert">Connection to the Agent Office server lost. Retrying…</div></sc-if>
+    <sc-if value="{{ offlineBanner }}" hint-placeholder-val="{{ false }}"><div class="offline" role="alert">Connection to the TiroAgents server lost. Retrying…</div></sc-if>
     <div style="position:absolute; top:16px; left:16px; right:16px; z-index:3000; display:{{ headDisp }}; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 12px; pointer-events:none;">
       <div style="display:flex; flex-direction:column; gap:3px; padding:9px 14px; border-radius:10px; background:var(--panel); border:1px solid var(--line); pointer-events:auto;">
-        <div style="font-family:'Pixelify Sans',sans-serif; font-size:20px; line-height:1.1; color:#ffdca0;">Agent Office</div>
+        <div style="font-family:'Pixelify Sans',sans-serif; font-size:20px; line-height:1.1; color:#ffdca0;">TiroAgents</div>
         <div style="display:flex; align-items:center; gap:8px; font-size:12px;"><span style="color:#ffdca0;">{{ sceneName }}</span><button class="wbtn" onClick="{{ toTown }}" title="Walk back out to the town" style="font-size:12px; padding:2px 9px;">Back to town</button></div>
         <div style="font-size:12px; color:var(--dim); white-space:nowrap;"><span style="color:{{ onlineColor }};">●</span> {{ onlineLabel }} · {{ totalN }} agents{{ overflowLabel }} · {{ tasksDone }} turns done</div>
       </div>
