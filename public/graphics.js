@@ -34,7 +34,7 @@
 
   function resolve(stored, env) {
     env = env || {};
-    const s = normalize(stored) || { preset: env.auto || 'medium' };
+    const s = normalize(stored) || { preset: 'medium' }; // not set yet: load() stores detect()'s pick
     const p = s.preset === 'custom' ? s.custom : PRESETS[s.preset];
     const gpu = !!env.webgl && p.renderer !== 'canvas';
     return {
@@ -48,7 +48,8 @@
   // Integrated GPUs: Intel, Mali/Adreno/PowerVR, or AMD's unnamed "Radeon(TM) Graphics" iGPU.
   const isIntegrated = name => /intel|mali|adreno|powervr|radeon\(tm\) graphics/i.test(name || '');
   function detect({ webgl, gpuName, deviceMemory, cores } = {}) {
-    if (!webgl || deviceMemory <= 4 || cores <= 4) return 'low'; // undefined compares false: unknown is not low
+    const low = v => typeof v === 'number' && v <= 4; // unknown (undefined/null) is not low
+    if (!webgl || low(deviceMemory) || low(cores)) return 'low';
     return isIntegrated(gpuName) ? 'medium' : 'high';
   }
 
@@ -62,7 +63,7 @@
   const lsSet = (k, v) => { try { root.localStorage.setItem(k, v); } catch {} };
   const nonce = () => (String(root.document.cookie).match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
   let probed;
-  // One throwaway WebGL context per page, released straight away.
+  // One throwaway WebGL context per page, released straight away. Only a success is cached: a failed probe (context busy or lost) retries next call.
   function probe() {
     if (probed) return probed;
     const out = { webgl: false, gpuName: '', deviceMemory: root.navigator.deviceMemory, cores: root.navigator.hardwareConcurrency };
@@ -75,7 +76,8 @@
         const l = gl.getExtension('WEBGL_lose_context'); if (l) l.loseContext();
       }
     } catch {}
-    return (probed = out);
+    if (out.webgl) probed = out;
+    return out;
   }
   const env = () => ({
     dpr: root.devicePixelRatio || 1,

@@ -114,11 +114,33 @@ test('Graphics.env reads live: saver default on, reduced from media or data-anim
   c.store['ao.powerSaver'] = '0'; c.document.documentElement.dataset.anim = 'off';
   const e = c.Graphics.env(); assert.equal(e.saver, false); assert.equal(e.reduced, true);
 });
-test('UI: six rows in order, option values equal the allowed sets', () => {
+test('UI: six rows in order; every offered option survives normalize as a Custom value and has its own label', () => {
   assert.deepEqual(plain(G.UI.map(r => r.key)), ['renderScale', 'fps', 'shadows', 'ambient', 'lighting', 'renderer']);
-  for (const r of G.UI) assert.deepEqual(plain(r.options.map(o => o[0])), plain(G.VALUES[r.key]), r.key);
+  for (const r of G.UI) {
+    for (const [v, label] of r.options) {
+      assert.equal(typeof label, 'string', r.key + ' ' + v + ' has a label');
+      assert.equal(G.normalize({ preset: 'custom', custom: { [r.key]: v } }).custom[r.key], v, r.key + ' ' + v + ' is accepted, not reset');
+    }
+    assert.equal(new Set(r.options.map(o => o[1])).size, r.options.length, r.key + ' labels are distinct');
+    for (const p in G.PRESETS) assert.ok(r.options.some(o => o[0] === G.PRESETS[p][r.key]), r.key + ' row offers the ' + p + ' value');
+  }
   assert.deepEqual(plain(G.UI[0].options.map(o => o[1])), ['50%', '75%', '100%', '100% (2× HiDPI)']);
   assert.deepEqual(plain(G.UI[4].options.map(o => o[1])), ['Off', 'Tint', 'Tint + window glow', 'Tint + glow + lamp light']);
+});
+test('resolve ignores env.auto (junk cannot throw) and unknown deviceMemory (null) is not low', () => {
+  assert.equal(G.resolve(null, { auto: 'junk', webgl: true }).shadows, G.PRESETS.medium.shadows);
+  assert.equal(G.resolve(null, { auto: 'ultra', webgl: true }).fps, G.PRESETS.medium.fps);
+  assert.equal(G.detect({ webgl: true, gpuName: 'NVIDIA', deviceMemory: null, cores: null }), 'high');
+});
+test('Graphics.probe does not cache a failed probe: retries, then caches success', () => {
+  const c = clientCtx({ fetchImpl: () => okJson({}) });
+  vm.runInContext(fs.readFileSync(new URL('./public/graphics.js', import.meta.url), 'utf8'), c, { filename: 'graphics.js' }); // real probe
+  let made = 0, ctxs = [() => { throw new Error('busy'); }, () => null, () => ({ getExtension: () => null })];
+  c.document.createElement = () => { const f = ctxs[made++]; return { getContext: f }; };
+  assert.equal(c.Graphics.probe().webgl, false);
+  assert.equal(c.Graphics.probe().webgl, false);
+  assert.equal(c.Graphics.probe().webgl, true);
+  assert.equal(c.Graphics.probe().webgl, true); assert.equal(made, 3, 'success is cached');
 });
 
 test('desktop prefs save keeps the server-owned graphics setting, and the open panel swallows Y/N', () => {
@@ -128,4 +150,17 @@ test('desktop prefs save keeps the server-owned graphics setting, and the open p
   const onKey = html.slice(html.indexOf('this.onKey=e=>{'), html.indexOf("window.addEventListener('keydown',this.onKey)"));
   const guard = onKey.indexOf('if(this.state.gfxOpen||this.state.usageOpen){'), perm = onKey.indexOf("this.decide(a,'allow')");
   assert.ok(guard > 0 && perm > guard, 'modal key guard must run before the Y/N permission keys');
+});
+test('Graphics and Usage panels are real modals: labelled, focus moves in, Tab is trapped, focus returns on close', () => {
+  const html = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
+  for (const id of ['gfx-title', 'usage-title']) {
+    assert.match(html, new RegExp(`role="dialog" aria-modal="true" aria-labelledby="${id}" data-modal`));
+    assert.match(html, new RegExp(`<span id="${id}"`));
+  }
+  const onKey = html.slice(html.indexOf('this.onKey=e=>{'), html.indexOf("window.addEventListener('keydown',this.onKey)"));
+  const guard = onKey.indexOf('if(this.state.gfxOpen||this.state.usageOpen){');
+  assert.ok(guard > 0 && guard < onKey.indexOf("if(tag==='INPUT'"), 'modal guard runs before the input bail-out');
+  assert.match(onKey.slice(guard, guard + 200), /e\.key==='Tab'\)this\.trapTab\(e\)/);
+  assert.match(html, /componentDidUpdate\(\)\{this\.modalFocus\(\);/);
+  assert.match(html, /Graphics\.load\(\)\.catch\(/);
 });
