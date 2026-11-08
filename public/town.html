@@ -128,12 +128,12 @@
     // Town step 3: agents walking to the karinderya or game hall. Same trip records and sync as the office page (shared
     // localStorage), judged against the office layout's flags; only travellers whose where() is in town are drawn.
     // The rAF runs only while one is on the road; otherwise one timeout waits for the next town leg to start.
-    const AT = AgentTravel, routes = (a, b) => AT.route(map, a, b), trips_ = AT.store(), walked = new Map(), tag = document.getElementById('tag');
+    const AT = AgentTravel, routes = (a, b) => AT.route(map, a, b), spots = TownMap.spotsOf(map), trips_ = AT.store(), walked = new Map(), tag = document.getElementById('tag');
     let snap = null, office = null, trips = {}, friends = [], tRaf = 0, tWake = 0, owv = {}, looksSig = '', hover = null;
     const officeFlags = () => fetch('/api/world', { headers: { 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' } }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.layout) { office = OfficeMotion.travelFlags(WorldModel.spotsOf(j.layout)); resync(); } }).catch(() => {});
     const resync = () => {
       if (snap) partySync(snap.party);
-      if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes, (world && world.mine) || 'home');
+      if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes, (world && world.mine) || 'home', spots);
       if (snap) friends = trips_.friends(snap.party, Date.now(), routes); // party friends' agents: name · friend, no costume
       kick();
     };
@@ -188,10 +188,10 @@
         const rec = a.trip || trips[a.id]; if (!rec) continue;
         let w, n, b; try { w = AT.where(rec, now, routes); n = AT.where(rec, now + 50, routes); b = AT.where(rec, now - 50, routes); } catch (e) { continue; }
         if (w.scene !== 'town' || !w.pos) continue;
-        const pos = w.pos, last = walked.get(a.id), [p0, p1] = n.pos ? [pos, n.pos] : [b.pos || pos, pos]; // the path segment it is on
-        const face = TownRender.faceAlong(p0, p1, last ? last.face : 's'), dist = last ? last.dist + Math.hypot(pos.x - last.x, pos.y - last.y) : 0;
+        const pos = w.pos, last = walked.get(a.id), [p0, p1] = n.pos ? [pos, n.pos] : [b.pos || pos, pos], parked = w.leg === 'there'; // the path segment it is on; parked: at a spot
+        const face = parked ? w.face : TownRender.faceAlong(p0, p1, last ? last.face : 's'), dist = last ? last.dist + Math.hypot(pos.x - last.x, pos.y - last.y) : 0;
         seen.set(a.id, { x: pos.x, y: pos.y, dist, face });
-        out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a.profile ? { id: a.id, name: a.name, key: a.profile.key, color: a.profile.color, accent: a.profile.accent } : a), name: a.name || 'Helper', accent: a.profile && a.profile.accent });
+        out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a.profile ? { id: a.id, name: a.name, key: a.profile.key, color: a.profile.color, accent: a.profile.accent } : a), name: a.name || 'Helper', accent: a.profile && a.profile.accent, moving: !parked });
       }
       if (!peek) { walked.clear(); for (const [k, v] of seen) walked.set(k, v); }
       return peek ? out : out.concat(guestList(now));

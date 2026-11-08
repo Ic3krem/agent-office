@@ -485,3 +485,103 @@ test('party world: the host\'s agents leave from the main house; yours leave fro
   assert.equal(A.where(mine.x1, 0, rs).scene, 'office', 'before leaving, your agent is in your office');
   assert.equal(A.where(mine.x1, 10 + A.EXIT_MS + 1, rs).scene, 'town');
 });
+
+// ---------- town step 5: idle agents walk out to spots ----------
+const SPOTS = ctx.TownMap.spotsOf(town), spotCtx = ids => ({ spots: SPOTS, ids });
+
+test('hash is FNV-1a 32-bit; pickIdle is deterministic with the 120/100/45x4 buckets of 400', () => {
+  assert.equal(T.hash(''), 0x811c9dc5);
+  assert.equal(T.hash('a'), 0xe40c292c);
+  const sp2 = SPOTS.map(s => ({ id: s.id, n: 2 }));
+  assert.equal(T.pickIdle('a', 5, sp2, false), T.pickIdle('a', 5, sp2, false));
+  const count = {}, N = 4000, sp = SPOTS.map(s => ({ id: s.id, n: 0 }));
+  for (let i = 0; i < N; i++) { const d = T.pickIdle('agent-' + (i % 13), 1e12 + i * 7919, sp, false), k = d === 'games' ? 'games' : d.split(':')[1]; count[k] = (count[k] || 0) + 1; }
+  const want = { games: 30, park: 25, waterfall: 11.25, tree: 11.25, court: 11.25, pasture: 11.25 };
+  for (const [k, w] of Object.entries(want)) assert.ok(Math.abs((count[k] || 0) / N * 100 - w) <= 3, k + ' ' + (count[k] || 0) / N * 100);
+  assert.equal(T.pickIdle('a', 5, [], false), 'games', 'no spots: the game hall');
+});
+
+test('play keeps agents out of the game hall: null (the office playroom) or a spot', () => {
+  const sp = SPOTS.map(s => ({ id: s.id, n: 1 }));
+  let nulls = 0;
+  for (let i = 0; i < 400; i++) { const d = T.pickIdle('x' + i, i, sp, true); assert.notEqual(d, 'games'); if (d === null) nulls++; else assert.match(d, /^spot:[a-z-]+:1$/); }
+  assert.ok(nulls > 50 && nulls < 200, 'about 30% stay in the playroom: ' + nulls);
+  assert.equal(T.destOf({ id: 'a', status: 'idle', statusAt: 3 }, { kain: false, play: true }, true), null, 'no ctx: the old behaviour');
+  const ids = ['a', 'b', 'c'], d = T.destOf({ id: 'b', status: 'idle', statusAt: 3 }, { kain: false, play: false }, true, spotCtx(ids));
+  assert.equal(d, T.pickIdle('b', 3, SPOTS.map(s => ({ id: s.id, n: 1 })), false), 'the point index is the agent place among the sorted ids');
+  assert.equal(T.destOf({ id: 'b', status: 'working', statusAt: 3 }, { kain: false, play: false }, true, spotCtx(ids)), null);
+  assert.equal(T.destOf({ id: 'b', status: 'idle', statusAt: 3 }, { kain: false, play: false }, false, spotCtx(ids)), null, 'a board with work: home');
+  assert.equal(T.destOf({ id: 'b', isManager: true, status: 'idle', statusAt: 3 }, { kain: false, play: false }, true, spotCtx(ids)), null, 'Tiro never travels');
+});
+
+const spotTrip = (dest, at = 0) => T.trip(null, { statusAt: at }, dest, at, 'home', routes);
+test('spot trip legs: exit (office) -> town -> there in the town scene at the activity point', () => {
+  const tr = spotTrip('spot:park:2'), r = routes('home', 'spot:park:2'), p = ctx.TownMap.spotPoint(town, 'spot:park:2');
+  assert.deepEqual(plain(r.pts[0]), [1080, 205]); assert.deepEqual(plain(r.pts[r.pts.length - 1]), [p.x, p.y]);
+  const seen = [];
+  for (let now = 0; now < T.EXIT_MS + r.len / T.TOWN_SPEED * 1000 + 3000; now += 100) { const w = W(tr, now), k = w.leg + '@' + w.scene; if (seen[seen.length - 1] !== k) seen.push(k); }
+  assert.deepEqual(seen, ['exit@office', 'town@town', 'there@town']);
+  const w = W(tr, 1e9);
+  assert.deepEqual(w, { scene: 'town', leg: 'there', t: 0, pos: { x: p.x, y: p.y }, spot: 'park', point: 2, act: p.act, face: p.face });
+  assert.equal(T.nextIn(tr, 'town', 1e9, routes), Infinity, 'parked: no town leg ahead');
+});
+
+test('return on work: a spot trip walks back-town then back-enter, home; departAt for spots', () => {
+  const r = routes('home', 'spot:tree:1'), there = T.EXIT_MS + r.len / T.TOWN_SPEED * 1000;
+  let tr = spotTrip('spot:tree:1');
+  tr = T.trip(tr, { statusAt: there + 5000 }, null, there + 5000, 'home', routes);
+  const seen = [];
+  for (let now = there + 4000; now < there + 5000 + r.len / T.TOWN_SPEED * 1000 + T.ENTER_MS + 2000; now += 100) { const w = W(tr, now), k = w.leg + '@' + w.scene; if (seen[seen.length - 1] !== k) seen.push(k); }
+  assert.deepEqual(seen, ['there@town', 'back-town@town', 'back-enter@office', 'home@office']);
+  const a = { id: 'a', status: 'idle', statusAt: 0 };
+  assert.equal(T.departAt(a, 'spot:park:2', { emptyAt: 1000 }), Math.max(0, 1000 + T.IDLE_DELAY));
+  assert.equal(T.departAt(a, null, { fullAt: 5000 }, { dest: 'spot:park:2', returnAt: null }), Math.max(0, 5000));
+  // work arrives during a visit: the store walks the agent home at fullAt, never later
+  const dest = full => x => T.destOf(x, { kain: false, play: false }, !full, spotCtx(['a']));
+  let found = null;
+  for (let s = 0; s < 400 && !found; s++) { const ag = { id: 'a', status: 'idle', statusAt: s }; const d = dest(false)(ag); if (d && d.startsWith('spot:')) found = ag; }
+  let recs = T.sync({}, [found], dest(false), 1000, routes, { emptyAt: 1000 });
+  assert.match(recs.a.dest, /^spot:/);
+  const t = 1e6; recs = T.sync(recs, [found], dest(true), t, routes, { fullAt: t });
+  assert.equal(recs.a.returnAt, t, 'starts back at fullAt');
+});
+
+test('old records load: games and kain records give the same where() as before step 5', () => {
+  const g = { dest: 'games', fromLot: 'home', departAt: 0, returnAt: null, statusAt: 0 }, k = { dest: 'kain', fromLot: 'home', departAt: 0, returnAt: 90000, statusAt: 90000 };
+  const tg = T.EXIT_MS + routes('home', 'games').len / T.TOWN_SPEED * 1000, tk = R.len / T.TOWN_SPEED * 1000;
+  assert.deepEqual(W(g, tg + T.ENTER_MS + 1), { scene: 'games', leg: 'there', t: 0 });
+  assert.equal(W(g, T.EXIT_MS + 1).scene, 'town');
+  assert.equal(W(k, 90000 + 1).leg, 'back-exit');
+  assert.deepEqual(W(k, 90000 + T.EXIT_MS + tk + T.ENTER_MS + 1), { scene: 'office', leg: 'home', t: 0 });
+});
+
+test('unknown spot: a record for a spot gone from town.json gives office home, no throw; nextIn is Infinity', () => {
+  for (const dest of ['spot:gone:1', 'spot:park:x', 'spot:']) {
+    const tr = { dest, fromLot: 'home', departAt: 0, returnAt: null, statusAt: 0 };
+    assert.deepEqual(W(tr, 50000), { scene: 'office', leg: 'home', t: 0 }, dest);
+    assert.equal(T.nextIn(tr, 'town', 0, routes), Infinity);
+  }
+});
+
+test('reload agrees: two stores on one storage give identical records and where() for every agent', () => {
+  const data = {}, A = withStorage(data), rs = (a, b) => A.route(town, a, b);
+  const agents = Array.from({ length: 8 }, (_, i) => ({ id: 'ag' + i, status: 'idle', statusAt: 1000 + i * 37 })).concat({ id: 'tiro', isManager: true, status: 'idle', statusAt: 0 });
+  const office = { kain: false, play: false }, ra = A.store().sync(agents, office, true, 5000, rs, 'home', SPOTS);
+  assert.ok(Object.values(ra).some(r => r.dest.startsWith('spot:')), 'some go to spots');
+  const fresh = withStorage(data), fs_ = (a, b) => fresh.route(town, a, b), rb = fresh.store().sync(agents, office, true, 9000, fs_, 'home', SPOTS);
+  assert.deepEqual(plain(rb), plain(ra));
+  const mem = withStorage(null), rm = mem.store().sync(agents, office, true, 5000, (a, b) => mem.route(town, a, b), 'home', SPOTS);
+  assert.deepEqual(plain(rm), plain(ra), 'a page with fresh memory and no storage decides the same');
+  for (const id of Object.keys(ra)) assert.deepEqual(plain(fresh.where(rb[id], 1e7, fs_)), plain(A.where(ra[id], 1e7, rs)), id);
+  assert.equal(ra.tiro, undefined);
+});
+
+test('crowded spot: 13 agents at the tree get 13 distinct positions, each on a walkable cell', () => {
+  const g = ctx.TownMap.grid(town), seen = new Set();
+  for (let i = 0; i < 13; i++) {
+    const w = W(spotTrip('spot:tree:' + i), 1e9);
+    assert.equal(w.leg, 'there');
+    const key = w.pos.x + ',' + w.pos.y; assert.ok(!seen.has(key), 'distinct ' + key); seen.add(key);
+    assert.equal(g.blocked[ctx.WorldPath.cellOf(g, w.pos)], 0, 'walkable ' + key);
+  }
+});
