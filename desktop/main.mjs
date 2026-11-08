@@ -89,7 +89,8 @@ async function waitForServer() {
 async function ensureServer() {
   followPort();
   if (await signedIn()) return;
-  if (await isAgentOffice(new URL(BASE).port)) throw new Error('TiroAgents is already running on ' + BASE + ' (started by another program). Quit it, then start the app again.');
+  if (await isAgentOffice(new URL(BASE).port)) throw new Error('Another Agent Office or TiroAgents is already running on ' + BASE + '. Quit it from its tray icon, then click Retry.');
+  gaveUp = false; restart.reset(); // a Retry after the server gave up starts the count afresh
   spawnServer();
   if (!(await waitForServer())) throw new Error('The TiroAgents server did not start. Details: ' + LOG_FILE);
 }
@@ -480,8 +481,15 @@ app.whenReady().then(async () => {
   try { fs.mkdirSync(CFG_DIR, { recursive: true }); fs.watch(CFG_DIR, { persistent: false }, (ev, f) => { if (!f || f === 'kiro.json') { clearTimeout(nameTimer); nameTimer = setTimeout(() => applyMgrName(), 300); } }).on('error', () => {}); } catch {}
   setInterval(() => applyMgrName(), 10000).unref();
   startVisibilityReports();
-  try { await ensureServer(); await signInWindows(); }
-  catch (e) { tray.displayBalloon?.({ title: 'TiroAgents', content: e.message }); return; }
+  // A tray balloon alone was easy to miss and left the windows black (an older Agent Office still holding the port):
+  // ask until the server starts or the user quits.
+  for (;;) {
+    try { await ensureServer(); await signInWindows(); break; }
+    catch (e) {
+      const { response } = await dialog.showMessageBox({ type: 'warning', title: 'TiroAgents', message: 'TiroAgents could not start.', detail: e.message, buttons: ['Retry', 'Quit'], defaultId: 0, cancelId: 1, noLink: true });
+      if (response !== 0) { app.quit(); return; }
+    }
+  }
   if (!prefs.hidden) showKiro();
   watchDisplays();
   applyIsland();
