@@ -91,7 +91,7 @@ test('desktop wiring: one setter, sender-checked IPC with a validated payload, t
   assert.ok(main.indexOf("globalShortcut.register('Control+Alt+K', toggleIsland)") < main.lastIndexOf('registerNotchShortcut();'));
   // launch at login (--hidden) and the single-instance lock are untouched; state is remembered through kiro.json
   assert.match(main, /process\.argv\.includes\('--hidden'\)/); assert.match(main, /requestSingleInstanceLock/);
-  assert.match(main, /migrateNotchPrefs\(JSON\.parse\(fs\.readFileSync\(KIRO_FILE/);
+  assert.match(main, /migrateNotchPrefs\(readForWrite\(KIRO_FILE/);
   // nothing new is reachable over HTTP
   assert.doesNotMatch(server, /api\/notch/);
 });

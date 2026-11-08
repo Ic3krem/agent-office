@@ -37,7 +37,11 @@ if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transpare
 app.setAppUserModelId('io.github.ic3krem.agentoffice');
 
 let server, office, kiro, island, tray;
-const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')))); } catch { return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
+const LOG_FILE = path.join(CFG_DIR, 'desktop.log');
+const logLine = line => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, line + String.fromCharCode(10)); } catch {} };
+// Startup read takes the same path as saves (readForWrite): a torn file is re-read once, a corrupt one moved to kiro.json.bad-<time>
+// and logged, so the app never starts on defaults while a good file is mid-write (its next save would overwrite the real keys).
+const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(readForWrite(KIRO_FILE, { log: logText }))); } catch (e) { logText('prefs not read, using defaults: ' + e.message); return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
 // agentNames, looks and graphics are owned by the server (rename, wardrobe and Graphics UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
 // A torn kiro.json is re-read once; a corrupt one is moved aside to kiro.json.bad-<time> and logged (readForWrite), so saves never stall.
 const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk; try { disk = readForWrite(KIRO_FILE, { log: logText }); } catch (e) { logText('prefs not saved: ' + e.message); return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
@@ -51,8 +55,6 @@ const uiNonce = () => fetch(BASE + '/island', { headers: { cookie: 'ao_ui=' + UI
 const uiPost = (p, body) => uiNonce().then(nonce => fetch(BASE + p, { method: 'POST', headers: { cookie: 'ao_ui=' + UI_KEY, 'content-type': 'application/json', 'x-nonce': nonce }, body: JSON.stringify(body), signal: AbortSignal.timeout(2000) }));
 const signedIn = () => uiPost('/api/roster', {}).then(r => r.ok, () => false);
 // Event log for the desktop shell: no environment, arguments or keys, only the event, exit code or signal, and the retry plan. Capped in size.
-const LOG_FILE = path.join(CFG_DIR, 'desktop.log');
-const logLine = line => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try { if (fs.statSync(LOG_FILE).size > 200000) fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch {} fs.appendFileSync(LOG_FILE, line + String.fromCharCode(10)); } catch {} };
 const logEvent = ev => logLine(restartLogLine(Date.now(), ev));
 function logText(t) { logLine(new Date().toISOString() + ' prefs ' + String(t).slice(0, 300)); }
 const restart = createRestartPolicy();

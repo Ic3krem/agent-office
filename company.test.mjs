@@ -232,3 +232,17 @@ test('readForWrite: a torn file that heals within the retry is used as is; a per
   assert.equal(logs.length, 1); assert.match(logs[0], /kiro\.json was not valid JSON; moved it to kiro\.json\.bad-/); assert.doesNotMatch(logs[0], /[\/]/, 'no path in the log');
   assert.deepEqual(readForWrite(path.join(d0, 'none.json')), {}, 'missing: {}');
 });
+test('desktop app reads kiro.json at startup and before every save through readForWrite (display-only reads may stay soft)', () => {
+  const main = fs.readFileSync(new URL('./desktop/main.mjs', import.meta.url), 'utf8');
+  assert.match(main, /const prefs = \(\(\) => \{ try \{ return migrateLyricsPrefs\(migrateNotchPrefs\(readForWrite\(KIRO_FILE, \{ log: logText \}\)\)\)/);
+  assert.match(main, /disk = readForWrite\(KIRO_FILE, \{ log: logText \}\)/);
+  assert.ok(main.indexOf('const logLine =') < main.indexOf('const prefs ='), 'the startup read can log (logLine defined first)');
+});
+test('readForWrite at startup: a torn file is re-read, not replaced by defaults; a persistent one goes aside and reads as {}', () => {
+  const d0 = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-kiro-')), f = path.join(d0, 'kiro.json'), good = { x: 40, y: 50, islandMode: 'smart' };
+  fs.writeFileSync(f, '{"x":40,"y":5');
+  assert.deepEqual(readForWrite(f, { wait: () => fs.writeFileSync(f, JSON.stringify(good)) }), good);
+  fs.writeFileSync(f, 'not json'); const logs = [];
+  assert.deepEqual(readForWrite(f, { wait: () => {}, log: m => logs.push(m) }), {});
+  assert.equal(fs.readdirSync(d0).filter(n => n.startsWith('kiro.json.bad-')).length, 1); assert.equal(logs.length, 1);
+});
