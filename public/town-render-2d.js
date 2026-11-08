@@ -45,10 +45,11 @@
       const f = atlas.frames[type];
       if (!f) return;
       const [sx, sy] = R.ground(x, y);
-      items.push({ f, px: Math.round(sx - f.ax), py: Math.round(sy - f.ay), z: R.depthOf(x, y), glow: !!(f.glow && hasGlow), blob: f.footprint && R.blobOf(f) });
+      items.push({ f, px: Math.round(sx - f.ax), py: Math.round(sy - f.ay), z: R.depthOf(x, y), glow: !!(f.glow && hasGlow), blob: f.footprint && f.footprint[2] > f.footprint[0] && R.blobOf(f) });
     };
     for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);
     for (const d of map.decor) place(d.type, d.x, d.y);
+    for (const sp of map.spots || []) for (const p of sp.props || []) place(p.type, p.x, p.y); // town step 5: drawn at rest (no ambient here)
     items.sort((a, b) => a.z - b.z);
 
     // Tinted copies (multiply by the tint, alpha kept), one per source image, rebuilt when the tint moves a tenth.
@@ -78,6 +79,9 @@
       const c = R.charPlace(x, y, face), g = SP.get(look, c.view, pose, frame, c.dir);
       return { cv: g.cv, w: g.w, h: g.h, px: c.px, py: c.py - (g.h - SP.H), z: c.z, flip: c.flip }; // a short/tall sprite keeps its feet on the ground point
     }
+
+    // An atlas frame drawn as a character-like item (balls, dogs): mirrored about its anchor when flip.
+    const frameItem = (name, x, y, flip) => { const f = atlas.frames[name]; if (!f) return null; const [sx, sy] = R.ground(x, y); return { f, px: Math.round(sx - f.ax), py: Math.round(sy - f.ay), z: R.depthOf(x, y) + 2e-3, mirror: flip }; };
 
     let camX = map.spawn.x, camY = map.spawn.y, zoom = 1, viewW = 1, viewH = 1;
     let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, draws = 0, lastDraws = 0, dead = false;
@@ -138,7 +142,7 @@
         for (const { f, px, py } of vis) draw(src, f.x, f.y, f.w, f.h, px, py, f.w, f.h);
       }
       const colour = tinted(img[colourUrl], L.tint);
-      const list = vis.concat(chars().filter(c => on(c.flip ? c.px - c.w : c.px, c.py, c.w, c.h))).sort((a, b) => a.z - b.z);
+      const list = vis.concat(chars().filter(c => c.f || on(c.flip ? c.px - c.w : c.px, c.py, c.w, c.h))).sort((a, b) => a.z - b.z);
       for (const it of list) {
         if (it.cv) {
           const src = tinted(it.cv, L.tint);
@@ -146,6 +150,7 @@
           continue;
         }
         const f = it.f;
+        if (it.mirror) { cx.save(); cx.translate(it.px + f.ax, it.py); cx.scale(-1, 1); draw(colour, f.x, f.y, f.w, f.h, -f.ax, 0, f.w, f.h); cx.restore(); continue; }
         draw(colour, f.x, f.y, f.w, f.h, it.px, it.py, f.w, f.h);
         // lit windows over the pane, untinted, normal blend: adding warm light to the near-white day pane clips to white
         if (it.glow && L.glow > 0) { cx.globalAlpha = L.glow; draw(img[glowUrl], f.x, f.y, f.w, f.h, it.px, it.py, f.w, f.h); cx.globalAlpha = 1; }
@@ -171,11 +176,16 @@
       setTravellers(list) {
         if (!list.length && !trav.length) return;
         shown.clear();
-        trav = list.map(t => {
-          const c = charItem(t.x, t.y, t.face, 'walk', t.frame, t.look);
-          shown.set(t.id, { x: t.x, y: t.y, name: t.name, dh: c.h - SP.H });
+        const more = [];
+        trav = list.map(t => { // parked visitors (pose: their spot act) show their rest frame: Low has no ambient
+          const v = t.pose && t.pose !== 'walk' && root.TownAmbient ? root.TownAmbient.visit(t, 0, map, false) : t;
+          const c = charItem(v.x, v.y, v.face, v.pose || 'walk', v.frame, t.look);
+          shown.set(t.id, { x: v.x, y: v.y, name: t.name, dh: c.h - SP.H });
+          if (v.ball) more.push(frameItem('ball', v.ball.x, v.ball.y, false));
+          if (v.dog) more.push(frameItem('dog.' + v.dog.frame, v.dog.x, v.dog.y, v.dog.face === 's' || v.dog.face === 'w'));
           return c;
         });
+        trav = trav.concat(more.filter(Boolean));
         mark();
       },
       travellerAt(x, y) { layout(); return R.travellerHit(shown, x, y, left, top, zoom, viewW / canvas.clientWidth); },

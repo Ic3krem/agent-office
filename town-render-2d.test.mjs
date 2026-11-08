@@ -10,7 +10,7 @@ const atlas = { frames: { a: frame(0), b: frame(20), c: frame(40) } };
 // Decor out of depth order; all near the left of the map.
 const map = { lots: [], decor: [{ type: 'c', x: 40, y: 40 }, { type: 'a', x: 10, y: 10 }, { type: 'b', x: 25, y: 25 }], spawn: { x: 0, y: 100 } };
 
-function sandbox(extra = {}) {
+function sandbox(extra = {}, scripts = ['town-render.js', 'town-render-2d.js']) {
   const calls = [], rafs = [];
   const ctx2d = new Proxy({ calls, getImageData: () => ({ data: new Uint8ClampedArray(4) }), putImageData() {}, ...extra }, { get: (o, k) => k in o ? o[k] : k === 'drawImage' ? (img, ...a) => calls.push({ url: img.url, a }) : () => {}, set: (o, k, v) => { o[k] = v; return true; } });
   const files = { '/atlas.json': atlas, '/terrain.json': terrain };
@@ -21,7 +21,7 @@ function sandbox(extra = {}) {
     setInterval: () => 1, clearInterval: () => {}, performance: { now: () => 0 },
     OfficeSprites: { H: 26, get: () => ({ cv: { url: 'char', width: 18, height: 26 }, w: 18, h: 26 }) },
   };
-  const ctx = loadWorld({ ctxFactory: () => ctx2d, globals, extra: ['town-render.js', 'town-render-2d.js'] });
+  const ctx = loadWorld({ ctxFactory: () => ctx2d, globals, extra: scripts });
   ctx.document.hidden = false; ctx.document.addEventListener = ctx.document.removeEventListener = () => {};
   const canvas = { clientWidth: 90, clientHeight: 100, width: 0, height: 0, getContext: () => ctx2d, addEventListener() {}, removeEventListener() {} };
   const flush = () => { while (rafs.length) rafs.shift()(0); };
@@ -98,4 +98,22 @@ test('tint shadows: each pixel is rgb x tint with alpha kept, so 2D night shadow
   s.flush();
   assert.ok(puts.length >= 1 && puts.every(p => p.slice(0, 3).every((v, c) => v < shadow[c]) && p[3] === 90), JSON.stringify(puts));
   api.destroy();
+});
+
+// ---------- town step 5: spots ----------
+test('spots: the tree of life and a seated visitor draw at rest, a shooter with its ball and a dog walker with the dog', async () => {
+  const s = sandbox({}, ['town-map.js', 'town-ambient.js', 'town-render.js', 'town-render-2d.js']);
+  Object.assign(atlas.frames, { 'tree-of-life': frame(60), ball: frame(80), 'dog.rest': frame(100) });
+  const spots = [{ id: 'tree', kind: 'tree', props: [{ type: 'tree-of-life', x: 30, y: 30 }] }, { id: 'court', kind: 'court', props: [{ type: 'hoop', x: 0, y: 0 }] },
+    { id: 'park', kind: 'park', props: [], loop: [[50, 20], [90, 50], [60, 80], [40, 50]] }];
+  const api = await s.ctx.TownRender2D.mount(s.canvas, { map: { ...map, spots }, atlasUrl: '/atlas.json', terrainUrl: '/terrain.json', graphics: { ...s.ctx.Graphics.PRESETS.low, renderScale: 1 }, hour: 12 });
+  const look = { sig: 'v' };
+  api.setTravellers([{ id: 'v1', x: 60, y: 45, face: 's', pose: 'sit', spot: 'tree', look, name: 'Sat' }, { id: 'v2', x: 70, y: 30, face: 'n', pose: 'shoot', spot: 'court', look, name: 'Shot' },
+    { id: 'v3', x: 90, y: 50, face: 'e', pose: 'dogwalk', spot: 'park', look, name: 'Walk' }]);
+  s.flush();
+  const atlasX = s.calls.filter(c => c.url === '/atlas.png').map(c => c.a[0]);
+  for (const [name, x] of [['tree-of-life', 60], ['ball', 80], ['dog.rest', 100]]) assert.ok(atlasX.includes(x), name + ' drawn');
+  assert.equal(s.calls.filter(c => c.url === 'char').length, 3, 'three visitors');
+  assert.equal(api.travellerAt(...(() => { const [sx, sy] = s.ctx.TownRender.project(90, 50, 0); return [sx, sy - 15]; })()).id, 'v3', 'the dog walker rests at its point');
+  for (const k of ['tree-of-life', 'ball', 'dog.rest']) delete atlas.frames[k];
 });
