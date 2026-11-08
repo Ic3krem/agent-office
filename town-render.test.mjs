@@ -202,3 +202,18 @@ test('toWorld on the real town: a hill top by its west (away-facing) edge stays 
     }
   } finally { R.setMap(null); }
 });
+
+test('toWorld on the real town: every open cell reachable from spawn round-trips (no walkable ground is hidden behind higher ground)', () => {
+  const town = JSON.parse(fs.readFileSync(new URL('./public/town/town.json', import.meta.url), 'utf8'));
+  const { TownMap, WorldPath } = ctx, g = TownMap.grid(town), reach = WorldPath.reachFrom(g, town.spawn), miss = [];
+  R.setMap(town);
+  try {
+    for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
+      const x = (c + 0.5) * g.cell, y = (r + 0.5) * g.cell;
+      if (g.blocked[r * g.cols + c] || !reach({ x, y })) continue;
+      const [sx, sy] = R.ground(x, y), [wx, wy] = R.toWorldAt(sx, sy, 0, 0, 1, 1);
+      if (Math.hypot(wx - x, wy - y) >= 1) miss.push(x + ',' + y);
+    }
+  } finally { R.setMap(null); }
+  assert.deepEqual(miss, []);
+});

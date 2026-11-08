@@ -37,20 +37,23 @@
   function cliffBlocks(d) {
     if (!(d.levels || []).length) return [];
     const c = d.cell, cols = Math.ceil(d.size.w / c), rows = Math.ceil(d.size.h / c), out = [];
-    const lv = (cc, r) => levelAt(d, (cc + 0.5) * c, (r + 0.5) * c), onRamp = (cc, r) => (d.ramps || []).some(rp => inside({ x: (cc + 0.5) * c, y: (r + 0.5) * c }, rp.rect));
+    const lv = (cc, r) => levelAt(d, (cc + 0.5) * c, (r + 0.5) * c), ramps = d.ramps || [];
+    const rampOf = (cc, r) => ramps.findIndex(rp => inside({ x: (cc + 0.5) * c, y: (r + 0.5) * c }, rp.rect));
+    const h = new Float64Array(cols * rows), ramp = new Int16Array(cols * rows);
+    for (let r = 0; r < rows; r++) for (let cc = 0; cc < cols; cc++) { h[r * cols + cc] = heightAt(d, (cc + 0.5) * c, (r + 0.5) * c); ramp[r * cols + cc] = rampOf(cc, r); }
     for (let r = 0; r < rows; r++) for (let cc = 0; cc < cols; cc++) {
-      const v = lv(cc, r);
-      if (!v || onRamp(cc, r)) continue;
-      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => { const a = cc + dc, b = r + dr; return a >= 0 && b >= 0 && a < cols && b < rows && lv(a, b) < v; }))
+      const v = lv(cc, r), q = r * cols + cc;
+      if (v && ramp[q] < 0 && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => { const a = cc + dc, b = r + dr; return a >= 0 && b >= 0 && a < cols && b < rows && lv(a, b) < v; }))
         out.push([cc * c, r * c, cc * c + c, r * c + c]);
-      // A west- or north-facing cliff faces away from the camera: its raised top is drawn over the low ground just behind
-      // it (the lift / (2 x 0.3536) units deep), so a walker there would show on top of the hill. Block that strip.
+      // Ground that faces away from the camera (a west- or north-facing cliff, a lane's east wall, a ramp wedge's west side)
+      // is drawn over the lower ground just behind it, (rise) / (2 x 0.3536) units deep, so a walker there would show on
+      // top of it. Block that strip, from every cell's heightAt; a ramp never hides itself.
       for (const [dc, dr] of [[-1, 0], [0, -1]]) {
-        const low = cc + dc >= 0 && r + dr >= 0 ? lv(cc + dc, r + dr) : v;
-        if (low >= v) continue;
-        for (let k = 1, n = Math.ceil((v - low) * LEVEL_H / 0.7071 / c); k <= n; k++) {
+        const a0 = cc + dc, b0 = r + dr, p = b0 * cols + a0;
+        if (a0 < 0 || b0 < 0 || h[p] >= h[q] - 1e-6 || (ramp[q] >= 0 && ramp[p] === ramp[q])) continue;
+        for (let k = 1, n = Math.ceil((h[q] - h[p]) / 0.7071 / c); k <= n; k++) {
           const a = cc + dc * k, b = r + dr * k;
-          if (a >= 0 && b >= 0 && !onRamp(a, b)) out.push([a * c, b * c, a * c + c, b * c + c]);
+          if (a >= 0 && b >= 0) out.push([a * c, b * c, a * c + c, b * c + c]);
         }
       }
     }

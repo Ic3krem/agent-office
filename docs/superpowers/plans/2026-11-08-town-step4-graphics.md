@@ -410,17 +410,17 @@ The user approved this on 2026-11-08: "you are also allowed to create different 
 - Modify: `art/blender/town_terrain.py`: raise terrace rects by `level × LEVEL_H` (in Blender units, /10 as in the other scripts). Cliff sides use the soil-sides material the terrain already has. Ramps are sloped planes, or stairs where the side is short. Rerun `npm run art` and commit the regenerated `public/art/town/terrain/*` and `MANIFEST.json`.
 - Modify:
   - `public/town-render.js` and `public/town-render-2d.js`: sprites, characters and blob shadows are placed with `project(x, y, TownMap.heightAt(map, x, y))`. `depthOf` stays x+y; raised ground is behind the cliffs that face the camera, because terraces sit at the map edges and behind lots.
-  - `travellerAt` and `toWorld` account for the height. For `toWorld`, iterate: unproject at z=0, then re-project at `heightAt` (2 iterations are enough for 14-unit steps).
+  - `travellerAt` and `toWorld` account for the height. For `toWorld`, iterate: unproject at z=0, then re-project at `heightAt` (2 iterations are enough for 28-unit steps).
 - Modify: `public/agent-travel.js`: nothing, provided routes come from `TownMap.grid`. Verify this with the existing "grass under 5%" route test, which must stay green.
 - Test: `town-map.test.mjs`:
-  - `heightAt` at the plaza = 0, on a level-1 terrace = 14, at a ramp's midpoint = 7;
+  - `heightAt` at the plaza = 0, on a level-1 terrace = 28, at a ramp's midpoint = 14;
   - a cliff-edge cell is blocked and a ramp cell is open;
   - `validate` rejects a lot straddling two levels and a terrace with no ramp;
   - every terrace has a path from spawn through `world-path` A*.
 
 **Interfaces:**
 - Consumes: `TownMap.grid/validate` (existing), the renderers (Tasks 4 and 7).
-- Produces: `TownMap.heightAt(map, x, y) -> number`, `TownMap.LEVEL_H = 14`.
+- Produces: `TownMap.heightAt(map, x, y) -> number`, `TownMap.LEVEL_H = 28`.
 
 - [ ] **Step 1:** Write the failing `town-map.test.mjs` cases above, against a small fixture map. The real `town.json` also has to pass `validate`.
 - [ ] **Step 2:** Run `node --test town-map.test.mjs`. Expected: FAIL.
