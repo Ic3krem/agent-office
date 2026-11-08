@@ -139,3 +139,15 @@ test('real town ramps stay gentle at LEVEL_H 28: at least 150 units of run per l
     assert.ok(run / rise >= 150, 'ramps[' + i + '] run ' + run + ' per level');
   }
 });
+
+test('grid: a ramp in each direction (n, s, e, w) is walkable from its foot to the terrace top', () => {
+  const base = { size: { w: 600, h: 600 }, cell: 10, lots: [], decor: [], water: [], bridges: [], paths: [], plaza: [0, 0, 10, 10] };
+  for (const [dir, lv, rect, foot, top] of [
+    ['n', [0, 0, 600, 200], [280, 190, 340, 350], { x: 310, y: 400 }, { x: 310, y: 100 }],
+    ['s', [0, 400, 600, 600], [280, 250, 340, 410], { x: 310, y: 200 }, { x: 310, y: 500 }],
+    ['e', [400, 0, 600, 600], [250, 280, 410, 340], { x: 200, y: 310 }, { x: 500, y: 310 }],
+    ['w', [0, 0, 200, 600], [190, 280, 350, 340], { x: 400, y: 310 }, { x: 100, y: 310 }]]) {
+    const d = { ...base, levels: [{ rect: lv, level: 1 }], ramps: [{ rect, dir }] }, g = TownMap.grid(d);
+    assert.ok(WorldPath.findPath(g, foot, top).length > 0, dir + ' ramp: a path from foot to top');
+  }
+});

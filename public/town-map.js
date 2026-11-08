@@ -40,6 +40,7 @@
     const lv = (cc, r) => levelAt(d, (cc + 0.5) * c, (r + 0.5) * c), ramps = d.ramps || [];
     const rampOf = (cc, r) => ramps.findIndex(rp => inside({ x: (cc + 0.5) * c, y: (r + 0.5) * c }, rp.rect));
     const h = new Float64Array(cols * rows), ramp = new Int16Array(cols * rows);
+    const alongRamp = (i, dr) => i >= 0 && (ramps[i].dir === 'n' || ramps[i].dir === 's') === (dr !== 0);
     for (let r = 0; r < rows; r++) for (let cc = 0; cc < cols; cc++) { h[r * cols + cc] = heightAt(d, (cc + 0.5) * c, (r + 0.5) * c); ramp[r * cols + cc] = rampOf(cc, r); }
     for (let r = 0; r < rows; r++) for (let cc = 0; cc < cols; cc++) {
       const v = lv(cc, r), q = r * cols + cc;
@@ -47,10 +48,11 @@
         out.push([cc * c, r * c, cc * c + c, r * c + c]);
       // Ground that faces away from the camera (a west- or north-facing cliff, a lane's east wall, a ramp wedge's west side)
       // is drawn over the lower ground just behind it, (rise) / (2 x 0.3536) units deep, so a walker there would show on
-      // top of it. Block that strip, from every cell's heightAt; a ramp never hides itself.
+      // top of it. Block that strip, from every cell's heightAt. A step along a ramp's climb (into, along or out of it) is
+      // the ramp itself, not a face, so only steps across its axis count; otherwise an s or e ramp would wall off its top.
       for (const [dc, dr] of [[-1, 0], [0, -1]]) {
         const a0 = cc + dc, b0 = r + dr, p = b0 * cols + a0;
-        if (a0 < 0 || b0 < 0 || h[p] >= h[q] - 1e-6 || (ramp[q] >= 0 && ramp[p] === ramp[q])) continue;
+        if (a0 < 0 || b0 < 0 || h[p] >= h[q] - 1e-6 || alongRamp(ramp[q], dr) || alongRamp(ramp[p], dr)) continue;
         for (let k = 1, n = Math.ceil((h[q] - h[p]) / 0.7071 / c); k <= n; k++) {
           const a = cc + dc * k, b = r + dr * k;
           if (a >= 0 && b >= 0) out.push([a * c, b * c, a * c + c, b * c + c]);
