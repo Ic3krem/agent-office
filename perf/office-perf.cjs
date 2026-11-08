@@ -1,6 +1,7 @@
 // Office perf harness (town step 2; per-preset budgets in step 4): electron perf/office-perf.cjs. Temp-profile server on
-// :4794, visible 1280x800 window, budgets enforced (exit 1 on a miss). Per graphics preset (Low, High): idle renderer CPU and
-// frames, frame time while agents walk (preview 'work' scene) and renderer private memory. Then 20 enter/leave cycles
+// :4794, a visible window shaped like the app's office window (1440x900, its webPreferences and preload), budgets enforced
+// (exit 1 on a miss). Per graphics preset (Low, High): idle renderer CPU and frames, a mouse move (a short burst of frames,
+// then back to idle), hidden frames (0), frame time while agents walk (preview 'work' scene) and renderer private memory. Then 20 enter/leave cycles
 // town <-> office (High): the JS heap after gc() stays within +-10% of the first cycle and renderer private bytes plateau
 // (cycles 11-20 rise <= 3%). 20 town <-> karinderya + game hall cycles are reported beside it.
 const { app, BrowserWindow, session } = require('electron');
@@ -14,9 +15,10 @@ app.setPath('userData', path.join(tmp, 'electron'));
 // Chromium keeps decoded images and resources of earlier pages in the renderer's memory cache, which grows for the first
 // handful of visits and then plateaus (the town step 2 report). Private bytes are sampled after webFrame.clearCache(), so
 // they measure what the pages themselves keep; the raw number with the cache is reported beside it.
-// The window is sandboxed with context isolation, as the app's windows are (desktop/main.mjs). An unsandboxed preload starts
-// a Node environment on every navigation whose binding templates are never freed: about 0.1 MB of JS heap per cycle, all
-// FunctionTemplateInfo and code objects (heap snapshot diff, docs/perf/town-step4.md). That drift was the harness's own.
+// The window uses the app's office window settings (desktop/main.mjs): sandbox, context isolation, its own preload. An
+// unsandboxed preload starts a Node environment on every navigation whose binding templates are never freed: about 0.1 MB
+// of JS heap per cycle (heap snapshot diff, docs/perf/town-step4.md); that drift was the harness's own. The cache-clear hook
+// is a second, session-registered preload, so the app's preload stays as it ships.
 const preload = path.join(tmp, 'preload.cjs');
 fs.writeFileSync(preload, "const { webFrame, contextBridge } = require('electron'); contextBridge.exposeInMainWorld('__clearCache', () => webFrame.clearCache());");
 const child = spawn(process.execPath, [path.join(root, 'server.mjs')], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', USERPROFILE: tmp, HOME: tmp, APPDATA: path.join(tmp, 'AppData'), LOCALAPPDATA: path.join(tmp, 'Local'), AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: key, CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -25,14 +27,25 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const done = code => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); };
 setTimeout(() => { console.log('FAIL watchdog: harness exceeded 900 s'); done(1); }, 900000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
+// sendInputEvent mouse moves over the middle of the window; frames in the first second (the burst) and in 3 s starting 3 s
+// after the moves (settled). Also counts the moves the page saw, so a blocked injection cannot pass as "settled".
+async function mouseCheck(w, js, frames) {
+  await js('window.__moves = 0; addEventListener("mousemove", () => window.__moves++, true)');
+  const f0 = await frames();
+  for (const [x, y] of [[700, 440], [740, 470], [720, 450]]) { w.webContents.sendInputEvent({ type: 'mouseMove', x, y }); await wait(50); }
+  await wait(1000); const f1 = await frames(); await wait(1850); const f2 = await frames(); await wait(3000); const f3 = await frames();
+  return { moves: await js('window.__moves'), burst: f1 - f0, after: f3 - f2 };
+}
 const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN; };
 
 app.whenReady().then(async () => {
   for (let t = 0; !/running on/.test(log); t += 150) { if (t > 20000) throw new Error('server did not start: ' + log.slice(0, 300)); await wait(150); }
   await session.defaultSession.cookies.set({ url: base, name: 'ao_ui', value: key });
-  const w = new BrowserWindow({ width: 1280, height: 800, show: true, webPreferences: { backgroundThrottling: true, contextIsolation: true, sandbox: true, preload } });
+  session.defaultSession.registerPreloadScript({ type: 'frame', id: 'ao-perf-cache', filePath: preload });
+  const w = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { preload: path.join(root, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
   // real mouse moves count as input (the office then draws smoothly for 1.5 s); the measured window never sees them. On the
   // step 4 machine something outside the harness moved the cursor 112 px every 20 s, which broke the office idle budget.
+  // The mouse check below injects its own moves with sendInputEvent, which this does not block.
   w.setIgnoreMouseEvents(true);
   w.webContents.on('will-prevent-unload', e => e.preventDefault());
   const js = s => w.webContents.executeJavaScript(s);
@@ -57,6 +70,14 @@ app.whenReady().then(async () => {
     w.webContents.focus(); await wait(3000);
     const powerSaver = await js('OfficeWorld.powerSaver()');
     const f0 = await js('OfficeWorld.framesDrawn()'), idle = await sampleCpu(), idleFrames = (await js('OfficeWorld.framesDrawn()')) - f0;
+    // a mouse move over the stage is input: smooth frames for 1.5 s (FRAME.INTERACT_MS), then the idle cadence again
+    const mouse = await mouseCheck(w, js, () => js('OfficeWorld.framesDrawn()'));
+    // hidden: wake() every 100 ms, so only the document.hidden guard keeps the office from drawing
+    w.hide(); await wait(1000);
+    if ((await js('document.hidden')) !== true) throw new Error('window.hide() did not make the document hidden');
+    await js('window.__dirty = setInterval(() => OfficeWorld.setHover(null), 100)');
+    const fh0 = await js('OfficeWorld.framesDrawn()'); await wait(5000); const hiddenFrames = (await js('OfficeWorld.framesDrawn()')) - fh0;
+    await js('clearInterval(window.__dirty)'); w.show(); w.webContents.focus(); await wait(1000);
 
     // agents walking: the preview 'work' scene. Sampled on every drawn frame: the draw (lastRenderMs, as the town's step 1
     // walking number) and the whole loop callback (tick + draw, through requestAnimationFrame)
@@ -69,7 +90,7 @@ app.whenReady().then(async () => {
     const workMem = privMB();
     await js('OfficeWorld.setDemo(null)');
     return {
-      idle: { powerSaver, cpuAvg: idle.avg, cpuMax: idle.max, frames10s: idleFrames },
+      idle: { powerSaver, cpuAvg: idle.avg, cpuMax: idle.max, frames10s: idleFrames }, mouse, hiddenFrames5s: hiddenFrames,
       work: { frames30s: walkFrames, movingAtEnd: moving, drawP50: pct(dt, 0.5), drawP95: pct(dt, 0.95), drawMax: Math.max(...dt), loopP50: pct(ft, 0.5), loopP95: pct(ft, 0.95), samples: dt.length, rendererPrivateMB: workMem },
     };
   };
@@ -122,6 +143,9 @@ app.whenReady().then(async () => {
     const r = presets[p], P = p[0].toUpperCase() + p.slice(1);
     budgets.push([P + ': office idle CPU < ' + cpu + '%', r.idle.cpuAvg < cpu, r.idle.cpuAvg],
       [P + ': office idle frames <= 21 in 10 s (power-saver idle cadence)', r.idle.frames10s <= 21, r.idle.frames10s],
+      [P + ': mouse move reached the page and drew a burst (>= 5 frames in 1 s)', r.mouse.moves > 0 && r.mouse.burst >= 5, r.mouse.burst],
+      [P + ': after the mouse move the office settles (<= 7 frames in the 3 s after 3 s, the idle cadence)', r.mouse.after <= 7, r.mouse.after],
+      [P + ': office hidden frames == 0 (woken every 100 ms for 5 s)', r.hiddenFrames5s === 0, r.hiddenFrames5s],
       [P + ': work scene draw p95 < 8 ms', r.work.drawP95 < 8, r.work.drawP95],
       [P + ': renderer private < ' + mem + ' MB (work scene)', r.work.rendererPrivateMB < mem, r.work.rendererPrivateMB]);
   }
@@ -135,7 +159,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(__dirname, 'results', 'office-step4-' + R.date.slice(0, 10) + '.json'), JSON.stringify(R, null, 2));
   console.log(JSON.stringify(R.machine));
   for (const [n, ok, v] of budgets) console.log((ok ? 'PASS ' : 'FAIL ') + n + '  (' + (+v).toFixed(3) + ')');
-  for (const [p, r] of Object.entries(presets)) console.log(p + ' extra: idle max ' + r.idle.cpuMax.toFixed(2) + '%, power saver ' + r.idle.powerSaver + ', draw p50 ' + r.work.drawP50.toFixed(2) + ' ms max ' + r.work.drawMax.toFixed(2) + ' ms, loop p50/p95 ' + r.work.loopP50.toFixed(2) + '/' + r.work.loopP95.toFixed(2) + ' ms over ' + r.work.samples + ' frames (' + r.work.movingAtEnd + ' moving at the end)');
+  for (const [p, r] of Object.entries(presets)) console.log(p + ' extra: idle max ' + r.idle.cpuMax.toFixed(2) + '%, power saver ' + r.idle.powerSaver + ', mouse ' + JSON.stringify(r.mouse) + ', draw p50 ' + r.work.drawP50.toFixed(2) + ' ms max ' + r.work.drawMax.toFixed(2) + ' ms, loop p50/p95 ' + r.work.loopP50.toFixed(2) + '/' + r.work.loopP95.toFixed(2) + ' ms over ' + r.work.samples + ' frames (' + r.work.movingAtEnd + ' moving at the end)');
   for (const [n, c] of [['office', office], ['kain+games', rooms]]) console.log(n + ' cycles: heap MB ' + c.heapMB.map(v => v.toFixed(2)).join(' ') + ' (worst ' + c.heapDrift.toFixed(1) + '%); private MB, cache cleared ' + c.mb.map(v => v.toFixed(0)).join(' ') + ' (' + c.drift.toFixed(1) + '% end to end, plateau ' + c.plateau.toFixed(1) + '%); with the cache ' + c.rawMB.map(v => v.toFixed(0)).join(' ') + ' (' + c.rawDrift.toFixed(1) + '%)');
   const bad = budgets.filter(b => !b[1]);
   console.log(bad.length ? 'BUDGET BROKEN: ' + bad.map(b => b[0]).join('; ') : 'ALL PASSED');
