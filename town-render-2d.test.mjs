@@ -10,9 +10,9 @@ const atlas = { frames: { a: frame(0), b: frame(20), c: frame(40) } };
 // Decor out of depth order; all near the left of the map.
 const map = { lots: [], decor: [{ type: 'c', x: 40, y: 40 }, { type: 'a', x: 10, y: 10 }, { type: 'b', x: 25, y: 25 }], spawn: { x: 0, y: 100 } };
 
-function sandbox() {
+function sandbox(extra = {}) {
   const calls = [], rafs = [];
-  const ctx2d = new Proxy({ calls }, { get: (o, k) => k in o ? o[k] : k === 'drawImage' ? (img, ...a) => calls.push({ url: img.url, a }) : () => {}, set: (o, k, v) => { o[k] = v; return true; } });
+  const ctx2d = new Proxy({ calls, getImageData: () => ({ data: new Uint8ClampedArray(4) }), putImageData() {}, ...extra }, { get: (o, k) => k in o ? o[k] : k === 'drawImage' ? (img, ...a) => calls.push({ url: img.url, a }) : () => {}, set: (o, k, v) => { o[k] = v; return true; } });
   const files = { '/atlas.json': atlas, '/terrain.json': terrain };
   const globals = {
     fetch: async u => ({ ok: true, json: async () => files[u], blob: async () => ({ url: u }) }),
@@ -81,4 +81,21 @@ test('tinted copies are dropped when the light goes back to day (no tint): textu
   assert.ok(night > day, 'night keeps a tinted atlas copy');
   api.setGraphics(low); s.flush();
   assert.equal(api.stats().textureBytes, day, 'day drops it');
+});
+
+test('tint shadows: each pixel is rgb x tint with alpha kept, so 2D night shadows are darker than day (as on the GPU)', async () => {
+  const s0 = sandbox(), G = s0.ctx.Graphics, night = G.tintOf(G.nightOf(22));
+  const shadow = [26, 34, 64, 90], px = s0.ctx.TownRender2D.mulTint(Uint8ClampedArray.from(shadow), night);
+  const t = [night >> 16 & 255, night >> 8 & 255, night & 255];
+  for (let c = 0; c < 3; c++) {
+    assert.equal(px[c], Math.round(shadow[c] * t[c] / 255), 'channel ' + c + ' = src x tint');
+    assert.ok(px[c] < shadow[c], 'channel ' + c + ' darker at night');
+  }
+  assert.equal(px[3], 90, 'alpha kept');
+  // wired in: the tinted shadow copy is the putImageData of src x tint
+  const puts = [], s = sandbox({ getImageData: () => ({ data: Uint8ClampedArray.from(shadow) }), putImageData: d => puts.push([...d.data]) });
+  const api = await s.ctx.TownRender2D.mount(s.canvas, { map, atlasUrl: '/atlas.json', terrainUrl: '/terrain.json', graphics: { ...G.PRESETS.low, renderScale: 1, shadows: 'tint' }, hour: 22 });
+  s.flush();
+  assert.ok(puts.length >= 1 && puts.every(p => p.slice(0, 3).every((v, c) => v < shadow[c]) && p[3] === 90), JSON.stringify(puts));
+  api.destroy();
 });

@@ -8,6 +8,13 @@
   const R = root.TownRender;
   const hex = n => '#' + n.toString(16).padStart(6, '0');
 
+  // rgba bytes in place: rgb multiplied by the 0xRRGGBB tint (rounded), alpha untouched.
+  function mulTint(px, tint) {
+    const r = (tint >> 16 & 255) / 255, g = (tint >> 8 & 255) / 255, b = (tint & 255) / 255;
+    for (let i = 0; i < px.length; i += 4) { px[i] = Math.round(px[i] * r); px[i + 1] = Math.round(px[i + 1] * g); px[i + 2] = Math.round(px[i + 2] * b); }
+    return px;
+  }
+
   async function mount(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.low, hour = null }) {
     const SP = root.OfficeSprites;
     const cx = canvas.getContext('2d');
@@ -51,9 +58,10 @@
       const e = tints.get(src);
       if (e && e.tint === tint) { tints.delete(src); tints.set(src, e); return e.cv; }
       const cv = document.createElement('canvas'), w = cv.width = src.width, h = cv.height = src.height, x = cv.getContext('2d');
+      // Per pixel, as the GPU tint does: rgb x tint, alpha kept. A 'multiply' fill over semi-transparent pixels (the shadow
+      // sheet) blends the fill with the backdrop's transparency (about 0.65 tint + 0.35 tint x src), so shadows got lighter.
       x.drawImage(src, 0, 0);
-      x.globalCompositeOperation = 'multiply'; x.fillStyle = hex(tint); x.fillRect(0, 0, w, h);
-      x.globalCompositeOperation = 'destination-in'; x.drawImage(src, 0, 0);
+      const d = x.getImageData(0, 0, w, h); mulTint(d.data, tint); x.putImageData(d, 0, 0);
       if (e) textureBytes -= e.cv.width * e.cv.height * 4;
       tints.set(src, { tint, cv }); textureBytes += w * h * 4;
       // character copies come and go with walk frames: cap them as the GPU char cache, never dropping one on screen
@@ -191,5 +199,5 @@
     };
   }
 
-  root.TownRender2D = { mount };
+  root.TownRender2D = { mount, mulTint };
 })(globalThis);
