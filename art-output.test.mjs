@@ -164,3 +164,18 @@ test('terrain art was generated from the current town.json levels and ramps (rer
   assert.equal(lh, 28, 'LEVEL_H (user decision 2026-11-08)');
   assert.equal(t.levelH, lh, 'terrain art built with the same cliff height as TownMap.LEVEL_H');
 });
+
+// ---------- town step 5: spot and animal art ----------
+test('town step 5 frames: spot props, waterfall and animal frames are in the atlas; the tree of life is the tallest sprite', () => {
+  const town = readJson('public/town/town.json'), atlas = readJson('public/art/town/atlas.json'), F = atlas.frames;
+  const want = ['tree-of-life', 'hoop', 'fence-x', 'fence-y', 'cow-trough', 'flowerbed', 'bench-s', 'waterfall', 'waterfall.0', 'waterfall.1', 'waterfall.2', 'waterfall.3',
+    'cow.rest', 'cow.walk0', 'cow.walk1', 'dog.rest', 'dog.walk0', 'dog.walk1', 'cat.rest', 'cat.walk0', 'cat.walk1', 'cat.sleep', 'ball'];
+  for (const n of want) assert.ok(F[n], 'missing frame ' + n);
+  for (const s of town.spots) for (const p of s.props) assert.ok(F[p.type], 'no frame for spot prop ' + p.type);
+  assert.ok(F['tree-of-life'].footprint[2] > F['tree-of-life'].footprint[0], 'the tree of life has a footprint (contact blob)');
+  const tallest = Object.entries(F).sort((a, b) => b[1].h - a[1].h)[0][0];
+  assert.equal(tallest, 'tree-of-life');
+  assert.ok(F['tree-of-life'].h > F['office-modern'].h);
+  const [W, H] = atlas.size;
+  assert.ok(W <= 2048 && H <= 2048 && W * H <= 1024 * 497 + 2048 * 2048, 'atlas ' + W + 'x' + H + ' within step 4 plus one 2048 page');
+});

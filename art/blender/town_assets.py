@@ -342,12 +342,127 @@ def sign():
     return 1, 1
 
 
+# ---------------- town step 5: spots and animals ----------------
+def bench_s():  # a park bench facing south (the camera): backrest on the north side
+    box(-1.4, -0.45, 0.5, 2.8, 0.9, 0.15, '#a8693a'); box(-1.4, -0.6, 0.65, 2.8, 0.15, 0.8, '#a8693a')
+    box(-1.3, -0.45, 0, .2, .9, .5, '#4a3a32'); box(1.1, -0.45, 0, .2, .9, .5, '#4a3a32')
+    return 1, 1
+
+
+def tree_of_life():
+    # one very old tree: a thick trunk split in three, roots fanning out to sit on, a wide layered canopy
+    for i in range(10):
+        a = (i / 10) * 2 * math.pi + 0.2; r0, r1 = 1.0, 2.6 + 0.4 * (i % 3)
+        for k in range(6):
+            t = k / 5; r = r0 + (r1 - r0) * t
+            box(math.cos(a) * r - .25, math.sin(a) * r - .25, 0, .5, .5, 0.45 * (1 - t) + 0.12, ['#6b4226', '#5a3a22'][k % 2])
+    cyl(0, 0, 0, 1.2, 6.5, '#6b4226', 12); cyl(0.3, 0.2, 0, 1.0, 5.0, '#5a3a22', 10)
+    for (dx, dy, z0) in [(-1.4, 0.4, 5.5), (1.5, -0.3, 6.0), (0.2, 1.4, 6.5)]:
+        for k in range(5): cyl(dx * k / 4, dy * k / 4, z0 + k * 0.7, 0.75 - k * 0.08, 0.8, '#6b4226', 8)
+    tones = ('#2f6a2c', '#3e7d34', '#4e9a3c', '#62b04a')
+    for (dx, dy, dz, r) in [(0, 0, 10.5, 4.8), (-3.6, 1.2, 8.8, 3.6), (3.4, -1.4, 9.2, 3.6), (1.0, 3.6, 8.6, 3.4), (-1.4, -3.6, 9.4, 3.4),
+                            (3.2, 2.6, 9.6, 3.0), (-3.4, 3.0, 9.0, 2.8), (-3.6, -2.6, 9.8, 2.8), (2.8, -3.6, 10.0, 2.8),
+                            (1.6, 1.4, 13.0, 3.4), (-2.0, -0.6, 13.2, 3.2), (0.4, -1.8, 14.8, 2.6), (-0.6, 1.2, 15.6, 2.2)]:
+        blob(dx, dy, dz, r, R().choice(tones))
+    for _ in range(36): blob(R().uniform(-5, 5), R().uniform(-5, 5), R().uniform(8.5, 15.5), 0.45, R().choice(['#7cc455', '#62b04a']))
+    return 3.6, 3.6
+
+
+def falls(k):
+    # water over the level-2 cliff edge (2.8 units high) into the pool just south of it; k shifts the streaks (frames 0..3)
+    def build():
+        box(-3, -0.9, 2.75, 6, 0.9, 0.08, '#3f8fc4'); box(-3, -0.15, 0, 6, 0.2, 2.85, '#3f8fc4')
+        for i in range(12):
+            x = -2.8 + i * 0.48; z = (i * 0.37 + k * 0.7) % 2.6
+            box(x, -0.05, z, 0.14, 0.12, 0.6, '#bfe6ff'); box(x + 0.2, -0.05, (z + 1.3) % 2.6, 0.1, 0.12, 0.4, '#d8f4ff')
+        for i in range(9): blob(-2.6 + i * 0.65, 0.25, 0.08, 0.32 + 0.08 * ((i + k) % 3), '#f2f2ee' if (i + k) % 2 else '#d8f4ff')
+        return 0, 0
+    return build
+
+
+def hoop():
+    cyl(0, -0.3, 0, 0.12, 3.6, '#4a4a52', 8); box(-0.9, -0.15, 3.0, 1.8, 0.1, 1.1, '#f6f1e3'); box(-0.35, -0.08, 3.15, 0.7, 0.06, 0.45, '#d63a3a')
+    for i in range(10):
+        a = i / 10 * 2 * math.pi; box(math.cos(a) * 0.32 - .05, 0.4 + math.sin(a) * 0.32 - .05, 3.05, .1, .1, .06, '#e05545')
+    for i in range(5): box(-0.25 + i * 0.12, 0.4, 2.6, 0.03, 0.03, 0.45, '#f6f1e3')
+    return 1, 0.6
+
+
+def fence_x(): fence_run(-3, 0, 3, 0); return 0, 0
+def fence_y(): fence_run(0, -3, 0, 3); return 0, 0
+
+
+def trough():
+    box(-1.2, -0.4, 0, 2.4, 0.8, 0.5, '#7a4a2a'); box(-1.05, -0.28, 0.42, 2.1, 0.56, 0.06, '#4f9fd1')
+    for x in (-1.1, 0.9): box(x, -0.45, 0, 0.2, 0.9, 0.2, '#5a3a22')
+    return 2.4, 1
+
+
+def flowerbed():
+    box(-1.2, -0.8, 0, 2.4, 1.6, 0.35, '#7a4a2a'); box(-1.1, -0.7, 0.3, 2.2, 1.4, 0.06, '#6f5236')
+    for _ in range(26): box(R().uniform(-1.0, 0.9), R().uniform(-0.6, 0.5), 0.35, .2, .2, R().choice([.2, .3, .4]), R().choice(FLOWERS))
+    for _ in range(6): blob(R().uniform(-0.9, 0.9), R().uniform(-0.5, 0.5), 0.45, 0.25, R().choice(['#4c9a3a', '#5fb84a']))
+    return 2.4, 1.6
+
+
+def quad(body, head, legs, h, step, col, spot=None, tail=None):
+    # a four-legged animal along +x (it faces screen right): body (l, w, z, height), head size, leg height h; step: 0 rest, 1/2 walk
+    l, w, z, bh = body
+    off = [0, 0.12, -0.12][step]
+    for (x, y, s) in [(-l / 2 + .1, -w / 2 + .05, 1), (-l / 2 + .1, w / 2 - .17, -1), (l / 2 - .25, -w / 2 + .05, -1), (l / 2 - .25, w / 2 - .17, 1)]:
+        box(x + off * s, y, 0, .14, .12, h, col[1])
+    box(-l / 2, -w / 2, z, l, w, bh, col[0])
+    if spot: spot(l, w, z, bh)
+    hx, hw, hh = head
+    box(l / 2 - .05, -hw / 2, z + bh * 0.4, hx, hw, hh, col[0]); box(l / 2 + hx - .1, -hw / 2 + .05, z + bh * 0.4 + .05, .12, hw - .1, hh * .45, col[2])
+    if tail: tail(l, w, z, bh)
+
+
+def cow(step):
+    def build():
+        def spots(l, w, z, bh):
+            for (x, y, s) in [(-0.5, -0.05, 0.5), (0.2, 0.1, 0.4), (-0.1, -0.2, 0.35)]: box(x, -w / 2 - .02, z + .15, s, w + .04, bh * .6, '#2b2622')
+        quad((1.9, 0.8, 0.6, 0.7), (0.5, 0.5, 0.45), None, 0.6, step, ('#f2efe8', '#2b2622', '#e8a0a0'), spots)
+        box(-0.95, -0.03, 0.9, 0.06, 0.06, 0.5, '#2b2622')
+        for y in (-0.25, 0.2): box(1.2, y, 1.25, 0.08, 0.08, 0.15, '#e8dcc4')
+        return 0, 0
+    return build
+
+
+def dog(step):
+    def build():
+        quad((0.9, 0.35, 0.35, 0.3), (0.32, 0.3, 0.28), None, 0.35, step, ('#a8693a', '#7a4a2a', '#2b2622'),
+             tail=lambda l, w, z, bh: box(-l / 2 - .2, -.04, z + bh, .25, .08, .08, '#a8693a'))
+        box(0.75, -0.17, 0.75, 0.08, 0.08, 0.12, '#7a4a2a'); box(0.75, 0.1, 0.75, 0.08, 0.08, 0.12, '#7a4a2a')
+        return 0, 0
+    return build
+
+
+def cat(step):
+    def build():
+        if step == 3:  # asleep: curled up
+            blob(0, 0, 0.18, 0.32, '#e3b23c'); blob(0.2, 0.05, 0.2, 0.17, '#e3b23c'); box(-0.3, 0.15, 0.05, 0.4, 0.08, 0.08, '#c98d3a')
+            return 0, 0
+        quad((0.55, 0.22, 0.22, 0.2), (0.2, 0.2, 0.2), None, 0.22, step, ('#e3b23c', '#c98d3a', '#f6efe3'),
+             tail=lambda l, w, z, bh: box(-l / 2 - .05, -.03, z + bh, .06, .06, .35, '#e3b23c'))
+        for y in (-0.08, 0.04): box(0.48, y, 0.62, 0.05, 0.05, 0.08, '#c98d3a')
+        return 0, 0
+    return build
+
+
+def ball(): blob(0, 0, 0.25, 0.25, '#d9773a'); return 0, 0
+
+
 ASSETS = {
     'office-modern': office_modern, 'office-country': office_country, 'office-japanese': office_japanese,
     'karinderya': karinderya, 'gamehall': gamehall, 'lot-empty': lot_empty,
     'tree-round': lambda: (tree(0, 0, 1.05), (1, 1))[1], 'tree-pine': lambda: (pine(0, 0, 1.05), (1, 1))[1],
     'bush': lambda: (bush(0, 0, 0.8, True), (1, 1))[1], 'bench': bench, 'lamp': lambda: (lamp(0, 0), (1, 1))[1], 'well': well,
     'barrel': lambda: (barrel(0, 0), (1, 1))[1], 'crate': lambda: (crate(-0.45, -0.45), (1, 1))[1], 'flowers': flowers, 'sign': sign,
+    'bench-s': bench_s, 'tree-of-life': tree_of_life, 'hoop': hoop, 'fence-x': fence_x, 'fence-y': fence_y, 'cow-trough': trough, 'flowerbed': flowerbed,
+    'waterfall': falls(0), **{'waterfall.%d' % k: falls(k) for k in range(4)},
+    'cow.rest': cow(0), 'cow.walk0': cow(1), 'cow.walk1': cow(2), 'dog.rest': dog(0), 'dog.walk0': dog(1), 'dog.walk1': dog(2),
+    'cat.rest': cat(0), 'cat.walk0': cat(1), 'cat.walk1': cat(2), 'cat.sleep': cat(3), 'ball': ball,
 }
 only = set(args[2].split(',')) if len(args) > 2 else None  # optional: render a subset while iterating
 
