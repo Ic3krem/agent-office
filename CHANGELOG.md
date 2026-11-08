@@ -5,7 +5,7 @@ Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 t
 
 ## Unreleased — Tiro Workspace (v2)
 
-The next major version, coming soon. Agent Office is being renamed **Tiro Workspace**, after Tiro, the manager agent. Everything below is built and tested on the development branch and not released yet; the current download stays 1.2.8.
+The next major version, coming soon. Agent Office is being renamed **Tiro Workspace**, after Tiro, the manager agent. Everything below is built and tested on the development branch and not released yet; the current download stays 1.2.8. A **2.0.0-beta.1** Windows build is being shared for live testing; it is unsigned (Windows SmartScreen warns); updates arrive only once a signed release is published.
 
 - **Build mode.** A Gather.town-style editor for the office: drag, add, duplicate and delete furniture, paint and resize zones, undo and redo, and start from a workspace template (Startup Loft, Agency Floor, Hotel Back-Office). Works with mouse and touch.
 - **Department desks.** Place desks to choose Tiro's team. New roles: IT (Byte), Accounting (Ledger), Marketing (Spark), Auditor (Vera) and Notetaker (Memo), alongside the original eight. Removing a desk retires the role and keeps its memory.
@@ -13,6 +13,8 @@ The next major version, coming soon. Agent Office is being renamed **Tiro Worksp
 - **Graphics settings.** A Graphics panel with Low, Medium, High and Ultra presets plus Custom (render scale, frame cap, ambient fps, shadows, ambient motion, lighting, renderer). Chosen automatically for your GPU; Power saver and reduced motion still win. The office honours the same settings.
 - **A livelier town.** Soft shadows under everything, a night tint with glowing windows and lamp pools, water sparkle, swaying trees, leaves and steam. Raised terraces with cliffs and ramps you can walk up. On Low, or when the GPU is unavailable, the town draws with Canvas2D instead of WebGL.
 - **Memory fix.** Each office visit kept another 9 MB decoded copy of the office art; it is now released with the page. Per-preset CPU, frame-time and memory budgets are checked by the perf harnesses (`docs/perf/town-step4.md`).
+- **Online party over share links.** Cloudflare quick-tunnel links do not carry live update streams, so when no update arrives within 5 seconds the app switches to long polling for the rest of the session; a lost batch triggers a full resync. IP:port hosting keeps the live stream.
+- **Office graphics fixes.** Soft shadows sit over floor tiles, low-resolution modes keep whole pixels on any screen, night shadows and window panes are tinted correctly, and Low with ambient motion off draws no idle frames. Settings are never lost when a settings file is corrupt: the bad file is set aside and logged.
 - **Security hardening for release.** Every write needs the session token; transcripts, notes and layouts are checked so malformed files cannot break the office; secret redaction is better; hire approvals show the full request.
 
 **Upgrade note: the office layout is upgraded once.** The playroom moved to the game hall and the garden outdoors, so the first start of this build rewrites the office layout (`~/.claude/agent-office/world/layout.json`) without them. The original is kept beside it as `layout.v1.json`. To roll back, stop the app, copy `layout.v1.json` over `layout.json`, add `"migrated": 2` to it if you are staying on the new build (otherwise it is upgraded again), then restart. Older builds can't read the new office.
