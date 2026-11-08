@@ -80,6 +80,10 @@
       const h = clock.now();
       L = R.lightAt(h, G.lighting);
       shadowTint = G.shadows === 'tint' ? root.Graphics.tintOf(root.Graphics.nightOf(h)) : 0xffffff;
+      if (L.tint === 0xffffff && shadowTint === 0xffffff) { // day: nothing is tinted, so drop the night copies and scratch
+        for (const e of tints.values()) textureBytes -= e.cv.width * e.cv.height * 4;
+        tints.clear(); gcv.width = gcv.height = 1;
+      }
     }
 
     function layout() { ({ left, top } = R.cameraRect(camX, camY, viewW, viewH, zoom, terrain)); }

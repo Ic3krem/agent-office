@@ -71,3 +71,14 @@ test('travellerAt returns the same {id} as the GPU picking math', async () => {
   }
   assert.equal(api.travellerAt(89, 2), null);
 });
+
+test('tinted copies are dropped when the light goes back to day (no tint): texture bytes return to the day level', async () => {
+  const s = sandbox(), low = { ...s.ctx.Graphics.PRESETS.low, renderScale: 1 };
+  const api = await s.ctx.TownRender2D.mount(s.canvas, { map, atlasUrl: '/atlas.json', terrainUrl: '/terrain.json', graphics: low, hour: 22 });
+  s.flush(); const day = api.stats().textureBytes;
+  api.setGraphics({ ...low, lighting: 'tint' }); s.flush();
+  const night = api.stats().textureBytes;
+  assert.ok(night > day, 'night keeps a tinted atlas copy');
+  api.setGraphics(low); s.flush();
+  assert.equal(api.stats().textureBytes, day, 'day drops it');
+});
