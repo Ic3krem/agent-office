@@ -58,3 +58,14 @@ test('animation offsets are whole pixels', () => {
     assert.ok(A.particles(p.particles, t).length <= 24);
   }
 });
+
+test('particles reuse the caller buffer (no per-frame objects) and carry their emitter for depth sorting', () => {
+  const p = A.plan(map, 'particles'), buf = [];
+  const a = A.particles(p.particles, 1000, buf), first = a[0];
+  assert.equal(a, buf);
+  const b = A.particles(p.particles, 2000, buf);
+  assert.equal(b, buf); assert.equal(b[0], first, 'same object reused');
+  for (const q of b) assert.ok(p.particles.includes(q.e) && q.e.x === q.x && q.e.y === q.y && q.e.kind === q.kind);
+  assert.deepEqual(JSON.parse(JSON.stringify(A.particles(p.particles, 2000).map(({ e, ...q }) => q))), JSON.parse(JSON.stringify(b.map(({ e, ...q }) => q))), 'same values as a fresh call');
+  assert.equal(A.particles([], 5, buf).length, 0, 'buffer is truncated');
+});

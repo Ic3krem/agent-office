@@ -42,23 +42,29 @@
   // Sparkle i shows a quarter of each 1.6 s cycle, staggered.
   const sparkleOn = (i, t) => (t / 1600 + i * 0.618) % 1 < 0.25;
 
-  // Live particles at t ms, stateless: 6 steam and 18 leaf slots, each cycling over its emitters. -> [{kind, x, y, dx, dy, a}]
-  // x, y: the emitter (world units); dx, dy: whole screen px from the particle's start point; a: alpha.
-  const LIFE = { steam: 2400, leaf: 4000 }, SLOTS = { steam: 6, leaf: MAX_LIVE - 6 };
+  // Live particles at t ms, stateless: 6 steam and 18 leaf slots, each cycling over its emitters. -> [{kind, x, y, dx, dy, a, e}]
+  // x, y: the emitter (world units), e: the emitter itself; dx, dy: whole screen px from the particle's start point; a: alpha.
+  // out: a buffer reused frame to frame (its objects are overwritten, its length set), so the ambient loop allocates nothing.
+  const LIFE = { steam: 2400, leaf: 4000 }, SLOTS = { steam: 6, leaf: MAX_LIVE - 6 }, KINDS = ['steam', 'leaf'];
   const PATH = {
-    steam: (age, i) => ({ dx: Math.round(Math.sin(age * 5 + i) * 2), dy: -Math.round(age * 26), a: Math.round((1 - age) * 4) / 5 }),
-    leaf: (age, i) => ({ dx: Math.round(Math.sin(age * 7 + i) * 3 + age * 6), dy: Math.round(age * 38), a: age > 0.85 ? 0.5 : 1 }),
+    steam: (o, age, i) => { o.dx = Math.round(Math.sin(age * 5 + i) * 2); o.dy = -Math.round(age * 26); o.a = Math.round((1 - age) * 4) / 5; },
+    leaf: (o, age, i) => { o.dx = Math.round(Math.sin(age * 7 + i) * 3 + age * 6); o.dy = Math.round(age * 38); o.a = age > 0.85 ? 0.5 : 1; },
   };
-  function particles(emitters, t) {
-    const out = [];
-    for (const kind of ['steam', 'leaf']) {
-      const list = emitters.filter(e => e.kind === kind), n = SLOTS[kind];
+  const byKind = new WeakMap(); // emitters array -> {steam: [], leaf: []}, split once
+  function particles(emitters, t, out = []) {
+    let split = byKind.get(emitters);
+    if (!split) byKind.set(emitters, split = { steam: emitters.filter(e => e.kind === 'steam'), leaf: emitters.filter(e => e.kind === 'leaf') });
+    let k = 0;
+    for (let j = 0; j < KINDS.length; j++) {
+      const kind = KINDS[j], list = split[kind], n = SLOTS[kind];
       if (!list.length) continue;
       for (let i = 0; i < n; i++) {
         const u = t / LIFE[kind] + i / n, cyc = Math.floor(u), e = list[(cyc * 7 + i * 13) % list.length];
-        out.push({ kind, x: e.x, y: e.y, ...PATH[kind](u - cyc, i) });
+        const o = out[k] || (out[k] = {}); k++;
+        o.kind = kind; o.x = e.x; o.y = e.y; o.e = e; PATH[kind](o, u - cyc, i);
       }
     }
+    out.length = k;
     return out;
   }
 

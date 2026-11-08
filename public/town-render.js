@@ -189,10 +189,10 @@
     const cam = new P.Container(), ground = new P.Container(), shade = new P.Container(), world = new P.Container();
     const blobs = new P.Container(), soft = new P.Container(); // shade holds one of: blob ellipses, the shadow atlas
     const pools = new P.Container(); // lamp light on the ground, under the sprites (Ultra)
-    const ambLow = new P.Container(), ambHigh = new P.Container(); // water sparkles under the sprites; leaves and steam over them
+    const ambLow = new P.Container(); // water sparkles under the sprites; leaves and steam are depth-sorted in world, just after their emitter
     world.sortableChildren = true; pools.blendMode = 'add';
     shade.addChild(blobs, soft);
-    cam.addChild(ground, shade, pools, ambLow, world, ambHigh);
+    cam.addChild(ground, shade, pools, ambLow, world);
     // One ellipse texture for every blob shadow, scaled per sprite.
     const BW = 64, BH = 32, bcv = document.createElement('canvas');
     bcv.width = BW; bcv.height = BH;
@@ -272,22 +272,29 @@
       s.position.set(Math.round(sx) - 1, Math.round(sy) - 1); s.cullable = true; s.visible = false;
       ambLow.addChild(s); sparkles.push(s); sprites++;
     }
-    for (let i = 0; i < AMB.MAX_LIVE; i++) { const s = new P.Sprite(P.Texture.EMPTY); s.cullable = true; s.visible = false; ambHigh.addChild(s); parts.push(s); sprites++; }
+    // Particles sit in world just after their emitter (tree or karinderya), so a building in front hides them.
+    for (let i = 0; i < AMB.MAX_LIVE; i++) { const s = new P.Sprite(P.Texture.EMPTY); s.cullable = true; s.visible = false; world.addChild(s); parts.push(s); sprites++; }
     const START = { leaf: [-4, -44], steam: [-30, -96] }; // particle start, screen px from the emitter's ground point (canopy; karinderya roof)
-    let plan = AMB.plan(map, 'off'), swaying = new Set(), ambRaf = 0, ambLast = -1e9, ambT = 0, renderTs = -1;
-    const replan = () => { plan = AMB.plan(map, G.ambient); swaying = new Set(plan.trees.map(t => t.id)); };
+    const treeList = [...trees].map(([id, s]) => ({ id, s, on: false })), live = []; // made once: animate() allocates nothing
+    let plan = AMB.plan(map, 'off'), ambRaf = 0, ambLast = -1e9, ambT = 0, renderTs = -1;
+    const replan = () => {
+      plan = AMB.plan(map, G.ambient);
+      const ids = new Set(plan.trees.map(t => t.id));
+      for (const t of treeList) t.on = ids.has(t.id);
+      for (const e of plan.particles) { const [sx, sy] = atGround(e.x, e.y), o = START[e.kind]; e.px = Math.round(sx) + o[0]; e.py = Math.round(sy) + o[1]; e.z = depthOf(e.x, e.y) + 2e-4; }
+    };
     function animate(t) {
       ambT = t;
-      sparkles.forEach((s, i) => { s.visible = plan.water.length > 0 && AMB.sparkleOn(i, t); });
-      for (const [id, s] of trees) s.skew.x = swaying.has(id) ? -AMB.sway(id, t) / s.pivot.y : 0; // crown moves sway px (sin x ~ x)
-      const live = AMB.particles(plan.particles, t);
-      parts.forEach((s, i) => {
-        const q = live[i];
-        if (!q || q.a <= 0) { s.visible = false; return; }
-        const [sx, sy] = atGround(q.x, q.y), o = START[q.kind];
+      const water = plan.water.length > 0;
+      for (let i = 0; i < sparkles.length; i++) sparkles[i].visible = water && AMB.sparkleOn(i, t);
+      for (let i = 0; i < treeList.length; i++) { const { s, id, on } = treeList[i]; s.skew.x = on ? -AMB.sway(id, t) / s.pivot.y : 0; } // crown moves sway px (sin x ~ x)
+      AMB.particles(plan.particles, t, live);
+      for (let i = 0; i < parts.length; i++) {
+        const s = parts[i], q = live[i];
+        if (!q || q.a <= 0) { s.visible = false; continue; }
         s.texture = q.kind === 'steam' ? steamTex : leafTex[i % 2];
-        s.position.set(Math.round(sx) + o[0] + q.dx, Math.round(sy) + o[1] + q.dy); s.alpha = q.a; s.visible = true;
-      });
+        s.position.set(q.e.px + q.dx, q.e.py + q.dy); s.zIndex = q.e.z; s.alpha = q.a; s.visible = true;
+      }
     }
 
     // Player: one sprite whose texture comes from a small LRU of OfficeSprites canvases.
@@ -334,7 +341,7 @@
       if (!clock.changed(G)) return;
       const h = clock.now();
       const L = lightAt(h, G.lighting);
-      tintNow = ground.tint = ambLow.tint = ambHigh.tint = L.tint;
+      tintNow = ground.tint = ambLow.tint = L.tint;
       // world is tinted per sprite, not as a container: a container tint would also darken the additive glow sprites in it
       for (const s of world.children) if (!glows.has(s)) s.tint = L.tint;
       for (const s of glows) { s.alpha = L.glow; s.visible = L.glow > 0; }
