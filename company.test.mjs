@@ -190,3 +190,25 @@ test('server clears hires on every manager end path', () => {
   assert.match(src, /b\.name === 'hiring' && !b\.on\) hires\.clear\(\)/);
   assert.match(src, /b\.name === 'kiro' && !b\.on\) stopBoss\(\)/);
 });
+
+import { lookStore, graphicsStore } from './company.mjs';
+test('kiro.json stores: missing file is created, corrupt file is never overwritten, normal file merges', () => {
+  const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ao-kiro-'));
+  const writes = [st => st.set('tiro', 'Boss'), st => st.reset()].map(f => [nameStore, f])
+    .concat([[lookStore, st => st.set('tiro', { hat: 'cap' })], [graphicsStore, st => st.set({ preset: 'low' })]]);
+  for (const [make, write] of writes) {
+    const missing = path.join(dir(), 'kiro.json');
+    write(make(missing));
+    assert.equal(typeof JSON.parse(fs.readFileSync(missing, 'utf8')), 'object', make.name + ' creates a missing file');
+    const corrupt = path.join(dir(), 'kiro.json'), torn = '{"x":5,"islandMode":"sm';
+    fs.writeFileSync(corrupt, torn);
+    assert.throws(() => write(make(corrupt)), e => e.status === 500, make.name + ' throws a 500 on a corrupt file');
+    assert.equal(fs.readFileSync(corrupt, 'utf8'), torn, make.name + ' leaves a corrupt file untouched');
+    assert.doesNotThrow(() => make(corrupt).get(), make.name + ' get stays usable');
+    const normal = path.join(dir(), 'kiro.json');
+    fs.writeFileSync(normal, JSON.stringify({ x: 5, islandMode: 'smart' }));
+    write(make(normal));
+    const d = JSON.parse(fs.readFileSync(normal, 'utf8'));
+    assert.equal(d.x, 5); assert.equal(d.islandMode, 'smart', make.name + ' merges');
+  }
+});

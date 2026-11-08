@@ -38,7 +38,8 @@ app.setAppUserModelId('io.github.ic3krem.agentoffice');
 let server, office, kiro, island, tray;
 const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')))); } catch { return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
 // agentNames, looks and graphics are owned by the server (rename, wardrobe and Graphics UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
-const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch {} const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
+// A corrupt or half-written kiro.json skips this save (the next one writes) rather than dropping those keys.
+const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk = {}; try { disk = JSON.parse(fs.readFileSync(KIRO_FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 // The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly

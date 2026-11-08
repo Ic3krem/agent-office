@@ -253,20 +253,30 @@ export function setAgentName(names, key, name) {
   next[key] = n; return next;
 }
 export const displayNames = names => ({ tiro: 'Tiro', ...Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])), ...sanitizeNames(names) });
+// kiro.json is shared with the desktop app: only a missing file reads as {}. A corrupt or half-written one throws (HTTP 500) so a write never
+// replaces it and wipes the other prefs; get() reads it as {} so the page still works.
+const prefsError = msg => Object.assign(new Error(msg), { status: 500 });
+export function readPrefs(file) {
+  let s; try { s = fs.readFileSync(file, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return {}; throw prefsError('Cannot read kiro.json: ' + e.code); }
+  let j; try { j = JSON.parse(s); } catch { throw prefsError('kiro.json is not valid JSON; not overwriting it'); }
+  if (!j || typeof j !== 'object' || Array.isArray(j)) throw prefsError('kiro.json is not a JSON object; not overwriting it');
+  return j;
+}
+const softPrefs = file => { try { return readPrefs(file); } catch { return {}; } };
 // Names live in kiro.json under agentNames; merge on write so the desktop app's own prefs are never lost.
 export function nameStore(file) {
-  const read = () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; } };
+  const read = () => readPrefs(file);
   return {
-    get: () => sanitizeNames(read().agentNames),
+    get: () => sanitizeNames(softPrefs(file).agentNames),
     set(key, name) { const cur = read(), next = setAgentName(cur.agentNames, key, name); cur.agentNames = next; fs.writeFileSync(file, JSON.stringify(cur)); return next; },
     reset() { const cur = read(); delete cur.agentNames; fs.writeFileSync(file, JSON.stringify(cur)); return {}; },
   };
 }
 // Wardrobe looks live in kiro.json under looks {ceo|tiro|roleKey: costume}; a null/empty costume resets that agent.
 export function lookStore(file) {
-  const read = () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; } };
+  const read = () => readPrefs(file);
   return {
-    get: () => RoleCatalog.cleanLooks(read().looks),
+    get: () => RoleCatalog.cleanLooks(softPrefs(file).looks),
     set(key, costume) {
       if (!RoleCatalog.LOOK_KEYS().includes(key)) throw new Error('Unknown agent ' + key);
       const cur = read(), next = RoleCatalog.cleanLooks(cur.looks), c = RoleCatalog.cleanCostume(costume);
@@ -277,9 +287,9 @@ export function lookStore(file) {
 }
 // Graphics settings live in kiro.json under graphics {preset, custom?}; validation is the page script's Graphics.normalize.
 export function graphicsStore(file) {
-  const read = () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; } };
+  const read = () => readPrefs(file);
   return {
-    get: () => Graphics.normalize(read().graphics),
+    get: () => Graphics.normalize(softPrefs(file).graphics),
     set(raw) {
       const g = Graphics.normalize(raw); if (!g) throw new Error('Invalid graphics settings');
       const cur = read(); cur.graphics = g; fs.writeFileSync(file, JSON.stringify(cur)); return g;
