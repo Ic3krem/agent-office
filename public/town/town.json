@@ -374,16 +374,6 @@
   },
   {
    "type": "bush",
-   "x": 1855,
-   "y": 215
-  },
-  {
-   "type": "bush",
-   "x": 1445,
-   "y": 85
-  },
-  {
-   "type": "bush",
    "x": 1625,
    "y": 345
   },
@@ -406,16 +396,6 @@
    "type": "tree-round",
    "x": 1745,
    "y": 855
-  },
-  {
-   "type": "tree-round",
-   "x": 1545,
-   "y": 255
-  },
-  {
-   "type": "tree-pine",
-   "x": 565,
-   "y": 205
   },
   {
    "type": "tree-pine",
@@ -473,11 +453,6 @@
    "y": 550
   },
   {
-   "type": "tree-round",
-   "x": 2005,
-   "y": 125
-  },
-  {
    "type": "tree-pine",
    "x": 1875,
    "y": 1245
@@ -528,11 +503,6 @@
    "y": 225
   },
   {
-   "type": "bush",
-   "x": 635,
-   "y": 305
-  },
-  {
    "type": "tree-round",
    "x": 45,
    "y": 525
@@ -571,11 +541,6 @@
    "type": "tree-pine",
    "x": 1675,
    "y": 65
-  },
-  {
-   "type": "tree-pine",
-   "x": 1415,
-   "y": 255
   },
   {
    "type": "tree-round",
@@ -678,11 +643,6 @@
    "y": 465
   },
   {
-   "type": "flowers",
-   "x": 1855,
-   "y": 315
-  },
-  {
    "type": "tree-pine",
    "x": 165,
    "y": 875
@@ -773,11 +733,6 @@
    "y": 235
   },
   {
-   "type": "flowers",
-   "x": 1515,
-   "y": 225
-  },
-  {
    "type": "tree-round",
    "x": 1345,
    "y": 295
@@ -843,11 +798,6 @@
    "y": 905
   },
   {
-   "type": "bush",
-   "x": 1835,
-   "y": 275
-  },
-  {
    "type": "flowers",
    "x": 385,
    "y": 935
@@ -876,11 +826,6 @@
    "type": "tree-round",
    "x": 895,
    "y": 355
-  },
-  {
-   "type": "tree-round",
-   "x": 1555,
-   "y": 125
   },
   {
    "type": "bush",
@@ -959,16 +904,6 @@
   },
   {
    "type": "bush",
-   "x": 1435,
-   "y": 235
-  },
-  {
-   "type": "bush",
-   "x": 1865,
-   "y": 85
-  },
-  {
-   "type": "bush",
    "x": 1395,
    "y": 1275
   },
@@ -976,16 +911,6 @@
    "type": "bush",
    "x": 675,
    "y": 1265
-  },
-  {
-   "type": "bush",
-   "x": 1985,
-   "y": 155
-  },
-  {
-   "type": "tree-round",
-   "x": 1515,
-   "y": 115
   },
   {
    "type": "flowers",
@@ -1029,11 +954,6 @@
   },
   {
    "type": "tree-pine",
-   "x": 1555,
-   "y": 205
-  },
-  {
-   "type": "tree-pine",
    "x": 335,
    "y": 1135
   },
@@ -1058,19 +978,9 @@
    "y": 1323
   },
   {
-   "type": "tree-pine",
-   "x": 147,
-   "y": 44
-  },
-  {
    "type": "tree-round",
    "x": 141,
    "y": 1317
-  },
-  {
-   "type": "tree-pine",
-   "x": 211,
-   "y": 47
   },
   {
    "type": "tree-round",
@@ -1238,19 +1148,9 @@
    "y": 1303
   },
   {
-   "type": "tree-pine",
-   "x": 2124,
-   "y": 95
-  },
-  {
    "type": "tree-round",
    "x": 38,
    "y": 194
-  },
-  {
-   "type": "tree-pine",
-   "x": 2119,
-   "y": 285
   },
   {
    "type": "tree-pine",
@@ -1341,6 +1241,139 @@
    "type": "tree-pine",
    "x": 2122,
    "y": 1259
+  }
+ ],
+ "spots": [
+  {
+   "id": "tree",
+   "kind": "tree",
+   "rect": [120, 30, 262, 168],
+   "points": [
+    {"x": 220, "y": 93, "act": "sit", "face": "e"},
+    {"x": 220, "y": 103, "act": "sit", "face": "e"},
+    {"x": 216, "y": 113, "act": "sit", "face": "s"},
+    {"x": 209, "y": 121, "act": "sit", "face": "s"},
+    {"x": 200, "y": 126, "act": "sit", "face": "s"},
+    {"x": 190, "y": 128, "act": "sit", "face": "s"},
+    {"x": 180, "y": 126, "act": "sit", "face": "s"},
+    {"x": 171, "y": 121, "act": "sit", "face": "s"}
+   ],
+   "props": [
+    {"type": "tree-of-life", "x": 190, "y": 98}
+   ]
+  },
+  {
+   "id": "waterfall",
+   "kind": "waterfall",
+   "rect": [90, 200, 195, 262],
+   "pool": [110, 204, 170, 240],
+   "points": [
+    {"x": 115, "y": 252, "act": "stand", "face": "n"},
+    {"x": 132, "y": 252, "act": "stand", "face": "n"},
+    {"x": 148, "y": 252, "act": "stand", "face": "n"},
+    {"x": 165, "y": 252, "act": "stand", "face": "n"},
+    {"x": 100, "y": 215, "act": "stand", "face": "e"},
+    {"x": 100, "y": 233, "act": "stand", "face": "e"},
+    {"x": 180, "y": 215, "act": "stand", "face": "w"},
+    {"x": 180, "y": 233, "act": "stand", "face": "w"}
+   ],
+   "props": [
+    {"type": "waterfall", "x": 140, "y": 201}
+   ]
+  },
+  {
+   "id": "park",
+   "kind": "park",
+   "rect": [420, 40, 800, 360],
+   "points": [
+    {"x": 534, "y": 99, "act": "sit", "face": "s"},
+    {"x": 546, "y": 99, "act": "sit", "face": "s"},
+    {"x": 674, "y": 99, "act": "sit", "face": "s"},
+    {"x": 686, "y": 99, "act": "sit", "face": "s"},
+    {"x": 534, "y": 277, "act": "sit", "face": "s"},
+    {"x": 546, "y": 277, "act": "sit", "face": "s"},
+    {"x": 674, "y": 277, "act": "sit", "face": "s"},
+    {"x": 686, "y": 277, "act": "sit", "face": "s"},
+    {"x": 480, "y": 310, "act": "dogwalk", "face": "e"},
+    {"x": 740, "y": 110, "act": "dogwalk", "face": "w"}
+   ],
+   "loop": [
+    [480, 110],
+    [740, 110],
+    [760, 130],
+    [760, 290],
+    [740, 310],
+    [480, 310],
+    [460, 290],
+    [460, 130]
+   ],
+   "props": [
+    {"type": "bench-s", "x": 540, "y": 92},
+    {"type": "bench-s", "x": 680, "y": 92},
+    {"type": "bench-s", "x": 540, "y": 270},
+    {"type": "bench-s", "x": 680, "y": 270},
+    {"type": "flowerbed", "x": 560, "y": 195},
+    {"type": "flowerbed", "x": 660, "y": 195},
+    {"type": "lamp", "x": 445, "y": 210},
+    {"type": "lamp", "x": 775, "y": 210}
+   ]
+  },
+  {
+   "id": "court",
+   "kind": "court",
+   "rect": [1380, 60, 1600, 300],
+   "floor": [1400, 85, 1580, 260],
+   "points": [
+    {"x": 1470, "y": 170, "act": "shoot", "face": "n"},
+    {"x": 1515, "y": 180, "act": "shoot", "face": "n"},
+    {"x": 1410, "y": 280, "act": "stand", "face": "n"},
+    {"x": 1440, "y": 280, "act": "stand", "face": "n"},
+    {"x": 1540, "y": 280, "act": "stand", "face": "n"},
+    {"x": 1570, "y": 280, "act": "stand", "face": "n"},
+    {"x": 1590, "y": 150, "act": "stand", "face": "w"},
+    {"x": 1590, "y": 200, "act": "stand", "face": "w"}
+   ],
+   "props": [
+    {"type": "hoop", "x": 1490, "y": 92}
+   ]
+  },
+  {
+   "id": "pasture",
+   "kind": "pasture",
+   "rect": [1730, 50, 2140, 345],
+   "pen": [1775, 95, 2105, 305],
+   "points": [
+    {"x": 1800, "y": 332, "act": "lean", "face": "n"},
+    {"x": 1840, "y": 332, "act": "lean", "face": "n"},
+    {"x": 1880, "y": 332, "act": "lean", "face": "n"},
+    {"x": 1920, "y": 332, "act": "lean", "face": "n"},
+    {"x": 1960, "y": 332, "act": "lean", "face": "n"},
+    {"x": 2000, "y": 332, "act": "lean", "face": "n"},
+    {"x": 2040, "y": 332, "act": "lean", "face": "n"},
+    {"x": 2080, "y": 332, "act": "lean", "face": "n"}
+   ],
+   "props": [
+    {"type": "fence-x", "x": 1790, "y": 80},
+    {"type": "fence-x", "x": 1790, "y": 320},
+    {"type": "fence-x", "x": 1850, "y": 80},
+    {"type": "fence-x", "x": 1850, "y": 320},
+    {"type": "fence-x", "x": 1910, "y": 80},
+    {"type": "fence-x", "x": 1910, "y": 320},
+    {"type": "fence-x", "x": 1970, "y": 80},
+    {"type": "fence-x", "x": 1970, "y": 320},
+    {"type": "fence-x", "x": 2030, "y": 80},
+    {"type": "fence-x", "x": 2030, "y": 320},
+    {"type": "fence-x", "x": 2090, "y": 80},
+    {"type": "fence-x", "x": 2090, "y": 320},
+    {"type": "fence-y", "x": 1760, "y": 110},
+    {"type": "fence-y", "x": 1760, "y": 230},
+    {"type": "fence-y", "x": 1760, "y": 290},
+    {"type": "fence-y", "x": 2120, "y": 110},
+    {"type": "fence-y", "x": 2120, "y": 170},
+    {"type": "fence-y", "x": 2120, "y": 230},
+    {"type": "fence-y", "x": 2120, "y": 290},
+    {"type": "cow-trough", "x": 1950, "y": 150}
+   ]
   }
  ]
 }

@@ -7,6 +7,13 @@
   const BUILDINGS = ['office-country', 'office-japanese', 'office-modern', 'karinderya', 'gamehall', 'lot-empty'];
   const DECOR = ['tree-round', 'tree-pine', 'bush', 'bench', 'lamp', 'well', 'barrel', 'crate', 'flowers', 'sign'];
   const FACES = ['n', 'e', 's', 'w'];
+  // Spots (town step 5): outdoor places idle agents walk out to. kind === id. Props block cells by footprint (relative to
+  // x, y; null: drawn only). A seat ('sit') may stand on its bench's blocked cell; every other point needs an open one.
+  const SPOT_KINDS = ['park', 'waterfall', 'tree', 'court', 'pasture'], ACTS = ['sit', 'stand', 'lean', 'shoot', 'dogwalk'], MIN_POINTS = 8;
+  const PROP_FOOT = { 'tree-of-life': [-18, -18, 18, 18], waterfall: [-30, -2, 30, 2], hoop: [-6, -4, 6, 4], 'fence-x': [-30, -2, 30, 2], 'fence-y': [-2, -30, 2, 30],
+    'cow-trough': [-12, -5, 12, 5], flowerbed: [-12, -8, 12, 8], 'bench-s': [-5, -5, 5, 5], lamp: [-5, -5, 5, 5] };
+  const SPOT_PROPS = Object.keys(PROP_FOOT);
+  const propFootprint = p => { const f = p && PROP_FOOT[p.type]; return f && num(p.x) && num(p.y) ? [p.x + f[0], p.y + f[1], p.x + f[2], p.y + f[3]] : null; };
   const MAX_ERRORS = 20, ZONE_COST = 0.6; // low enough that the roads beat a ~1.3x straight-line detour across grass
   const num = v => typeof v === 'number' && isFinite(v);
   const inside = (p, [x0, y0, x1, y1]) => p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1;
@@ -88,6 +95,7 @@
     const blocks = [
       ...d.lots.map(l => l.building.footprint),
       ...d.decor.map(decorFootprint).filter(Boolean),
+      ...(d.spots || []).flatMap(sp => [...(sp.props || []).map(propFootprint), sp.pool]).filter(Boolean),
       ...waterBlocks(d.water, d.bridges),
       ...cliffBlocks(d),
       [0, 0, w, c], [0, h - c, w, h], [0, 0, c, h], [w - c, 0, w, h], // map edge
@@ -136,6 +144,25 @@
       if (!it || !DECOR.includes(it.type)) err('decor[' + i + '] has an unknown type');
       else pt(it, 'decor[' + i + ']');
     });
+    if (d.spots !== undefined && !Array.isArray(d.spots)) err('spots must be a list');
+    const spots = Array.isArray(d.spots) ? d.spots : [], blockers = [...(Array.isArray(d.lots) ? d.lots.map(l => l && l.rect) : []), ...(d.paths || []), ...(d.bridges || []), ...ramps.map(r => r && r.rect)];
+    if (new Set(spots.map(sp => sp && sp.id)).size !== spots.length) err('duplicate spot id');
+    for (const sp of spots) {
+      const n = 'spot ' + (sp && sp.id);
+      if (!sp || !SPOT_KINDS.includes(sp.kind) || sp.id !== sp.kind) { err(n + ' has an unknown kind'); continue; }
+      if (!rect(sp.rect, n + ' rect')) continue;
+      if (sp.bubble !== undefined) rect(sp.bubble, n + ' bubble');
+      if (sp.pool !== undefined) rect(sp.pool, n + ' pool');
+      if (blockers.some(b => Array.isArray(b) && ov(b, sp.rect))) err(n + ' overlaps a lot, path, ramp or bridge');
+      if (!Array.isArray(sp.points) || sp.points.length < MIN_POINTS) err(n + ' needs at least ' + MIN_POINTS + ' points');
+      else sp.points.forEach((p, i) => {
+        if (!p || !ACTS.includes(p.act) || !FACES.includes(p.face)) err(n + ' point ' + i + ' needs an act and a face');
+        else if (pt(p, n + ' point ' + i) && !inside(p, sp.rect)) err(n + ' point ' + i + ' is outside its rect');
+      });
+      if (!Array.isArray(sp.props)) err(n + ' props must be a list');
+      else sp.props.forEach((p, i) => { if (!p || !SPOT_PROPS.includes(p.type)) err(n + ' prop ' + i + ' has an unknown type'); else pt(p, n + ' prop ' + i); });
+      if (sp.loop !== undefined && !(Array.isArray(sp.loop) && sp.loop.every(q => Array.isArray(q) && pt({ x: q[0], y: q[1] }, n + ' loop')))) err(n + ' loop must be [[x, y]...]');
+    }
     if (!Array.isArray(d.lots)) { err('lots must be a list'); return { ok: false, errors }; }
     const ids = d.lots.map(l => l && l.id);
     for (const id of LOT_IDS) if (!ids.includes(id)) err('missing lot ' + id);
@@ -165,6 +192,10 @@
       if (at(l.door)) err('lot ' + l.id + ' door is not on a walkable cell');
       else if (!reach(l.door)) err('lot ' + l.id + ' door is not reachable from spawn');
     }
+    for (const sp of spots) sp.points.forEach((p, i) => {
+      if (p.act !== 'sit' && at(p)) err('spot ' + sp.id + ' point ' + i + ' is not on a walkable cell');
+      else if (!reach(p)) err('spot ' + sp.id + ' point ' + i + ' is not reachable from spawn');
+    });
     // every terrace needs a ramp: some open cell at its own level is reachable from spawn
     levels.forEach((t, i) => {
       const [x0, y0, x1, y1] = t.rect, c = d.cell;
@@ -187,7 +218,18 @@
   // Doors (town step 2): where each lot's door leads, and the lot a scene's exit comes back to.
   const ENTER = { home: ['/#scene=office', 'Enter the office'], kain: ['/#scene=kain', 'Enter the karinderya'], games: ['/#scene=games', 'Enter the game hall'] };
   const enterTarget = lot => { const e = lot && Object.prototype.hasOwnProperty.call(ENTER, lot.kind) ? ENTER[lot.kind] : null; return e ? { url: e[0], label: e[1] } : { url: null, label: 'Friend lots open in party mode' }; };
+  // Spot trips ('spot:<id>:<n>') never reach here: their 'there' leg is in the town scene, so no interior page shows them.
   const lotOfScene = scene => scene === 'kain' || scene === 'games' ? scene : 'home';
+  // A spot trip's destination 'spot:<id>:<n>' -> its activity point {spot, point: n mod count, x, y, act, face, k: the crowd
+  // ring floor(n / count)}, or null for an unknown spot or a malformed id (a stored trip outliving a town.json edit).
+  function spotPoint(map, dest) {
+    const m = /^spot:([a-z-]+):(\d+)$/.exec(typeof dest === 'string' ? dest : '');
+    const sp = m && map && Array.isArray(map.spots) ? map.spots.find(s => s && s.id === m[1]) : null;
+    if (!sp || !Array.isArray(sp.points) || !sp.points.length) return null;
+    const n = +m[2], i = n % sp.points.length, p = sp.points[i];
+    return { spot: sp.id, point: i, x: p.x, y: p.y, act: p.act, face: p.face, k: Math.floor(n / sp.points.length) };
+  }
+  const spotsOf = map => (map && Array.isArray(map.spots) ? map.spots : []).map(s => ({ id: s.id, n: s.points.length }));
 
   // Party lots: members (the party view's list, which keeps join order) -> {[memberId]: 'friend-1'..'friend-3'}.
   // The first three get a lot; later joiners get none. Step 5 assigns lots with this same helper.
@@ -235,5 +277,5 @@
     return { url: null, label: connected ? 'An empty lot' : 'Friend lots open in party mode' };
   }
 
-  root.TownMap = { validate, grid, heightAt, LEVEL_H, decorFootprint, load, enterTarget, lotOfScene, friendLots, partyWorld, withFriends, friendTarget, styleOf };
+  root.TownMap = { validate, grid, heightAt, LEVEL_H, decorFootprint, propFootprint, SPOT_PROPS, SPOT_KINDS, spotPoint, spotsOf, load, enterTarget, lotOfScene, friendLots, partyWorld, withFriends, friendTarget, styleOf };
 })(globalThis);
