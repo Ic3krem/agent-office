@@ -241,14 +241,20 @@ test('fetchOk retries a failed fetch once; a second failure is tagged asset (not
 });
 test('GPU mount: WebGL init failure destroys the half-built app, leaves the system ticker alone, is not tagged asset', async () => {
   const s = gpuSandbox({ initFails: true });
-  await assert.rejects(s.mount(), e => /WebGL unavailable/.test(e.message) && !e.asset);
+  await assert.rejects(s.mount(), e => /WebGL unavailable/.test(e.message) && !e.asset && e.gpu === true);
   assert.equal(s.log.destroyed, 1); assert.equal(s.sys.started, true); assert.equal(s.sys.autoStart, true);
 });
 test('GPU mount: a texture load failure (after one Pixi retry) is tagged asset; the app is destroyed and the ticker restored', async () => {
   const s = gpuSandbox({ assetsFail: true });
-  await assert.rejects(s.mount(), e => e.asset === true);
+  await assert.rejects(s.mount(), e => e.asset === true && !e.gpu);
   assert.equal(s.log.loadOpts.strategy, 'retry'); assert.equal(s.log.loadOpts.retryCount, 1);
   assert.equal(s.log.destroyed, 1); assert.equal(s.sys.started, true); assert.equal(s.sys.autoStart, true);
   const j = gpuSandbox({ fetchPlan: ['reject', 'reject', 'reject', 'reject'] }); // both json files fail twice: asset, no app was made
   await assert.rejects(j.mount(), e => e.asset === true); assert.equal(j.log.destroyed, 0);
+});
+test('town page: only a WebGL init failure (e.gpu) pins gpuFailed; other first-mount errors fall back to Low without it', () => {
+  const html = fs.readFileSync(new URL('./public/town.html', import.meta.url), 'utf8');
+  const sets = html.match(/gpuFailed = true/g) || [];
+  assert.equal(sets.length, 1); assert.match(html, /if \(e && e\.gpu\) gpuFailed = true;/);
+  assert.match(html, /attempt\(TownRender2D\.mount, Graphics\.resolve\(\{ preset: 'low' \}, \{ \.\.\.Graphics\.env\(\), webgl: false \}\)\)/);
 });

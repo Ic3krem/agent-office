@@ -50,9 +50,10 @@
       return g.renderer === 'canvas' && asked !== 'canvas' ? Graphics.resolve({ preset: 'low' }, env) : g;
     };
     // Mount the renderer G asks for on a hidden sibling canvas (a WebGL canvas cannot become 2D, so every mount gets a
-    // fresh element, same id). -> {api, cv}; a failed attempt's canvas is removed. A GPU reject marks gpuFailed and, on
-    // the first mount only (fallback), retries with Canvas2D at Low; a swap keeps the old renderer instead. An asset
-    // error (fetch failed twice, e.asset) is not a GPU failure: it is reported as it is.
+    // fresh element, same id). -> {api, cv}; a failed attempt's canvas is removed. Only a WebGL init failure (e.gpu)
+    // marks gpuFailed for the session. On the first mount only (fallback) any other GPU-path error also retries with
+    // Canvas2D at Low, without pinning; a swap keeps the old renderer instead. An asset error (fetch failed twice,
+    // e.asset) is reported as it is: Canvas2D needs the same files.
     const mountHidden = async (g, fallback) => {
       const attempt = async (mount, g) => {
         const cv = canvas.cloneNode(false);
@@ -62,11 +63,10 @@
       };
       if (g.renderer === 'canvas') return attempt(TownRender2D.mount, g);
       try { return await attempt(TownRender.mount, g); } catch (e) {
-        if (e && e.asset) throw e;
-        gpuFailed = true;
-        if (!fallback) throw e;
+        if (e && e.gpu) gpuFailed = true;
+        if (!fallback || (e && e.asset)) throw e;
         console.info('Town: the GPU renderer failed (' + (e && e.message || e) + '); using Canvas2D at Low.');
-        return attempt(TownRender2D.mount, resolveG());
+        return attempt(TownRender2D.mount, Graphics.resolve({ preset: 'low' }, { ...Graphics.env(), webgl: false }));
       }
     };
     // Show a mounted renderer in place of the current canvas; input listeners are re-wired, focus kept.

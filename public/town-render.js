@@ -172,7 +172,8 @@
     P.TextureStyle.defaultOptions.scaleMode = 'nearest';
     const app = new P.Application();
     undo.push(() => app.destroy({ removeView: false }, { children: true }));
-    await app.init({ canvas, preference: 'webgl', antialias: false, autoStart: false, resolution: 1, backgroundAlpha: 0 });
+    // e.gpu: WebGL could not start; only this failure makes the page give up on the GPU for the session
+    await app.init({ canvas, preference: 'webgl', antialias: false, autoStart: false, resolution: 1, backgroundAlpha: 0 }).catch(e => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { gpu: true }); });
     // No frame loop (see header): app.ticker never starts (autoStart false); the system ticker is paused until destroy().
     const sys = P.Ticker.system, sysWas = { autoStart: sys.autoStart, started: sys.started };
     sys.autoStart = false; sys.stop();
@@ -272,8 +273,14 @@
       s.position.set(Math.round(sx) - 1, Math.round(sy) - 1); s.cullable = true; s.visible = false;
       ambLow.addChild(s); sparkles.push(s); sprites++;
     }
-    // Particles sit in world just after their emitter (tree or karinderya), so a building in front hides them.
-    for (let i = 0; i < AMB.MAX_LIVE; i++) { const s = new P.Sprite(P.Texture.EMPTY); s.cullable = true; s.visible = false; world.addChild(s); parts.push(s); sprites++; }
+    // Particles draw just after their emitter (tree or karinderya), so a building in front hides them: each emitter has a
+    // fixed container in world at its depth, and a respawning particle moves into its new emitter's container (no zIndex
+    // change, so world is never re-sorted for it).
+    const emitBox = new Map(), emitKey = e => e.kind + e.x + ',' + e.y;
+    for (const e of AMB.plan(map, 'particles').particles) {
+      const c = new P.Container(); c.zIndex = depthOf(e.x, e.y) + 2e-4; world.addChild(c); emitBox.set(emitKey(e), c);
+    }
+    for (let i = 0; i < AMB.MAX_LIVE; i++) { const s = new P.Sprite(P.Texture.EMPTY); s.cullable = true; s.visible = false; parts.push(s); sprites++; }
     const START = { leaf: [-4, -44], steam: [-30, -96] }; // particle start, screen px from the emitter's ground point (canopy; karinderya roof)
     const treeList = [...trees].map(([id, s]) => ({ id, s, on: false })), live = []; // made once: animate() allocates nothing
     let plan = AMB.plan(map, 'off'), ambRaf = 0, ambLast = -1e9, ambT = 0, renderTs = -1;
@@ -281,7 +288,7 @@
       plan = AMB.plan(map, G.ambient);
       const ids = new Set(plan.trees.map(t => t.id));
       for (const t of treeList) t.on = ids.has(t.id);
-      for (const e of plan.particles) { const [sx, sy] = atGround(e.x, e.y), o = START[e.kind]; e.px = Math.round(sx) + o[0]; e.py = Math.round(sy) + o[1]; e.z = depthOf(e.x, e.y) + 2e-4; }
+      for (const e of plan.particles) { const [sx, sy] = atGround(e.x, e.y), o = START[e.kind]; e.px = Math.round(sx) + o[0]; e.py = Math.round(sy) + o[1]; e.box = emitBox.get(emitKey(e)); }
     };
     function animate(t) {
       ambT = t;
@@ -293,7 +300,8 @@
         const s = parts[i], q = live[i];
         if (!q || q.a <= 0) { s.visible = false; continue; }
         s.texture = q.kind === 'steam' ? steamTex : leafTex[i % 2];
-        s.position.set(q.e.px + q.dx, q.e.py + q.dy); s.zIndex = q.e.z; s.alpha = q.a; s.visible = true;
+        if (s.parent !== q.e.box) q.e.box.addChild(s);
+        s.position.set(q.e.px + q.dx, q.e.py + q.dy); s.alpha = q.a; s.visible = true;
       }
     }
 
@@ -442,6 +450,7 @@
         canvas.removeEventListener('webglcontextrestored', mark);
         for (const t of charTex.values()) t.destroy(true);
         blobTex.destroy(true); poolTex.destroy(true); for (const t of ambTex) t.destroy(true);
+        for (const s of parts) if (!s.parent) s.destroy(); // never shown: not in world, so app.destroy misses it
         charTex.clear();
         app.destroy({ removeView: false }, { children: true });
         P.Assets.unload(urls);
