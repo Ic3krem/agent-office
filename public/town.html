@@ -50,9 +50,10 @@
       return g.renderer === 'canvas' && asked !== 'canvas' ? Graphics.resolve({ preset: 'low' }, env) : g;
     };
     // Mount the renderer G asks for on a hidden sibling canvas (a WebGL canvas cannot become 2D, so every mount gets a
-    // fresh element, same id). A GPU reject is logged once and retried with Canvas2D at Low. -> {api, cv}; a failed
-    // attempt's canvas is removed.
-    const mountHidden = async g => {
+    // fresh element, same id). -> {api, cv}; a failed attempt's canvas is removed. A GPU reject marks gpuFailed and, on
+    // the first mount only (fallback), retries with Canvas2D at Low; a swap keeps the old renderer instead. An asset
+    // error (fetch failed twice, e.asset) is not a GPU failure: it is reported as it is.
+    const mountHidden = async (g, fallback) => {
       const attempt = async (mount, g) => {
         const cv = canvas.cloneNode(false);
         cv.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden'; // laid out at full size, not shown
@@ -61,7 +62,10 @@
       };
       if (g.renderer === 'canvas') return attempt(TownRender2D.mount, g);
       try { return await attempt(TownRender.mount, g); } catch (e) {
-        gpuFailed = true; console.info('Town: the GPU renderer failed (' + (e && e.message || e) + '); using Canvas2D at Low.');
+        if (e && e.asset) throw e;
+        gpuFailed = true;
+        if (!fallback) throw e;
+        console.info('Town: the GPU renderer failed (' + (e && e.message || e) + '); using Canvas2D at Low.');
         return attempt(TownRender2D.mount, resolveG());
       }
     };
@@ -74,7 +78,7 @@
       api.resize();
     };
     let wire = null, lastTrav = [], swapping = false;
-    place(await mountHidden(resolveG()));
+    place(await mountHidden(resolveG(), true));
     // Re-resolve on a settings change, and when power saver (8 fps ambient) or reduced motion (ambient off) changes.
     // A renderer change mounts the other one hidden while the old one keeps drawing, then swaps it in and carries the
     // player, camera and travellers over. Input is ignored while a swap is pending; changes queue so swaps never overlap.

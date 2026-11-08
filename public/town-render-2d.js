@@ -12,7 +12,7 @@
     const SP = root.OfficeSprites;
     const cx = canvas.getContext('2d');
     if (!cx) throw new Error('Canvas2D unavailable');
-    const get = async u => { const r = await fetch(u); if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r; };
+    const get = R.fetchOk; // one retry, then an asset error
     const [atlas, terrain] = await Promise.all([atlasUrl, terrainUrl].map(async u => (await get(u)).json()));
     R.setOrigin(terrain.originPx); R.setMap(map);
     const base = terrainUrl.replace(/[^/]*$/, ''), n = terrain.chunk;

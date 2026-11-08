@@ -217,3 +217,38 @@ test('toWorld on the real town: every open cell reachable from spawn round-trips
   } finally { R.setMap(null); }
   assert.deepEqual(miss, []);
 });
+
+// ---- fix wave A: mount failures ----
+function gpuSandbox({ fetchPlan = [], initFails = false, assetsFail = false } = {}) {
+  const log = { fetches: 0, destroyed: 0, unloaded: 0, loadOpts: null };
+  const sys = { autoStart: true, started: true, stop() { this.started = false; }, start() { this.started = true; } };
+  const PIXI = {
+    TextureStyle: { defaultOptions: {} }, Ticker: { system: sys },
+    Application: class { async init() { if (initFails) throw new Error('WebGL unavailable'); } destroy() { log.destroyed++; } },
+    Assets: { setPreferences() {}, unload() { log.unloaded++; }, load: async (u, o) => { log.loadOpts = o; if (assetsFail) throw new Error('Failed to load /x.png'); throw new Error('stop here'); } },
+  };
+  const files = { '/atlas.json': { frames: {} }, '/terrain.json': { originPx: [0, 0], chunk: 100, cols: 1, rows: 1 } };
+  const fetch = async u => { const f = fetchPlan[log.fetches++]; if (f === 'reject') throw new TypeError('Failed to fetch'); if (f === 500) return { ok: false, status: 500 }; return { ok: true, json: async () => files[u] }; };
+  const c = loadWorld({ extra: ['town-map.js', 'town-render.js'], globals: { setInterval, clearInterval, setTimeout: f => setTimeout(f, 0), PIXI, fetch } });
+  const mount = () => c.TownRender.mount({}, { map: { lots: [], decor: [], spawn: { x: 0, y: 0 } }, atlasUrl: '/atlas.json', terrainUrl: '/terrain.json', graphics: { renderScale: 1 } });
+  return { c, log, sys, mount };
+}
+test('fetchOk retries a failed fetch once; a second failure is tagged asset (not a GPU failure)', async () => {
+  let s = gpuSandbox({ fetchPlan: ['reject'] });
+  assert.equal((await s.c.TownRender.fetchOk('/atlas.json')).ok, true); assert.equal(s.log.fetches, 2);
+  s = gpuSandbox({ fetchPlan: [500, 'reject'] });
+  await assert.rejects(s.c.TownRender.fetchOk('/atlas.json'), e => e.asset === true); assert.equal(s.log.fetches, 2);
+});
+test('GPU mount: WebGL init failure destroys the half-built app, leaves the system ticker alone, is not tagged asset', async () => {
+  const s = gpuSandbox({ initFails: true });
+  await assert.rejects(s.mount(), e => /WebGL unavailable/.test(e.message) && !e.asset);
+  assert.equal(s.log.destroyed, 1); assert.equal(s.sys.started, true); assert.equal(s.sys.autoStart, true);
+});
+test('GPU mount: a texture load failure (after one Pixi retry) is tagged asset; the app is destroyed and the ticker restored', async () => {
+  const s = gpuSandbox({ assetsFail: true });
+  await assert.rejects(s.mount(), e => e.asset === true);
+  assert.equal(s.log.loadOpts.strategy, 'retry'); assert.equal(s.log.loadOpts.retryCount, 1);
+  assert.equal(s.log.destroyed, 1); assert.equal(s.sys.started, true); assert.equal(s.sys.autoStart, true);
+  const j = gpuSandbox({ fetchPlan: ['reject', 'reject', 'reject', 'reject'] }); // both json files fail twice: asset, no app was made
+  await assert.rejects(j.mount(), e => e.asset === true); assert.equal(j.log.destroyed, 0);
+});

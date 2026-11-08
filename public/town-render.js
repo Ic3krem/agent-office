@@ -142,10 +142,26 @@
     return out;
   }
 
+  // fetch that must answer 2xx; one retry after a short wait, then the error is tagged asset (a network or server
+  // problem, not a GPU one: the page must not fall back to Canvas2D for it).
+  async function fetchOk(u, delay = 250) {
+    for (let i = 0; ; i++) {
+      try { const r = await root.fetch(u); if (r.ok) return r; throw new Error(u + ': HTTP ' + r.status); } catch (e) {
+        if (i) { e.asset = true; throw e; }
+        await new Promise(res => root.setTimeout(res, delay));
+      }
+    }
+  }
+
   // graphics: Graphics.resolve(...) output. hour: a fixed hour (visual checks), else the clock.
-  async function mount(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.high, hour = null }) {
+  // A failed mount undoes what it built (Pixi app, paused system ticker, loaded textures) before it rejects.
+  async function mount(canvas, opts) {
+    const undo = [];
+    try { return await build(canvas, opts, undo); } catch (e) { for (const f of undo.reverse()) try { f(); } catch {} throw e; }
+  }
+  async function build(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.high, hour = null }, undo) {
     const P = root.PIXI, SP = root.OfficeSprites;
-    const getJson = async u => { const r = await fetch(u); if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r.json(); };
+    const getJson = async u => (await fetchOk(u)).json();
     const [atlas, terrain] = await Promise.all([getJson(atlasUrl), getJson(terrainUrl)]);
     O = terrain.originPx; M = map;
     const base = terrainUrl.replace(/[^/]*$/, '');
@@ -155,15 +171,18 @@
 
     P.TextureStyle.defaultOptions.scaleMode = 'nearest';
     const app = new P.Application();
+    undo.push(() => app.destroy({ removeView: false }, { children: true }));
     await app.init({ canvas, preference: 'webgl', antialias: false, autoStart: false, resolution: 1, backgroundAlpha: 0 });
     // No frame loop (see header): app.ticker never starts (autoStart false); the system ticker is paused until destroy().
     const sys = P.Ticker.system, sysWas = { autoStart: sys.autoStart, started: sys.started };
     sys.autoStart = false; sys.stop();
+    undo.push(() => { sys.autoStart = sysWas.autoStart; if (sysWas.started) sys.start(); });
 
     const urls = hasGlow ? [colourUrl, shadowUrl, glowUrl] : [colourUrl, shadowUrl];
     for (let r = 0; r < terrain.rows; r++) for (let c = 0; c < terrain.cols; c++) urls.push(chunkUrl(r, c));
     P.Assets.setPreferences({ preferWorkers: false }); // the server's CSP has no worker-src, so Pixi's blob decode worker is blocked
-    const tex = await P.Assets.load(urls);
+    undo.push(() => P.Assets.unload(urls));
+    const tex = await P.Assets.load(urls, { strategy: 'retry', retryCount: 1, retryDelay: 250 }).catch(e => { e.asset = true; throw e; });
     let textureBytes = 0;
     for (const u of urls) textureBytes += tex[u].source.pixelWidth * tex[u].source.pixelHeight * 4;
 
@@ -424,5 +443,5 @@
     };
   }
 
-  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
+  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, fetchOk, mount };
 })(globalThis);
