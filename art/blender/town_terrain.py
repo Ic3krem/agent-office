@@ -15,6 +15,45 @@ PLAZA, PATHS, WATER, BRIDGES = U(town['plaza']), [U(p) for p in town['paths']], 
 inside = lambda x, y, r, m=0: r[0] - m <= x <= r[2] + m and r[1] - m <= y <= r[3] + m
 STONE = ['#9a948c', '#7f7a74', '#a39f99']
 
+# ---- land levels: the same rules as TownMap.heightAt (LEVEL_H = 14 world units = 1.4 here) ----
+LH = 1.4
+LEVELS = [(U(t['rect']), t['level']) for t in town.get('levels', [])]
+RAMPS = [(U(r['rect']), r['dir']) for r in town.get('ramps', [])]
+_in = lambda x, y, r: r[0] <= x < r[2] and r[1] <= y < r[3]
+def level_at(x, y):
+    best = None
+    for r, lv in LEVELS:
+        if _in(x, y, r) and (best is None or (r[2] - r[0]) * (r[3] - r[1]) < (best[0][2] - best[0][0]) * (best[0][3] - best[0][1])): best = (r, lv)
+    return best[1] if best else 0
+def ramp_ends(r, d):
+    x0, y0, x1, y1 = r; cx, cy, e = (x0 + x1) / 2, (y0 + y1) / 2, 0.05
+    hi = {'n': (cx, y0 + e), 's': (cx, y1 - e), 'e': (x1 - e, cy), 'w': (x0 + e, cy)}[d]
+    lo = {'n': (cx, y1 - e), 's': (cx, y0 + e), 'e': (x0 + e, cy), 'w': (x1 - e, cy)}[d]
+    return level_at(*lo) * LH, level_at(*hi) * LH
+def on_ramp(x, y): return any(_in(x, y, r) for r, _ in RAMPS)
+def z_at(x, y):  # ground height; ramps are not scattered on, so they need no slope here
+    return level_at(x, y) * LH
+def flat(x, y, w, d):  # a patch that does not cross a cliff or a ramp
+    pts = [(x, y), (x + w, y), (x, y + d), (x + w, y + d)]
+    return len({level_at(*p) for p in pts}) == 1 and not any(on_ramp(*p) for p in pts)
+def cut(r, holes):  # rect minus holes (same split as TownMap's water minus bridges)
+    out = [r]
+    for b in holes:
+        nxt = []
+        for q in out:
+            if b[2] <= q[0] or b[0] >= q[2] or b[3] <= q[1] or b[1] >= q[3]: nxt.append(q); continue
+            xa, xb = max(b[0], q[0]), min(b[2], q[2])
+            if b[0] > q[0]: nxt.append([q[0], q[1], b[0], q[3]])
+            if b[2] < q[2]: nxt.append([b[2], q[1], q[2], q[3]])
+            if b[1] > q[1]: nxt.append([xa, q[1], xb, b[1]])
+            if b[3] < q[3]: nxt.append([xa, b[3], xb, q[3]])
+        out = nxt
+    return out
+def spans(a0, a1, holes):  # [a0, a1] minus the hole intervals
+    out = [(a0, a1)]
+    for h0, h1 in holes: out = [p for (u, v) in out for p in ((u, min(v, h0)), (max(u, h1), v)) if p[1] - p[0] > 0.05]
+    return out
+
 # ---- soil block with layered sides and embedded stones (only the +x and +y sides are seen) ----
 t1, t2 = DEP * 0.4, DEP * 0.43
 box(0, 0, -DEP, W, D, t1, '#6e4a33'); box(0, 0, -DEP + t1, W, D, t2, '#8c5e3c'); box(0, 0, -DEP + t1 + t2, W, D, DEP - t1 - t2, '#a46f45')
@@ -30,17 +69,62 @@ box(0, D - 0.2, -0.9, W, 0.5, 0.9, '#4f8f35'); box(W - 0.2, 0, -0.9, 0.5, D, 0.9
 for i in range(int(W / 1.3)): box(i * 1.3 + rnd.uniform(0, .3), D + 0.25, -1.3, rnd.uniform(.4, .9), 0.12, rnd.uniform(.3, .6), '#4f8f35')
 for i in range(int(D / 1.3)): box(W + 0.25, i * 1.3 + rnd.uniform(0, .3), -1.3, 0.12, rnd.uniform(.4, .9), rnd.uniform(.3, .6), '#4f8f35')
 
+# ---- terraces: soil cliffs (the block's side layers and stones) under a grass top; a notch is left where a ramp climbs in ----
+for r, lv in sorted(LEVELS, key=lambda t: t[1]):
+    H = lv * LH
+    notches = [rr for rr, d in RAMPS if ramp_ends(rr, d)[1] == H]
+    for (x0, y0, x1, y1) in cut(r, notches):
+        box(x0, y0, 0, x1 - x0, y1 - y0, (H - 0.4) * 0.55, '#8c5e3c'); box(x0, y0, (H - 0.4) * 0.55, x1 - x0, y1 - y0, (H - 0.4) * 0.45, '#a46f45')
+        box(x0, y0, H - 0.4, x1 - x0, y1 - y0, 0.4, '#5c9e3c')
+    x0, y0, x1, y1 = r
+    base = lambda x, y: level_at(x, y) * LH  # the ground the cliff stands on
+    for (a, b) in spans(x0, x1, [(n[0], n[2]) for n in notches]):  # south (+y) face, seen from the camera
+        if y1 >= D: continue
+        box(a, y1 - 0.2, H - 0.3, b - a, 0.35, 0.3, '#4f8f35')  # a thin grass lip, so the soil face shows
+        for i in range(int((b - a) / 1.3)): box(a + i * 1.3 + rnd.uniform(0, .3), y1 + 0.15, H - 0.55, rnd.uniform(.3, .7), 0.1, rnd.uniform(.2, .35), '#4f8f35')
+        for _ in range(int((b - a) * 1.2)):
+            z0 = base(rnd.uniform(a, b), y1 + .1)
+            if H - z0 > 1.2: box(rnd.uniform(a, b - .8), y1, rnd.uniform(z0 + .1, H - .8), rnd.uniform(.5, 1.0), 0.1, rnd.uniform(.2, .35), rnd.choice(STONE + ['#5a3a28']))
+    for (a, b) in spans(y0, y1, [(n[1], n[3]) for n in notches]):  # east (+x) face
+        if x1 >= W: continue
+        box(x1 - 0.2, a, H - 0.3, 0.35, b - a, 0.3, '#4f8f35')
+        for i in range(int((b - a) / 1.3)): box(x1 + 0.15, a + i * 1.3 + rnd.uniform(0, .3), H - 0.55, 0.1, rnd.uniform(.3, .7), rnd.uniform(.2, .35), '#4f8f35')
+        for _ in range(int((b - a) * 1.2)):
+            z0 = base(x1 + .1, rnd.uniform(a, b))
+            if H - z0 > 1.2: box(x1, rnd.uniform(a, b - .8), rnd.uniform(z0 + .1, H - .8), 0.1, rnd.uniform(.5, 1.0), rnd.uniform(.2, .35), rnd.choice(STONE + ['#5a3a28']))
+
+# ---- ramps: a soil wedge from the low ground up into the notch, a dirt slope with treads, stone kerbs ----
+for (x0, y0, x1, y1), d in RAMPS:
+    zl, zh = ramp_ends((x0, y0, x1, y1), d)
+    ns = d in ('n', 's')
+    a0, a1 = (y0, y1) if ns else (x0, x1)  # along the climb
+    b0, b1 = (x0, x1) if ns else (y0, y1)  # across it
+    lo, hi = (a1, a0) if d in ('n', 'w') else (a0, a1)
+    axis = 'x' if ns else 'y'
+    T = 0.08
+    kit.prism([(lo, zl), (hi, zh), (hi, zl)], b0, b1, '#8c5e3c', axis)
+    kit.prism([(lo, zl), (hi, zh), (hi, zh + T), (lo, zl + T)], b0 + .25, b1 - .25, '#c49a62', axis)
+    for (k0, k1) in ((b0, b0 + .25), (b1 - .25, b1)): kit.prism([(lo, zl), (hi, zh), (hi, zh + .2), (lo, zl + .2)], k0, k1, '#9a948c', axis)
+    n = max(3, int(abs(hi - lo) / 0.7))
+    for i in range(1, n):
+        u = lo + (hi - lo) * i / n; z = zl + (zh - zl) * i / n + T
+        if ns: box(b0 + .3, u - .06, z, b1 - b0 - .6, .12, .04, '#a98250')
+        else: box(u - .06, b0 + .3, z, .12, b1 - b0 - .6, .04, '#a98250')
+
 # ---- grass variation, tufts and wildflower specks ----
 GRASS = ['#66aa44', '#549637', '#71b84b', '#4c8a33', '#5fa23f']
 for _ in range(int(W * D * 0.14)):
-    x, y = rnd.uniform(0, W - 1.2), rnd.uniform(0, D - 1.2)
-    box(x, y, 0, rnd.uniform(.5, 1.6), rnd.uniform(.5, 1.6), 0.03, rnd.choice(GRASS))
+    x, y, gw, gd = rnd.uniform(0, W - 1.2), rnd.uniform(0, D - 1.2), rnd.uniform(.5, 1.6), rnd.uniform(.5, 1.6)
+    col = rnd.choice(GRASS)
+    if flat(x, y, gw, gd): box(x, y, z_at(x, y), gw, gd, 0.03, col)
 paved = lambda x, y: inside(x, y, PLAZA, .5) or any(inside(x, y, p, .3) for p in PATHS) or any(inside(x, y, w, .6) for w in WATER)
 for _ in range(int(W * D * 0.05)):
     x, y = rnd.uniform(0.3, W - 0.5), rnd.uniform(0.3, D - 0.5)
     if paved(x, y): continue
-    if rnd.random() < 0.7: box(x, y, 0, .2, .2, rnd.choice([.12, .2]), rnd.choice(['#7cc455', '#4c8a33', '#3f7a2c']))
-    else: box(x, y, 0, .2, .2, .12, rnd.choice(['#ffd23f', '#ffffff', '#ff7aa8', '#8fc5ff']))
+    z, ok = z_at(x, y), flat(x, y, .2, .2)
+    if rnd.random() < 0.7: h, col = rnd.choice([.12, .2]), rnd.choice(['#7cc455', '#4c8a33', '#3f7a2c'])
+    else: h, col = .12, rnd.choice(['#ffd23f', '#ffffff', '#ff7aa8', '#8fc5ff'])
+    if ok: box(x, y, z, .2, .2, h, col)
 
 # ---- plaza: irregular stone pavers ----
 PX0, PY0, PX1, PY1 = PLAZA

@@ -167,3 +167,20 @@ test('lightClock: changed once per light key, stale when the night tenth moves',
     assert.equal(c.now(), 22);
   } finally { c.stop(); }
 });
+
+// ---------- town step 4, task 9: land levels ----------
+test('placement follows the ground: ground() lifts by TownMap.heightAt; charPlace, toWorldAt and travellerHit use it', () => {
+  const hill = { levels: [{ rect: [0, 0, 400, 300], level: 1 }], ramps: [{ rect: [300, 290, 360, 370], dir: 'n' }] };
+  R.setMap(hill);
+  try {
+    assert.deepEqual(plain(R.ground(250, 200)), plain(R.project(250, 200, 14)));
+    assert.deepEqual(plain(R.ground(1000, 1000)), plain(R.project(1000, 1000, 0)));
+    assert.equal(R.charPlace(250, 200, 's').py, Math.round(R.project(250, 200, 14)[1]) - 25, 'feet on the terrace top');
+    for (const [x, y] of [[250, 200], [330, 330], [1000, 1000], [395, 150]]) {
+      const [sx, sy] = R.ground(x, y), [wx, wy] = R.toWorldAt(sx, sy, 0, 0, 1, 1);
+      assert.ok(Math.hypot(wx - x, wy - y) < 1, `toWorld(${x},${y}) -> ${wx},${wy}`);
+    }
+    const [sx, sy] = R.ground(250, 200), shown = new Map([['a', { x: 250, y: 200, name: 'A' }]]);
+    assert.equal(R.travellerHit(shown, sx, sy - 15, 0, 0, 1, 1).id, 'a', 'hit at the raised head');
+  } finally { R.setMap(null); }
+});

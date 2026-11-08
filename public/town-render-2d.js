@@ -14,7 +14,7 @@
     if (!cx) throw new Error('Canvas2D unavailable');
     const get = async u => { const r = await fetch(u); if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r; };
     const [atlas, terrain] = await Promise.all([atlasUrl, terrainUrl].map(async u => (await get(u)).json()));
-    R.setOrigin(terrain.originPx);
+    R.setOrigin(terrain.originPx); R.setMap(map);
     const base = terrainUrl.replace(/[^/]*$/, ''), n = terrain.chunk;
     const colourUrl = atlasUrl.replace(/\.json$/, '.png'), shadowUrl = atlasUrl.replace(/\.json$/, '-shadow.png'), glowUrl = atlasUrl.replace(/\.json$/, '-glow.png');
     const hasGlow = Object.values(atlas.frames).some(f => f.glow); // atlas-glow.png ships only with lit frames
@@ -37,7 +37,7 @@
     const place = (type, x, y) => {
       const f = atlas.frames[type];
       if (!f) return;
-      const [sx, sy] = R.project(x, y, 0);
+      const [sx, sy] = R.ground(x, y);
       items.push({ f, px: Math.round(sx - f.ax), py: Math.round(sy - f.ay), z: R.depthOf(x, y), glow: !!(f.glow && hasGlow), blob: f.footprint && R.blobOf(f) });
     };
     for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);

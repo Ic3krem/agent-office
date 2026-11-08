@@ -10,6 +10,44 @@
   const MAX_ERRORS = 20, ZONE_COST = 0.6; // low enough that the roads beat a ~1.3x straight-line detour across grass
   const num = v => typeof v === 'number' && isFinite(v);
   const inside = (p, [x0, y0, x1, y1]) => p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1;
+  const ov = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+
+  // Land levels (town step 4): terraces raise the ground by LEVEL_H world units per level; ramps climb linearly along dir.
+  const LEVEL_H = 14, RAMP_DIRS = ['n', 'e', 's', 'w'];
+  const area = r => (r[2] - r[0]) * (r[3] - r[1]);
+  // The level of the innermost (smallest) terrace rect holding p, 0 outside them all; ramps are ignored.
+  function levelAt(d, x, y) {
+    let best = null;
+    for (const t of d.levels || []) if (inside({ x, y }, t.rect) && (!best || area(t.rect) < area(best.rect))) best = t;
+    return best ? best.level : 0;
+  }
+  // A ramp's low and high ends: the level just inside each end, and t = 0..1 climbing along dir at p.
+  function rampEnds(d, { rect: [x0, y0, x1, y1], dir }) {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, e = 0.5;
+    const hi = { n: [cx, y0 + e], s: [cx, y1 - e], e: [x1 - e, cy], w: [x0 + e, cy] }[dir], lo = { n: [cx, y1 - e], s: [cx, y0 + e], e: [x0 + e, cy], w: [x1 - e, cy] }[dir];
+    const t = p => ({ n: (y1 - p.y) / (y1 - y0), s: (p.y - y0) / (y1 - y0), e: (p.x - x0) / (x1 - x0), w: (x1 - p.x) / (x1 - x0) })[dir];
+    return { lo: levelAt(d, lo[0], lo[1]), hi: levelAt(d, hi[0], hi[1]), t };
+  }
+  function heightAt(d, x, y) {
+    if (!d) return 0;
+    for (const r of d.ramps || []) if (inside({ x, y }, r.rect)) { const e = rampEnds(d, r); return (e.lo + (e.hi - e.lo) * e.t({ x, y })) * LEVEL_H; }
+    return levelAt(d, x, y) * LEVEL_H;
+  }
+  // Cliffs: a cell above any 4-neighbour is a 1-cell blocked edge band, except on a ramp; a ramp's two sides are walled too.
+  function cliffBlocks(d) {
+    if (!(d.levels || []).length) return [];
+    const c = d.cell, cols = Math.ceil(d.size.w / c), rows = Math.ceil(d.size.h / c), out = [];
+    const lv = (cc, r) => levelAt(d, (cc + 0.5) * c, (r + 0.5) * c), onRamp = (cc, r) => (d.ramps || []).some(rp => inside({ x: (cc + 0.5) * c, y: (r + 0.5) * c }, rp.rect));
+    for (let r = 0; r < rows; r++) for (let cc = 0; cc < cols; cc++) {
+      const v = lv(cc, r);
+      if (!v || onRamp(cc, r)) continue;
+      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => { const a = cc + dc, b = r + dr; return a >= 0 && b >= 0 && a < cols && b < rows && lv(a, b) < v; }))
+        out.push([cc * c, r * c, cc * c + c, r * c + c]);
+    }
+    for (const { rect: [x0, y0, x1, y1], dir } of d.ramps || [])
+      out.push(...(dir === 'n' || dir === 's' ? [[x0 - c, y0, x0, y1], [x1, y0, x1 + c, y1]] : [[x0, y0 - c, x1, y0], [x0, y1, x1, y1 + c]]));
+    return out;
+  }
 
   const decorFootprint = it => (!it || it.type === 'flowers' || !num(it.x) || !num(it.y)) ? null : [it.x - 5, it.y - 5, it.x + 5, it.y + 5];
 
@@ -36,6 +74,7 @@
       ...d.lots.map(l => l.building.footprint),
       ...d.decor.map(decorFootprint).filter(Boolean),
       ...waterBlocks(d.water, d.bridges),
+      ...cliffBlocks(d),
       [0, 0, w, c], [0, h - c, w, h], [0, 0, c, h], [w - c, 0, w, h], // map edge
     ];
     const costs = [d.plaza, ...d.paths].map(rect => ({ rect, cost: ZONE_COST }));
@@ -67,6 +106,16 @@
     for (const k of ['paths', 'water', 'bridges']) {
       if (!Array.isArray(d[k])) err(k + ' must be a list'); else d[k].forEach((r, i) => rect(r, k + '[' + i + ']'));
     }
+    for (const k of ['levels', 'ramps']) if (d[k] !== undefined && !Array.isArray(d[k])) err(k + ' must be a list');
+    const levels = Array.isArray(d.levels) ? d.levels : [], ramps = Array.isArray(d.ramps) ? d.ramps : [];
+    levels.forEach((t, i) => {
+      if (!t || !rect(t.rect, 'levels[' + i + ']')) return;
+      if (t.level !== 1 && t.level !== 2) err('levels[' + i + '] level must be 1 or 2');
+    });
+    ramps.forEach((r, i) => {
+      if (!r || !rect(r.rect, 'ramps[' + i + ']')) return;
+      if (!RAMP_DIRS.includes(r.dir)) err('ramps[' + i + '] dir must be n/e/s/w');
+    });
     if (!Array.isArray(d.decor)) err('decor must be a list');
     else d.decor.forEach((it, i) => {
       if (!it || !DECOR.includes(it.type)) err('decor[' + i + '] has an unknown type');
@@ -89,6 +138,11 @@
       else if (pt(l.door, n + ' door') && b && Array.isArray(b.footprint) && inside(l.door, b.footprint)) err(n + ' door is inside its building footprint');
     }
     if (errors.length) return { ok: false, errors };
+    // one level per lot and for the plaza: a terrace either holds the whole rect or misses it
+    const straddles = r => levels.some(t => ov(t.rect, r) && !(t.rect[0] <= r[0] && t.rect[1] <= r[1] && t.rect[2] >= r[2] && t.rect[3] >= r[3]));
+    for (const l of d.lots) if (straddles(l.rect)) err('lot ' + l.id + ' straddles two levels');
+    if (straddles(d.plaza)) err('the plaza straddles two levels');
+    ramps.forEach((r, i) => { const e = rampEnds(d, r); if (e.hi <= e.lo) err('ramps[' + i + '] does not join two levels (its high end must be the ' + r.dir + ' end)'); });
     const g = grid(d), at = p => g.blocked[W.cellOf(g, p)];
     if (at(d.spawn)) err('spawn is on a blocked cell');
     const reach = W.reachFrom(g, d.spawn);
@@ -96,6 +150,13 @@
       if (at(l.door)) err('lot ' + l.id + ' door is not on a walkable cell');
       else if (!reach(l.door)) err('lot ' + l.id + ' door is not reachable from spawn');
     }
+    // every terrace needs a ramp: some open cell at its own level is reachable from spawn
+    levels.forEach((t, i) => {
+      const [x0, y0, x1, y1] = t.rect, c = d.cell;
+      for (let y = Math.floor(y0 / c) * c + c / 2; y < y1; y += c) for (let x = Math.floor(x0 / c) * c + c / 2; x < x1; x += c)
+        if (x >= x0 && y >= y0 && levelAt(d, x, y) === t.level && !at({ x, y }) && reach({ x, y })) return;
+      err('levels[' + i + '] is not reachable from spawn (no ramp?)');
+    });
     return { ok: !errors.length, errors };
   }
 
@@ -128,5 +189,5 @@
     return out;
   }
 
-  root.TownMap = { validate, grid, decorFootprint, load, enterTarget, lotOfScene, friendLots };
+  root.TownMap = { validate, grid, heightAt, LEVEL_H, decorFootprint, load, enterTarget, lotOfScene, friendLots };
 })(globalThis);

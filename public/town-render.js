@@ -11,16 +11,19 @@
   const MIN_W = 900, MIN_H = 560; // css px of map that must stay in view
   const CHAR_CAP = 128; // soft cap on cached character textures; own agents and friends share it, and lruEvict never drops one on screen
   const FEET = [9, 25]; // OfficeSprites pixel under the feet (same as office-world drawPerson)
-  let O = [961, 4]; // terrain.json originPx; mount() replaces it with the loaded value
+  let O = [961, 32]; // terrain.json originPx; mount() replaces it with the loaded value
 
   const project = (x, y, z) => [O[0] + K * (x - y), O[1] + K2 * (x + y) - z];
   // Inverse of project at z = 0: terrain px -> world units.
   const unproject = (sx, sy) => { const u = (sx - O[0]) / K, v = (sy - O[1]) / K2; return [(u + v) / 2, (v - u) / 2]; };
   const depthOf = (x, y) => x + y;
+  // Land levels (town step 4): everything standing on the town is drawn at its ground height. mount() sets the map.
+  let M = null;
+  const atGround = (x, y) => project(x, y, root.TownMap ? root.TownMap.heightAt(M, x, y) : 0);
 
   // Character placement on screen: the OfficeSprites view/dir for a face, a mirror for west, and depth after sprites at the same x+y.
   function charPlace(x, y, face) {
-    const front = face === 'e' || face === 's', [sx, sy] = project(x, y, 0), flip = !front && face === 'w';
+    const front = face === 'e' || face === 's', [sx, sy] = atGround(x, y), flip = !front && face === 'w';
     return { view: front ? 'f' : 'b', dir: front ? (face === 's' ? -1 : 1) : 0, flip,
       px: Math.round(sx) + (flip ? FEET[0] : -FEET[0]), py: Math.round(sy) - FEET[1], z: depthOf(x, y) + 1e-3 };
   }
@@ -72,7 +75,7 @@
     const tx = left + cx * k / zoom, ty = top + cy * k / zoom;
     let best = null;
     for (const [id, t] of shown) {
-      const [sx, sy] = project(t.x, t.y, 0);
+      const [sx, sy] = atGround(t.x, t.y);
       const hd = 30 + (t.dh || 0); // head height follows the sprite's height
       if (Math.abs(tx - sx) <= 10 && ty <= sy + 3 && ty >= sy - hd && (!best || depthOf(t.x, t.y) > best.d))
         best = { id, name: t.name, d: depthOf(t.x, t.y), sx: (sx - left) * zoom / k, sy: (sy - hd - top) * zoom / k };
@@ -83,12 +86,18 @@
   // View rect in terrain px for a camera on world (x, y): centred on it, clamped to the map (centred when the map is
   // smaller than the view). viewW/viewH: backing px. -> {left, top, w, h}. Shared by both renderers.
   function cameraRect(x, y, viewW, viewH, zoom, terrain) {
-    const [px, py] = project(x, y, 0), w = viewW / zoom, h = viewH / zoom, [tw, th] = terrain.size;
+    const [px, py] = atGround(x, y), w = viewW / zoom, h = viewH / zoom, [tw, th] = terrain.size;
     const cl = (v, half, size) => size <= half * 2 ? size / 2 : Math.min(size - half, Math.max(half, v));
     return { left: cl(px, w / 2, tw) - w / 2, top: cl(py, h / 2, th) - h / 2, w, h };
   }
-  // css px inside the canvas -> world x,y at ground level, for a laid-out view (k: backing px per css px).
-  const toWorldAt = (cx, cy, left, top, zoom, k) => unproject(left + cx * k / zoom, top + cy * k / zoom);
+  // css px inside the canvas -> world x,y on the ground, for a laid-out view (k: backing px per css px). Unproject at z = 0,
+  // then twice more at the ground height found there (enough for 14-unit steps).
+  function toWorldAt(cx, cy, left, top, zoom, k) {
+    const sx = left + cx * k / zoom, sy = top + cy * k / zoom;
+    let p = unproject(sx, sy);
+    for (let i = 0; i < 2; i++) p = unproject(sx, sy + (root.TownMap ? root.TownMap.heightAt(M, p[0], p[1]) : 0));
+    return p;
+  }
   // Backing store = css px x renderScale (G.renderScale already has the HiDPI cap applied, so dpr is 1 here), and the zoom.
   function backingSize(canvas, G) {
     const rs = G.renderScale, cw = canvas.clientWidth, ch = canvas.clientHeight;
@@ -126,7 +135,7 @@
     const P = root.PIXI, SP = root.OfficeSprites;
     const getJson = async u => { const r = await fetch(u); if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r.json(); };
     const [atlas, terrain] = await Promise.all([getJson(atlasUrl), getJson(terrainUrl)]);
-    O = terrain.originPx;
+    O = terrain.originPx; M = map;
     const base = terrainUrl.replace(/[^/]*$/, '');
     const colourUrl = atlasUrl.replace(/\.json$/, '.png'), shadowUrl = atlasUrl.replace(/\.json$/, '-shadow.png'), glowUrl = atlasUrl.replace(/\.json$/, '-glow.png');
     const hasGlow = Object.values(atlas.frames).some(f => f.glow); // atlas-glow.png ships only with lit frames
@@ -198,7 +207,7 @@
     const place = (type, x, y, decorId) => {
       const f = atlas.frames[type];
       if (!f) return;
-      const [sx, sy] = project(x, y, 0), px = Math.round(sx - f.ax), py = Math.round(sy - f.ay);
+      const [sx, sy] = atGround(x, y), px = Math.round(sx - f.ax), py = Math.round(sy - f.ay);
       for (const [layer, src] of [[world, tex[colourUrl].source], [soft, tex[shadowUrl].source]]) {
         const s = new P.Sprite(frameTex(src, type));
         s.position.set(px, py); s.cullable = true; s.zIndex = depthOf(x, y);
@@ -228,7 +237,7 @@
     // Ambient (town step 4): sprites made once; animate(t) shows what the plan for G.ambient asks for.
     const AMB = root.TownAmbient, sparkles = [], parts = [];
     for (const q of AMB.plan(map, 'water').water) {
-      const [sx, sy] = project(q.x, q.y, 0), s = new P.Sprite(sparkTex);
+      const [sx, sy] = atGround(q.x, q.y), s = new P.Sprite(sparkTex);
       s.position.set(Math.round(sx) - 1, Math.round(sy) - 1); s.cullable = true; s.visible = false;
       ambLow.addChild(s); sparkles.push(s); sprites++;
     }
@@ -244,7 +253,7 @@
       parts.forEach((s, i) => {
         const q = live[i];
         if (!q || q.a <= 0) { s.visible = false; return; }
-        const [sx, sy] = project(q.x, q.y, 0), o = START[q.kind];
+        const [sx, sy] = atGround(q.x, q.y), o = START[q.kind];
         s.texture = q.kind === 'steam' ? steamTex : leafTex[i % 2];
         s.position.set(Math.round(sx) + o[0] + q.dx, Math.round(sy) + o[1] + q.dy); s.alpha = q.a; s.visible = true;
       });
@@ -403,5 +412,5 @@
     };
   }
 
-  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
+  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, mount };
 })(globalThis);
