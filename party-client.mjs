@@ -59,6 +59,7 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
   // (Cloudflare quick tunnels do that): switch this session to the /poll long poll.
   async function stream(me, tries = 0) {
     if (me.poll) return poll(me);
+    // one way on purpose: a tunnel that buffers SSE once will keep doing it, so polling lasts for the rest of the session
     const quiet = new AbortController(), t = setTimeout(() => { me.poll = true; quiet.abort(); }, firstByteMs);
     try {
       const r = await fetchImpl(me.base + '/events', { headers: { authorization: 'Bearer ' + me.token }, redirect: 'error', signal: AbortSignal.any([me.ctrl.signal, quiet.signal]) });
@@ -81,15 +82,19 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
   // Long poll: each answer is a JSON array of events (the first one starts with a hello); errors back off.
   async function poll(me, tries = 0) {
     try {
-      const r = await fetchImpl(me.base + '/poll', { headers: { authorization: 'Bearer ' + me.token }, redirect: 'error', signal: AbortSignal.any([me.ctrl.signal, AbortSignal.timeout(45_000)]) });
+      const r = await fetchImpl(me.base + '/poll' + (me.resync ? '?resync=1' : ''), { headers: { authorization: 'Bearer ' + me.token }, redirect: 'error', signal: AbortSignal.any([me.ctrl.signal, AbortSignal.timeout(45_000)]) });
       if (r.status === 401) return st === me && drop('The party no longer knows you (it may have restarted).');
       if (!r.ok) throw new Error('poll ' + r.status);
       const text = await r.text(); if (text.length > STREAM_MAX) throw new Error('poll too large');
       const evs = JSON.parse(text); if (!Array.isArray(evs)) throw new Error('not a poll answer');
       if (st !== me) return;
-      tries = 0; if (!me.live) { me.live = true; onChange(); }
-      for (const ev of evs) onEvent(ev);
-    } catch (e) { if (me.ctrl.signal.aborted) return; tries++; if (st === me && me.live) { me.live = false; onChange(); } }
+      tries = 0; me.resync = false; if (!me.live) { me.live = true; onChange(); }
+      for (const ev of evs) { try { onEvent(ev); } catch {} }
+    } catch (e) {
+      if (me.ctrl.signal.aborted) return;
+      tries++; me.resync = true; // delivery is at most once: a lost answer may have held events, so start over from a hello
+      if (st === me && me.live) { me.live = false; onChange(); }
+    }
     if (st !== me) return;
     me.retry = setTimeout(() => poll(me, tries), tries ? Math.min(30_000, 1000 * 2 ** (tries - 1)) : 0);
   }

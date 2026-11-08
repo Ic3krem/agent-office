@@ -189,7 +189,7 @@ test('poll: first poll gets the hello, then events; queue overflow resyncs with 
   assert.equal(got[4][0].chat.at(-1).text, 'spam ' + (300 - got[4].length), 'the snapshot holds the dropped events');
   assert.equal(got[4].at(-1).line.text, 'spam 299', 'later events follow it');
   // a polling member is not reaped while polling, but is once it stops
-  const P = createParty({ code: 'POLL02', now: () => t }); let t = 0;
+  let t = 0; const P = createParty({ code: 'POLL02', now: () => t });
   const c = P.join({ code: 'POLL02', name: 'C' }, '3.3.3.3').body, C = P.member(c.token);
   const stop = P.poll(C, () => {}); t = 60_000; stop(); P.poll(C, () => {}); t = 120_000; P.reap(); assert.equal(P.size(), 1);
   t = 300_000; P.reap(); assert.equal(P.size(), 0);
@@ -244,4 +244,80 @@ test('client falls back to long polling when a proxy buffers the SSE stream (lik
     assert.equal(seen.length, n, 'leave stops the poll loop');
     await until(() => B.view().members.length === 0);
   } finally { await A.leave(); await B.leave(); proxy.close(); proxy.closeAllConnections(); server.close(); server.closeAllConnections(); }
+});
+
+test('http poll: resync, leave and kick answer a held poll at once, abort frees the slot, 429 and 503', async () => {
+  const { server, port, streams } = await startParty({ port: 0, host: '127.0.0.1', code: 'POLL04', adminKey: 'q'.repeat(32), pollMs: 3000 });
+  const U = p => 'http://127.0.0.1:' + port + p, post = (p, b, h = {}) => fetch(U(p), { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(b) });
+  const join = async n => (await (await post('/join', { code: 'POLL04', name: n })).json()).token;
+  const poll = (tok, q = '', o = {}) => fetch(U('/poll' + q), { headers: { authorization: 'Bearer ' + tok }, ...o });
+  const until = async (f, ms = 3000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise(r => setTimeout(r, 20)); } };
+  const fast = async p => { const t = Date.now(), r = await p; assert.ok(Date.now() - t < 1500, 'answered at once'); return r; };
+  try {
+    const a = await join('A'), b = await join('B'), cj = await (await post('/join', { code: 'POLL04', name: 'C' })).json(), c = cj.token, d = await join('D');
+    // resync: the queue restarts from a hello that already holds what was queued
+    assert.equal((await (await poll(b)).json())[0].t, 'hello');
+    await post('/chat', { text: 'missed?' }, { authorization: 'Bearer ' + a });
+    const rs = await (await poll(b, '?resync=1')).json();
+    assert.equal(rs.length, 1); assert.equal(rs[0].t, 'hello'); assert.equal(rs[0].chat.at(-1).text, 'missed?');
+    // leave while a poll is held
+    const held = poll(b); await new Promise(r => setTimeout(r, 100));
+    await post('/leave', {}, { authorization: 'Bearer ' + b });
+    assert.deepEqual(await (await fast(held)).json(), []);
+    assert.equal((await poll(b)).status, 401);
+    // a client that aborts mid-poll gives its slot back
+    await (await poll(d)).json();
+    const ac = new AbortController(), gone = poll(d, '', { signal: ac.signal }).catch(() => {});
+    await until(() => streams() === 1); ac.abort(); await gone;
+    await until(() => streams() === 0);
+    // 429: polls have their own burst
+    const st = await Promise.all(Array.from({ length: 14 }, () => poll(a).then(r => r.status)));
+    assert.ok(st.includes(429), st.join());
+    await until(() => streams() === 0);
+    // kick while a poll is held (last: it bans this address)
+    await (await poll(c)).json();
+    const kheld = poll(c); await new Promise(r => setTimeout(r, 100));
+    assert.equal((await post('/admin/kick', { id: cj.id }, { 'x-admin-key': 'q'.repeat(32) })).status, 200);
+    assert.deepEqual((await (await fast(kheld)).json()).map(e => e.t), ['kicked']);
+    assert.equal((await poll(c)).status, 401);
+  } finally { server.close(); server.closeAllConnections(); }
+  // 503: the streams cap counts held polls
+  const s2 = await startParty({ port: 0, host: '127.0.0.1', code: 'POLL05', adminKey: 'r'.repeat(32), pollMs: 3000, maxStreams: 1 });
+  const U2 = p => 'http://127.0.0.1:' + s2.port + p, j2 = async n => (await (await fetch(U2('/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 'POLL05', name: n }) })).json()).token;
+  try {
+    const e = await j2('E'), f = await j2('F'), p2 = t => fetch(U2('/poll'), { headers: { authorization: 'Bearer ' + t } });
+    await (await p2(e)).json();
+    const h = p2(e); await new Promise(r => setTimeout(r, 100));
+    assert.equal((await p2(f)).status, 503);
+    s2.party.say(s2.party.member(f), 'free'); await (await h).json();
+  } finally { s2.server.close(); s2.server.closeAllConnections(); }
+});
+
+test('client poll: a failed poll asks for a resync; one throwing event does not drop the rest of the batch', async () => {
+  const { createPartyClient } = await import('./party-client.mjs');
+  const urls = []; let n = 0;
+  const json = (b, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } });
+  const hang = o => new Promise((_, bad) => o.signal.addEventListener('abort', () => bad(o.signal.reason)));
+  const line = text => ({ t: 'chat', line: { id: 'cd', name: 'Ben', text, at: 1 } });
+  const fetchImpl = async (u, o) => {
+    const x = new URL(u), p = x.pathname + x.search; urls.push(p);
+    if (p === '/join') return json({ token: 'a'.repeat(48), id: 'ab', name: 'Ana', party: 'P' });
+    if (p === '/leave') return json({});
+    if (p === '/events') return new Response(new ReadableStream({ start: c => o.signal.addEventListener('abort', () => c.error(o.signal.reason)) })); // headers, never a byte
+    n++;
+    if (n === 1) return json([{ t: 'hello', you: 'ab', members: [], chat: [] }]);
+    if (n === 2) return json({ error: 'bad gateway' }, 502);
+    if (n === 3) return json([line('one'), line('two')]);
+    return hang(o);
+  };
+  let boom = true;
+  const A = createPartyClient({ fetchImpl, firstByteMs: 50, onChange: () => { if (boom && A.view().chat.length === 1) { boom = false; throw new Error('ui hook'); } } });
+  const until = async (f, ms = 4000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise(r => setTimeout(r, 20)); } };
+  try {
+    await A.join('http://party.test', 'X', 'Ana');
+    await until(() => A.view().chat.length === 2 && urls.filter(u => u.startsWith('/poll')).length >= 4);
+    assert.deepEqual(A.view().chat.map(l => l.text), ['one', 'two']);
+    assert.deepEqual(urls.filter(u => u.startsWith('/poll')).slice(0, 4), ['/poll', '/poll', '/poll?resync=1', '/poll']);
+  } finally { await A.leave(); }
+  const k = urls.length; await new Promise(r => setTimeout(r, 300)); assert.equal(urls.length, k, 'leave stops the loop');
 });

@@ -4,7 +4,8 @@
 //
 //   POST /join   {code, name}          -> {token, id, name, party}   (invite code; 16 members at most)
 //   GET  /events  Authorization: Bearer <token>   SSE: hello, member, leave, chat, kicked
-//   GET  /poll    Authorization: Bearer <token>   long poll: JSON array of the same events (tunnels that buffer SSE)
+//   GET  /poll    Authorization: Bearer <token>   long poll: JSON array of the same events (tunnels that buffer SSE);
+//                 ?resync=1 restarts the queue with a hello (the client asks after a failed poll: delivery is at most once)
 //   POST /office {office}  /avatar {avatar}  /chat {text}  /leave        (Bearer token)
 //   POST /admin/kick {id}  x-admin-key: <key>                              (host only; also bans that address)
 //   GET  /health
@@ -60,9 +61,9 @@ export function createParty({ code, name = 'Agent Office party', now = () => Dat
     attach(m, send) { if (m.send && m.send !== send) m.send(null); m.send = send; m.last = now(); send(api.hello(m)); },
     // Long poll: reply(jsonArray) is called once, when events are queued (or with [] when a newer poll replaces it).
     // The member's send becomes a capped queue (first poll gets the hello); returns a cancel for timeout or close.
-    poll(m, reply) {
+    poll(m, reply, resync = false) {
       let s = m.send;
-      if (!s || !s.q || s.closed) { s = queueSend(m); api.attach(m, s); }
+      if (!s || !s.q || s.closed) { s = queueSend(m); api.attach(m, s); } else if (resync) s.reset();
       m.last = now();
       if (s.wait) { const w = s.wait; s.wait = null; w('[]'); }
       s.wait = reply; s.flush();
@@ -95,10 +96,11 @@ export function createParty({ code, name = 'Agent Office party', now = () => Dat
       if (ev === null) { s.closed = true; return s.flush(); }
       const j = JSON.stringify(ev);
       // overflow: drop the backlog; the hello snapshot already includes this event's change
-      if (q.length >= POLL.events || bytes + j.length > POLL.bytes) { q = [JSON.stringify(api.hello(m))]; bytes = q[0].length; } else { q.push(j); bytes += j.length; }
+      if (q.length >= POLL.events || bytes + j.length > POLL.bytes) s.reset(); else { q.push(j); bytes += j.length; }
       s.flush();
     };
     s.q = true;
+    s.reset = () => { q = [JSON.stringify(api.hello(m))]; bytes = q[0].length; };
     s.flush = () => { if (!s.wait || (!q.length && !s.closed)) return; const w = s.wait, out = '[' + q.join(',') + ']'; s.wait = null; q = []; bytes = 0; w(out); };
     return s;
   }
@@ -108,7 +110,7 @@ export function createParty({ code, name = 'Agent Office party', now = () => Dat
 const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'none'" };
 // trustProxy: the host name of the tunnel container (cloudflared). Its CF-Connecting-IP header is believed only on requests
 // that really come from that container's address, so a direct IP:port visitor cannot fake an address to dodge a ban.
-export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name, trustProxy = '', pollMs = 20_000 } = {}) {
+export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name, trustProxy = '', pollMs = 20_000, maxStreams = LIMITS.members * 2 } = {}) {
   const party = createParty({ code, name });
   const joinLimit = limiter(0.2, 5), badJoins = limiter(0.5, 20), msgLimit = limiter(10, 20), chatLimit = limiter(1, 3), officeLimit = limiter(1, 3), kickLimit = limiter(0.5, 5), pollLimit = limiter(5, 10);
   const ipKey = a => a.includes(':') ? a.split(':').slice(0, 4).join(':') : a; // IPv6 by /64
@@ -133,7 +135,7 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
       const token = (/^Bearer ([a-f0-9]{48})$/.exec(req.headers.authorization || '') || [])[1];
       if (req.method === 'GET' && url.pathname === '/events') {
         const m = party.member(token); if (!m) return json(res, 401, { error: 'join first' });
-        if (streams >= LIMITS.members * 2) return json(res, 503, { error: 'busy' });
+        if (streams >= maxStreams) return json(res, 503, { error: 'busy' });
         streams++;
         res.writeHead(200, { ...SEC, 'content-type': 'text/event-stream', connection: 'keep-alive' });
         const send = ev => { if (ev === null || res.writableLength > 1_000_000) return res.end(); res.write('data: ' + JSON.stringify(ev) + '\n\n'); }; // slow reader: hang up
@@ -145,13 +147,13 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
       if (req.method === 'GET' && url.pathname === '/poll') {
         const m = party.member(token); if (!m) return json(res, 401, { error: 'join first' });
         if (!pollLimit(m.token)) return json(res, 429, { error: 'slow down' });
-        if (streams >= LIMITS.members * 2) return json(res, 503, { error: 'busy' });
+        if (streams >= maxStreams) return json(res, 503, { error: 'busy' });
         streams++;
         let done = false, cancel = null;
         const finish = body => { if (done) return; done = true; streams--; clearTimeout(t); if (cancel) cancel(); if (body !== null) { res.writeHead(200, { ...SEC, 'content-type': 'application/json' }); res.end(body); } };
         const t = setTimeout(() => finish('[]'), pollMs);
         res.on('close', () => finish(null));
-        cancel = party.poll(m, finish);
+        cancel = party.poll(m, finish, url.searchParams.get('resync') === '1');
         return;
       }
       if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
@@ -184,7 +186,7 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
   server.headersTimeout = 10_000; server.requestTimeout = 15_000;
   const reaper = setInterval(() => { party.reap(); resolveProxy(); }, 15_000); reaper.unref();
   server.on('close', () => { clearInterval(reaper); party.stop(); });
-  return new Promise(ok => server.listen(port, host, () => ok({ server, party, port: server.address().port })));
+  return new Promise(ok => server.listen(port, host, () => ok({ server, party, port: server.address().port, streams: () => streams })));
 }
 
 // Run directly (node server.mjs, or the Docker image): settings from the environment.
