@@ -495,15 +495,20 @@
   //   active     seated animations (typing, playing, thinking, music, pulses) but nothing travelling
   //   blurred    the window is visible but not focused: everything runs slower
   //   fps        the graphics frame-rate cap (0/absent = none): caps every cadence; with saver off it is the flat rate
+  //   ambient, ambientFps  the graphics ambient setting: 'off' stops the idle loops (fan, fire, screens, LEDs) when nothing
+  //              else animates (STILL: only the wall clock's minute; the page keeps simulating, FRAME.SIM); otherwise idle
+  //              keeps the saver cadence, or with saver off runs at ambientFps. Indoors 'water' runs them all (one full redraw)
   // saver off keeps the old behaviour (30 fps flat). Reduced motion never animates, only follows changes.
-  const FRAME = { MIN_GAP: 16, SMOOTH: 33, WORK: 125, IDLE: 500, INTERACT_MS: 1500, BLUR_SMOOTH: 66, BLUR_WORK: 250, BLUR_IDLE: 1000 };
+  const FRAME = { MIN_GAP: 16, SMOOTH: 33, WORK: 125, IDLE: 500, INTERACT_MS: 1500, BLUR_SMOOTH: 66, BLUR_WORK: 250, BLUR_IDLE: 1000, STILL: 60000, SIM: 1000 };
   const capMs = s => s.fps ? Math.round(1000 / s.fps) : 0;
   function nextFrameDelay(s) {
     if (s.hidden) return -1;
     if (s.reduced) return s.dirty ? 0 : 500;
     if (s.dirty) return 0;
     const smooth = Math.max(FRAME.SMOOTH, capMs(s)); // 60 fps only raises the flat saver-off rate
-    if (!s.saver) return s.fps ? capMs(s) : FRAME.SMOOTH;
+    const idle = !s.moving && !s.active && !(s.interactMs < FRAME.INTERACT_MS);
+    if (idle && s.ambient === 'off') return FRAME.STILL;
+    if (!s.saver) return idle && s.ambientFps ? Math.max(capMs(s), Math.round(1000 / s.ambientFps)) : s.fps ? capMs(s) : FRAME.SMOOTH;
     const bl = !!s.blurred;
     if (s.moving) return bl ? Math.max(FRAME.BLUR_SMOOTH, capMs(s)) : smooth;
     if (s.interactMs < FRAME.INTERACT_MS) return smooth;

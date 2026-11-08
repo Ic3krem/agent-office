@@ -422,6 +422,19 @@
     return {};
   }
 
+  // Soft ground shadows, rendered once into a layer per layout (OfficeFurniture.version, Build drags included) and sky
+  // bucket (bgKey: res, night, lighting, shadows), then drawn with one drawImage per frame.
+  let shadowCv = null, shadowKey = '';
+  function shadowLayer() {
+    if (!F.shadowsOn()) { shadowCv = null; shadowKey = ''; return; }
+    const key = F.version() + '|' + bgKey;
+    if (!shadowCv || key !== shadowKey) {
+      shadowKey = key; shadowCv = shadowCv || document.createElement('canvas');
+      shadowCv.width = Math.round(STW * res); shadowCv.height = Math.round(STH * res);
+      const s = shadowCv.getContext('2d'); s.setTransform(res, 0, 0, res, 0, 0); F.shadowPass(s);
+    }
+    g.drawImage(shadowCv, 0, 0, STW, STH);
+  }
   // ---------- render ----------
   function render() {
     if (!g || !frame) return;
@@ -441,7 +454,9 @@
     const all = F.layer(people); // furniture and walkers, ordered by each piece's tight ground footprint
     hits = []; let npcPos = null, ceoPos = null;
     const posOf = new Map();
+    let shaded = false;
     for (const it of all) {
+      if (!shaded && !(it.fn && it.o.floor)) { shaded = true; shadowLayer(); } // soft shadows: over the floor pieces, under the rest
       if (it.fn) { it.fn(g); continue; }
       if (it.npc) { const nw = npcWalker(), p = drawPerson(NPC.a, nw); hits.push({ id: 'sched-npc', l: p.hit.l, r: p.hit.r, t: p.hit.t, b: p.hit.b }); npcPos = p; continue; }
       if (it.extra) { const n = it.extra; n.pos = drawPerson(n.a, n.w); if (n.kind === 'sweep' && !n.w.moving && !reduced()) dust(n.w); continue; }
@@ -497,15 +512,20 @@
     return frame.agents.some(a => a.working || a.state === M.S.WINDOW || A.includes(a.pose));
   }
   function frameState() {
-    return { hidden: typeof document !== 'undefined' && document.hidden, reduced: reduced(), saver, dirty, interactMs: nowMs() - lastInput, fps: G ? G.fps : 0, moving: isMoving(), active: isActive(), blurred: typeof document !== 'undefined' && document.hasFocus && !document.hasFocus() };
+    return { hidden: typeof document !== 'undefined' && document.hidden, reduced: reduced(), saver, dirty, interactMs: nowMs() - lastInput, fps: G ? G.fps : 0, ambient: G ? G.ambient : null, ambientFps: G ? G.ambientFps : 0, moving: isMoving(), active: isActive(), blurred: typeof document !== 'undefined' && document.hasFocus && !document.hasFocus() };
   }
   function schedule() {
     if (!running) return;
     clearTimeout(timer); timer = 0; if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    const wait = M.frameWait(frameState(), nowMs() - lastDraw);
+    const st = frameState(), wait = M.frameWait(st, nowMs() - lastDraw);
     if (wait < 0) return; // paused until visibilitychange or wake()
+    if (wait > M.FRAME.SIM && M.nextFrameDelay(st) === M.FRAME.STILL) { timer = setTimeout(still, M.FRAME.SIM); return; }
     timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(loop); }, wait);
   }
+  // Ambient off and nothing animating: no frames, but the agents' idle timers (play after 20 s, ...) keep running.
+  // Whatever starts to move or animate gets its frames from the next schedule(), so a timer-driven change (an agent
+  // standing up to play) shows up to FRAME.SIM (1 s) late; data, input and wake() still draw at once.
+  function still() { timer = 0; const n = nowMs(); if (!last) last = n; if (!build) tick(Math.min(1, (n - last) / 1000)); last = n; schedule(); }
   function wake() { dirty = true; if (running) schedule(); }
   function loop(t) {
     raf = 0;
@@ -770,22 +790,33 @@
   // footprint geometry (live bits still on top), with one log line.
   // The atlases go to the canvas as ImageBitmaps, not <img>: Chromium keeps every decoded <img> drawn into a canvas in its
   // renderer-wide image decode cache after the page is gone (one 9.4 MB atlas per office visit; docs/perf/town-step4.md).
+  // fetch -> blob -> createImageBitmap decodes once, with no throwaway <img>; an <img> (made a bitmap if it can be) is the
+  // fallback where that fails.
   const bitmap = im => typeof createImageBitmap === 'function' ? createImageBitmap(im).catch(() => im) : Promise.resolve(im);
+  const viaImg = url => new Promise((ok, no) => { const im = new Image(); im.onload = () => bitmap(im).then(ok); im.onerror = () => no(new Error(url + ' did not load')); im.src = url; });
+  // an HTTP error (a missing optional sheet) is final; only a failed fetch or decode retries through an <img>
+  const sheet = url => typeof createImageBitmap !== 'function' ? viaImg(url)
+    : fetch(url).then(r => { if (!r.ok) throw Object.assign(new Error(url + ': HTTP ' + r.status), { http: true }); return r.blob(); }).then(b => createImageBitmap(b))
+      .catch(e => e.http ? Promise.reject(e) : viaImg(url));
   function loadAtlas() {
     if (typeof fetch !== 'function' || typeof Image !== 'function') return;
     fetch('/art/office/atlas.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(a => { if (!a || typeof a.frames !== 'object') throw new Error('atlas.json has no frames'); return a; })
-      .then(a => new Promise((ok, no) => { const image = new Image(); image.onload = () => bitmap(image).then(image => ok(Object.assign({}, a, { image }))); image.onerror = () => no(new Error('atlas.png did not load')); image.src = '/art/office/atlas.png'; }))
-      .then(a => new Promise(ok => { const glow = new Image(); glow.onload = () => bitmap(glow).then(glow => ok(Object.assign(a, { glow }))); glow.onerror = () => ok(a); glow.src = '/art/office/atlas-glow.png'; })) // night windows; optional
-      .then(a => new Promise(ok => { const shadow = new Image(); shadow.onload = () => bitmap(shadow).then(shadow => ok(Object.assign(a, { shadow }))); shadow.onerror = () => ok(a); shadow.src = '/art/office/atlas-shadow.png'; })) // ground shadows (Soft); optional
+      .then(a => sheet('/art/office/atlas.png').then(image => Object.assign({}, a, { image }), () => { throw new Error('atlas.png did not load'); }))
+      .then(a => sheet('/art/office/atlas-glow.png').then(glow => Object.assign(a, { glow }), () => a)) // night windows; optional
+      .then(a => sheet('/art/office/atlas-shadow.png').then(shadow => Object.assign(a, { shadow }), () => a)) // ground shadows (Soft); optional
       .then(a => { F.useAtlas(a); bg = null; rebuildObjects(); wake(); }) // re-bake: floors and walls come from the atlas too
       .catch(e => console.info('Office art not loaded, drawing placeholder boxes instead:', e.message));
   }
   function setScale(s) { // css scale of the stage * device pixel ratio -> internal canvas resolution
-    scaleCss = s; let r = Math.max(1, Math.min(3, Math.round(s * (root.devicePixelRatio || 1) * 4) / 4));
-    if (G) r = Math.max(.5, Math.min(3, Math.round(r * Math.min(1, G.renderScale) * 4) / 4)); // r is already device px: Ultra's 2x would supersample, so it stays native
+    scaleCss = s; const dev = s * (root.devicePixelRatio || 1); let r = Math.max(1, Math.min(3, Math.round(dev * 4) / 4));
+    // r is already device px, so Ultra's 2x would supersample: 1x and up stay native. Below 1x each canvas pixel is k whole
+    // device pixels (k = 1/renderScale rounded): pixelated at 0.75 x dpr 2 drew uneven 1-2 px columns. Medium's 0.75
+    // rounds to k = 1, native and smooth; Low's 0.5 is k = 2.
+    const k = G && G.renderScale < 1 ? Math.max(1, Math.round(1 / G.renderScale)) : 1;
+    if (k > 1) r = Math.max(.05, dev) / k; // from the real dev, also below 1 and above 3
     if (!cv) return;
-    if (cv.style) cv.style.imageRendering = G && G.renderScale < 1 ? 'pixelated' : ''; // below 100%: blocky pixels, not blur
+    if (cv.style) cv.style.imageRendering = k > 1 ? 'pixelated' : ''; // blocky pixels, not blur
     if (r !== res || cv.width !== Math.round(STW * r)) { res = r; cv.width = Math.round(STW * res); cv.height = Math.round(STH * res); bg = null; }
     wake();
   }
@@ -827,6 +858,7 @@
     powerSaver: () => saver,
     setPowerSaver(on) { saver = !!on; try { localStorage.setItem('ao.powerSaver', saver ? '1' : '0'); } catch (e) { } wake(); },
     framesDrawn: () => drawn,
+    frameState, // read-only, for checks
     lastRenderMs: () => renderMs, // the last frame's draw time (perf harness)
     setLegend(on) { wake(); legend = !!on; F.state.labels = on ? 1 : (F.state.labels > 0 ? F.state.labels : 0); if (on) F.state.labels = 1; born = clock; },
     legend: () => legend,

@@ -28,10 +28,10 @@ Machine: as in `town-step2.md` (AMD Ryzen 7 4800H, RTX 3050 Laptop GPU, 23.4 GB,
 | High: office renderer private (work scene) | 113.2 MB; 115.0 MB | < 250 MB |
 | Town page kept in the back/forward cache | no; no | no |
 | 20 town <-> office cycles: JS heap after `gc()`, worst cycle against cycle 1 | 7.14 -> 7.09 MB, 0.8%; 7.14 -> 7.09 MB, 0.8% | within +-10% |
-| 20 town <-> office cycles: renderer private, cycles 11-20 rise (fit) | 81 -> 84 MB, 2.9%; 81 -> 82 MB, 2.8% | <= 3% |
-| 20 town <-> office cycles: renderer private after 20 cycles | 83.7 MB; 82.0 MB | < 250 MB |
+| 20 town <-> office cycles: renderer private, cycles 11-20 rise (fitted line, cache cleared; MB are the fit at cycles 11 and 20) | 81 -> 84 MB, 2.9%; 81 -> 82 MB, 2.8% | <= 3% |
+| 20 town <-> office cycles: renderer private after 20 cycles (raw sample at cycle 20, cache cleared) | 83.7 MB; 82.0 MB | < 250 MB |
 
-The interiors pair (20 town <-> karinderya + game hall cycles) is reported, not budgeted. Its JS heap is flat (7.03 MB, worst 0.0% and 0.1%). Its private bytes plateau measured -1.9% and 3.5%.
+The interiors pair (20 town <-> karinderya + game hall cycles) is reported, not budgeted. Its JS heap is flat (7.03 MB, worst 0.0% and 0.1%). Its private bytes plateau (fitted, cache cleared) measured -1.9% and 3.5%.
 
 The plateau budget passes, but only just: 2.9% and 2.8% against 3%. A slow creep of about 0.2 MB per cycle is still there; see finding 4.
 
@@ -83,3 +83,88 @@ Method:
 
 - `perf/office-check.cjs` "both desks draw from the atlas" identified the atlas by its `src`. An `ImageBitmap` has none, so the check now compares against the image `OfficeFurniture.sprite` draws.
 - The harnesses delete their temp profile on exit, but on Windows the delete often fails: the Electron process still holds files under its own `userData` inside that folder. Folders named `ao-<harness>-*` are left in the system temp folder. This happened before step 4 too.
+
+## Fix wave B (2026-11-08): app-shaped harness windows, office graphics fixes
+
+Harness changes:
+- Both perf windows now use the app's office window settings from `desktop/main.mjs` (sandbox, context isolation, `nodeIntegration: false`, `webSecurity`, `desktop/office-preload.cjs`) at the app's size, 1440x900. office-perf adds its cache-clear hook as a second preload registered on the session.
+- `setIgnoreMouseEvents(true)` stays. Each preset then sends three `sendInputEvent` mouse moves. The page must count them. The office must draw a burst (at least 5 frames in 1 s) and then settle back to its idle cadence (at most 7 frames in a 3 s window starting 3 s later). The town must stay still on Low (0 frames), because pointer moves draw nothing there, and must stay at its ambient cap on High.
+- office-perf checks hidden frames == 0 per preset: the office is woken every 100 ms for 5 s while the window is hidden.
+
+Base commit `bafe9a0` with the new harness, one run, before the office changes: office work-scene private 99.6 MB on Low and 98.1 MB on High. Plateau 2.4% (private MB 85 -> 87, cache cleared). All budgets passed.
+
+After the changes (`c0b6dc5`), two runs each:
+
+| Measure | Run 1; run 2 | Budget |
+|---|---|---|
+| Low: office idle CPU / frames in 10 s (ambient off: still) | 0.01% / 0; 0.02% / 0 | < 1% / <= 21 |
+| High: office idle CPU / frames in 10 s | 0.07% / 19; 0.13% / 20 | < 3% / <= 21 |
+| Low / High: mouse burst, then frames in the settled 3 s | 17, 0 / 35, 6; 17, 0 / 35, 6 | >= 5, <= 7 |
+| Low / High: office hidden frames (woken every 100 ms) | 0 / 0; 0 / 0 | 0 |
+| Low / High: office work scene draw p95 | 3.2 / 4.2 ms; 3.2 / 4.4 ms | < 8 ms |
+| Low / High: office renderer private (work scene, single sample) | 94.3 / 102.8 MB; 95.3 / 100.0 MB | < 180 / < 250 MB |
+| 20 town <-> office cycles: JS heap, worst cycle against cycle 1 | 0.8%; 0.8% | within +-10% |
+| 20 town <-> office cycles: renderer private plateau (fitted line, cache cleared) | **4.0%; 3.3% (FAIL)** | <= 3% |
+| renderer private after 20 cycles (raw sample, cache cleared) | 86.0 MB; 86.0 MB | < 250 MB |
+| town-perf: all budgets, both presets | passed; passed | |
+
+- **High work draw p95 went up about 1 ms (3.3 -> 4.2-4.4 ms).** This is the soft-shadow pass: it runs every painter a second time on a context that keeps only the shadow frames. It is inside the 8 ms budget.
+- **The plateau budget now fails in both runs.** It was not loosened. Before this wave it had passed with only a thin margin (2.9% and 2.8%, and 2.4% at base with the new window). The creep itself predates these changes; the diagnosis below shows it is not the atlas loader.
+
+Diagnosis of the creep (item 7), 40 town <-> office cycles in the app-shaped window, private MB after `clearCache()` + `gc()`, fitted slope over cycles 11-40:
+
+| Variant | Slope (MB per cycle) |
+|---|---|
+| town <-> office | 0.16 |
+| town <-> office, session history cleared every cycle | 0.22 |
+| town <-> office, office atlas PNGs blocked (no image decode at all) | 0.12 |
+| town <-> town, no office page | -0.10 |
+
+- Session history (one entry per navigation) is not the cause.
+- The atlas images, and the bitmap loader, are not the cause either.
+- The creep comes with loading the Agent Office page itself. The JS heap stays flat, and Task 10's memory-infra dumps found no tracked allocator growing.
+- It is not fixed. Next step, if wanted: memory-infra dumps on the atlas-blocked variant, and bisecting the page's scripts.
+
+## Fix wave B round 1: memory budget changed (user's decision, 2026-11-08), creep dig
+
+**Budget change.** The user decided on 2026-11-08 to replace the private-bytes plateau budget ("cycles 11-20 rise <= 3%") with an absolute one. Over 40 town <-> office cycles, the least-squares slope of renderer private bytes (after `clearCache()` + `gc()`) must be <= 0.3 MB per cycle. The JS heap budget (every cycle within +-10% of cycle 1) is unchanged. office-perf now runs 40 office cycles; the interiors pair stays at 20 cycles, for information only.
+
+The creep measures 0.12 to 0.31 MB per cycle across control runs (0.16 in the first diagnosis run). It comes from loading the Agent Office page. **Its root cause is an open follow-up.**
+
+office-perf also gates ambient off: on Low, office idle frames in 10 s must be 0, and so must the frames in the settled 3 s after a mouse move (the old 2 fps cadence drew 6).
+
+Creep dig, round 1. Each variant is 40 town <-> office cycles in the app-shaped window; the slope is fitted over cycles 11-40, in MB per cycle.
+
+| Variant | Slope |
+|---|---|
+| control (4 runs on this machine) | 0.16, 0.28, 0.31, 0.12 |
+| session history cleared every cycle | 0.22 |
+| office atlas PNGs blocked | 0.12 |
+| `/api/stream` (SSE) blocked | 0.39 |
+| `/fonts/` blocked | 0.10 |
+| V8 compilation cache off (`--no-compilation-cache`: the page compiles its app with `new Function` on every load) | 0.17 |
+| `office-world.js` blocked (no canvas world) | 0.13 |
+| `support.js` blocked (no app runs at all) | 0.03 (flat after a 10-cycle warm-up) |
+| town <-> town, no office page | -0.10 |
+
+- Only "no app at all" clearly separates from the control spread (0.12 to 0.31). No single script, resource or connection explains the creep.
+- The new blob atlas loader creates no object URLs, and the page creates none either.
+- AudioContext is made only when music plays.
+- The JS heap stays flat in every variant.
+- Next steps, if wanted: memory-infra dumps on a long run (more than 100 cycles) to see whether it levels off; bisecting inside the dc-runtime app (its components); a native heap profiler (ETW heap tracing) on the renderer, since none of Chromium's tracked allocators owns the growth.
+
+Gate runs after round 1 (`08ccf63`), two each:
+
+| Measure | Run 1; run 2 | Budget |
+|---|---|---|
+| Low: office idle frames in 10 s (ambient off) / settled frames after a mouse move | 0 / 0; 0 / 0 | 0 / 0 |
+| High: office idle frames / settled after mouse | 19 / 6; 19 / 6 | <= 21 / <= 7 |
+| Low / High: office hidden frames | 0 / 0; 0 / 0 | 0 |
+| Low / High: office work draw p95 (shadow layer cached) | 3.7 / 3.6 ms; 3.3 / 3.1 ms | < 8 ms |
+| Low / High: office private (work scene, single sample) | 94.6 / 95.6 MB; 93.3 / 94.6 MB | < 180 / < 250 MB |
+| 40 town <-> office cycles: JS heap worst cycle | 1.2%; 0.9% | +-10% |
+| 40 town <-> office cycles: private slope (fitted over all 40, cache cleared) | 0.268; 0.272 MB per cycle | <= 0.3 |
+| renderer private after 40 cycles (raw sample, cache cleared) | 87.0; 87.0 MB | < 250 MB |
+| town-perf | ALL PASSED; ALL PASSED (High walk p95 1.2 ms, private 65.7 / 64.8 MB) | |
+
+Both runs pass the slope budget, but by only about 0.03 MB per cycle. A noisy run can miss it.

@@ -107,7 +107,8 @@
   // placeholder; under/over boxes are never recorded as footprint.
   // A variant of a type (desk partition height, plant scale or growth) adds '@<variant>' to the frame name.
   let ATLAS = null, HOME = null; // HOME: [x, y] of the piece being built
-  function useAtlas(a) { ATLAS = a; measured = false; for (const k in PATS) delete PATS[k]; } // re-measure: click silhouettes follow the sprites
+  let ver = 0; // bumped by useAtlas and place: the shadow layer (office-world) re-renders when it changes
+  function useAtlas(a) { ATLAS = a; measured = false; ver++; for (const k in PATS) delete PATS[k]; } // re-measure: click silhouettes follow the sprites
   // t: the [tx, ty] canvas translate add() wraps a moved copy in; the destination is rounded with it so the frame lands on
   // whole pixels after the translate (a fractional offset would resample the art soft).
   function sprite(g, name, x, y, a, t, img) { // img: another sheet with the same rects (the glow sheet)
@@ -115,16 +116,55 @@
     const p = P(x, y, 0), tx = t ? t[0] : 0, ty = t ? t[1] : 0;
     g.save(); g.imageSmoothingEnabled = false; if (a != null) g.globalAlpha *= a;
     const dx = Math.round(p[0] - f.ax + tx) - tx, dy = Math.round(p[1] - f.ay + ty) - ty;
-    if (!img && !REC && ATLAS.shadow && (ST.shadows === 'soft' || ST.shadows === 'tint')) g.drawImage(ATLAS.shadow, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h); // the rendered ground shadow (atlas.png has none); never in a click silhouette
-    g.drawImage(img || ATLAS.image, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h);
+    if (PASS) { if (!img) g.drawImage(PASS, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h); } // shadowPass: the ground shadow frame only
+    else g.drawImage(img || ATLAS.image, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h);
     g.restore();
     return true;
+  }
+  // Soft shadows (the shadow sheet; atlas.png has none) go down in one pass under every piece and walker except the floor
+  // pieces (ponds, tile floors), which go first: drawn in each piece's own depth slot, a shadow darkened the pieces drawn
+  // before it. office-world renders the pass into a cached layer (per version() and sky bucket). The pass runs every
+  // painter on a context that keeps only transforms and the shadow frames sprite() draws, so contact ellipses, live bits
+  // and placeholders stay out. Never in a click silhouette (measure() runs outside the pass).
+  // ponytail: the layer assumes a piece's shadow frame never changes between layouts (true of every catalog piece today);
+  // a painter that switches frames by live state would need the layer keyed on that state too.
+  const shadowsOn = () => !!(ATLAS && ATLAS.shadow && (ST.shadows === 'soft' || ST.shadows === 'tint'));
+  let PASS = null; // the sheet the pass draws from
+  const KEEP = new Set(['save', 'restore', 'translate', 'scale', 'rotate', 'transform', 'setTransform']);
+  function shadowPass(g) {
+    if (!shadowsOn()) return;
+    const sheet = PASS = ST.shadows === 'tint' ? tintedShadow() : ATLAS.shadow;
+    const only = new Proxy(g, {
+      get: (c, k) => KEEP.has(k) ? (...a) => c[k](...a) : k === 'drawImage' ? (im, ...a) => { if (im === sheet) c.drawImage(im, ...a); } : typeof c[k] === 'function' ? NUL : c[k],
+      set: (c, k, v) => { if (k === 'globalAlpha' || k === 'imageSmoothingEnabled') c[k] = v; return true; },
+    });
+    g.save(); try { for (const it of items) it.fn(only); } finally { g.restore(); PASS = null; }
+  }
+  // 'tint' shadows: the sheet multiplied by the time-of-day tint (Graphics.tintOf, per tenth of night, as the bg and the
+  // town's GPU sprite tint), alpha kept. White by day, so 'tint' matches 'soft' until dusk. One cached copy of the sheet.
+  // Per pixel, not a 'multiply' fill: that blends the tint into the transparent part of each pixel and lightens shadows.
+  const mulTint = (d, tint) => {
+    const r = tint >> 16 & 255, gr = tint >> 8 & 255, b = tint & 255;
+    for (let i = 0; i < d.length; i += 4) { d[i] = Math.round(d[i] * r / 255); d[i + 1] = Math.round(d[i + 1] * gr / 255); d[i + 2] = Math.round(d[i + 2] * b / 255); }
+    return d;
+  };
+  let tinted = null;
+  function tintedShadow() {
+    const src = ATLAS.shadow, tint = root.Graphics ? root.Graphics.tintOf(Math.round(ST.night * 10) / 10) : 0xffffff;
+    if (tint === 0xffffff) return src;
+    if (tinted && tinted.tint === tint && tinted.src === src) return tinted.cv;
+    const cv = (tinted && tinted.cv) || document.createElement('canvas'); cv.width = src.width; cv.height = src.height;
+    const x = cv.getContext('2d');
+    x.clearRect(0, 0, cv.width, cv.height); x.drawImage(src, 0, 0);
+    const im = x.getImageData(0, 0, cv.width, cv.height); mulTint(im.data, tint); x.putImageData(im, 0, 0);
+    tinted = { tint, src, cv }; return cv;
   }
   // ponytail: a piece whose variant frame is missing from the atlas (only from hand-edited layouts or templates) draws as a grey placeholder among the sprites; upgrade if users get colour pickers.
   const spriteOr = (name, fn, o) => {
     const [x, y] = HOME, t = CUR ? [K * (CUR.dx - CUR.dy), K2 * (CUR.dx + CUR.dy)] : null; // the same translate add() applies
     return g => {
       const art = !!(ATLAS && ATLAS.frames[name]);
+      if (PASS) { if (art) sprite(g, name, x, y, null, t); return; }
       if (REC || !art) fn(art ? NUL : g); const n = REC ? REC.length : 0; // geometry: measured, and the placeholder boxes
       if (art) { if (o && o.under) { g.save(); o.under(g); sprite(g, name, x, y, null, t); g.restore(); } else sprite(g, name, x, y, null, t); }
       if (o && o.over) o.over(g);
@@ -228,6 +268,15 @@
     const d = ROOM.door; if (d) Fg(g, .2, () => { g.fillStyle = '#7a3e20'; g.fillRect(d.x - 26, d.y - 14, 52, 14); g.fillStyle = '#c4743d'; g.fillRect(d.x - 22, d.y - 11, 44, 8); });
   }
 
+  // The glow sheet's wall frames recoloured to the night sky (bakeRoom's pane colour), alpha kept; made per bake, not kept.
+  function nightPanes() {
+    const fs = ['wall@y', 'wall@x'].map(n => ATLAS.frames[n]), c = root.document.createElement('canvas');
+    c.width = Math.max(...fs.map(f => f.x + f.w)); c.height = Math.max(...fs.map(f => f.y + f.h));
+    const x = c.getContext('2d');
+    for (const f of fs) x.drawImage(ATLAS.glow, f.x, f.y, f.w, f.h, f.x, f.y, f.w, f.h);
+    x.globalCompositeOperation = 'source-in'; x.fillStyle = '#233466'; x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
   function bake(g) {
     const nt = ST.night;
     // floor slab (front edges)
@@ -241,7 +290,9 @@
     // ---- left wall (plane x=0) and right wall (plane y=0) ----
     if (ROOM) return bakeRoom(g);
     if (A && A['wall@x'] && A['wall@y']) { // office art: one strip per wall; after dusk the glow sheet lays a night sky on the panes
-      for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow && ST.lighting !== 'tint') sprite(g, n, 0, 0, nt, null, ATLAS.glow); }
+      // lighting 'tint' has no glow: the panes (the glow sheet's shape) only darken to the night sky
+      const sky = nt > 0 && ATLAS.glow && ST.lighting === 'tint' ? nightPanes() : null;
+      for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow) sprite(g, n, 0, 0, nt, null, sky || ATLAS.glow); }
     } else { // the atlas is missing: two plain wall planes
       const WYv = WYm(), WXv = WXm();
       poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, WH), P(0, 0, WH)], '#8d919b', null);
@@ -1035,7 +1086,7 @@
   }
   // Rebuild the painters and click objects from instances (in place: the world holds these arrays).
   function place(instances) {
-    items.length = 0; objects.length = 0; build(instances, items, objects);
+    items.length = 0; objects.length = 0; ver++; build(instances, items, objects);
     items.sort((a, b) => a.d - b.d); measured = false;
   }
   // Blocking rects, one per painter as measure() sees it: its explicit fp, else the union of the boxes and cylinders it
@@ -1068,5 +1119,5 @@
   const defaultInstances = () => JSON.parse(JSON.stringify(DEFAULTS));
   place(defaultInstances());
 
-  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, parts, homeOf, useAtlas, sprite, spriteOr, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, zoneColor, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
+  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, parts, homeOf, useAtlas, sprite, spriteOr, shadowPass, shadowsOn, mulTint, version: () => ver, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, zoneColor, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

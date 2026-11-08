@@ -1,7 +1,8 @@
-// Town perf harness: npm run perf:town. Temp-profile server on :4799, visible 1280x800 window, budgets enforced (exit 1 on a
-// miss). Runs once per graphics preset (Low: Canvas2D, no ambient; High: GPU, ambient at its fps cap), set through
+// Town perf harness: npm run perf:town. Temp-profile server on :4799, a visible window shaped like the app's office window
+// (1440x900, its webPreferences and preload; the town is a navigation in that window), budgets enforced (exit 1 on a miss). Runs once per graphics preset (Low: Canvas2D, no ambient; High: GPU, ambient at its fps cap), set through
 // Graphics.save on the temp profile: idle CPU and frames, a walk up a ramp onto a terrace and back (draw time p95), hidden
-// CPU and frames, renderer private memory and texture bytes.
+// CPU and frames, a mouse move (the town has no hover drawing: it must not start redrawing), renderer private memory and
+// texture bytes.
 const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
@@ -23,9 +24,10 @@ const RAMP_FOOT = [650, 548]; // just below the ramp [620,380,680,540] (dir n): 
 app.whenReady().then(async () => {
   for (let t = 0; !/running on/.test(log); t += 150) { if (t > 20000) throw new Error('server did not start: ' + log.slice(0, 300)); await wait(150); }
   await session.defaultSession.cookies.set({ url: base, name: 'ao_ui', value: key });
-  const w = new BrowserWindow({ width: 1280, height: 800, show: true, webPreferences: { backgroundThrottling: true, contextIsolation: false } });
+  const w = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { preload: path.join(root, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
   // real mouse moves count as input (the office then draws smoothly for 1.5 s); the measured window never sees them. On the
   // step 4 machine something outside the harness moved the cursor 112 px every 20 s, which broke the office idle budget.
+  // The mouse check injects its own moves with sendInputEvent, which this does not block.
   w.setIgnoreMouseEvents(true);
   const js = s => w.webContents.executeJavaScript(s);
   const boot = async () => {
@@ -47,6 +49,12 @@ app.whenReady().then(async () => {
 
     await wait(5000);
     const fi0 = await frames(), idle = await sampleCpu(), idleFrames = (await frames()) - fi0;
+    // sendInputEvent mouse moves; frames in the first second and in 3 s starting 3 s later. The page counts the moves it saw.
+    await js('window.__moves = 0; addEventListener("pointermove", () => window.__moves++, true)');
+    const fm0 = await frames();
+    for (const [x, y] of [[700, 440], [740, 470], [720, 450]]) { w.webContents.sendInputEvent({ type: 'mouseMove', x, y }); await wait(50); }
+    await wait(1000); const fm1 = await frames(); await wait(1850); const fm2 = await frames(); await wait(3000);
+    const mouse = { moves: await js('window.__moves'), burst: fm1 - fm0, after: (await frames()) - fm2 };
 
     // walking: from the foot of a ramp, hold W+D (screen up-right = world north: up the ramp onto the terrace) then S+A (back
     // down), twice; lastRenderMs is
@@ -75,7 +83,7 @@ app.whenReady().then(async () => {
     const stats = await js('__town.api.stats()');
     return {
       graphics: g,
-      idle: { cpuAvg: idle.avg, cpuMax: idle.max, frameDelta: idleFrames },
+      idle: { cpuAvg: idle.avg, cpuMax: idle.max, frameDelta: idleFrames }, mouse,
       walking: { frames: walkFrames, p50: pct(samples, 0.5), p95: pct(samples, 0.95), max: Math.max(...samples), samples: samples.length, highestGround: hmax, terrace, start, end },
       hidden: { cpuAvg: hid.avg, cpuMax: hid.max, frameDelta: hidFrames },
       memory: { rendererPrivateMB: mem.privateBytes / 1024, gpuWorkingSetMB: gpu ? gpu.memory.workingSetSize / 1024 : null, textureMB: stats.textureBytes / MB, drawCalls: stats.drawCalls, sprites: stats.sprites },
@@ -103,7 +111,9 @@ app.whenReady().then(async () => {
       [P + ': renderer private < ' + B.mem + ' MB', r.memory.rendererPrivateMB < B.mem, r.memory.rendererPrivateMB],
       [P + ': textureBytes < ' + B.tex + ' MB', r.memory.textureMB < B.tex, r.memory.textureMB]);
   }
-  budgets.push(['Low (ambient off): idle frame delta == 0', presets.low.idle.frameDelta === 0, presets.low.idle.frameDelta]);
+  budgets.push(['Low (ambient off): idle frame delta == 0', presets.low.idle.frameDelta === 0, presets.low.idle.frameDelta],
+    ['Low: a mouse move reaches the page and the town stays still (0 frames in the 3 s after 3 s)', presets.low.mouse.moves > 0 && presets.low.mouse.after === 0, presets.low.mouse.after],
+    ['High: after a mouse move the town settles to its ambient cap (<= ambientFps * 3 + 2 frames in 3 s)', presets.high.mouse.moves > 0 && presets.high.mouse.after <= presets.high.graphics.ambientFps * 3 + 2, presets.high.mouse.after]);
   R.budgets = budgets.map(([name, ok, value]) => ({ name, ok, value }));
   fs.mkdirSync(path.join(__dirname, 'results'), { recursive: true });
   fs.writeFileSync(path.join(__dirname, 'results', 'town-step4-' + R.date.slice(0, 10) + '.json'), JSON.stringify(R, null, 2));
