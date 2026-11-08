@@ -68,15 +68,15 @@ test('friendLots: party members get friend-1..3 in join order (the order the par
 // ---------- town step 4, task 9: land levels (raised terraces, cliffs, ramps) ----------
 const hill = { levels: [{ rect: [0, 0, 400, 300], level: 1 }, { rect: [0, 0, 200, 100], level: 2 }], ramps: [{ rect: [300, 290, 360, 370], dir: 'n' }, { rect: [100, 90, 150, 170], dir: 'n' }] };
 
-test('heightAt: plaza 0, a level-1 terrace 14, level 2 28, a ramp midpoint halfway', () => {
+test('heightAt: plaza 0, a level-1 terrace 28, level 2 56, a ramp midpoint halfway (LEVEL_H 28, user decision 2026-11-08)', () => {
   const H = (x, y) => TownMap.heightAt(hill, x, y);
-  assert.equal(TownMap.LEVEL_H, 14);
+  assert.equal(TownMap.LEVEL_H, 28);
   assert.equal(TownMap.heightAt(real(), 1080, 675), 0, 'plaza');
   assert.equal(H(1000, 1000), 0);
-  assert.equal(H(250, 200), 14, 'level-1 terrace');
-  assert.equal(H(50, 50), 28, 'the innermost rect wins');
-  assert.equal(H(330, 330), 7, 'ramp midpoint (0 -> 1)');
-  assert.equal(H(125, 130), 21, 'ramp midpoint (1 -> 2)');
+  assert.equal(H(250, 200), 28, 'level-1 terrace');
+  assert.equal(H(50, 50), 56, 'the innermost rect wins');
+  assert.equal(H(330, 330), 14, 'ramp midpoint (0 -> 1)');
+  assert.equal(H(125, 130), 42, 'ramp midpoint (1 -> 2)');
   assert.ok(H(330, 360) < H(330, 300), 'a north ramp climbs northward');
   assert.equal(TownMap.heightAt({}, 5, 5), 0, 'a map without levels is flat');
 });
@@ -108,21 +108,34 @@ test('real town: 2-3 terraces, each walkable from spawn through world-path A*; p
   for (const [i, t] of d.levels.entries()) {
     let found = null;
     for (let y = t.rect[1] + 5; y < t.rect[3] && !found; y += 10) for (let x = t.rect[0] + 5; x < t.rect[2] && !found; x += 10)
-      if (TownMap.heightAt(d, x, y) === t.level * 14 && !g.blocked[WorldPath.cellOf(g, { x, y })] && WorldPath.findPath(g, d.spawn, { x, y }).length) found = { x, y };
+      if (TownMap.heightAt(d, x, y) === t.level * TownMap.LEVEL_H && !g.blocked[WorldPath.cellOf(g, { x, y })] && WorldPath.findPath(g, d.spawn, { x, y }).length) found = { x, y };
     assert.ok(found, 'levels[' + i + '] has a path from spawn');
   }
   assert.equal(TownMap.heightAt(d, d.spawn.x, d.spawn.y), 0);
   for (const l of d.lots) assert.equal(TownMap.heightAt(d, l.door.x, l.door.y), 0, l.id);
 });
 
-test('grid: the low ground hidden behind an away-facing (west/north) cliff is blocked 2 cells deep', () => {
+test('grid: the low ground hidden behind an away-facing (west/north) cliff is blocked 4 cells deep', () => {
   const d = real(), g = TownMap.grid(d), at = (x, y) => g.blocked[WorldPath.cellOf(g, { x, y })];
-  assert.equal(at(1305, 200), 1); assert.equal(at(1315, 200), 1);
-  assert.equal(at(1295, 200), 0, 'open past the covered strip');
+  for (const x of [1285, 1295, 1305, 1315]) assert.equal(at(x, 200), 1, 'covered at ' + x);
+  assert.equal(at(1275, 200), 0, 'open past the covered strip');
   assert.equal(at(1325, 200), 1, 'the cliff band on top');
   assert.equal(at(1335, 200), 0, 'the hill top');
   const north = Object.assign(real(), { levels: [{ rect: [0, 100, 300, 300], level: 1 }], ramps: [{ rect: [100, 290, 160, 370], dir: 'n' }] });
   const gn = TownMap.grid(north), atn = (x, y) => gn.blocked[WorldPath.cellOf(gn, { x, y })];
-  assert.deepEqual([atn(200, 85), atn(200, 95), atn(200, 75)], [1, 1, 0], 'north-facing cliff');
+  assert.deepEqual([atn(250, 65), atn(250, 75), atn(250, 85), atn(250, 95), atn(250, 55)], [1, 1, 1, 1, 0], 'north-facing cliff');
   assert.ok(TownMap.validate(d).ok);
+});
+
+test('real town ramps stay gentle at LEVEL_H 28: at least 150 units of run per level climbed, both ends on their levels', () => {
+  const d = real();
+  for (const [i, r] of d.ramps.entries()) {
+    const [x0, y0, x1, y1] = r.rect, run = r.dir === 'n' || r.dir === 's' ? y1 - y0 : x1 - x0;
+    const mid = r.dir === 'n' || r.dir === 's' ? [(x0 + x1) / 2, null] : [null, (y0 + y1) / 2];
+    const lo = { n: [mid[0], y1 + 1], s: [mid[0], y0 - 1], e: [x0 - 1, mid[1]], w: [x1 + 1, mid[1]] }[r.dir];
+    const hi = { n: [mid[0], y0 - 1], s: [mid[0], y1 + 1], e: [x1 + 1, mid[1]], w: [x0 - 1, mid[1]] }[r.dir];
+    const rise = (TownMap.heightAt(d, ...hi) - TownMap.heightAt(d, ...lo)) / TownMap.LEVEL_H;
+    assert.ok(rise >= 1, 'ramps[' + i + '] joins two levels');
+    assert.ok(run / rise >= 150, 'ramps[' + i + '] run ' + run + ' per level');
+  }
 });

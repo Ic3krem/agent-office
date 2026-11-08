@@ -13,7 +13,7 @@
   const ov = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 
   // Land levels (town step 4): terraces raise the ground by LEVEL_H world units per level; ramps climb linearly along dir.
-  const LEVEL_H = 14, RAMP_DIRS = ['n', 'e', 's', 'w'];
+  const LEVEL_H = 28, RAMP_DIRS = ['n', 'e', 's', 'w'];
   const area = r => (r[2] - r[0]) * (r[3] - r[1]);
   // The level of the innermost (smallest) terrace rect holding p, 0 outside them all; ramps are ignored.
   function levelAt(d, x, y) {

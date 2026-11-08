@@ -17,7 +17,7 @@ process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); 
 const MB = 1048576, pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN; };
 // Low and High budgets (town step 4 plan, Task 10)
 const BUDGET = { low: { cpu: 1, p95: 16, mem: 180, tex: 48 }, high: { cpu: 3, p95: 8, mem: 250, tex: 96 } };
-const RAMP_FOOT = [650, 585]; // below the ramp [620,450,680,530] (dir n): walking world north climbs onto the NW orchard terrace
+const RAMP_FOOT = [650, 548]; // just below the ramp [620,380,680,540] (dir n): 1.25 s of walking world north (212 units) climbs onto the NW orchard terrace
 
 app.whenReady().then(async () => {
   for (let t = 0; !/running on/.test(log); t += 150) { if (t > 20000) throw new Error('server did not start: ' + log.slice(0, 300)); await wait(150); }

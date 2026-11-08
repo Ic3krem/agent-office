@@ -132,6 +132,10 @@ inside.
   cozy palette and outline, drawn once per look into a cache, and uploaded as textures.
 - **Ground:** terrain tiles (grass, paving, path, water edge, soil sides) are an atlas of isometric tiles, with
   variants to break repetition.
+- **Land levels** (town step 4, approved 2026-11-08): the town exterior has raised terraces with soil cliffs and
+  ramps; interiors stay flat. Each level raises the ground by `LEVEL_H = 28` world units (the user's decision of
+  2026-11-08: "raise the cliffs, make them taller"; it was 14, which read as a thin hedge at default zoom). Ramps keep
+  about 160 units of run per level so the climb stays gentle.
 
 ## 8. Rendering and performance
 

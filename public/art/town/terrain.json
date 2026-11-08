@@ -1,14 +1,15 @@
 {
  "originPx": [
   961,
-  33
+  61
  ],
- "levelsHash": "f91a0e80b7286920",
+ "levelsHash": "15e20c0c5af64043",
+ "levelH": 28,
  "chunk": 512,
  "cols": 5,
  "rows": 3,
  "size": [
-  2496,
-  1338
+  2500,
+  1366
  ]
 }

@@ -142,7 +142,7 @@ def build(raw, out, office_out=None):
         for c in range(cols_n):
             ch = tp.crop((c * CHUNK, r * CHUNK, min(TW, (c + 1) * CHUNK), min(TH, (r + 1) * CHUNK))); ch.info['transparency'] = ncols
             save_p(ch, os.path.join(out, 'terrain', f'r{r}c{c}.png'))
-    json.dump({'originPx': tmeta['originPx'], 'levelsHash': tmeta.get('levelsHash', ''), 'chunk': CHUNK, 'cols': cols_n, 'rows': rows_n, 'size': [TW, TH]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'), indent=1)
+    json.dump({'originPx': tmeta['originPx'], 'levelsHash': tmeta.get('levelsHash', ''), 'levelH': tmeta.get('levelH', 0), 'chunk': CHUNK, 'cols': cols_n, 'rows': rows_n, 'size': [TW, TH]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'), indent=1)
     print(f'palette {ncols} colours; atlas {W}x{H}; terrain {TW}x{TH} in {cols_n}x{rows_n} chunks')
     if office_out: build_office(load(os.path.join(raw, 'office')), office_out)
 

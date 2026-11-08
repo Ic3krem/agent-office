@@ -173,9 +173,9 @@ test('placement follows the ground: ground() lifts by TownMap.heightAt; charPlac
   const hill = { levels: [{ rect: [0, 0, 400, 300], level: 1 }], ramps: [{ rect: [300, 290, 360, 370], dir: 'n' }] };
   R.setMap(hill);
   try {
-    assert.deepEqual(plain(R.ground(250, 200)), plain(R.project(250, 200, 14)));
+    assert.deepEqual(plain(R.ground(250, 200)), plain(R.project(250, 200, 28)));
     assert.deepEqual(plain(R.ground(1000, 1000)), plain(R.project(1000, 1000, 0)));
-    assert.equal(R.charPlace(250, 200, 's').py, Math.round(R.project(250, 200, 14)[1]) - 25, 'feet on the terrace top');
+    assert.equal(R.charPlace(250, 200, 's').py, Math.round(R.project(250, 200, 28)[1]) - 25, 'feet on the terrace top');
     for (const [x, y] of [[250, 200], [330, 330], [1000, 1000], [395, 150]]) {
       const [sx, sy] = R.ground(x, y), [wx, wy] = R.toWorldAt(sx, sy, 0, 0, 1, 1);
       assert.ok(Math.hypot(wx - x, wy - y) < 1, `toWorld(${x},${y}) -> ${wx},${wy}`);
@@ -189,13 +189,13 @@ test('toWorld on the real town: a hill top by its west (away-facing) edge stays 
   const town = JSON.parse(fs.readFileSync(new URL('./public/town/town.json', import.meta.url), 'utf8'));
   R.setMap(town);
   try {
-    for (const [x, y] of [[1325, 200], [1335, 200], [1330, 420], [700, 300], [10, 10]]) {
+    for (const [x, y] of [[1325, 200], [1335, 200], [1330, 420], [700, 300], [10, 10], [650, 420], [650, 500], [1690, 420], [315, 300]]) {
       const [sx, sy] = R.ground(x, y), [wx, wy] = R.toWorldAt(sx, sy, 0, 0, 1, 1);
       assert.ok(Math.hypot(wx - x, wy - y) < 1, `toWorld(${x},${y}) -> ${wx | 0},${wy | 0}`);
     }
     const g = ctx.TownMap.grid(town);
     for (const [x, edgeY] of [[500, 460], [1800, 440]]) { // halfway up a south-facing cliff
-      const [sx, sy] = R.project(x, edgeY, 7), [wx, wy] = R.toWorldAt(sx, sy, 0, 0, 1, 1);
+      const [sx, sy] = R.project(x, edgeY, 14), [wx, wy] = R.toWorldAt(sx, sy, 0, 0, 1, 1);
       assert.ok(Math.hypot(wx - x, wy - edgeY) < 3 && wy >= edgeY, `face click -> ${wx},${wy}`);
       assert.equal(ctx.TownMap.heightAt(town, wx, wy), 0);
       assert.equal(g.blocked[ctx.WorldPath.cellOf(g, { x: wx, y: wy })], 0, 'an open cell at the cliff base');

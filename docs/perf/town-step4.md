@@ -3,7 +3,7 @@
 Live checks run in Electron with a temp profile; none of them is part of `npm test`. Each prints ALL PASSED or exits 1.
 
 - `perf/office-perf.cjs` (port 4794) now runs per graphics preset (Low, High), set with `Graphics.save` on the temp profile. For each preset it measures office idle CPU and frames, the 'work' scene draw p95 and renderer private memory. Then come 20 town <-> office cycles on High. The cycle budget is now the spec's measure: the JS heap (`performance.memory.usedJSHeapSize` after `gc()`) of every cycle stays within +-10% of cycle 1. Renderer private bytes stay reported, and over cycles 11-20 they must rise no more than 3%. That rise is the least-squares fit over those ten cycles, as a share of the fitted value at cycle 11, so one noisy sample cannot decide it. The harness also checks that the town page is not kept in the back/forward cache.
-- `perf/town-perf.cjs` (port 4799) runs per preset: Low (Canvas2D, ambient off) and High (GPU, ambient at its fps cap). The walk starts at the foot of the ramp at x 620-680, climbs it onto the NW orchard terrace and comes back down, twice. It must reach terrace height (14).
+- `perf/town-perf.cjs` (port 4799) runs per preset: Low (Canvas2D, ambient off) and High (GPU, ambient at its fps cap). The walk starts at the foot of the ramp at x 620-680, climbs it onto the NW orchard terrace and comes back down, twice. It must reach terrace height (`TownMap.LEVEL_H`: 14 in Task 10, 28 since Task 9b).
 - `perf/scene-check.cjs` "town idle renders nothing" and `perf/travel-check.cjs` "town idle after the travellers left" are pinned to Low (ambient off), as `perf/town-check.cjs` already was. travel-check adds two checks on High: the ambient layer runs at its `ambientFps` cap while visible, and stops while hidden.
 
 Machine: as in `town-step2.md` (AMD Ryzen 7 4800H, RTX 3050 Laptop GPU, 23.4 GB, Windows 11), now Electron 43.8.7. It is a shared laptop with other apps running. The default power saver is on, so High's ambient cap is 8 fps.
@@ -34,6 +34,20 @@ Machine: as in `town-step2.md` (AMD Ryzen 7 4800H, RTX 3050 Laptop GPU, 23.4 GB,
 The interiors pair (20 town <-> karinderya + game hall cycles) is reported, not budgeted. Its JS heap is flat (7.03 MB, worst 0.0% and 0.1%). Its private bytes plateau measured -1.9% and 3.5%.
 
 The plateau budget passes, but only just: 2.9% and 2.8% against 3%. A slow creep of about 0.2 MB per cycle is still there; see finding 4.
+
+## Taller cliffs (Task 9b, `LEVEL_H` 14 -> 28)
+
+One `perf/town-perf.cjs` run after the cliffs were doubled in height and the ramps lengthened. The orchard ramp is now `[620,380,680,540]`, so the walk starts just below it at (650, 548) instead of (650, 585). The hold time is unchanged (1.25 s, about 212 units), and the walk must reach terrace height, now 28.
+
+| Measure | Taller cliffs (one run) | Budget |
+|---|---|---|
+| Low: town idle CPU / frames in 10 s | 0.00% / 0 | < 1% / 0 |
+| High: town idle CPU (ambient at 8 fps) | 0.40% | < 3% |
+| Low / High: town hidden frames / CPU | 0 / 0; 0.02 / 0.02% | 0; < 0.5% |
+| Low: town walk up a ramp onto a terrace, draw p95 | 0.3 ms (593 frames, highest ground 28) | < 16 ms |
+| High: town walk up a ramp onto a terrace, draw p95 | 1.4 ms (602 frames, highest ground 28) | < 8 ms |
+| Low / High: town renderer private | 62.6 / 60.8 MB | < 180 / < 250 MB |
+| Low / High: `stats().textureBytes` | 18.9 / 18.9 MB | < 48 / < 96 MB |
 
 ## Step 1 findings (diagnosis, before any fix)
 

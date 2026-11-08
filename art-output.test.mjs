@@ -160,4 +160,7 @@ test('terrain art was generated from the current town.json levels and ramps (rer
   const town = readJson('public/town/town.json'), t = readJson('public/art/town/terrain.json');
   const sig = (town.levels || []).map(l => l.rect.join(',') + ':' + l.level).join(';') + '|' + (town.ramps || []).map(r => r.rect.join(',') + ':' + r.dir).join(';');
   assert.equal(t.levelsHash, crypto.createHash('sha256').update(sig).digest('hex').slice(0, 16));
+  const lh = +/const LEVEL_H = (\d+)/.exec(fs.readFileSync(path.join(ROOT, 'public/town-map.js'), 'utf8'))[1];
+  assert.equal(lh, 28, 'LEVEL_H (user decision 2026-11-08)');
+  assert.equal(t.levelH, lh, 'terrain art built with the same cliff height as TownMap.LEVEL_H');
 });

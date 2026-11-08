@@ -11,7 +11,7 @@
   const MIN_W = 900, MIN_H = 560; // css px of map that must stay in view
   const CHAR_CAP = 128; // soft cap on cached character textures; own agents and friends share it, and lruEvict never drops one on screen
   const FEET = [9, 25]; // OfficeSprites pixel under the feet (same as office-world drawPerson)
-  let O = [961, 33]; // terrain.json originPx; mount() replaces it with the loaded value
+  let O = [961, 61]; // terrain.json originPx; mount() replaces it with the loaded value
 
   const project = (x, y, z) => [O[0] + K * (x - y), O[1] + K2 * (x + y) - z];
   // Inverse of project at z = 0: terrain px -> world units.

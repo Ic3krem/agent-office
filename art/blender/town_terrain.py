@@ -15,8 +15,9 @@ PLAZA, PATHS, WATER, BRIDGES = U(town['plaza']), [U(p) for p in town['paths']], 
 inside = lambda x, y, r, m=0: r[0] - m <= x <= r[2] + m and r[1] - m <= y <= r[3] + m
 STONE = ['#9a948c', '#7f7a74', '#a39f99']
 
-# ---- land levels: the same rules as TownMap.heightAt (LEVEL_H = 14 world units = 1.4 here) ----
-LH = 1.4
+# ---- land levels: the same rules as TownMap.heightAt (LEVEL_H = 28 world units = 2.8 here; user decision 2026-11-08) ----
+LH = 2.8
+SH = LH / 1.4  # the contact shadow and face stones scale with the cliff height (tuned at LH 1.4)
 LEVELS = [(U(t['rect']), t['level']) for t in town.get('levels', [])]
 RAMPS = [(U(r['rect']), r['dir']) for r in town.get('ramps', [])]
 _in = lambda x, y, r: r[0] <= x < r[2] and r[1] <= y < r[3]
@@ -82,18 +83,18 @@ for r, lv in sorted(LEVELS, key=lambda t: t[1]):
         if y1 >= D: continue
         box(a, y1 - 0.2, H - 0.3, b - a, 0.35, 0.3, '#4f8f35')  # a thin grass lip, so the soil face shows
         z0 = base(a, y1 + .1)  # contact shadow on the low ground at the cliff foot, so the step reads as height
-        box(a, y1, z0 + 0.04, b - a + 0.5, 0.55, 0.02, '#3f7a2c'); box(a, y1, z0 + 0.05, b - a + 0.25, 0.22, 0.02, '#5a3a28')
+        box(a, y1, z0 + 0.04, b - a + 0.55 * SH, 0.55 * SH, 0.02, '#3f7a2c'); box(a, y1, z0 + 0.05, b - a + 0.22 * SH, 0.22 * SH, 0.02, '#5a3a28')
         for i in range(int((b - a) / 1.3)): box(a + i * 1.3 + rnd.uniform(0, .3), y1 + 0.15, H - 0.55, rnd.uniform(.3, .7), 0.1, rnd.uniform(.2, .35), '#4f8f35')
-        for _ in range(int((b - a) * 1.2)):
+        for _ in range(int((b - a) * 1.2 * SH)):
             z0 = base(rnd.uniform(a, b), y1 + .1)
             if H - z0 > 1.2: box(rnd.uniform(a, b - .8), y1, rnd.uniform(z0 + .1, H - .8), rnd.uniform(.5, 1.0), 0.1, rnd.uniform(.2, .35), rnd.choice(STONE + ['#5a3a28']))
     for (a, b) in spans(y0, y1, [(n[1], n[3]) for n in notches]):  # east (+x) face
         if x1 >= W: continue
         box(x1 - 0.2, a, H - 0.3, 0.35, b - a, 0.3, '#4f8f35')
         z0 = base(x1 + .1, a)
-        box(x1, a, z0 + 0.04, 0.55, b - a, 0.02, '#3f7a2c'); box(x1, a, z0 + 0.05, 0.22, b - a, 0.02, '#5a3a28')
+        box(x1, a, z0 + 0.04, 0.55 * SH, b - a, 0.02, '#3f7a2c'); box(x1, a, z0 + 0.05, 0.22 * SH, b - a, 0.02, '#5a3a28')
         for i in range(int((b - a) / 1.3)): box(x1 + 0.15, a + i * 1.3 + rnd.uniform(0, .3), H - 0.55, 0.1, rnd.uniform(.3, .7), rnd.uniform(.2, .35), '#4f8f35')
-        for _ in range(int((b - a) * 1.2)):
+        for _ in range(int((b - a) * 1.2 * SH)):
             z0 = base(x1 + .1, rnd.uniform(a, b))
             if H - z0 > 1.2: box(x1, rnd.uniform(a, b - .8), rnd.uniform(z0 + .1, H - .8), 0.1, rnd.uniform(.5, 1.0), rnd.uniform(.2, .35), rnd.choice(STONE + ['#5a3a28']))
 
@@ -179,5 +180,5 @@ kit.render(os.path.join(out, 'terrain.png'))
 # levelsHash: art-output.test checks it against town.json, so editing levels or ramps without rerunning the art fails a test
 import hashlib
 sig = ';'.join(','.join(str(v) for v in t['rect']) + ':' + str(t['level']) for t in town.get('levels', [])) + '|' + ';'.join(','.join(str(v) for v in r['rect']) + ':' + r['dir'] for r in town.get('ramps', []))
-json.dump({'originPx': [ox, oy], 'levelsHash': hashlib.sha256(sig.encode()).hexdigest()[:16]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'))
+json.dump({'originPx': [ox, oy], 'levelsHash': hashlib.sha256(sig.encode()).hexdigest()[:16], 'levelH': round(LH * 10)}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'))
 print('TERRAIN', w, h, ox, oy)

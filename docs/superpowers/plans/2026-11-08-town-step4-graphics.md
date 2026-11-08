@@ -403,7 +403,7 @@ The user approved this on 2026-11-08: "you are also allowed to create different 
     - every terrace is reachable (reuse the existing reachability check).
   - `grid(d)`: cells on a level boundary (a cliff edge band 1 cell wide) are blocked, except the cells inside a ramp. This is the same mechanism as water vs bridges.
   - Add `heightAt(d, x, y) -> z`:
-    - `LEVEL_H = 14` world units per level;
+    - `LEVEL_H = 28` world units per level (the user's decision of 2026-11-08, Task 9b; Task 9 shipped 14, which read as a thin hedge at default zoom);
     - on a ramp, linear along `dir`;
     - elsewhere, the level of the innermost containing rect;
     - 0 outside all of them.
