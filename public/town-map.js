@@ -43,6 +43,16 @@
       if (!v || onRamp(cc, r)) continue;
       if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => { const a = cc + dc, b = r + dr; return a >= 0 && b >= 0 && a < cols && b < rows && lv(a, b) < v; }))
         out.push([cc * c, r * c, cc * c + c, r * c + c]);
+      // A west- or north-facing cliff faces away from the camera: its raised top is drawn over the low ground just behind
+      // it (the lift / (2 x 0.3536) units deep), so a walker there would show on top of the hill. Block that strip.
+      for (const [dc, dr] of [[-1, 0], [0, -1]]) {
+        const low = cc + dc >= 0 && r + dr >= 0 ? lv(cc + dc, r + dr) : v;
+        if (low >= v) continue;
+        for (let k = 1, n = Math.ceil((v - low) * LEVEL_H / 0.7071 / c); k <= n; k++) {
+          const a = cc + dc * k, b = r + dr * k;
+          if (a >= 0 && b >= 0 && !onRamp(a, b)) out.push([a * c, b * c, a * c + c, b * c + c]);
+        }
+      }
     }
     for (const { rect: [x0, y0, x1, y1], dir } of d.ramps || [])
       out.push(...(dir === 'n' || dir === 's' ? [[x0 - c, y0, x0, y1], [x1, y0, x1 + c, y1]] : [[x0, y0 - c, x1, y0], [x0, y1, x1, y1 + c]]));

@@ -11,7 +11,7 @@
   const MIN_W = 900, MIN_H = 560; // css px of map that must stay in view
   const CHAR_CAP = 128; // soft cap on cached character textures; own agents and friends share it, and lruEvict never drops one on screen
   const FEET = [9, 25]; // OfficeSprites pixel under the feet (same as office-world drawPerson)
-  let O = [961, 32]; // terrain.json originPx; mount() replaces it with the loaded value
+  let O = [961, 33]; // terrain.json originPx; mount() replaces it with the loaded value
 
   const project = (x, y, z) => [O[0] + K * (x - y), O[1] + K2 * (x + y) - z];
   // Inverse of project at z = 0: terrain px -> world units.
@@ -90,13 +90,25 @@
     const cl = (v, half, size) => size <= half * 2 ? size / 2 : Math.min(size - half, Math.max(half, v));
     return { left: cl(px, w / 2, tw) - w / 2, top: cl(py, h / 2, th) - h / 2, w, h };
   }
-  // css px inside the canvas -> world x,y on the ground, for a laid-out view (k: backing px per css px). Unproject at z = 0,
-  // then twice more at the ground height found there (enough for 14-unit steps).
+  // css px inside the canvas -> world x,y on the ground, for a laid-out view (k: backing px per css px). With land levels the
+  // pixel's ray is marched from the front (nearest the camera) back until it meets the ground: the first hit is what the
+  // pixel shows, so a hill top wins over the low ground hidden behind it. A hit on a level top or ramp is refined by
+  // re-projecting at heightAt; a hit on a cliff face snaps to the low ground at the cliff's base, just in front of it.
   function toWorldAt(cx, cy, left, top, zoom, k) {
-    const sx = left + cx * k / zoom, sy = top + cy * k / zoom;
-    let p = unproject(sx, sy);
-    for (let i = 0; i < 2; i++) p = unproject(sx, sy + (root.TownMap ? root.TownMap.heightAt(M, p[0], p[1]) : 0));
-    return p;
+    const sx = left + cx * k / zoom, sy = top + cy * k / zoom, TM = root.TownMap, p0 = unproject(sx, sy);
+    const top_ = M && TM ? Math.max(0, ...(M.levels || []).map(t => t.level)) * TM.LEVEL_H : 0;
+    if (!top_) return p0;
+    const H = (x, y) => TM.heightAt(M, x, y), STEP = 0.5, RISE = 2 * K2; // along the ray (+1, +1) per unit, z rises 2 x K2
+    let prev = null;
+    for (let s = Math.ceil(top_ / RISE / STEP) * STEP; s >= 0; s -= STEP) {
+      const q = [p0[0] + s, p0[1] + s], z = s * RISE, h = H(q[0], q[1]);
+      if (h < z - 1e-6) { prev = q; continue; }
+      if (prev && H(prev[0], prev[1]) < h - 1e-6 && h - z > RISE * STEP + 1e-6) return prev; // entered under a higher top: a cliff face, so its base
+      let p = unproject(sx, sy + h);
+      for (let i = 0; i < 2; i++) p = unproject(sx, sy + H(p[0], p[1]));
+      return p;
+    }
+    return p0;
   }
   // Backing store = css px x renderScale (G.renderScale already has the HiDPI cap applied, so dpr is 1 here), and the zoom.
   function backingSize(canvas, G) {

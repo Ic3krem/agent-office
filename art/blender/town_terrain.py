@@ -81,6 +81,8 @@ for r, lv in sorted(LEVELS, key=lambda t: t[1]):
     for (a, b) in spans(x0, x1, [(n[0], n[2]) for n in notches]):  # south (+y) face, seen from the camera
         if y1 >= D: continue
         box(a, y1 - 0.2, H - 0.3, b - a, 0.35, 0.3, '#4f8f35')  # a thin grass lip, so the soil face shows
+        z0 = base(a, y1 + .1)  # contact shadow on the low ground at the cliff foot, so the step reads as height
+        box(a, y1, z0 + 0.04, b - a + 0.5, 0.55, 0.02, '#3f7a2c'); box(a, y1, z0 + 0.05, b - a + 0.25, 0.22, 0.02, '#5a3a28')
         for i in range(int((b - a) / 1.3)): box(a + i * 1.3 + rnd.uniform(0, .3), y1 + 0.15, H - 0.55, rnd.uniform(.3, .7), 0.1, rnd.uniform(.2, .35), '#4f8f35')
         for _ in range(int((b - a) * 1.2)):
             z0 = base(rnd.uniform(a, b), y1 + .1)
@@ -88,6 +90,8 @@ for r, lv in sorted(LEVELS, key=lambda t: t[1]):
     for (a, b) in spans(y0, y1, [(n[1], n[3]) for n in notches]):  # east (+x) face
         if x1 >= W: continue
         box(x1 - 0.2, a, H - 0.3, 0.35, b - a, 0.3, '#4f8f35')
+        z0 = base(x1 + .1, a)
+        box(x1, a, z0 + 0.04, 0.55, b - a, 0.02, '#3f7a2c'); box(x1, a, z0 + 0.05, 0.22, b - a, 0.02, '#5a3a28')
         for i in range(int((b - a) / 1.3)): box(x1 + 0.15, a + i * 1.3 + rnd.uniform(0, .3), H - 0.55, 0.1, rnd.uniform(.3, .7), rnd.uniform(.2, .35), '#4f8f35')
         for _ in range(int((b - a) * 1.2)):
             z0 = base(x1 + .1, rnd.uniform(a, b))
@@ -172,5 +176,8 @@ for (x0, y0, x1, y1) in BRIDGES:
 kit.flush('terrain')
 w, h, ox, oy = kit.frame(kit.bounds(), 3)
 kit.render(os.path.join(out, 'terrain.png'))
-json.dump({'originPx': [ox, oy]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'))
+# levelsHash: art-output.test checks it against town.json, so editing levels or ramps without rerunning the art fails a test
+import hashlib
+sig = ';'.join(','.join(str(v) for v in t['rect']) + ':' + str(t['level']) for t in town.get('levels', [])) + '|' + ';'.join(','.join(str(v) for v in r['rect']) + ':' + r['dir'] for r in town.get('ramps', []))
+json.dump({'originPx': [ox, oy], 'levelsHash': hashlib.sha256(sig.encode()).hexdigest()[:16]}, open(os.path.join(out, 'terrain.json'), 'w', newline='\n'))
 print('TERRAIN', w, h, ox, oy)

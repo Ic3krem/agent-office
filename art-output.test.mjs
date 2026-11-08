@@ -155,3 +155,9 @@ test('town art and town palette are frozen at step 1: bytes match MANIFEST (a re
   assert.ok(entries.length > 10);
   for (const e of entries) assert.equal(sha(e.file), e.sha256, e.file);
 });
+
+test('terrain art was generated from the current town.json levels and ramps (rerun npm run art after editing them)', () => {
+  const town = readJson('public/town/town.json'), t = readJson('public/art/town/terrain.json');
+  const sig = (town.levels || []).map(l => l.rect.join(',') + ':' + l.level).join(';') + '|' + (town.ramps || []).map(r => r.rect.join(',') + ':' + r.dir).join(';');
+  assert.equal(t.levelsHash, crypto.createHash('sha256').update(sig).digest('hex').slice(0, 16));
+});

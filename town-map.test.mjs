@@ -114,3 +114,15 @@ test('real town: 2-3 terraces, each walkable from spawn through world-path A*; p
   assert.equal(TownMap.heightAt(d, d.spawn.x, d.spawn.y), 0);
   for (const l of d.lots) assert.equal(TownMap.heightAt(d, l.door.x, l.door.y), 0, l.id);
 });
+
+test('grid: the low ground hidden behind an away-facing (west/north) cliff is blocked 2 cells deep', () => {
+  const d = real(), g = TownMap.grid(d), at = (x, y) => g.blocked[WorldPath.cellOf(g, { x, y })];
+  assert.equal(at(1305, 200), 1); assert.equal(at(1315, 200), 1);
+  assert.equal(at(1295, 200), 0, 'open past the covered strip');
+  assert.equal(at(1325, 200), 1, 'the cliff band on top');
+  assert.equal(at(1335, 200), 0, 'the hill top');
+  const north = Object.assign(real(), { levels: [{ rect: [0, 100, 300, 300], level: 1 }], ramps: [{ rect: [100, 290, 160, 370], dir: 'n' }] });
+  const gn = TownMap.grid(north), atn = (x, y) => gn.blocked[WorldPath.cellOf(gn, { x, y })];
+  assert.deepEqual([atn(200, 85), atn(200, 95), atn(200, 75)], [1, 1, 0], 'north-facing cliff');
+  assert.ok(TownMap.validate(d).ok);
+});
