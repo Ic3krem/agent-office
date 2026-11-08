@@ -308,6 +308,27 @@
 - [ ] **Step 4:** Run the same tests, then `npm test`. Expected: PASS, 0 fail.
 - [ ] **Step 5:** Commit: `Town step 5: karinderya seats for twelve and a take-out line`.
 
+### Task 7b: Plaza fountain (added 2026-11-09, user request)
+
+**Files:**
+- Modify: `public/town/town.json` (replace the plaza `well` decor at (1080, 655) with a `fountain`)
+- Modify: `public/town-map.js` (`DECOR` gains `fountain`, with a footprint like the well's but 1.5x)
+- Modify: `art/blender/town_assets.py` (`fountain` and `fountain.0`..`fountain.3` water frames: a round stone basin, a centre column, and water arcs)
+- Modify: `public/town-ambient.js` (`plan().fountains` at `water` and above)
+- Modify: `public/town-render.js` (animated water; the 2D renderer shows the rest frame)
+- Modify: `public/town/scenery-lines.json` (a `fountain` area: the plaza centre, radius 60)
+
+- [ ] **Step 1: Write failing tests:**
+  - `town-map.test.mjs`: the plaza has a `fountain` and no `well`; the plaza centre stays walkable around it; spawn can reach every door.
+  - `town-ambient.test.mjs`: `plan(map, 'water').fountains` has the fountain; `'off'` has none.
+  - `town-scenery.test.mjs`: walking up to the fountain shows a fountain line.
+- [ ] **Step 2:** Run those tests. Expected: FAIL.
+- [ ] **Step 3: Implement.** The fountain lines:
+  - Day: "Coins at the bottom, each one somebody's small hope. The water keeps all of them."
+  - Night: "The fountain talks to itself in the dark, the same soft sentence over and over."
+- [ ] **Step 4:** Run `npm test`. Expected: 0 fail.
+- [ ] **Step 5:** Commit: `Town step 5: plaza fountain`.
+
 ### Task 8: Live checks, perf and screenshots
 
 **Files:**
