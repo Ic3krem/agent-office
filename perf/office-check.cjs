@@ -85,7 +85,8 @@ app.whenReady().then(async () => {
   check('the custom layout is on disk', !!(saved && saved.objects.some(o => o.id === 'desk-9') && saved.objects.find(o => o.id === 'desk-1').x === 195));
   await w.loadURL(base + '/'); check('office reloads with the atlas', await ready(true));
   const cust = await js(`(() => {
-    const F = OfficeFurniture, rec = () => { const c = []; return { c, g: new Proxy({}, { get: (_, k) => k === 'drawImage' ? (...a) => c.push(a[0] && a[0].src || '?') : k === 'measureText' ? () => ({ width: 0 }) : k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => {}, set: () => true }) }; };
+    const F = OfficeFurniture; let atlas = null; F.sprite({ save() {}, restore() {}, drawImage(i) { atlas = i; } }, 'tires', 0, 0); // the atlas image (an ImageBitmap: no src)
+    const rec = () => { const c = []; return { c, g: new Proxy({}, { get: (_, k) => k === 'drawImage' ? (...a) => c.push(a[0] && a[0] === atlas ? 'atlas.png' : '?') : k === 'measureText' ? () => ({ width: 0 }) : k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => {}, set: () => true }) }; };
     const desks = F.objects.filter(o => o.key === 'desk' && /desk-(1|9)$/.test(o.desk));
     return { spot1: OfficeMotion.SPOTS['desk-1'], spot9: OfficeMotion.SPOTS['desk-9'], labels: desks.map(o => o.label),
       art: desks.map(o => { const r = rec(); o.src.fn(r.g); return r.c.some(s => /atlas\\.png/.test(s)); }) }; })()`);

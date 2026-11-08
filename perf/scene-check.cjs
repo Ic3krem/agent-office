@@ -129,6 +129,8 @@ app.whenReady().then(async () => {
   await shot('friend');
   await press('E'); await wait(500);
   check('friend lot: E does nothing', url() === '/town#from=games' && !(await js(`document.documentElement.classList.contains('ao-fade')`)), url());
+  // idle is pinned to Low (ambient off), as perf/town-check.cjs does: the default preset animates water and trees at its cap
+  await js(`__town.api.setGraphics(Graphics.resolve({ preset: 'low' }, Graphics.env()))`); await wait(300);
   const tf = await js('__town.api.frameCount()'); await wait(500);
   check('town idle renders nothing', (await js('__town.api.frameCount()')) === tf);
   // 5. back / forward, direct loads and a bad scene

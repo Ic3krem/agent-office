@@ -4,7 +4,8 @@
 // leaves the office, walks the town road (a reload mid-walk keeps it in place), sits at the karinderya with a chismis line
 // while the cook talks, opens its desk card on click, and walks back to its desk once the limit clears; a party friend's
 // limited agent walks from its lot to the karinderya. Then the town walk with 8 travellers (draw p95 < 8 ms, visible
-// unfocused window) and the idle budgets (office page while its agent is away, town after the travellers left).
+// unfocused window) and the idle budgets (office page while its agent is away, town after the travellers left on Low; on
+// High the ambient layer runs at its fps cap while visible and stops while hidden).
 // usage: node_modules/.bin/electron perf/travel-check.cjs [shot dir]   (prints ALL PASSED)
 const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('child_process');
@@ -154,8 +155,17 @@ app.whenReady().then(async () => {
   check('town walk with 8 travellers: draw p95 < 8 ms', p95 < 8 && walkFrames > 60 && n8 >= 6, { p50, p95, frames: walkFrames, onRoad: n8 });
   await perf.shot('town-8');
   check('perf: every traveller leaves the town', await until(() => perf.js('__town.travellers().length === 0'), leg.ms + 8000));
+  // idle is pinned to Low (ambient off), as perf/town-check.cjs does: the default preset animates water and trees at its cap
+  await perf.js(`__town.api.setGraphics(Graphics.resolve({ preset: 'low' }, Graphics.env()))`);
   await wait(500); const ti0 = await perf.js('__town.api.frameCount()'); await wait(3000);
-  check('town idle after the travellers left renders nothing', (await perf.js('__town.api.frameCount()')) === ti0);
+  check('town idle after the travellers left renders nothing (Low)', (await perf.js('__town.api.frameCount()')) === ti0);
+  // ambient (High): throttled to the preset's ambientFps while visible, stopped while hidden
+  const fps = await perf.js(`(() => { const g = Graphics.resolve({ preset: 'high' }, Graphics.env()); __town.api.setGraphics(g); return g.ambientFps; })()`);
+  await wait(500); const ta0 = await perf.js('__town.api.frameCount()'); await wait(3000); const amb = (await perf.js('__town.api.frameCount()')) - ta0;
+  check('High: ambient runs at its fps cap while visible (3 s)', amb > 0 && amb <= fps * 3 + 2, { frames: amb, ambientFps: fps });
+  perf.w.hide(); await until(() => perf.js('document.hidden'), 3000);
+  const th0 = await perf.js('__town.api.frameCount()'); await wait(3000); const ah = (await perf.js('__town.api.frameCount()')) - th0;
+  check('High: ambient stops while hidden (3 s)', (await perf.js('document.hidden')) && ah === 0, ah);
   perf.w.destroy();
 
   check('no console errors', errors.length === 0, errors);

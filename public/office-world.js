@@ -768,13 +768,16 @@
   }
   // Office art (/art/office/atlas.json + atlas.png). Missing or broken: every piece draws as a plain placeholder box of its
   // footprint geometry (live bits still on top), with one log line.
+  // The atlases go to the canvas as ImageBitmaps, not <img>: Chromium keeps every decoded <img> drawn into a canvas in its
+  // renderer-wide image decode cache after the page is gone (one 9.4 MB atlas per office visit; docs/perf/town-step4.md).
+  const bitmap = im => typeof createImageBitmap === 'function' ? createImageBitmap(im).catch(() => im) : Promise.resolve(im);
   function loadAtlas() {
     if (typeof fetch !== 'function' || typeof Image !== 'function') return;
     fetch('/art/office/atlas.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(a => { if (!a || typeof a.frames !== 'object') throw new Error('atlas.json has no frames'); return a; })
-      .then(a => new Promise((ok, no) => { const image = new Image(); image.onload = () => ok(Object.assign({}, a, { image })); image.onerror = () => no(new Error('atlas.png did not load')); image.src = '/art/office/atlas.png'; }))
-      .then(a => new Promise(ok => { const glow = new Image(); glow.onload = () => ok(Object.assign(a, { glow })); glow.onerror = () => ok(a); glow.src = '/art/office/atlas-glow.png'; })) // night windows; optional
-      .then(a => new Promise(ok => { const shadow = new Image(); shadow.onload = () => ok(Object.assign(a, { shadow })); shadow.onerror = () => ok(a); shadow.src = '/art/office/atlas-shadow.png'; })) // ground shadows (Soft); optional
+      .then(a => new Promise((ok, no) => { const image = new Image(); image.onload = () => bitmap(image).then(image => ok(Object.assign({}, a, { image }))); image.onerror = () => no(new Error('atlas.png did not load')); image.src = '/art/office/atlas.png'; }))
+      .then(a => new Promise(ok => { const glow = new Image(); glow.onload = () => bitmap(glow).then(glow => ok(Object.assign(a, { glow }))); glow.onerror = () => ok(a); glow.src = '/art/office/atlas-glow.png'; })) // night windows; optional
+      .then(a => new Promise(ok => { const shadow = new Image(); shadow.onload = () => bitmap(shadow).then(shadow => ok(Object.assign(a, { shadow }))); shadow.onerror = () => ok(a); shadow.src = '/art/office/atlas-shadow.png'; })) // ground shadows (Soft); optional
       .then(a => { F.useAtlas(a); bg = null; rebuildObjects(); wake(); }) // re-bake: floors and walls come from the atlas too
       .catch(e => console.info('Office art not loaded, drawing placeholder boxes instead:', e.message));
   }
