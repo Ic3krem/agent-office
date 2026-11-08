@@ -196,7 +196,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   process.on('uncaughtException', e => console.error('uncaught:', e && e.message));
   const env = process.env;
   const code = (env.PARTY_CODE || rand(5)).trim().toUpperCase(), adminKey = env.PARTY_ADMIN_KEY || rand(16);
-  const { port } = await startParty({ port: +env.PARTY_PORT || 4880, code, adminKey, name: cleanName(env.PARTY_NAME) || 'Agent Office party', trustProxy: env.PARTY_TRUST_PROXY || '' });
+  const { port } = await startParty({ port: +env.PARTY_PORT || 4880, code, adminKey, name: cleanName(env.PARTY_NAME) || 'TiroAgents party', trustProxy: env.PARTY_TRUST_PROXY || '' });
   console.log(`Party server on port ${port}. Invite code: ${code}`);
   console.log(`Host key (keep it; kicks people): ${adminKey}`);
   // in Docker the host port can differ from the one inside the container; compose passes it as PARTY_PUBLIC_PORT

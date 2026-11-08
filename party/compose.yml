@@ -9,7 +9,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     environment:
       PARTY_CODE: ${PARTY_CODE:-}
-      PARTY_NAME: ${PARTY_NAME:-Agent Office party}
+      PARTY_NAME: ${PARTY_NAME:-TiroAgents party}
       PARTY_ADMIN_KEY: ${PARTY_ADMIN_KEY:-}
       PARTY_TRUST_PROXY: cloudflared   # believe CF-Connecting-IP only from the tunnel container
       PARTY_TUNNEL_METRICS: http://cloudflared:2000
