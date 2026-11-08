@@ -37,7 +37,7 @@
     }
     return e;
   }
-  // The epoch's walk: the anchor -> a waypoint inside home (shrunk by 15) whose path stays inside home and is short enough
+  // The epoch's walk: the anchor -> a waypoint inside home (shrunk by 15), in a straight open line, short enough
   // to walk out and back within 80% of the epoch; after 8 misses the animal stays at its anchor. -> {pts, len}
   function legOf(a, epoch, g) {
     const e = memo(a, g);
@@ -46,11 +46,9 @@
     let leg = { pts: [e.anchor], len: 0 };
     for (let k = 0; k < 8; k++) {
       const h = fnv(a.id + '|' + epoch + '|' + k), q = { x: x0 + 15 + (h % 1000) / 1000 * (x1 - x0 - 30), y: y0 + 15 + ((h >>> 10) % 1000) / 1000 * (y1 - y0 - 30) };
-      if (!open(g, q) || Math.hypot(q.x - e.anchor.x, q.y - e.anchor.y) > max) continue;
-      const pts = W().findPath(g, e.anchor, q);
-      if (!pts.length || !pts.every(p => inR(p, a.home))) continue;
-      let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-      if (len <= max) { leg = { pts, len }; break; }
+      // a straight walk on open cells (no A*: its grid-sized scratch arrays every epoch showed up in the page's heap)
+      const len = Math.hypot(q.x - e.anchor.x, q.y - e.anchor.y);
+      if (len <= max && W().lineClear(g, e.anchor, q)) { leg = { pts: [e.anchor, q], len }; break; }
     }
     if (e.legs.size > 4) e.legs.delete(e.legs.keys().next().value); // keep a few epochs
     e.legs.set(epoch, leg);

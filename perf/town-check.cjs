@@ -13,7 +13,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, info) => { if (!ok) failed++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (info !== undefined ? '  ' + JSON.stringify(info) : '')); };
 const done = code => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); };
-setTimeout(() => { console.log('FAIL watchdog: harness exceeded 180 s'); done(1); }, 180000).unref();
+setTimeout(() => { console.log('FAIL watchdog: harness exceeded 300 s'); done(1); }, 300000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 
 app.whenReady().then(async () => {
@@ -192,6 +192,77 @@ app.whenReady().then(async () => {
   const fg = path.join(shotDir, 'town-failgl-22.png');
   fs.writeFileSync(fg, (await w.webContents.capturePage()).toPNG());
   console.log('screenshot', fg);
+
+
+  // ---- town step 5: spots. Walking into each spot shows its line once (none again within the cooldown); parked visitors
+  // draw at their points in both renderers; with ambient off nothing animates, visitors and animals included. ----
+  // Visitors: up to 13 parked agents across the spots, injected by wrapping api.setTravellers (the page's own list is empty).
+  const VIS = `(() => { const out = [], want = { park: ['sit', 'sit', 'dogwalk', 'dogwalk'], court: ['shoot', 'shoot', 'stand', 'stand'], tree: ['sit', 'sit'], waterfall: ['stand'], pasture: ['lean', 'lean'] };
+    for (const s of __town.map.spots) { const used = new Set(); for (const act of want[s.id] || []) { const k = s.points.findIndex((p, j) => p.act === act && !used.has(j)); if (k < 0) continue; used.add(k);
+      const p = s.points[k]; out.push({ id: 'vis-' + s.id + '-' + k, x: p.x, y: p.y, face: p.face, frame: 0, pose: act, spot: s.id, name: s.id + ' ' + k, moving: false, look: OfficeSprites.lookOf({ id: 'vis-' + s.id + k, name: s.id }) }); } }
+    const api = __town.api; if (!api.__orig) { api.__orig = api.setTravellers; api.setTravellers = l => api.__orig(l.concat(window.__vis)); }
+    window.__vis = out; api.setTravellers([]); return out.length; })()`;
+  const bootAt = async (preset, q = '') => {
+    await js(`localStorage.setItem('ao.powerSaver', '1'); Graphics.save({ preset: '${preset}' })`);
+    await w.loadURL(base + '/town?hour=12' + q);
+    for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
+    await wait(900);
+  };
+  await bootAt('high');
+  const lines = await js(`fetch('/town/scenery-lines.json').then(r => r.json())`);
+  const areas = (await js(`__town.map.spots.map(s => ({ id: s.id, rect: s.rect, target: s.points.find(p => p.act !== 'sit') || s.points[0] }))`))
+    .map(a => ({ ...a, lines: [...lines.spots[a.id].day, ...lines.spots[a.id].night] }));
+  const fnt = await js(`__town.map.decor.find(d => d.type === 'fountain')`);
+  areas.push({ id: 'fountain', start: { x: fnt.x, y: fnt.y + 125 }, target: { x: fnt.x, y: fnt.y + 35 }, lines: [...lines.fountain.day, ...lines.fountain.night] });
+  const arrive = async (t, ms = 12000) => { for (let i = 0; i < ms; i += 100) { const p = await pos(); if (!(await js('__town.p.moving')) && Math.hypot(p.x - t.x, p.y - t.y) < 12) return true; await wait(100); } return false; };
+  // animals off for the walk-ins: a cat that wanders up first would speak instead (one bubble at a time; unit-tested)
+  await js('window.__af = TownAnimals.frame; TownAnimals.frame = () => []; 0');
+  for (const a of areas) {
+    // a start outside the exit rect that walks to the target (the shortest of the candidates round the spot)
+    const start = a.start || await js(`(() => { const r = ${JSON.stringify(a.rect)}, t = ${JSON.stringify(a.target)}, g = __town.grid, c = [];
+      for (let k = 0; k <= 1; k += 0.1) { const x = r[0] - 60 + k * (r[2] - r[0] + 120), y = r[1] - 60 + k * (r[3] - r[1] + 120); c.push({ x, y: r[1] - 60 }, { x, y: r[3] + 60 }, { x: r[0] - 60, y }, { x: r[2] + 60, y }); }
+      let best = null; for (const q of c) { if (q.x < 15 || q.y < 15 || q.x > __town.map.size.w - 15 || q.y > __town.map.size.h - 15 || g.blocked[WorldPath.cellOf(g, q)]) continue;
+        const pth = WorldPath.findPath(g, q, t); if (!pth.length) continue; let len = 0; for (let i = 1; i < pth.length; i++) len += Math.hypot(pth[i].x - pth[i - 1].x, pth[i].y - pth[i - 1].y);
+        if (!best || len < best.len) best = { x: q.x, y: q.y, len }; } return best; })()`);
+    await js(`(() => { const q = WorldPlayer.unstick(WorldPlayer.create(${start.x}, ${start.y}), __town.grid); Object.assign(__town.p, { x: q.x, y: q.y, path: [], pi: 0 }); __town.draw(); })()`);
+    for (let i = 0; i < 80 && (await js('__town.say()')) !== null; i++) await wait(100); // one bubble at a time: let the last one go
+    const n0 = await js('__town.said()');
+    await js(`__town.walk(${a.target.x}, ${a.target.y})`);
+    const in1 = await arrive(a.target), said1 = await js('__town.said()'), text = await js('__town.say()');
+    check(`spot ${a.id}: walking in shows its line once`, in1 && said1 === n0 + 1 && a.lines.includes(text), { start, arrived: in1, said: said1 - n0, text });
+    if (a.id === 'park') { await wait(400); const f = path.join(shotDir, 'town-step5-bubble.png'); fs.writeFileSync(f, (await w.webContents.capturePage()).toPNG()); console.log('screenshot', f); }
+    await js(`__town.walk(${start.x}, ${start.y})`); await arrive(start);
+    await js(`__town.walk(${a.target.x}, ${a.target.y})`); await arrive(a.target);
+    const again = await js('__town.said()') - said1, t2 = await js('__town.say()'); // an animal may speak (cats on the plaza); the spot may not
+    check(`spot ${a.id}: walking in again within 60 s shows nothing`, again === 0 || (again === 1 && !a.lines.includes(t2)), { again, text: t2 });
+  }
+  await js('TownAnimals.frame = window.__af; 0');
+  const visitorsDrawn = async () => { // one non-moving visitor per spot: the renderer's hit test finds it at its point
+    const list = await js(`window.__vis.filter(v => v.pose !== 'dogwalk').sort((a, b) => (b.x + b.y) - (a.x + a.y)).filter((v, i, a) => a.findIndex(o => o.spot === v.spot) === i)`), miss = [];
+    for (const v of list) {
+      await js(`__town.api.setCamera(${v.x}, ${v.y})`); await wait(250);
+      const hit = await js(`(() => { const [x, y] = __town.api.toScreen(${v.x}, ${v.y}, 12); const h = __town.api.travellerAt(x, y); return h && h.id; })()`);
+      if (hit !== v.id) miss.push({ id: v.id, hit });
+    }
+    return { n: list.length, miss };
+  };
+  check('High: 13 parked visitors across the spots', (await js(VIS)) === 13);
+  const vh = await visitorsDrawn();
+  check('High: each parked visitor draws at its point', vh.n === 5 && !vh.miss.length, vh);
+  const fa = await js('__town.api.frameCount()'); await wait(2000);
+  check('High: visitors and animals animate on ambient frames (power saver cap)', (await js('__town.api.frameCount()')) - fa > 0);
+  await js(`document.documentElement.dataset.anim = 'off'`); await wait(400);
+  const fo = await js('__town.api.frameCount()'); await wait(3000);
+  check('High, ambient off: 0 frames in 3 s with visitors and animals present', (await js('__town.api.frameCount()')) === fo);
+  check('no console errors at the spots', errors.length === 0, errors);
+  await bootAt('low');
+  check('Low: 13 parked visitors', (await js(VIS)) === 13 && (await js('__town.api.kind')) === 'canvas');
+  const vl = await visitorsDrawn();
+  check('Low: each parked visitor draws at its point', vl.n === 5 && !vl.miss.length, vl);
+  await js(`__town.api.setCamera(1080, 655)`); await wait(500);
+  const fl0 = await js('__town.api.frameCount()'); await wait(3000);
+  check('Low (ambient off): 0 frames in 3 s with visitors and animals present', (await js('__town.api.frameCount()')) === fl0);
+  check('no console errors on Low at the spots', errors.length === 0, errors);
 
   console.log(failed ? 'FAILED ' + failed : 'ALL PASSED');
   done(failed ? 1 : 0);

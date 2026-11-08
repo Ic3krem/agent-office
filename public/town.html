@@ -131,14 +131,14 @@
     // Town step 5: a canned line over the player on walking into a spot, the karinderya lot or up to an animal (plain text).
     // One at a time; it fades after SHOW_MS (just goes, under reduced motion). The town page has no modal or Build mode.
     const sayEl = document.getElementById('say'), reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches || html.dataset.anim === 'off';
-    let scenery = null, sayUntil = 0, sayT = 0;
+    let scenery = null, sayUntil = 0, sayT = 0, said = 0; // said: bubbles shown (live checks)
     fetch('/town/scenery-lines.json').then(r => r.ok ? r.json() : null).then(l => { if (l) scenery = TownScenery.create(l, map); }).catch(() => {});
     const hideSay = () => { if (Date.now() < sayUntil - 50) return; if (reduced()) { sayEl.hidden = true; return; } sayEl.classList.add('fade'); sayT = setTimeout(() => { if (Date.now() >= sayUntil) sayEl.hidden = true; }, 600); };
     function sayStep() {
       if (scenery) {
         const on = api.kind === 'gpu' && /^(all|particles)$/.test(api.stats().graphics.ambient); // the animals as drawn
         const b = scenery.step({ x: p.x, y: p.y }, Date.now(), night(), TownAnimals.frame(herd, Date.now(), grid, { on, visitors: lastTrav }));
-        if (b) { sayEl.textContent = b.text; sayEl.classList.remove('fade'); sayEl.hidden = false; sayUntil = b.until; clearTimeout(sayT); sayT = setTimeout(hideSay, b.until - Date.now()); }
+        if (b) { said++; sayEl.textContent = b.text; sayEl.classList.remove('fade'); sayEl.hidden = false; sayUntil = b.until; clearTimeout(sayT); sayT = setTimeout(hideSay, b.until - Date.now()); }
       }
       if (sayEl.hidden) return;
       const r = canvas.getBoundingClientRect(), [x, y] = api.toScreen(p.x, p.y, 34);
@@ -247,7 +247,7 @@
         } catch (e) {}
       };
     } catch (e) {}
-    window.__town = { get api() { return api; }, p, grid, map, say: () => (sayEl.hidden ? null : sayEl.textContent), draw: () => draw(), toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, world: () => world, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { get api() { return api; }, p, grid, map, say: () => (sayEl.hidden ? null : sayEl.textContent), said: () => said, draw: () => draw(), walk: (x, y) => { const ok = WP.walkTo(p, { x, y }, grid); if (ok) go(); return !!ok; }, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, world: () => world, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;

@@ -117,3 +117,13 @@ test('spots: the tree of life and a seated visitor draw at rest, a shooter with 
   assert.equal(api.travellerAt(...(() => { const [sx, sy] = s.ctx.TownRender.project(90, 50, 0); return [sx, sy - 15]; })()).id, 'v3', 'the dog walker rests at its point');
   for (const k of ['tree-of-life', 'ball', 'dog.rest']) delete atlas.frames[k];
 });
+
+test('the same traveller list again draws no frame (a stream update while agents are parked)', async () => {
+  const s = sandbox(), api = await mountIn(s), look = { sig: 't' };
+  const list = () => [{ id: 't1', x: 60, y: 30, face: 's', frame: 0, look, name: 'One', pose: 'sit' }];
+  api.setTravellers(list()); s.flush(); const f = api.frameCount();
+  api.setTravellers(list()); s.flush();
+  assert.equal(api.frameCount(), f);
+  api.setTravellers([{ ...list()[0], x: 61 }]); s.flush();
+  assert.equal(api.frameCount(), f + 1);
+});

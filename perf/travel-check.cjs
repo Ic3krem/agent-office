@@ -40,7 +40,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, info) => { if (!ok) failed++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (info !== undefined ? '  ' + JSON.stringify(info) : '')); };
 const done = code => { try { child.kill(); } catch {} setTimeout(() => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); }, 500); };
-setTimeout(() => { console.log('FAIL watchdog: harness exceeded 420 s'); done(1); }, 420000).unref();
+setTimeout(() => { console.log('FAIL watchdog: harness exceeded 540 s'); done(1); }, 540000).unref();
 app.on('window-all-closed', () => {}); // the perf window opens after the others close: do not quit then
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN; };
@@ -136,6 +136,30 @@ app.whenReady().then(async () => {
   await town.js(`__town.api.setCamera(${fp.x}, ${fp.y})`); await town.shot('friend-road');
   check('friend: it reaches the karinderya and sits or stands there', await until(async () => { const a = await agentIn(kain, fid); return a && /^kain/.test(a.spot) && !a.moving; }, fleg + 15000), await agentIn(kain, fid));
   await kain.shot('kain-friend');
+
+  // ---- 5b. town step 5: an idle agent on an empty board walks out to a spot, parks at its point, walks home for work ----
+  // The idle statusAt is picked so the shared hash sends this agent (the only non-manager one: point index 0) to a spot.
+  await setFake({ agents: [fa(0, 'working', Date.now() - 1000)] });
+  const play = await office.js('OfficeMotion.travelFlags().play');
+  const pick = await town.js(`(() => { const sp = TownMap.spotsOf(__town.map).map(s => ({ id: s.id, n: 0 })); for (let s = Date.now() - 30000; s > Date.now() - 400000; s -= 7) { const d = AgentTravel.pickIdle(${JSON.stringify(id)}, s, sp, ${play}); if (/^spot:(park|court|pasture):/.test(d || '')) return { s, d }; } return null; })()`);
+  check('spot trip: a statusAt that hashes to a spot exists', !!pick, pick);
+  await setFake({ agents: [fa(0, 'idle', pick.s)] });
+  const strip = () => town.js(`(__town.trips()[${JSON.stringify(id)}] || null)`);
+  check('spot trip: the idle agent gets a trip to the spot', await until(async () => { const r = await strip(); return r && r.dest === pick.d; }, 10000), { want: pick.d, rec: await strip() });
+  const sleg = await town.js(`(r => ({ ms: Math.round(r.len / AgentTravel.TOWN_SPEED * 1000), pt: r.spot }))(AgentTravel.route(__town.map, 'home', ${JSON.stringify(pick.d)}))`);
+  check('spot trip: it leaves the office after the idle delay', await until(async () => { const a = await agentIn(office, id); return !a || a.spot === 'exit' || a.moving; }, 30000), await agentIn(office, id));
+  check('spot trip: on the road in town', await until(() => trav(), 30000), await trav());
+  check('spot trip: parked at its activity point, not moving', await until(async () => { const t = await trav(); return t && t.moving === false && Math.hypot(t.x - sleg.pt.x, t.y - sleg.pt.y) < 1 && t.pose === sleg.pt.act; }, sleg.ms + 15000), { got: await trav(), want: sleg.pt });
+  await town.js(`__town.api.setCamera(${sleg.pt.x}, ${sleg.pt.y})`); await town.shot('spot-parked');
+  check('spot trip: not in the office while out', !(await agentIn(office, id)));
+  const t3 = Date.now();
+  await setFake({ agents: [fa(0, 'working', t3)] });
+  check('spot trip: work arrives, it walks home on the road', await until(async () => { const t = await trav(); return t && t.moving !== false; }, 5000), await trav());
+  check('spot trip: back at its desk', await until(async () => { const a = await agentIn(office, id); return a && a.spot === desk && !a.moving; }, sleg.ms + 20000), { want: desk, got: await agentIn(office, id) });
+  // let its record finish (the back legs end a little after it reaches the desk) and age past section 6's back-dated
+  // statusAt (now - 6.3 s and earlier), so its section 6 trip does not queue behind this one
+  await until(() => town.js(`(r => !r || AgentTravel.where(r, Date.now(), (a, b) => AgentTravel.route(__town.map, a, b)).leg === 'home')(__town.trips()[${JSON.stringify(id)}])`), 15000);
+  await wait(10000);
 
   // ---- 6. the town walk with 8 travellers (visible, unfocused window) and town idle after they left ----
   for (const x of wins.slice(1)) x.w.destroy();

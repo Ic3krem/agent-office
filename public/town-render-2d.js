@@ -72,7 +72,7 @@
     }
 
     // Characters: {cv, px, py, z, flip}, placed by charPlace as the GPU put().
-    let player = null, trav = [], zoo = []; // zoo: the animals at rest (no ambient here), redone when a dog walker comes or goes
+    let player = null, trav = [], zoo = [], lastSig = ''; // zoo: the animals at rest (no ambient here), redone when a dog walker comes or goes
     const shown = new Map(); // traveller id -> {x, y, name, dh}
     const chars = () => (player ? trav.concat(player) : trav).concat(zoo);
     function charItem(x, y, face, pose, frame, look) {
@@ -178,6 +178,7 @@
       setPlayer({ x, y, face = 's', pose = 'stand', frame = 0, look }) { player = charItem(x, y, face, pose, frame, look); mark(); },
       setTravellers(list) {
         if (!list.length && !trav.length) return;
+        const sig = R.travSig(list); if (sig === lastSig) return; lastSig = sig; // the same list again: no frame
         shown.clear();
         const more = [];
         trav = list.map(t => { // parked visitors (pose: their spot act) show their rest frame: Low has no ambient

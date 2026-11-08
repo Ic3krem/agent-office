@@ -338,7 +338,7 @@
     let crowdOn = false, travKeys = new Set(), playerKey = null; // texture keys on screen: never evicted
     // trav: the last setTravellers list; travOn: plan.visitors when it was last drawn. Parked visitors (pose: their spot act)
     // are posed by TownAmbient.visit at the last ambient time, so a traveller frame never undoes an ambient one.
-    let trav = [], travOn = false;
+    let trav = [], travOn = false, travSig = '';
     const extras = pool(), zoo = pool(), leash = new P.Graphics();
     let zooOn = null;
     leash.visible = false; world.addChild(leash);
@@ -474,6 +474,7 @@
       // Agents walking the town: [{id, x, y, face, frame, look, name}]. Pooled sprites; renders only when something shows or just hid.
       setTravellers(list) {
         if (!list.length && !crowdOn) return;
+        const sig = travSigOf(list); if (sig === travSig) return; travSig = sig; // the same list again (a stream update with agents parked): no frame
         trav = list; drawTrav(); if (animals) drawZoo(); // a dog walker takes its dog off the herd
         crowdOn = list.length > 0;
         mark();
@@ -524,5 +525,7 @@
     for (const u of urls) { const n = (held.get(u) || 1) - 1; if (n > 0) held.set(u, n); else { held.delete(u); free.push(u); } }
     if (free.length) root.PIXI.Assets.unload(free);
   }
-  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, fetchOk, mount };
+  // What a traveller list draws: the same signature means the same picture.
+  const travSigOf = list => list.map(t => [t.id, t.x, t.y, t.face, t.frame, t.pose || '', t.look && t.look.sig].join(',')).join(';');
+  root.TownRender = { travSig: travSigOf, K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, fetchOk, mount };
 })(globalThis);
