@@ -8,3 +8,5 @@ public/art/** binary
 public/art/**/*.json -text diff
 art/palette.json binary
 art/palette.json -text diff
+art/palette-office.json binary
+art/palette-office.json -text diff
