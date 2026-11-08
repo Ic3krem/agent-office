@@ -115,16 +115,45 @@
     const p = P(x, y, 0), tx = t ? t[0] : 0, ty = t ? t[1] : 0;
     g.save(); g.imageSmoothingEnabled = false; if (a != null) g.globalAlpha *= a;
     const dx = Math.round(p[0] - f.ax + tx) - tx, dy = Math.round(p[1] - f.ay + ty) - ty;
-    if (!img && !REC && ATLAS.shadow && (ST.shadows === 'soft' || ST.shadows === 'tint')) g.drawImage(ATLAS.shadow, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h); // the rendered ground shadow (atlas.png has none); never in a click silhouette
-    g.drawImage(img || ATLAS.image, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h);
+    if (PASS) { if (!img) g.drawImage(PASS, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h); } // shadowPass: the ground shadow frame only
+    else g.drawImage(img || ATLAS.image, f.x, f.y, f.w, f.h, dx, dy, f.w, f.h);
     g.restore();
     return true;
+  }
+  // Soft shadows (the shadow sheet; atlas.png has none) go down in one pass under every piece and walker, after the walls and
+  // before the depth-sorted draw: drawn in each piece's own depth slot, a shadow darkened the pieces drawn before it. The
+  // pass runs every painter on a context that keeps only transforms and the shadow frames sprite() draws, so contact
+  // ellipses, live bits and placeholders stay out. Never in a click silhouette (measure() runs outside the pass).
+  let PASS = null; // the sheet the pass draws from
+  const KEEP = new Set(['save', 'restore', 'translate', 'scale', 'rotate', 'transform', 'setTransform']);
+  function shadowPass(g) {
+    if (!ATLAS || !ATLAS.shadow || (ST.shadows !== 'soft' && ST.shadows !== 'tint')) return;
+    const sheet = PASS = ST.shadows === 'tint' ? tintedShadow() : ATLAS.shadow;
+    const only = new Proxy(g, {
+      get: (c, k) => KEEP.has(k) ? (...a) => c[k](...a) : k === 'drawImage' ? (im, ...a) => { if (im === sheet) c.drawImage(im, ...a); } : typeof c[k] === 'function' ? NUL : c[k],
+      set: (c, k, v) => { if (k === 'globalAlpha' || k === 'imageSmoothingEnabled') c[k] = v; return true; },
+    });
+    g.save(); try { for (const it of items) it.fn(only); } finally { g.restore(); PASS = null; }
+  }
+  // 'tint' shadows: the sheet multiplied by the time-of-day tint (Graphics.tintOf, per tenth of night, as the bg and the
+  // town's shadows), alpha kept. White by day, so 'tint' matches 'soft' until dusk. One cached copy of the sheet.
+  let tinted = null;
+  function tintedShadow() {
+    const src = ATLAS.shadow, tint = root.Graphics ? root.Graphics.tintOf(Math.round(ST.night * 10) / 10) : 0xffffff;
+    if (tint === 0xffffff) return src;
+    if (tinted && tinted.tint === tint && tinted.src === src) return tinted.cv;
+    const cv = (tinted && tinted.cv) || document.createElement('canvas'); cv.width = src.width; cv.height = src.height;
+    const x = cv.getContext('2d');
+    x.drawImage(src, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = '#' + tint.toString(16).padStart(6, '0'); x.fillRect(0, 0, cv.width, cv.height);
+    x.globalCompositeOperation = 'destination-in'; x.drawImage(src, 0, 0); x.globalCompositeOperation = 'source-over';
+    tinted = { tint, src, cv }; return cv;
   }
   // ponytail: a piece whose variant frame is missing from the atlas (only from hand-edited layouts or templates) draws as a grey placeholder among the sprites; upgrade if users get colour pickers.
   const spriteOr = (name, fn, o) => {
     const [x, y] = HOME, t = CUR ? [K * (CUR.dx - CUR.dy), K2 * (CUR.dx + CUR.dy)] : null; // the same translate add() applies
     return g => {
       const art = !!(ATLAS && ATLAS.frames[name]);
+      if (PASS) { if (art) sprite(g, name, x, y, null, t); return; }
       if (REC || !art) fn(art ? NUL : g); const n = REC ? REC.length : 0; // geometry: measured, and the placeholder boxes
       if (art) { if (o && o.under) { g.save(); o.under(g); sprite(g, name, x, y, null, t); g.restore(); } else sprite(g, name, x, y, null, t); }
       if (o && o.over) o.over(g);
@@ -1068,5 +1097,5 @@
   const defaultInstances = () => JSON.parse(JSON.stringify(DEFAULTS));
   place(defaultInstances());
 
-  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, parts, homeOf, useAtlas, sprite, spriteOr, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, zoneColor, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
+  root.OfficeFurniture = { CATALOG, defaultInstances, place, footprints, parts, homeOf, useAtlas, sprite, spriteOr, shadowPass, spotsOf, measure, layer, maskHit, looseBB, P, K, K2, OXS, OYS, STW, STH, WH, bake, setZones, zoneColor, items, walls, objects, state, overlay, box, poly, flat, gell, cyl, ball, Fy, Fx, Fg, sh, mix, alpha, txt, FONT, rnd, add, pendants };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
