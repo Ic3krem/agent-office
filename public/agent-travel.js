@@ -58,7 +58,7 @@
 
   // Leg plan of a trip: [{leg, scene, ms, dir?: 1 | -1 (town legs)}], ending at the turn (forward) or back home.
   function plan(tr, r) {
-    const home = tr.fromLot && tr.fromLot !== 'home' ? 'friend:' + tr.fromLot : 'office';
+    const home = tr.fromLot && tr.fromLot !== 'home' && !tr.mine ? 'friend:' + tr.fromLot : 'office'; // mine: your agent, from your lot
     const tms = r.len / TOWN_SPEED * 1000;
     const fwd = [{ leg: 'exit', scene: home, ms: EXIT_MS }, { leg: 'town', scene: 'town', ms: tms, dir: 1 },
       { leg: 'enter', scene: tr.dest, ms: ENTER_MS }];
@@ -139,12 +139,13 @@
 
   // Per-snapshot update: records {[agentId]: trip record} -> the new records, dropping ids no longer present. Returns
   // `records` itself when nothing changed, so the page can skip its storage write. board: see departAt.
-  function sync(records, agents, destFn, now, routes, board) {
+  function sync(records, agents, destFn, now, routes, board, fromLot = 'home') { // fromLot: your lot in a party world
     const prev = records || {}, out = {};
     let same = !!records;
     for (const a of agents || []) {
       const p = prev[a.id] || null, dest = destFn(a), at = typeof a.statusAt === 'number' ? departAt(a, dest, board, p) : a.statusAt;
-      const r = trip(p, at === a.statusAt ? a : { statusAt: at }, dest, now, 'home', routes);
+      let r = trip(p, at === a.statusAt ? a : { statusAt: at }, dest, now, fromLot, routes);
+      if (r && r !== p && fromLot !== 'home' && !r.mine) r = Object.assign({}, r, { mine: true });
       if (r) out[a.id] = r;
       if (r !== (prev[a.id] || null)) same = false;
     }
@@ -181,12 +182,12 @@
       return { emptyAt };
     }
     return {
-      sync(agents, office, empty, now, routes) {
+      sync(agents, office, empty, now, routes, fromLot = 'home') {
         let stored = null;
         try { stored = JSON.parse(localStorage.getItem(TRIPS_KEY)); } catch (e) { /* no storage: memory only */ }
         let prev = plain(stored) ? stored : trips;
         if (Object.values(prev).some(r => !plain(r))) prev = Object.fromEntries(Object.entries(prev).filter(([, r]) => plain(r))); // drop junk records
-        trips = sync(prev, agents, a => destOf(a, office, empty), now, routes, boardTimes(empty, now));
+        trips = sync(prev, agents, a => destOf(a, office, empty), now, routes, boardTimes(empty, now), fromLot);
         if (trips !== stored) try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { /* memory only */ }
         return trips;
       },
@@ -199,17 +200,20 @@
         try { raw = localStorage.getItem(FRIENDS_KEY); stored = JSON.parse(raw); } catch (e) { /* no storage: memory only */ }
         const prev = plain(stored) ? stored : friendRecs, out = {}, list = [];
         const members = party && party.connected && Array.isArray(party.members) ? party.members : [];
-        const lots = root.TownMap.friendLots(members);
+        // Each member's agents leave from that member's lot in the party world (the host's from the main house).
+        const world = root.TownMap.partyWorld(party), lots = {};
+        if (world) for (const [lot, o] of Object.entries(world.owners)) if (!o.me) lots[o.id] = lot;
         for (const m of members) {
           const lot = m && lots[m.id];
           if (!lot || !Array.isArray(m.crew)) continue;
           for (const a of m.crew) {
             if (!a || typeof a.id !== 'string') continue;
-            const key = m.id + ':' + a.id, q = prev[key], limited = a.state === 'limited';
+            // limited -> the karinderya; idle (not the manager) -> the game hall once idle for IDLE_DELAY, as in their own office
+            const key = m.id + ':' + a.id, q = prev[key], limited = a.state === 'limited', dest = limited ? 'kain' : a.state === 'idle' && a.key !== 'tiro' ? 'games' : null;
             const p = plain(q) && typeof q.at === 'number' && (q.trip === undefined || plain(q.trip)) ? q : null; // junk: start afresh
-            if (!p && !limited) continue;
+            if (!p && !dest) continue;
             const at = p && p.state === a.state ? p.at : now;
-            const tr = trip(p && p.trip || null, { statusAt: at }, limited ? 'kain' : null, now, lot, routes);
+            const tr = trip(p && p.trip || null, { statusAt: dest === 'games' ? at + IDLE_DELAY : at }, dest, now, lot, routes);
             out[key] = p && p.at === at && (p.trip || null) === tr ? p : Object.assign({ state: a.state, at }, tr ? { trip: tr } : {});
             if (tr) list.push({ id: 'friend:' + key, name: (a.name || 'Helper') + ' · ' + m.name, status: a.state, trip: tr });
           }

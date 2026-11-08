@@ -706,7 +706,7 @@ test('kain: friends eat on free stools; six own eaters take the stools back and 
   const crew = [{ id: 'x1', name: 'Pixel', key: 'pixel', state: 'limited', bubble: 'On break' }, { id: 'x2', name: 'Forge', key: 'forge', state: 'limited', bubble: 'On break' }];
   const keys = Object.keys(ROSTER).slice(0, 6), late = T0 + AT.EXIT_MS + FT + AT.ENTER_MS + 1000;
   const s = snap([tiro('working'), ...keys.map(k => ag(k, 'limited', { statusAt: late }))], [goal('g1', 'doing')]);
-  s.party = { connected: true, members: [{ id: 'm1', name: 'Ana', crew }] };
+  s.party = { connected: true, you: { id: 'me', seq: 0 }, members: [{ id: 'm1', name: 'Ana', seq: 1, crew }] };
   v.at(T0); v.OW.setSnapshot(s); // the friends are first seen now
   v.at(late - 500); v.OW.setSnapshot(s); v.OW.advance(0.1);
   const ids = () => J(v.OW.debug().agents.map(a => a.id));

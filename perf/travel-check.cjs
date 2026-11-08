@@ -26,7 +26,7 @@ const merge = d => {
   d.agents = (d.agents || []).concat((f.agents || []).map(a => ({ id: 'tc-' + a.profile.key, name: a.profile.name, role: a.profile.role,
     profile: a.profile, model: 'sonnet', status: a.status, statusAt: a.statusAt, task: a.status === 'working' ? 'Checking the travel code' : '',
     errText: a.status === 'limited' ? 'Plan limit reached' : '', logs: [], perm: null, turnTok: 0 })));
-  if (f.friend) d.party = { connected: true, members: [{ id: 'm1', name: 'Ana', presence: 'available', room: 'home', agents: 1, working: 0,
+  if (f.friend) d.party = { connected: true, you: { id: 'me', name: 'Me', seq: 0 }, members: [{ id: 'm1', name: 'Ana', seq: 1, presence: 'available', room: 'home', agents: 1, working: 0,
     crew: [{ id: 'x1', name: 'Pixel', key: 'pixel', state: f.friend.status, bubble: 'On break' }] }] };
   return d;
 };

@@ -1,6 +1,8 @@
 # Host a TiroAgents party
 
-One person hosts. Everyone, the host included, joins from the TiroAgents app.
+**Easiest: host from the app.** In TiroAgents open **Party** and click **Host a party**. Your office becomes the main house of the town, you join automatically, and the panel shows the share link and the invite code with a Copy button. The first time, the app downloads Cloudflare's share-link program (`cloudflared` 2026.10.7, checked against its published SHA-256). The party lasts while your app is open.
+
+The rest of this page is for hosting with Docker instead, for example to keep a party up while your PC's app is closed. A Docker party has no host in the town, so each player keeps their own house there and the others take the friend lots.
 
 ## Host (Windows)
 

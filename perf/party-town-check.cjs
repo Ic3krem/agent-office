@@ -1,66 +1,79 @@
-// Two app servers (temp profiles, :4797 Ana and :4798 Ben) join a local party server (:4791), both open /town.
-// Checks: each town lists the other on a friend lot with an office building, Ben's walking shows up in Ana's town, and
-// Ana's #visit=<Ben> opens Ben's office. usage: node_modules/.bin/electron perf/party-town-check.cjs   (prints ALL PASSED)
+// Live check of the party world (not in npm test). Two app servers on temp profiles: Hal (:4797) hosts a party from the
+// app (Host a party, without the public tunnel) and Ben (:4798) joins it. Checks: Hal is the host; both towns lay the
+// lots out the same way (Hal's office is the main house, Ben's on friend-1); doors lead to your own office or a visit;
+// Ben comes out of his office at his own lot; each sees the other walk the town and stand in the game hall; stopping
+// the party ends it. PRESET=high runs the GPU renderer (lot changes remount Pixi over Pixi); default Low.
+// usage: node_modules/.bin/electron perf/party-town-check.cjs   (prints ALL PASSED)
 const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
 const root = path.join(__dirname, '..');
 require('./tmp-sweep.cjs').sweep();
-const PRESET = process.env.PRESET || 'low', errors = []; // PRESET=high: the GPU renderer (lot changes remount Pixi over Pixi)
+const PRESET = process.env.PRESET || 'low', errors = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const kids = [], tmps = [];
 let failed = 0;
 const check = (n, ok, info) => { if (!ok) failed++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (info !== undefined ? '  ' + JSON.stringify(info) : '')); };
 const done = c => { for (const k of kids) try { k.kill(); } catch {} for (const t of tmps) try { fs.rmSync(t, { recursive: true, force: true }); } catch {} app.exit(c); };
-setTimeout(() => { console.log('FAIL watchdog'); done(1); }, 150000).unref();
+setTimeout(() => { console.log('FAIL watchdog'); done(1); }, 240000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 const node = (args, env) => { const c = spawn(process.execPath, args, { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...env } }); c.log = ''; c.stdout.on('data', d => c.log += d); c.stderr.on('data', d => c.log += d); kids.push(c); return c; };
-app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'ao-towncheck-')));
+const until = async (fn, ms = 15000) => { let v; for (let t = 0; t < ms; t += 300) { v = await fn(); if (v) return v; await wait(300); } return v; };
+const tmpDir = () => { const t = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-towncheck-')); tmps.push(t); return t; };
+app.setPath('userData', tmpDir());
 
 app.whenReady().then(async () => {
-  const party = node([path.join(root, 'party/server.mjs')], { PARTY_PORT: '4791', PARTY_CODE: 'TEST1' });
   const mk = async (port, name) => {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-towncheck-')); tmps.push(tmp);
-    const key = crypto.randomBytes(24).toString('hex');
-    const s = node([path.join(root, 'server.mjs')], { USERPROFILE: tmp, HOME: tmp, APPDATA: path.join(tmp, 'AppData'), LOCALAPPDATA: path.join(tmp, 'Local'), AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: key });
+    const tmp = tmpDir(), key = crypto.randomBytes(24).toString('hex');
+    const s = node([path.join(root, 'server.mjs')], { USERPROFILE: tmp, HOME: tmp, APPDATA: path.join(tmp, 'AppData'), LOCALAPPDATA: path.join(tmp, 'Local'), AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: key, AGENT_OFFICE_NO_TUNNEL: '1' });
     for (let t = 0; !/running on/.test(s.log); t += 150) { if (t > 20000) throw new Error(name + ' server: ' + s.log.slice(0, 300)); await wait(150); }
     const ses = session.fromPartition(name), base = 'http://127.0.0.1:' + port;
     await ses.cookies.set({ url: base, name: 'ao_ui', value: key });
     const w = new BrowserWindow({ width: 1280, height: 800, show: false, webPreferences: { offscreen: true, contextIsolation: false, session: ses } });
     const js = x => w.webContents.executeJavaScript(x);
     w.webContents.on('console-message', e => { if (e.level === 'error') errors.push(name + ': ' + e.message); });
-    await w.loadURL(base + '/town');
-    for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
-    await js("localStorage.setItem('ao.powerSaver', '1'); Graphics.save({ preset: '" + PRESET + "' })"); await w.loadURL(base + '/town');
-    for (let t = 0; t < 15000 && !(await js('!!window.__town')); t += 200) await wait(200);
-    const j = await js(`fetch('/api/party/join', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' }, body: JSON.stringify({ url: 'http://127.0.0.1:4791', code: 'TEST1', name: '${name}' }) }).then(r => r.json())`);
-    return { w, js, base, id: j.party && j.party.you && j.party.you.id, err: j.error };
+    const load = async u => { await w.loadURL(base + u); await until(() => js('!!(window.__town || window.OfficeWorld)')); };
+    await load('/town');
+    await js(`localStorage.setItem('ao.powerSaver', '1'); Graphics.save({ preset: '${PRESET}' })`); await load('/town');
+    const post = (u, b) => js(`fetch('${u}', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' }, body: ${JSON.stringify(JSON.stringify(b))} }).then(r => r.json())`);
+    return { w, js, load, post, name, server: s };
   };
-  for (let t = 0; !/Invite code/.test(party.log); t += 100) { if (t > 10000) throw new Error('party: ' + party.log); await wait(100); }
-  const A = await mk(4797, 'Ana'), B = await mk(4798, 'Ben');
-  check('both joined', !!A.id && !!B.id, { a: A.id || A.err, b: B.id || B.err });
+  const H = await mk(4797, 'Hal'), B = await mk(4798, 'Ben');
+  const hj = await H.post('/api/party/host', { action: 'start', name: 'Hal' });
+  const hp = hj.party || {};
+  check('Hal hosts from the app and is the host', hp.connected && hp.you && hp.you.host === true && hp.hosting && hp.hosting.state === 'on' && /^[A-Z2-9]{6}$/.test(hp.hosting.code), hj.error || hp.hosting);
+  const bj = await B.post('/api/party/join', { url: 'http://' + hp.host, code: hp.hosting.code, name: 'Ben' });
+  const bid = bj.party && bj.party.you && bj.party.you.id;
+  check('Ben joins as a guest', !!bid && bj.party.you.host === false, bj.error);
 
-  let lots = []; for (let t = 0; t < 15000; t += 300) { lots = await A.js('__town.lots()'); if (lots.some(l => /^friend-1:office-/.test(l))) break; await wait(300); }
-  check("Ben's office stands on a friend lot in Ana's town", lots.some(l => /^friend-1:office-/.test(l)), lots);
-  let lotsB = []; for (let t = 0; t < 15000; t += 300) { lotsB = await B.js('__town.lots()'); if (lotsB.some(l => /^friend-1:office-/.test(l))) break; await wait(300); }
-  check("Ana's office stands on a friend lot in Ben's town", lotsB.some(l => /^friend-1:office-/.test(l)), lotsB);
+  const lotsH = await until(async () => { const l = await H.js('__town.lots()'); return l.some(x => /^friend-1:office-/.test(x)) && l; });
+  const lotsB = await until(async () => { const l = await B.js('__town.lots()'); return l.some(x => /^friend-1:office-/.test(x)) && l; });
+  check('both towns are laid out the same (Ben on friend-1, the main house is the host)', JSON.stringify(lotsH) === JSON.stringify(lotsB), { lotsH, lotsB });
+  const door = (who, lot) => who.js(`JSON.stringify(TownMap.friendTarget(__town.map.lots.find(l => l.id === '${lot}'), __town.world(), true))`);
+  check("Ben's doors: the main house visits Hal; friend-1 is his own office", /Visit Hal's office \(host\)/.test(await door(B, 'home')) && /Enter your office/.test(await door(B, 'friend-1')), [await door(B, 'home'), await door(B, 'friend-1')]);
+  check("Hal's doors: the main house is his office; friend-1 visits Ben", /#scene=office/.test(await door(H, 'home')) && /Visit Ben's office/.test(await door(H, 'friend-1')));
 
-  // Ben walks right for 1.5 s; Ana's town shows Ben near where Ben is
-  B.w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'D' }); await wait(1500); B.w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'D' });
+  // Ben comes out of his office at his own lot, not at the host's house
+  await B.load('/'); await B.load('/town#from=home'); // a real page load, as from the office's door
+  const lot1 = await B.js("__town.map.lots.find(l => l.id === 'friend-1').door");
+  const pb0 = await until(async () => { const p = await B.js('({ x: __town.p.x, y: __town.p.y })'); return Math.hypot(p.x - lot1.x, p.y - lot1.y) < 30 && p; });
+  check('Ben comes out of his office at his own lot', !!pb0, { pb0, lot1 });
+
+  // Ben walks; Hal sees him in the town
+  B.w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'W' }); await wait(1200); B.w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'W' });
   const pb = await B.js('({ x: __town.p.x, y: __town.p.y })');
-  let g = []; for (let t = 0; t < 10000; t += 300) { g = await A.js('__town.guests()'); if (g[0] && Math.hypot(g[0].x - pb.x, g[0].y - pb.y) < 3) break; await wait(300); }
-  check("Ben shows in Ana's town at Ben's position", g.length === 1 && g[0].name === 'Ben' && Math.hypot(g[0].x - pb.x, g[0].y - pb.y) < 3, { g, pb });
-  await wait(3000); // Ben's figure finishes gliding
-  const fa = await A.js('__town.api.frameCount ? __town.api.frameCount() : -1'); await wait(3000); const fb = await A.js('__town.api.frameCount ? __town.api.frameCount() : -1');
-  if (PRESET === 'low') check("Ana's town stops drawing once Ben stands still", fb - fa <= 2, { frames: fb - fa });
-  check('no console errors in either window', errors.length === 0, errors.slice(0, 3));
-  check('renderer kind', true, await A.js('__town.api.kind'));
+  const g = await until(async () => { const l = await H.js('__town.guests()'); return l[0] && Math.hypot(l[0].x - pb.x, l[0].y - pb.y) < 3 && l; });
+  check("Hal sees Ben walking the town", !!g && g[0].name === 'Ben', { g, pb });
 
-  const tgt = await A.js(`JSON.stringify(TownMap.friendTarget(__town.map.lots.find(l => l.id === 'friend-1'), ${JSON.stringify([{ id: B.id, name: 'Ben' }])}, true))`);
-  check("friend-1's door visits Ben", JSON.parse(tgt).url === '/#visit=' + B.id, tgt);
-  await A.w.loadURL(A.base + '/#visit=' + B.id);
-  let txt = ''; for (let t = 0; t < 15000; t += 300) { txt = await A.js('document.body.innerText'); if (/Visiting Ben's office/.test(txt)) break; await wait(300); }
-  check("Ana is visiting Ben's office", /Visiting Ben's office/.test(txt));
+  // the game hall is shared: both inside, each sees the other
+  await H.load('/#scene=games'); await B.load('/#scene=games');
+  const seenH = await until(() => H.js('OfficeWorld.guestIds ? OfficeWorld.guestIds() : []').then(l => l.includes(bid) && l), 20000);
+  check('Hal sees Ben in the game hall', !!seenH, seenH);
+
+  check('no console errors', errors.length === 0, errors.slice(0, 3));
+  await H.post('/api/party/host', { action: 'stop' });
+  const off = await until(async () => { const p = await B.js("fetch('/api/party/presence', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' }, body: '{}' }).then(r => r.json())"); return p.party && !p.party.connected; }, 60000);
+  check('stopping the party ends it for Ben', !!off);
   console.log(failed ? 'FAILED ' + failed : 'ALL PASSED');
   done(failed ? 1 : 0);
 });

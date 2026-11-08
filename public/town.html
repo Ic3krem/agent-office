@@ -102,17 +102,18 @@
     matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', regraph);
     new MutationObserver(regraph).observe(document.documentElement, { attributes: true, attributeFilter: ['data-anim'] });
     // #from=<lot>: back out of a scene, so start at that lot's door (town step 2)
-    const fromLot = map.lots.find(l => l.id === (/[#&]from=([^&]*)/.exec(location.hash) || [])[1]), at = fromLot ? fromLot.door : map.spawn;
-    const p = WP.unstick(WP.create(at.x, at.y), grid);
+    const fromLot = map.lots.find(l => l.id === (/[#&]from=([^&]*)/.exec(location.hash) || [])[1]);
+    const p = WP.unstick(WP.create((fromLot ? fromLot.door : map.spawn).x, (fromLot ? fromLot.door : map.spawn).y), grid), at = { x: p.x, y: p.y };
+    let fromHome = !!fromLot && fromLot.id === 'home';
     // Doors: near one, a prompt says where it goes; E or a tap on the prompt fades out and goes there. Friend lots wait for party mode.
     const doorBtn = document.getElementById('door'), html = document.documentElement;
     let near = null;
-    let party = null; // the party view from the stream (set by resync below)
+    let party = null, world = null; // the party view from the stream and its host-centric world (set by partySync below)
     const members = () => (party && party.connected && party.members) || [];
-    const target = l => TownMap.friendTarget(l, members(), !!(party && party.connected));
+    const target = l => TownMap.friendTarget(l, world, !!(party && party.connected));
     const nearDoor = () => { let best = null, bd = WP.REACH; for (const l of map.lots) { const d = Math.hypot(l.door.x - p.x, l.door.y - p.y); if (d <= bd) { bd = d; best = l; } } return best; };
-    const showDoor = () => {
-      const l = nearDoor(); if (l === near) return; near = l;
+    const showDoor = force => { // force: same door, but the party changed who owns it (the label)
+      const l = nearDoor(); if (l === near && !force) return; near = l;
       if (!l) { doorBtn.hidden = true; return; }
       const t = target(l); doorBtn.textContent = t.url ? t.label + ' · E' : t.label; doorBtn.className = t.url ? '' : 'wait'; doorBtn.hidden = false;
     };
@@ -131,9 +132,9 @@
     let snap = null, office = null, trips = {}, friends = [], tRaf = 0, tWake = 0, owv = {}, looksSig = '', hover = null;
     const officeFlags = () => fetch('/api/world', { headers: { 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' } }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.layout) { office = OfficeMotion.travelFlags(WorldModel.spotsOf(j.layout)); resync(); } }).catch(() => {});
     const resync = () => {
-      if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes);
-      if (snap) friends = trips_.friends(snap.party, Date.now(), routes); // party friends' agents: name · friend, no costume
       if (snap) partySync(snap.party);
+      if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes, (world && world.mine) || 'home');
+      if (snap) friends = trips_.friends(snap.party, Date.now(), routes); // party friends' agents: name · friend, no costume
       kick();
     };
     const kick = () => { if (!tRaf) tRaf = requestAnimationFrame(tTick); };
@@ -143,8 +144,15 @@
     let lotsKey = '[]', guestAt = 0, avKey = ''; // '[]': no friend lots, the map as loaded (no remount outside a party)
     function partySync(P) {
       party = P || null;
-      const ms = members(), key = JSON.stringify(Object.entries(TownMap.friendLots(ms)));
-      if (key !== lotsKey) { lotsKey = key; drawMap = TownMap.withFriends(map, ms); lotsDirty = true; near = null; regraph(); }
+      const ms = members(); world = TownMap.partyWorld(party);
+      const key = JSON.stringify(world ? Object.entries(world.owners).filter(([l]) => l !== 'home').map(([l, o]) => [l, o.id]) : []);
+      if (key !== lotsKey) { lotsKey = key; drawMap = TownMap.withFriends(map, world); lotsDirty = true; regraph(); }
+      showDoor(true); // door labels follow the party (who owns which lot)
+      // Out of your own office in a party where you are a guest: you come out at your lot, not the host's house (once,
+      // and only if you have not walked yet).
+      if (fromHome && world && world.mine && world.mine !== 'home' && !p.moving && p.x === at.x && p.y === at.y) {
+        const d = map.lots.find(l => l.id === world.mine).door, q = WP.unstick(WP.create(d.x, d.y), grid); p.x = q.x; p.y = q.y; fromHome = false; draw();
+      }
       const seen = new Set();
       for (const m of ms) {
         const a = m.avatar; if (!a || a.room !== 'town') continue;
@@ -217,7 +225,7 @@
         } catch (e) {}
       };
     } catch (e) {}
-    window.__town = { get api() { return api; }, p, grid, map, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { get api() { return api; }, p, grid, map, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, world: () => world, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;

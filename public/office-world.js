@@ -30,7 +30,8 @@
     const flags = inOffice() ? M.travelFlags() : travel.office;
     if (!travelOn() || !s || !flags) return;
     tripStore = tripStore || root.AgentTravel.store(); // localStorage 'ao.trips' + 'ao.boardEmptyAt', shared with the town page
-    trips = tripStore.sync(s.agents || [], flags, M.boardOf(s).empty, Date.now(), travel.routes);
+    const world = root.TownMap && root.TownMap.partyWorld ? root.TownMap.partyWorld(s.party) : null; // in a party your agents leave from your lot
+    trips = tripStore.sync(s.agents || [], flags, M.boardOf(s).empty, Date.now(), travel.routes, (world && world.mine) || 'home');
     friends = tripStore.friends(s.party, Date.now(), travel.routes); // every page records when it first saw a friend's state
   }
   // The snapshot this scene's brain sees: only agents whose trip puts them here, with door hints for the walk in or out.
@@ -315,7 +316,7 @@
   const GUEST_COL = ['#3f5f8a', '#8a3f6b', '#3e7d55', '#a0643a', '#5a4a8a', '#2f7f86'];
   function setGuests(list) {
     const keep = new Set();
-    for (const gq of (Array.isArray(list) && inOffice() ? list : []).slice(0, 16)) {
+    for (const gq of (Array.isArray(list) ? list : []).slice(0, 16)) { // the page picks who is in this room (office, karinderya or game hall)
       const k = 'guest:' + gq.id; keep.add(k);
       let n = npcs[k];
       if (!n) { const a = { id: 'guest-' + gq.id, name: gq.name, pose: 'stand', color: GUEST_COL[hashId(gq.id) % GUEST_COL.length], accent: '#ffd23f' }; n = npcs[k] = { kind: 'guest', a, w: npcBody(a, gq.x, gq.y) }; }
@@ -874,6 +875,7 @@
     demoScene: () => demo && demo.scene,
     // A party visit: a ready snapshot of a friend's office (generic bubbles only), drawn like a preview scene.
     setGuests,
+    guestIds: () => Object.keys(npcs).filter(k => k.startsWith('guest:')).map(k => k.slice(6)), // live checks
     setVisit(snap) { wake(); if (!snap) { demo = null; reset(); lastDemoSig = ''; return; } if (!demo) reset(); demo = { scene: 'visit', snap, t0: clock }; lastDemoSig = ''; brain.cfg.idleDelay = 3000; },
     debug() { return frame && { agents: frame.agents.map(a => { const w = walkers.get(a.id) || {}; return { id: a.id, name: a.name, state: a.state, spot: a.spot, pose: a.pose, badge: a.badge, x: Math.round(w.x), y: Math.round(w.y), moving: !!w.moving, face: w.face }; }), board: frame.board, reporter: frame.reporter, reps: frame.reps, reportIcon: frame.reportIcon, clock }; },
     pointOf(id) { const p = frame && frame.agents.find(a => a.id === id) && walkers.get(id); if (!p || !cv) return null; const [sx, sy] = P(p.x, p.y, 30), r = cv.getBoundingClientRect(); return { x: r.left + sx / STW * r.width, y: r.top + sy / STH * r.height }; },

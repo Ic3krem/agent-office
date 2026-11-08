@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { cleanName, cleanChat, cleanOffice, cleanAvatar, PRESENCE, LIMITS } from './party/protocol.mjs';
 
 const STREAM_MAX = 2_000_000; // one SSE event bigger than this ends the connection
+const GIVE_UP = 6; // reconnect attempts (backoff 1 s .. 30 s, about a minute) before telling the user the party is gone
 const num = v => typeof v === 'number' && Number.isFinite(v) ? v : 0;
 const gid = (v, p) => typeof v === 'string' && new RegExp('^' + p + '[0-9]{1,9}$').test(v) ? v : null;
 const people = l => (Array.isArray(l) ? l : []).slice(0, LIMITS.members).map(x => x && typeof x === 'object' ? { name: cleanName(x.name) || 'Guest', ms: Math.max(0, Math.round(num(x.ms))), wpm: Math.max(0, Math.min(1000, Math.round(num(x.wpm)))), points: Math.max(0, Math.round(num(x.points))) } : null).filter(Boolean);
@@ -33,13 +34,14 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
     if (!st || !ev || typeof ev !== 'object') return;
     const upsert = m => { if (!m || typeof m.id !== 'string' || !/^[a-f0-9]{1,16}$/.test(m.id) || m.id === st.you) return;
       if (!st.members.has(m.id) && st.members.size >= LIMITS.members) return;
-      const cur = st.members.get(m.id) || {}; st.members.set(m.id, { id: m.id, name: cleanName(m.name) || cur.name || 'Guest', office: m.office !== undefined ? cleanOffice(m.office) : cur.office || null, avatar: m.avatar !== undefined ? cleanAvatar(m.avatar) : cur.avatar || null }); };
-    if (ev.t === 'hello') { st.game = { race: null, quiz: null }; const gs = ev.game || {}; if (gs.race) onGame({ t: 'race', at: gs.at, ...gs.race }); if (gs.quiz) { onGame({ t: 'quiz', id: gs.quiz.id }); onGame({ t: 'quiz-q', at: gs.at, ...gs.quiz }); } st.members.clear(); (Array.isArray(ev.members) ? ev.members : []).slice(0, LIMITS.members).forEach(upsert); st.chat = []; (Array.isArray(ev.chat) ? ev.chat : []).forEach(addChat); }
+      const cur = st.members.get(m.id) || {}; st.members.set(m.id, { id: m.id, host: m.host === true || (m.host === undefined && !!cur.host), seq: Number.isInteger(m.seq) ? m.seq : cur.seq || 0, name: cleanName(m.name) || cur.name || 'Guest', office: m.office !== undefined ? cleanOffice(m.office) : cur.office || null, avatar: m.avatar !== undefined ? cleanAvatar(m.avatar) : cur.avatar || null }); };
+    if (ev.t === 'hello') { if (typeof ev.host === 'boolean') st.host = ev.host; if (Number.isInteger(ev.seq)) st.seq = ev.seq; st.game = { race: null, quiz: null }; const gs = ev.game || {}; if (gs.race) onGame({ t: 'race', at: gs.at, ...gs.race }); if (gs.quiz) { onGame({ t: 'quiz', id: gs.quiz.id }); onGame({ t: 'quiz-q', at: gs.at, ...gs.quiz }); } st.members.clear(); (Array.isArray(ev.members) ? ev.members : []).slice(0, LIMITS.members).forEach(upsert); st.chat = []; (Array.isArray(ev.chat) ? ev.chat : []).forEach(addChat); }
     else if (ev.t === 'member') upsert(ev.m);
     else if (ev.t === 'avatar') { const m = st.members.get(ev.id); if (m) m.avatar = cleanAvatar(ev.avatar); }
     else if (ev.t === 'leave') st.members.delete(ev.id);
     else if (ev.t === 'chat') addChat(ev.line);
     else if (ev.t === 'kicked') return drop('The host removed you from the party.');
+    else if (ev.t === 'ended') return drop('The host ended the party.');
     else onGame(ev);
     onChange();
   }
@@ -77,6 +79,7 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
     if (st !== me) return;
     me.live = false; onChange();
     if (me.poll) return poll(me);
+    if (tries >= GIVE_UP) return drop('Lost the connection to the party.'); // the server is gone (about a minute of failed reconnects)
     me.retry = setTimeout(() => stream(me, tries + 1), Math.min(30_000, 1000 * 2 ** tries)); // reconnect with backoff
   }
   // Long poll: each answer is a JSON array of events (the first one starts with a hello); errors back off.
@@ -96,19 +99,20 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
       if (st === me && me.live) { me.live = false; onChange(); }
     }
     if (st !== me) return;
+    if (tries > GIVE_UP) return drop('Lost the connection to the party.');
     me.retry = setTimeout(() => poll(me, tries), tries ? Math.min(30_000, 1000 * 2 ** (tries - 1)) : 0);
   }
 
   return {
     hashId,
-    async join(url, code, name) {
+    async join(url, code, name, hostKey) {
       const base = partyUrl(url); if (!base) throw new Error('Paste the party link (http:// or https://).');
       if (st) drop();
-      const r = await fetchImpl(base + '/join', { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: String(code || '').slice(0, 64), name: cleanName(name) || 'Guest' }), signal: AbortSignal.timeout(10_000) });
+      const r = await fetchImpl(base + '/join', { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: String(code || '').slice(0, 64), name: cleanName(name) || 'Guest', ...(hostKey ? { hostKey: String(hostKey).slice(0, 128) } : {}) }), signal: AbortSignal.timeout(10_000) });
       let j = {}; try { j = await r.json(); } catch {}
       if (!r.ok) throw new Error(typeof j.error === 'string' ? j.error.slice(0, 120) : 'Could not join (' + r.status + ').');
       if (typeof j.token !== 'string' || !/^[a-f0-9]{48}$/.test(j.token)) throw new Error('That does not look like a party server.');
-      st = { base, token: j.token, you: String(j.id || ''), name: cleanName(j.name) || 'Guest', party: cleanName(j.party) || 'Party', members: new Map(), chat: [], game: { race: null, quiz: null }, presence: 'available', ctrl: new AbortController(), live: false, lastOffice: '', avatar: '' };
+      st = { base, token: j.token, you: String(j.id || ''), host: j.host === true, seq: Number.isInteger(j.seq) ? j.seq : 0, name: cleanName(j.name) || 'Guest', party: cleanName(j.party) || 'Party', members: new Map(), chat: [], game: { race: null, quiz: null }, presence: 'available', ctrl: new AbortController(), live: false, lastOffice: '', avatar: '' };
       error = ''; stream(st); onChange(); return true;
     },
     async leave() { if (!st) return; const me = st; try { await call('/leave'); } catch {} if (st === me) drop(); },
@@ -142,9 +146,9 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
     // What the page sees: no token, no offices (those are fetched one at a time when visiting).
     view() {
       if (!st) return { connected: false, error };
-      return { connected: true, live: st.live, host: new URL(st.base).host, party: st.party, you: { id: st.you, name: st.name, presence: st.presence }, error,
+      return { connected: true, live: st.live, host: new URL(st.base).host, party: st.party, you: { id: st.you, name: st.name, presence: st.presence, host: st.host, seq: st.seq }, error,
         game: st.game,
-        members: [...st.members.values()].map(m => ({ stats: m.office ? m.office.stats : null, id: m.id, name: m.name, presence: (m.avatar && m.avatar.presence) || 'available', room: (m.avatar && m.avatar.room) || 'home', agents: m.office ? m.office.agents.length : 0, working: m.office ? m.office.agents.filter(a => a.state === 'working').length : 0, crew: m.office ? m.office.agents.map(({ id, name, key, state, bubble }) => ({ id, name, key, state, bubble })) : [], avatar: m.avatar })),
+        members: [...st.members.values()].sort((a, b) => a.seq - b.seq).map(m => ({ host: m.host, seq: m.seq, stats: m.office ? m.office.stats : null, id: m.id, name: m.name, presence: (m.avatar && m.avatar.presence) || 'available', room: (m.avatar && m.avatar.room) || 'home', agents: m.office ? m.office.agents.length : 0, working: m.office ? m.office.agents.filter(a => a.state === 'working').length : 0, crew: m.office ? m.office.agents.map(({ id, name, key, state, bubble }) => ({ id, name, key, state, bubble })) : [], avatar: m.avatar })),
         chat: st.chat.slice(-30) };
     },
   };

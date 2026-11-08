@@ -168,17 +168,34 @@ test('ramp ends meet their levels exactly: no height jump stepping onto the terr
   }
 });
 
-test('party lots: friends get an office building on a friend lot and the door visits it', () => {
-  const d = real(), members = [{ id: 'a1b2c3d4', name: 'Ana' }, { id: '0000000f', name: 'Ben' }];
-  const m = TownMap.withFriends(d, members), lot = id => m.lots.find(l => l.id === id);
-  assert.equal(lot('friend-1').building.type, TownMap.styleOf('a1b2c3d4'));
-  assert.equal(lot('friend-2').building.type, TownMap.styleOf('0000000f'));
-  assert.equal(lot('friend-3').building.type, 'lot-empty');
-  assert.equal(d.lots.find(l => l.id === 'friend-1').building.type, 'lot-empty'); // the loaded map is not changed
+test('party world: the host owns the main house, everyone else a friend lot in join order; doors lead there', () => {
+  const d = real(), lot = (m, id) => m.lots.find(l => l.id === id);
+  // Ben's app: Hal hosts, Ana joined first, Ben second, Cy third, Dee fourth (no lot)
+  const view = { connected: true, you: { id: 'b0000002', name: 'Ben', host: false, seq: 3 }, members: [
+    { id: 'd0000005', name: 'Dee', seq: 5 }, { id: 'a0000001', name: 'Ana', seq: 1 }, { id: 'f00000ff', name: 'Hal', host: true, seq: 2 }, { id: 'c0000004', name: 'Cy', seq: 4 }] };
+  const w = TownMap.partyWorld(view);
+  assert.deepEqual(Object.fromEntries(Object.entries(w.owners).map(([k, o]) => [k, o.name])), { home: 'Hal', 'friend-1': 'Ana', 'friend-2': 'Ben', 'friend-3': 'Cy' });
+  assert.equal(w.mine, 'friend-2');
+  // Ana's app sees the same town
+  const wa = TownMap.partyWorld({ connected: true, you: { id: 'a0000001', name: 'Ana', seq: 1 }, members: [{ id: 'f00000ff', name: 'Hal', host: true, seq: 2 }, { id: 'b0000002', name: 'Ben', seq: 3 }, { id: 'c0000004', name: 'Cy', seq: 4 }] });
+  assert.deepEqual(Object.fromEntries(Object.entries(wa.owners).map(([k, o]) => [k, o.id])), Object.fromEntries(Object.entries(w.owners).map(([k, o]) => [k, o.id])));
+  const m = TownMap.withFriends(d, w);
+  assert.equal(lot(m, 'friend-2').building.type, TownMap.styleOf('b0000002'));
+  assert.equal(lot(m, 'home').building.type, 'office-modern');
+  assert.equal(lot(d, 'friend-1').building.type, 'lot-empty'); // the loaded map is not changed
   assert.ok(TownMap.validate(m).ok);
-  assert.ok(['office-country', 'office-japanese', 'office-modern'].includes(TownMap.styleOf('zz')));
-  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.friendTarget(lot('friend-1'), members, true))), { url: '/#visit=a1b2c3d4', label: "Visit Ana's office" });
-  assert.equal(TownMap.friendTarget(lot('friend-3'), members, true).label, 'An empty lot');
-  assert.equal(TownMap.friendTarget(lot('friend-3'), [], false).url, null);
-  assert.equal(TownMap.friendTarget(lot('home'), members, true).url, '/#scene=office');
+  const t = id => JSON.parse(JSON.stringify(TownMap.friendTarget(lot(m, id), w, true)));
+  assert.deepEqual(t('home'), { url: '/#visit=f00000ff', label: "Visit Hal's office (host)" });
+  assert.deepEqual(t('friend-2'), { url: '/#scene=office', label: 'Enter your office' });
+  assert.deepEqual(t('friend-1'), { url: '/#visit=a0000001', label: "Visit Ana's office" });
+  assert.equal(t('kain').url, '/#scene=kain');
+  // the host's own app: home is their office, guests on the lots
+  const wh = TownMap.partyWorld({ connected: true, you: { id: 'f00000ff', name: 'Hal', host: true, seq: 2 }, members: [{ id: 'a0000001', name: 'Ana', seq: 1 }] });
+  assert.equal(wh.mine, 'home'); assert.equal(wh.owners['friend-1'].name, 'Ana');
+  assert.equal(TownMap.friendTarget(lot(d, 'home'), wh, true).url, '/#scene=office');
+  // no host in the party: you keep your house; outside a party there is no party world
+  assert.equal(TownMap.partyWorld({ connected: true, you: { id: 'a0000001', seq: 1 }, members: [{ id: 'b0000002', seq: 2 }] }).mine, 'home');
+  assert.equal(TownMap.partyWorld({ connected: false }), null);
+  assert.equal(TownMap.friendTarget(lot(d, 'friend-3'), null, false).url, null);
+  assert.equal(TownMap.friendTarget(lot(d, 'home'), null, false).url, '/#scene=office');
 });

@@ -25,7 +25,7 @@ test('cleaners drop unknown fields and clamp everything', () => {
   assert.equal(cleanOffice({ layout: { big: 'x'.repeat(LIMITS.layoutBytes) } }).layout, null);
   assert.equal(cleanOffice({ agents: Array.from({ length: 50 }, (_, i) => ({ id: 'a' + i, name: 'n' })) }).agents.length, LIMITS.agents);
   assert.deepEqual(cleanAvatar({ x: 1e9, y: -5, room: 'office:../../etc', presence: 'root' }), { x: 4000, y: 0, room: 'home', presence: 'available' });
-  assert.equal(cleanAvatar({ x: 1, y: 2, room: 'town' }).room, 'town'); // the shared town square (town step 5: party lots)
+  for (const r of ['town', 'kain', 'games']) assert.equal(cleanAvatar({ x: 1, y: 2, room: r }).room, r); // the party town's shared places
   assert.equal(cleanName('  <b>Bo\u0000b</b>  \u2028'), 'Bo b');
   assert.equal(cleanName('Room 2089 \u202eevil'), 'Room 2089 evil', 'digits survive; bidi overrides do not');
   assert.equal(cleanChat('call 2028 0829'), 'call 2028 0829');
@@ -321,4 +321,27 @@ test('client poll: a failed poll asks for a resync; one throwing event does not 
     assert.deepEqual(urls.filter(u => u.startsWith('/poll')).slice(0, 4), ['/poll', '/poll', '/poll?resync=1', '/poll']);
   } finally { await A.leave(); }
   const k = urls.length; await new Promise(r => setTimeout(r, 300)); assert.equal(urls.length, k, 'leave stops the loop');
+});
+
+test('party host: the member who joins with the host key is the host; everyone gets a join order', () => {
+  const P = createParty({ code: 'HOST01', adminKey: 'k'.repeat(24) });
+  const a = P.join({ code: 'HOST01', name: 'Ana' }, '1.1.1.1'), h = P.join({ code: 'HOST01', name: 'Hal', hostKey: 'k'.repeat(24) }, '1.1.1.2');
+  const b = P.join({ code: 'HOST01', name: 'Ben', hostKey: 'wrong' }, '1.1.1.3');
+  assert.equal(a.body.host, false); assert.equal(h.body.host, true); assert.equal(b.body.host, false);
+  assert.ok(a.body.seq < h.body.seq && h.body.seq < b.body.seq);
+  const ben = P.member(b.body.token), hello = P.hello(ben);
+  assert.deepEqual(hello.members.map(m => [m.name, m.host, typeof m.seq]), [['Ana', false, 'number'], ['Hal', true, 'number']]);
+  assert.equal(hello.host, false); assert.equal(hello.seq, b.body.seq);
+  const h2 = P.join({ code: 'HOST01', name: 'Hal2', hostKey: 'k'.repeat(24) }, '1.1.1.4'); // one host at a time
+  assert.equal(h2.body.host, false);
+  P.leave(P.member(h.body.token));
+  assert.equal(P.join({ code: 'HOST01', name: 'Hal3', hostKey: 'k'.repeat(24) }, '1.1.1.5').body.host, true); // a host who left can come back
+  assert.equal(createParty({ code: 'X1' }).join({ code: 'X1', name: 'Z', hostKey: '' }, '9').body.host, false); // no admin key: no host
+});
+
+test('party end: the host ends the party and every member hears it', () => {
+  const P = createParty({ code: 'END001' }), got = [];
+  for (const n of ['Ana', 'Ben']) { const j = P.join({ code: 'END001', name: n }, n); P.attach(P.member(j.body.token), ev => ev && got.push(n + ':' + ev.t)); }
+  got.length = 0; P.end();
+  assert.deepEqual(got.sort(), ['Ana:ended', 'Ben:ended']);
 });

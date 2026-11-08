@@ -2,12 +2,13 @@
 // so it runs from a plain `node server.mjs` or the Docker image, behind a Cloudflare quick tunnel or on IP:port.
 // Everything lives in memory; nothing is written to disk. Every message goes through party/protocol.mjs.
 //
-//   POST /join   {code, name}          -> {token, id, name, party}   (invite code; 16 members at most)
+//   POST /join   {code, name, hostKey?} -> {token, id, name, party, host, seq}   (invite code; 16 members at most; the host key makes you the host)
 //   GET  /events  Authorization: Bearer <token>   SSE: hello, member, leave, chat, kicked
 //   GET  /poll    Authorization: Bearer <token>   long poll: JSON array of the same events (tunnels that buffer SSE);
 //                 ?resync=1 restarts the queue with a hello (the client asks after a failed poll: delivery is at most once)
 //   POST /office {office}  /avatar {avatar}  /chat {text}  /leave        (Bearer token)
 //   POST /admin/kick {id}  x-admin-key: <key>                              (host only; also bans that address)
+//   POST /admin/end         x-admin-key: <key>                              (host only; tells everyone the party ended)
 //   GET  /health
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -34,10 +35,11 @@ export function limiter(rate, burst, now = () => Date.now()) {
 
 const POLL = { events: 200, bytes: 1_000_000 }; // a poller's queue; past either cap it gets a fresh hello instead
 // The party itself, without HTTP (tested directly). send(member, event) delivers to that member's stream.
-export function createParty({ code, name = 'Agent Office party', now = () => Date.now(), gameOpts = {} }) {
+export function createParty({ code, name = 'TiroAgents party', adminKey = '', now = () => Date.now(), gameOpts = {} }) {
   const byToken = new Map(), banned = new Set(), chat = [];
+  let seq = 0; // join order: every app lays the friend lots out the same way
   // members as relayed: the office without its layout (that can be 300 KB); a visit asks for it with /office-of
-  const pub = m => ({ id: m.id, name: m.name, office: m.office && { ...m.office, layout: undefined }, avatar: m.avatar });
+  const pub = m => ({ id: m.id, name: m.name, host: m.host, seq: m.seq, office: m.office && { ...m.office, layout: undefined }, avatar: m.avatar });
   const others = (m, ev) => { for (const o of byToken.values()) if (o !== m) o.send && o.send(ev); };
   const all = ev => { for (const o of byToken.values()) o.send && o.send(ev); };
   const games = createGames({ broadcast: all, now, ...gameOpts });
@@ -50,14 +52,16 @@ export function createParty({ code, name = 'Agent Office party', now = () => Dat
       let nm = cleanName(body.name) || 'Guest';
       const taken = new Set([...byToken.values()].map(m => m.name.toLowerCase()));
       for (let i = 2; taken.has(nm.toLowerCase()); i++) nm = cleanName(nm.slice(0, 16)) + ' ' + i;
-      const m = { token: rand(24), id: rand(6), name: nm, addr, office: null, avatar: null, last: now(), send: null };
+      // The host (whoever holds the host key, e.g. the app that started the party) owns the town: their office is the main house.
+      const host = !!adminKey && typeof body.hostKey === 'string' && safeEqual(body.hostKey, adminKey) && ![...byToken.values()].some(o => o.host);
+      const m = { token: rand(24), id: rand(6), name: nm, host, seq: ++seq, addr, office: null, avatar: null, last: now(), send: null };
       byToken.set(m.token, m);
       others(m, { t: 'member', m: pub(m) });
-      return { status: 200, body: { token: m.token, id: m.id, name: m.name, party: name } };
+      return { status: 200, body: { token: m.token, id: m.id, name: m.name, party: name, host: m.host, seq: m.seq } };
     },
     member: token => (typeof token === 'string' && byToken.get(token)) || null,
     officeOf: id => { const m = [...byToken.values()].find(x => x.id === id); return m ? m.office : null; },
-    hello: m => ({ t: 'hello', you: m.id, party: name, members: [...byToken.values()].filter(o => o !== m).map(pub), chat, game: games.state() }),
+    hello: m => ({ t: 'hello', you: m.id, host: m.host, seq: m.seq, party: name, members: [...byToken.values()].filter(o => o !== m).map(pub), chat, game: games.state() }),
     attach(m, send) { if (m.send && m.send !== send) m.send(null); m.send = send; m.last = now(); send(api.hello(m)); },
     // Long poll: reply(jsonArray) is called once, when events are queued (or with [] when a newer poll replaces it).
     // The member's send becomes a capped queue (first poll gets the hello); returns a cancel for timeout or close.
@@ -85,6 +89,8 @@ export function createParty({ code, name = 'Agent Office party', now = () => Dat
     avatar(m, a) { const c = cleanAvatar(a); if (!c) return false; m.avatar = c; m.last = now(); others(m, { t: 'avatar', id: m.id, avatar: c }); return true; },
     say(m, text) { const t = cleanChat(text); if (!t) return false; const line = { id: m.id, name: m.name, text: t, at: now() }; chat.push(line); if (chat.length > LIMITS.chatKeep) chat.shift(); m.last = now(); all({ t: 'chat', line }); return true; },
     leave(m, why = 'left') { if (!byToken.delete(m.token)) return; if (why === 'kicked' && m.send) m.send({ t: 'kicked' }); m.send && m.send(null); others(m, { t: 'leave', id: m.id }); },
+    // The host ends the party: everyone hears it before the server goes away (their apps leave instead of retrying).
+    end() { all({ t: 'ended' }); },
     kick(id) { const m = [...byToken.values()].find(x => x.id === id); if (!m) return false; banned.add(m.addr); api.leave(m, 'kicked'); return true; },
     // members without a stream, or without a poll, for 90 s are gone
     reap() { const t = now(); for (const m of [...byToken.values()]) if ((!m.send || m.send.q) && t - m.last > 90_000) api.leave(m, 'timeout'); },
@@ -111,7 +117,7 @@ const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referr
 // trustProxy: the host name of the tunnel container (cloudflared). Its CF-Connecting-IP header is believed only on requests
 // that really come from that container's address, so a direct IP:port visitor cannot fake an address to dodge a ban.
 export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name, trustProxy = '', pollMs = 20_000, maxStreams = LIMITS.members * 2 } = {}) {
-  const party = createParty({ code, name });
+  const party = createParty({ code, name, adminKey });
   const joinLimit = limiter(0.2, 5), badJoins = limiter(0.5, 20), msgLimit = limiter(10, 20), chatLimit = limiter(1, 3), officeLimit = limiter(1, 3), kickLimit = limiter(0.5, 5), pollLimit = limiter(5, 10);
   const ipKey = a => a.includes(':') ? a.split(':').slice(0, 4).join(':') : a; // IPv6 by /64
   let proxyIps = new Set();
@@ -164,9 +170,10 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
         if (r.status === 403 && !badJoins('all')) return json(res, 429, { error: 'too many tries; wait a minute' }); // all wrong codes, from every address
         return json(res, r.status, r.body);
       }
-      if (url.pathname === '/admin/kick') {
+      if (url.pathname === '/admin/kick' || url.pathname === '/admin/end') {
         if (!kickLimit('admin')) return json(res, 429, { error: 'slow down' });
         if (!adminKey || !safeEqual(req.headers['x-admin-key'] || '', adminKey)) return json(res, 403, { error: 'host only' });
+        if (url.pathname === '/admin/end') { party.end(); return json(res, 200, {}); }
         const b = await readBody(req, 4096); return json(res, party.kick(String(b.id || '')) ? 200 : 404, {});
       }
       const m = party.member(token); if (!m) return json(res, 401, { error: 'join first' });
@@ -196,7 +203,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   process.on('uncaughtException', e => console.error('uncaught:', e && e.message));
   const env = process.env;
   const code = (env.PARTY_CODE || rand(5)).trim().toUpperCase(), adminKey = env.PARTY_ADMIN_KEY || rand(16);
-  const { port } = await startParty({ port: +env.PARTY_PORT || 4880, code, adminKey, name: cleanName(env.PARTY_NAME) || 'TiroAgents party', trustProxy: env.PARTY_TRUST_PROXY || '' });
+  // Hosted from the app: stdin is a pipe from it, so the party ends when the app does; PARTY_BIND=127.0.0.1 keeps it
+  // off the network (friends come in through the tunnel).
+  if (env.PARTY_PARENT_PIPE === '1') { const gone = () => process.exit(0); process.stdin.on('end', gone); process.stdin.on('error', gone); process.stdin.resume(); }
+  const { port } = await startParty({ host: env.PARTY_BIND || '0.0.0.0', port: +env.PARTY_PORT || 4880, code, adminKey, name: cleanName(env.PARTY_NAME) || 'TiroAgents party', trustProxy: env.PARTY_TRUST_PROXY || '' });
   console.log(`Party server on port ${port}. Invite code: ${code}`);
   console.log(`Host key (keep it; kicks people): ${adminKey}`);
   // in Docker the host port can differ from the one inside the container; compose passes it as PARTY_PUBLIC_PORT

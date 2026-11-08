@@ -16,7 +16,8 @@ import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
 import { createPartyClient } from './party-client.mjs';
-import { feedOf, cleanAvatar } from './party/protocol.mjs';
+import { createPartyHost } from './party-host.mjs';
+import { feedOf, cleanAvatar, cleanName } from './party/protocol.mjs';
 import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, lookStore, graphicsStore, promptHash, paceFor, paceError, priorityError, hirePace } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
@@ -91,6 +92,9 @@ const lookBox = lookStore(path.join(CFG_DIR, 'kiro.json')); // wardrobe costumes
 const graphicsBox = graphicsStore(path.join(CFG_DIR, 'kiro.json')); // graphics preset (kiro.json graphics)
 // Party (phase 7): one optional connection to a party server. What leaves this machine is feedOf() only (party/protocol.mjs).
 const partyClient = createPartyClient({ onChange: () => bump() });
+// Host a party from the app: its own party server + share link; you join as the host (the main house of the town).
+const partyHost = createPartyHost({ dir: CFG_DIR, join: (u, c, n, k) => partyClient.join(u, c, n, k), leave: () => partyClient.leave(), onChange: () => bump(), log: m => console.error(m) });
+const partyView = () => ({ ...partyClient.view(), hosting: partyHost.status() });
 let partyAvatar = null; // the CEO's position, from the page
 // Optional retention ("retentionDays" in kiro.json, 7 or more): old finished goals, history summaries and reports are deleted at start.
 let RETENTION_DAYS = 0; try { RETENTION_DAYS = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')).retentionDays; } catch {}
@@ -536,7 +540,7 @@ function snapshot() {
   for (const id of statusSince.keys()) if (!agents.has(id)) statusSince.delete(id); // prune gone agents only: one dropped from the room for a while keeps its stamp
   return {
     worldVersion: Object.fromEntries(SCENES.map(s => [s, worldStore.version(s)])), // per scene: a window reacts only to its own room
-    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, looks: lookBox.get(), party: partyClient.view(), hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
+    guard: { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices }, manager, goals: goals.list().map(g => ({ priority: 'normal', pace: null, ...g, report: g.report || reportOf[g.id] })), reportsN: allReports.length, usage: { days: ledger.summary(), limits, credits: credits.days(), creditsSince: credits.since() }, names: dn, looks: lookBox.get(), party: partyView(), hires: hires.pending().map(h => ({ ...h, ...hirePace(goals.list().find(g => g.id === h.goalId), sw(), limits, overLimit(), h.key) })), boss: { active: !!boss.id, running: boss.running, max: MAX_SPECIALISTS, paused: boss.paused }, switches: sw(), rack: host.status(), claudeMissing: !CLAUDE, memoryN: V.graph().nodes.length, doneReports: allReports.filter(r => r.outcome === 'done').length, tasksDone, overflow: Math.max(0, list.length - deskCap), roster: roster.desks().map(({ key, desk }) => ({ key, name: dn[key], role: ROSTER[key].role, desk })),
     // one bad agent is dropped (null, then filtered); the rest still stream
     agents: out.map(a => { try { return {
       isManager: !!a.isManager,
@@ -777,11 +781,16 @@ async function handle(req, res) {
       case '/api/guard/status': return json(res, 200, { ...secGuard.status(), config: guardState().eff.config, notices: guardState().eff.notices, remembered: guardState().rem.length });
       case '/api/names': return json(res, 200, { names: dnames(), defaults: { tiro: 'Tiro', ...Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, r.name])) }, overrides: nameBox.get() });
       case '/api/names/set': { try { nameBox.set(String(b.key), b.name); } catch (e) { return json(res, e.status || 400, { error: e.message }); } bump(); return json(res, 200, { names: dnames(), overrides: nameBox.get() }); }
-      case '/api/party/join': { try { await partyClient.join(b.url, b.code, b.name); } catch (e) { return json(res, 400, { error: String(e.message || e).slice(0, 160) }); } return json(res, 200, { party: partyClient.view() }); }
-      case '/api/party/leave': { await partyClient.leave(); partyAvatar = null; return json(res, 200, { party: partyClient.view() }); }
+      case '/api/party/join': { try { await partyClient.join(b.url, b.code, b.name, typeof b.hostKey === 'string' ? b.hostKey : ''); } catch (e) { return json(res, 400, { error: String(e.message || e).slice(0, 160) }); } return json(res, 200, { party: partyView() }); }
+      case '/api/party/host': {
+        if (b.action === 'stop') { await partyHost.stop(); partyAvatar = null; return json(res, 200, { party: partyView() }); }
+        try { await partyHost.start(cleanName(b.name)); } catch (e) { return json(res, 400, { error: String(e.message || e).slice(0, 160) }); }
+        return json(res, 200, { party: partyView() });
+      }
+      case '/api/party/leave': { if (partyHost.status().state !== 'off') await partyHost.stop(); else await partyClient.leave(); partyAvatar = null; return json(res, 200, { party: partyView() }); }
       case '/api/party/game': { if (!['race', 'type', 'quiz', 'answer'].includes(b.action)) return json(res, 400, { error: 'unknown game action' }); const { action, ...rest } = b; try { return json(res, 200, await partyClient.game(action, rest)); } catch (e) { return json(res, 502, { error: 'party server unreachable' }); } }
       case '/api/party/chat': return json(res, (await partyClient.say(b.text)) ? 200 : 400, {});
-      case '/api/party/presence': return json(res, (await partyClient.setPresence(b.presence)) ? 200 : 400, { party: partyClient.view() });
+      case '/api/party/presence': return json(res, (await partyClient.setPresence(b.presence)) ? 200 : 400, { party: partyView() });
       case '/api/party/avatar': { partyAvatar = cleanAvatar(b); return json(res, 200, {}); }
       case '/api/party/office': { const o = await partyClient.office(String(b.id || '')).catch(() => null); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'not in the party' }); }
       case '/api/graphics': return json(res, 200, { graphics: graphicsBox.get() });

@@ -204,21 +204,36 @@
     return out;
   }
 
-  // Party lots: the map with each assigned friend lot showing an office building (style picked from the member id, the
-  // same on every page), and where a lot's door leads. members: the party view's list (never includes you).
+  // Party world (host-centric): the host's office is the main house ('home'); every other member, you included, gets a
+  // friend lot in join order, so every app shows the same town. With no host in the party (a server joined without the
+  // host key) you keep your own house and the others get the lots. view: the party view
+  // ({connected, you: {id, name, host, seq}, members: [{id, name, host, seq}]}). -> {owners: {[lotId]: {id, name, me?}},
+  // mine: your lot or null (past the three friend lots)} or null outside a party.
   const STYLES = ['office-country', 'office-japanese', 'office-modern'];
   const styleOf = id => STYLES[parseInt(String(id).slice(0, 8), 16) % STYLES.length || 0] || STYLES[0];
-  function withFriends(map, members) {
-    const lots = friendLots(members), byLot = {};
-    for (const [id, lot] of Object.entries(lots)) byLot[lot] = id;
-    return Object.assign({}, map, { lots: map.lots.map(l => byLot[l.id] ? Object.assign({}, l, { building: Object.assign({}, l.building, { type: styleOf(byLot[l.id]) }) }) : l) });
+  function partyWorld(view) {
+    if (!view || !view.connected || !view.you || typeof view.you.id !== 'string') return null;
+    const me = { id: view.you.id, name: view.you.name, host: !!view.you.host, seq: view.you.seq || 0, me: true };
+    const all = [me, ...(Array.isArray(view.members) ? view.members : []).filter(m => m && typeof m.id === 'string' && m.id !== me.id)]
+      .sort((a, b) => (a.seq || 0) - (b.seq || 0));
+    const host = all.find(m => m.host) || me, owners = { home: host };
+    all.filter(m => m !== host).slice(0, FRIEND_LOTS.length).forEach((m, i) => { owners[FRIEND_LOTS[i]] = m; });
+    return { owners, mine: Object.keys(owners).find(k => owners[k].me) || null };
   }
-  function friendTarget(lot, members, connected) {
-    if (!lot || lot.kind !== 'friend') return enterTarget(lot);
-    const lots = friendLots(members), id = Object.keys(lots).find(k => lots[k] === lot.id), m = id && members.find(x => x.id === id);
-    if (m) return { url: '/#visit=' + encodeURIComponent(m.id), label: 'Visit ' + (m.name || 'Guest') + "'s office" };
+  // The map with an office building on every owned friend lot (style from the owner's id, the same on every app).
+  function withFriends(map, world) {
+    const owners = (world && world.owners) || {};
+    return Object.assign({}, map, { lots: map.lots.map(l => l.kind === 'friend' && owners[l.id] ? Object.assign({}, l, { building: Object.assign({}, l.building, { type: styleOf(owners[l.id].id) }) }) : l) });
+  }
+  // Where a lot's door leads in the party world: your own office, a visit to the owner's office, or the shared rooms.
+  function friendTarget(lot, world, connected) {
+    if (!lot || (lot.kind !== 'friend' && lot.kind !== 'home')) return enterTarget(lot);
+    const o = world && world.owners[lot.id];
+    if (o && o.me) return lot.kind === 'home' ? enterTarget(lot) : { url: '/#scene=office', label: 'Enter your office' };
+    if (o) return { url: '/#visit=' + encodeURIComponent(o.id), label: 'Visit ' + (o.name || 'Guest') + "'s office" + (lot.kind === 'home' ? ' (host)' : '') };
+    if (lot.kind === 'home') return enterTarget(lot);
     return { url: null, label: connected ? 'An empty lot' : 'Friend lots open in party mode' };
   }
 
-  root.TownMap = { validate, grid, heightAt, LEVEL_H, decorFootprint, load, enterTarget, lotOfScene, friendLots, withFriends, friendTarget, styleOf };
+  root.TownMap = { validate, grid, heightAt, LEVEL_H, decorFootprint, load, enterTarget, lotOfScene, friendLots, partyWorld, withFriends, friendTarget, styleOf };
 })(globalThis);

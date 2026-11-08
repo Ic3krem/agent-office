@@ -47,7 +47,7 @@ export function cleanOffice(o) {
 const coord = v => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(4000, Math.round(v))) : 0;
 export function cleanAvatar(a) {
   if (!plain(a)) return null;
-  const room = a.room === 'lounge' || a.room === 'town' || (typeof a.room === 'string' && /^office:[a-z0-9]{1,16}$/.test(a.room)) ? a.room : 'home';
+  const room = ['lounge', 'town', 'kain', 'games'].includes(a.room) || (typeof a.room === 'string' && /^office:[a-z0-9]{1,16}$/.test(a.room)) ? a.room : 'home';
   return { x: coord(a.x), y: coord(a.y), room, presence: PRESENCE.includes(a.presence) ? a.presence : 'available' };
 }
 
