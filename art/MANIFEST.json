@@ -45,28 +45,28 @@
   },
   {
    "file": "public/art/town/atlas-glow.png",
-   "sha256": "d6bf8f0e629287c2f1a0d90cf6517e7b7748cc466e3a951f9a59a759d4842b3f",
+   "sha256": "cb740c93ba5a2972322cc687d116bbd564d2f44b48e1ebef937a3af5e5d4c6c3",
    "script": "art/blender/town_assets.py + art/post.py",
    "date": "2026-11-08",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/atlas-shadow.png",
-   "sha256": "c557381b5fbd205faef2072bba413e354604ba7420f4970cede65e54269d0b41",
+   "sha256": "90db51c5ba1dadee9df26e8b1435fe0b5495d3eb7a497a022853dd3ba31b6b7a",
    "script": "art/blender/town_assets.py + art/post.py",
    "date": "2026-11-08",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/atlas.json",
-   "sha256": "783122c452a7a7389a9f823a9385e7cf6868b8a3c5330e6a9fcb6b3ceed8e729",
+   "sha256": "b82f29a12bb1a24153bcfcb079cf683d7b791580d4ea51286d699fdd910c3585",
    "script": "art/blender/town_assets.py + art/post.py",
    "date": "2026-11-08",
    "license": "Apache-2.0 (original)"
   },
   {
    "file": "public/art/town/atlas.png",
-   "sha256": "8be82977aed6af3140338f0aef450342834e6efa80e1eb7403391490c1a6571c",
+   "sha256": "17a693795b18285e6f4d97bb4bf3fd71e3555be906a1a9579a4e09add38e5d4c",
    "script": "art/blender/town_assets.py + art/post.py",
    "date": "2026-11-08",
    "license": "Apache-2.0 (original)"

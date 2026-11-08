@@ -268,3 +268,16 @@ test('spotPoint: spot:<id>:<n> gives point n mod the point count; unknown or mal
   assert.ok(TownMap.spotsOf(d).every(s => s.n === d.spots.find(o => o.id === s.id).points.length));
   assert.deepEqual(JSON.parse(JSON.stringify(TownMap.spotsOf({}))), []);
 });
+
+// ---------- town step 5, task 7b: the plaza fountain ----------
+test('the plaza has a fountain and no well; the plaza round it stays walkable and every door reachable', () => {
+  const d = real(), g = TownMap.grid(d), at = (x, y) => g.blocked[WorldPath.cellOf(g, { x, y })];
+  const f = d.decor.filter(it => it.type === 'fountain');
+  assert.equal(f.length, 1); assert.equal(d.decor.filter(it => it.type === 'well').length, 0);
+  const [x0, y0, x1, y1] = d.plaza, { x, y } = f[0];
+  assert.ok(x > x0 && x < x1 && y > y0 && y < y1, 'on the plaza');
+  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.decorFootprint(f[0]))), [x - 7.5, y - 7.5, x + 7.5, y + 7.5], '1.5x the well footprint');
+  assert.equal(at(x, y), 1, 'the basin blocks');
+  for (const [dx, dy] of [[0, -20], [0, 20], [-20, 0], [20, 0]]) assert.equal(at(x + dx, y + dy), 0, 'walkable round it ' + dx + ',' + dy);
+  for (const l of d.lots) assert.ok(WorldPath.findPath(g, d.spawn, l.door).length > 0, l.id);
+});

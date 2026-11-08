@@ -356,15 +356,15 @@ def tree_of_life():
         for k in range(6):
             t = k / 5; r = r0 + (r1 - r0) * t
             box(math.cos(a) * r - .25, math.sin(a) * r - .25, 0, .5, .5, 0.45 * (1 - t) + 0.12, ['#6b4226', '#5a3a22'][k % 2])
-    cyl(0, 0, 0, 1.2, 6.5, '#6b4226', 12); cyl(0.3, 0.2, 0, 1.0, 5.0, '#5a3a22', 10)
-    for (dx, dy, z0) in [(-1.4, 0.4, 5.5), (1.5, -0.3, 6.0), (0.2, 1.4, 6.5)]:
+    cyl(0, 0, 0, 1.2, 5.0, '#6b4226', 12); cyl(0.3, 0.2, 0, 1.0, 4.0, '#5a3a22', 10)
+    for (dx, dy, z0) in [(-1.4, 0.4, 3.8), (1.5, -0.3, 4.2), (0.2, 1.4, 4.6)]:
         for k in range(5): cyl(dx * k / 4, dy * k / 4, z0 + k * 0.7, 0.75 - k * 0.08, 0.8, '#6b4226', 8)
     tones = ('#2f6a2c', '#3e7d34', '#4e9a3c', '#62b04a')
-    for (dx, dy, dz, r) in [(0, 0, 10.5, 4.8), (-3.6, 1.2, 8.8, 3.6), (3.4, -1.4, 9.2, 3.6), (1.0, 3.6, 8.6, 3.4), (-1.4, -3.6, 9.4, 3.4),
-                            (3.2, 2.6, 9.6, 3.0), (-3.4, 3.0, 9.0, 2.8), (-3.6, -2.6, 9.8, 2.8), (2.8, -3.6, 10.0, 2.8),
-                            (1.6, 1.4, 13.0, 3.4), (-2.0, -0.6, 13.2, 3.2), (0.4, -1.8, 14.8, 2.6), (-0.6, 1.2, 15.6, 2.2)]:
+    for (dx, dy, dz, r) in [(0, 0, 9.1, 4.8), (-3.6, 1.2, 7.4, 3.6), (3.4, -1.4, 7.8, 3.6), (1.0, 3.6, 7.2, 3.4), (-1.4, -3.6, 8.0, 3.4),
+                            (3.2, 2.6, 8.2, 3.0), (-3.4, 3.0, 7.6, 2.8), (-3.6, -2.6, 8.4, 2.8), (2.8, -3.6, 8.6, 2.8),
+                            (1.6, 1.4, 11.6, 3.4), (-2.0, -0.6, 11.8, 3.2), (0.4, -1.8, 13.4, 2.6), (-0.6, 1.2, 14.2, 2.2)]:
         blob(dx, dy, dz, r, R().choice(tones))
-    for _ in range(36): blob(R().uniform(-5, 5), R().uniform(-5, 5), R().uniform(8.5, 15.5), 0.45, R().choice(['#7cc455', '#62b04a']))
+    for _ in range(36): blob(R().uniform(-5, 5), R().uniform(-5, 5), R().uniform(7.1, 14.1), 0.45, R().choice(['#7cc455', '#62b04a']))
     return 3.6, 3.6
 
 
@@ -453,6 +453,27 @@ def cat(step):
 def ball(): blob(0, 0, 0.25, 0.25, '#d9773a'); return 0, 0
 
 
+
+def fountain(k=None):
+    # the plaza fountain: a round stone basin, a centre column with a bowl, water arcing out; k: water frame 0..3 (None: at rest)
+    def build():
+        for a in range(20):
+            ang = a / 20 * 2 * math.pi; box(math.cos(ang) * 2.6 - .4, math.sin(ang) * 2.6 - .4, 0, 0.8, 0.8, 0.8, ['#a39f99', '#8f8b85', '#b3aea6'][a % 3])
+        cyl(0, 0, 0, 2.3, 0.6, '#3f8fc4', 20); cyl(0, 0, 0.6, 2.2, 0.02, '#4f9fd1', 20)
+        cyl(0, 0, 0, 0.35, 2.6, '#a39f99', 10); cyl(0, 0, 2.2, 1.0, 0.25, '#8f8b85', 14); cyl(0, 0, 2.45, 0.85, 0.05, '#4f9fd1', 14)
+        cyl(0, 0, 2.5, 0.15, 0.8, '#bfe6ff', 6)
+        ph = 0 if k is None else k
+        for j in range(8):  # eight arcs from the bowl's lip down into the basin, the drops step along each arc per frame
+            ang = j / 8 * 2 * math.pi
+            for s in range(5):
+                t = ((s + ph * 0.25) % 5) / 5
+                r = 0.9 + 1.0 * t; z = 2.45 + 0.6 * math.sin(math.pi * t * 0.9) - 2.0 * t * t
+                box(math.cos(ang) * r - .08, math.sin(ang) * r - .08, max(0.6, z), .16, .16, .16, '#bfe6ff' if s % 2 else '#d8f4ff')
+        for j in range(6): blob(math.cos(j + ph) * 1.6, math.sin(j + ph) * 1.6, 0.62, 0.18, '#f2f2ee')
+        return 1.5, 1.5
+    return build
+
+
 ASSETS = {
     'office-modern': office_modern, 'office-country': office_country, 'office-japanese': office_japanese,
     'karinderya': karinderya, 'gamehall': gamehall, 'lot-empty': lot_empty,
@@ -460,6 +481,7 @@ ASSETS = {
     'bush': lambda: (bush(0, 0, 0.8, True), (1, 1))[1], 'bench': bench, 'lamp': lambda: (lamp(0, 0), (1, 1))[1], 'well': well,
     'barrel': lambda: (barrel(0, 0), (1, 1))[1], 'crate': lambda: (crate(-0.45, -0.45), (1, 1))[1], 'flowers': flowers, 'sign': sign,
     'bench-s': bench_s, 'tree-of-life': tree_of_life, 'hoop': hoop, 'fence-x': fence_x, 'fence-y': fence_y, 'cow-trough': trough, 'flowerbed': flowerbed,
+    'fountain': fountain(), **{'fountain.%d' % k: fountain(k) for k in range(4)},
     'waterfall': falls(0), **{'waterfall.%d' % k: falls(k) for k in range(4)},
     'cow.rest': cow(0), 'cow.walk0': cow(1), 'cow.walk1': cow(2), 'dog.rest': dog(0), 'dog.walk0': dog(1), 'dog.walk1': dog(2),
     'cat.rest': cat(0), 'cat.walk0': cat(1), 'cat.walk1': cat(2), 'cat.sleep': cat(3), 'ball': ball,

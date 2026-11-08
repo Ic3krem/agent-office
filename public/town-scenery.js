@@ -6,16 +6,18 @@
   'use strict';
   const SHOW_MS = 6000, COOLDOWN_MS = 60000, ANIMAL_R = 40, ANIMAL_COOLDOWN_MS = 30000, GROW = 20, EXIT = 30;
   const grow = (r, d) => [r[0] - d, r[1] - d, r[2] + d, r[3] + d];
-  const inR = (p, r) => p.x >= r[0] && p.x < r[2] && p.y >= r[1] && p.y < r[3];
+  const inR = (p, r) => r.length === 3 ? Math.hypot(p.x - r[0], p.y - r[1]) < r[2] : p.x >= r[0] && p.x < r[2] && p.y >= r[1] && p.y < r[3]; // rect, or circle [x, y, r]
+  const FOUNTAIN_R = 60;
   const list = v => Array.isArray(v) ? v.filter(s => typeof s === 'string') : [];
 
-  // lines: {spots: {<id>: {day, night}}, kain: {day, night}, animals: {<kind>: [..]}}; map: the town (spots, lots).
+  // lines: {spots: {<id>: {day, night}}, kain: {day, night}, fountain: {day, night}, animals: {<kind>: [..]}}; map: the town.
   function create(lines, map) {
     const areas = [];
-    const add = (id, rect, set) => { const day = list(set && set.day), night = list(set && set.night); if (rect && day.length) areas.push({ id, rect, exit: grow(rect, EXIT), day, night: night.length ? night : day, inside: false, leftAt: null, n: 0 }); };
+    const add = (id, rect, set) => { const day = list(set && set.day), night = list(set && set.night); if (rect && day.length) areas.push({ id, rect, exit: rect.length === 3 ? [rect[0], rect[1], rect[2] + EXIT] : grow(rect, EXIT), day, night: night.length ? night : day, inside: false, leftAt: null, n: 0 }); };
     for (const s of map.spots || []) add(s.id, s.bubble || grow(s.rect, GROW), lines.spots && lines.spots[s.id]);
     const kain = (map.lots || []).find(l => l.kind === 'kain');
     if (kain) add('kain', kain.rect, lines.kain);
+    (map.decor || []).filter(it => it.type === 'fountain').forEach((f, i) => add('fountain' + i, [f.x, f.y, FOUNTAIN_R], lines.fountain)); // the plaza fountain
     const pets = new Map(); // animal id -> {at: last shown, n}
     let until = -Infinity;
     return {

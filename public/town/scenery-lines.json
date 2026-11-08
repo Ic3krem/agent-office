@@ -21,6 +21,10 @@
    "night": ["Dark shapes in the field, breathing. The fence keeps nothing in; they just stay."]
   }
  },
+ "fountain": {
+  "day": ["Coins at the bottom, each one somebody's small hope. The water keeps all of them."],
+  "night": ["The fountain talks to itself in the dark, the same soft sentence over and over."]
+ },
  "kain": {
   "day": ["Rice steam, a radio, someone's tita laughing. The pot never seems to empty."],
   "night": []

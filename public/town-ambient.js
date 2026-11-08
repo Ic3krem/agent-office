@@ -23,10 +23,11 @@
   // trees[].id is the index in map.decor (the renderer's sprite key). Town step 5: falls (the waterfall props) from 'water',
   // visitors (spot activities: hoop shots, dog walks) from 'all'.
   function plan(map, ambient) {
-    const out = { water: [], trees: [], particles: [], falls: [], visitors: false };
+    const out = { water: [], trees: [], particles: [], falls: [], fountains: [], visitors: false };
     if (ambient === 'off' || !ambient) return out;
     out.water = waterPoints(map);
     for (const sp of map.spots || []) for (const p of sp.props || []) if (p.type === 'waterfall') out.falls.push({ x: p.x, y: p.y });
+    for (const it of map.decor || []) if (it.type === 'fountain') out.fountains.push({ x: it.x, y: it.y });
     if (ambient === 'water') return out;
     out.visitors = true;
     map.decor.forEach((d, id) => { if (/^tree/.test(d.type)) out.trees.push({ id, x: d.x, y: d.y }); });
@@ -36,7 +37,7 @@
     if (kain) out.particles.push({ kind: 'steam', x: kain.building.x, y: kain.building.y });
     return out;
   }
-  const isEmpty = p => !p.water.length && !p.trees.length && !p.particles.length && !(p.falls || []).length && !p.visitors;
+  const isEmpty = p => !p.water.length && !p.trees.length && !p.particles.length && !(p.falls || []).length && !(p.fountains || []).length && !p.visitors;
 
   const frameDue = (lastMs, nowMs, fps) => nowMs - lastMs >= 1000 / fps - 1;
 

@@ -169,13 +169,17 @@ test('terrain art was generated from the current town.json levels and ramps (rer
 test('town step 5 frames: spot props, waterfall and animal frames are in the atlas; the tree of life is the tallest sprite', () => {
   const town = readJson('public/town/town.json'), atlas = readJson('public/art/town/atlas.json'), F = atlas.frames;
   const want = ['tree-of-life', 'hoop', 'fence-x', 'fence-y', 'cow-trough', 'flowerbed', 'bench-s', 'waterfall', 'waterfall.0', 'waterfall.1', 'waterfall.2', 'waterfall.3',
-    'cow.rest', 'cow.walk0', 'cow.walk1', 'dog.rest', 'dog.walk0', 'dog.walk1', 'cat.rest', 'cat.walk0', 'cat.walk1', 'cat.sleep', 'ball'];
+    'cow.rest', 'cow.walk0', 'cow.walk1', 'dog.rest', 'dog.walk0', 'dog.walk1', 'cat.rest', 'cat.walk0', 'cat.walk1', 'cat.sleep', 'ball', 'fountain', 'fountain.0', 'fountain.1', 'fountain.2', 'fountain.3'];
   for (const n of want) assert.ok(F[n], 'missing frame ' + n);
   for (const s of town.spots) for (const p of s.props) assert.ok(F[p.type], 'no frame for spot prop ' + p.type);
   assert.ok(F['tree-of-life'].footprint[2] > F['tree-of-life'].footprint[0], 'the tree of life has a footprint (contact blob)');
-  const tallest = Object.entries(F).sort((a, b) => b[1].h - a[1].h)[0][0];
+  // tallest = reaches highest above its ground point (ay), not the frame height, which also counts a footprint's depth
+  const tallest = Object.entries(F).sort((a, b) => b[1].ay - a[1].ay)[0][0];
   assert.equal(tallest, 'tree-of-life');
-  assert.ok(F['tree-of-life'].h > F['office-modern'].h);
+  // its crown must stay inside the terrain view (the camera never shows above the map's top edge)
+  const t = readJson('public/art/town/terrain.json'), p = town.spots.find(s => s.id === 'tree').props[0];
+  const lvl = town.levels.filter(l => p.x >= l.rect[0] && p.x < l.rect[2] && p.y >= l.rect[1] && p.y < l.rect[3]).reduce((m, l) => Math.max(m, l.level), 0);
+  assert.ok(t.originPx[1] + 0.35355339 * (p.x + p.y) - lvl * t.levelH - F['tree-of-life'].ay >= 0, 'the tree of life crown is on screen');
   const [W, H] = atlas.size;
   assert.ok(W <= 2048 && H <= 2048 && W * H <= 1024 * 497 + 2048 * 2048, 'atlas ' + W + 'x' + H + ' within step 4 plus one 2048 page');
 });

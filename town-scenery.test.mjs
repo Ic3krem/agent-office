@@ -65,3 +65,13 @@ test('one bubble at a time: an animal line does not replace a spot line inside i
   assert.equal(step(sc, mid, 3000, 0, [dog]), null, 'no animal line while the spot line shows');
   assert.equal(step(sc, mid, S.SHOW_MS + 1, 0, [dog]).text, lines.animals.dog[0], 'after it fades');
 });
+
+test('walking up to the plaza fountain (within 60 units) shows a fountain line', () => {
+  const sc = S.create(lines, map), f = map.decor.find(d => d.type === 'fountain');
+  assert.ok(lines.fountain.day.length && lines.fountain.night.length);
+  assert.equal(step(sc, { x: f.x, y: f.y + 70 }, 0), null, '70 units: not yet');
+  assert.equal(step(sc, { x: f.x, y: f.y + 50 }, 100).text, lines.fountain.day[0]);
+  assert.equal(step(sc, { x: f.x + 20, y: f.y + 70 }, 200), null, 'still inside the exit circle');
+  const night = S.create(lines, map);
+  assert.equal(step(night, { x: f.x - 40, y: f.y }, 0, 0.9).text, lines.fountain.night[0]);
+});

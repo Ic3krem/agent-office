@@ -268,10 +268,11 @@
       return col;
     };
     for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);
-    map.decor.forEach((d, i) => place(d.type, d.x, d.y, i));
-    // Spots (town step 5): their props; the waterfall's colour sprite flips through waterfall.0..3 on ambient frames.
-    const falls = [];
-    for (const sp of map.spots || []) for (const p of sp.props || []) { const s = place(p.type, p.x, p.y); if (s && p.type === 'waterfall') falls.push({ s, x: p.x, y: p.y, name: p.type }); }
+    // Town step 5: the waterfall and the plaza fountain's colour sprites flip through <type>.0..3 on ambient frames.
+    const falls = [], plays = { waterfall: 'falls', fountain: 'fountains' };
+    const placeLive = (type, x, y, i) => { const s = place(type, x, y, i); if (s && plays[type]) falls.push({ s, x, y, type, name: type }); };
+    map.decor.forEach((d, i) => placeLive(d.type, d.x, d.y, i));
+    for (const sp of map.spots || []) for (const p of sp.props || []) placeLive(p.type, p.x, p.y); // spot props
     // An atlas frame on a pooled sprite at world (x, y), z px up, mirrored for flip (animals face right): balls and dogs.
     const atlasSprite = () => { const s = new P.Sprite(P.Texture.EMPTY); s.cullable = true; world.addChild(s); sprites++; return s; };
     function putFrame(s, e) {
@@ -309,8 +310,9 @@
     };
     function animate(t) {
       ambT = t;
-      const fk = plan.falls.length ? 'waterfall.' + (Math.floor(t / 160) % 4) : 'waterfall';
-      for (const w of falls) if (w.name !== fk && atlas.frames[fk]) {
+      for (const w of falls) {
+        const fk = plan[plays[w.type]].length ? w.type + '.' + (Math.floor(t / 160) % 4) : w.type;
+        if (w.name === fk || !atlas.frames[fk]) continue;
         const f = atlas.frames[fk], [sx, sy] = atGround(w.x, w.y);
         w.name = fk; w.s.texture = frameTex(tex[colourUrl].source, fk); w.s.position.set(Math.round(sx - f.ax), Math.round(sy - f.ay));
       }

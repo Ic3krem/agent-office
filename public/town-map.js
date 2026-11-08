@@ -5,7 +5,7 @@
   const LOT_IDS = ['home', 'kain', 'games', 'friend-1', 'friend-2', 'friend-3'];
   const KINDS = ['home', 'kain', 'games', 'friend'];
   const BUILDINGS = ['office-country', 'office-japanese', 'office-modern', 'karinderya', 'gamehall', 'lot-empty'];
-  const DECOR = ['tree-round', 'tree-pine', 'bush', 'bench', 'lamp', 'well', 'barrel', 'crate', 'flowers', 'sign'];
+  const DECOR = ['tree-round', 'tree-pine', 'bush', 'bench', 'lamp', 'well', 'fountain', 'barrel', 'crate', 'flowers', 'sign'];
   const FACES = ['n', 'e', 's', 'w'];
   // Spots (town step 5): outdoor places idle agents walk out to. kind === id. Props block cells by footprint (relative to
   // x, y; null: drawn only). A seat ('sit') may stand on its bench's blocked cell; every other point needs an open one.
@@ -71,7 +71,10 @@
     return out;
   }
 
-  const decorFootprint = it => (!it || it.type === 'flowers' || !num(it.x) || !num(it.y)) ? null : [it.x - 5, it.y - 5, it.x + 5, it.y + 5];
+  const decorFootprint = it => { // the plaza fountain's basin is 1.5x the well's
+    if (!it || it.type === 'flowers' || !num(it.x) || !num(it.y)) return null;
+    const r = it.type === 'fountain' ? 7.5 : 5; return [it.x - r, it.y - r, it.x + r, it.y + r];
+  };
 
   // Water rects with the bridges cut out; each cut leaves strips left, right, above and below the bridge.
   function waterBlocks(water, bridges) {

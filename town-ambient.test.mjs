@@ -119,3 +119,10 @@ test('visit: a dog walker goes round the park loop with the dog on a leash behin
   assert.equal(A.visit({ id: 'l', x: 5, y: 6, face: 'n', pose: 'lean', spot: 'pasture' }, 0, map, true).pose, 'stand');
   assert.equal(A.visit({ id: 'g', x: 5, y: 6, face: 'n', pose: 'dogwalk', spot: 'gone' }, 0, map, true).pose, 'stand', 'no loop: stands');
 });
+
+test('plan: the plaza fountain plays from water up; off has none', () => {
+  const f = map.decor.find(d => d.type === 'fountain');
+  assert.deepEqual(JSON.parse(JSON.stringify(A.plan(map, 'water').fountains)), [{ x: f.x, y: f.y }]);
+  assert.equal(A.plan(map, 'all').fountains.length, 1);
+  assert.equal(A.plan(map, 'off').fountains.length, 0);
+});
