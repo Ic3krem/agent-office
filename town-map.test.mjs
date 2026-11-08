@@ -151,3 +151,19 @@ test('grid: a ramp in each direction (n, s, e, w) is walkable from its foot to t
     assert.ok(WorldPath.findPath(g, foot, top).length > 0, dir + ' ramp: a path from foot to top');
   }
 });
+
+test('ramp ends meet their levels exactly: no height jump stepping onto the terrace or off the foot, in any direction', () => {
+  const along = (r, u) => { const [x0, y0, x1, y1] = r.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2; // u = 0 at the foot, 1 at the top edge
+    return { n: [cx, y1 - u * (y1 - y0)], s: [cx, y0 + u * (y1 - y0)], e: [x0 + u * (x1 - x0), cy], w: [x1 - u * (x1 - x0), cy] }[r.dir]; };
+  const base = { size: { w: 600, h: 600 }, cell: 10, lots: [], decor: [], water: [], bridges: [], paths: [], plaza: [0, 0, 10, 10] };
+  const maps = [real(), ...[['n', [0, 0, 600, 200], [280, 190, 340, 350]], ['s', [0, 400, 600, 600], [280, 250, 340, 410]],
+    ['e', [400, 0, 600, 600], [250, 280, 410, 340]], ['w', [0, 0, 200, 600], [190, 280, 350, 340]]].map(([dir, lv, rect]) => ({ ...base, levels: [{ rect: lv, level: 1 }], ramps: [{ rect, dir }] }))];
+  for (const d of maps) for (const r of d.ramps) {
+    const H = u => TownMap.heightAt(d, ...along(r, u)), run = r.dir === 'n' || r.dir === 's' ? r.rect[3] - r.rect[1] : r.rect[2] - r.rect[0];
+    const step = 0.25 / run, top = H(1 + step), foot = H(-step); // just past each end, off the ramp
+    assert.equal(top % TownMap.LEVEL_H, 0, r.dir + ' ramp top is on a level'); assert.equal(foot % TownMap.LEVEL_H, 0);
+    assert.ok(Math.abs(H(1 - 1e-9) - top) < 1e-6 && Math.abs(H(0) - foot) < 1e-6, r.dir + ' ramp ' + JSON.stringify(r.rect) + ' meets both levels: ' + [H(0), foot, H(1 - 1e-9), top]);
+    const slope = (top - foot) * step;
+    for (let u = -4 * step; u < 1 + 4 * step; u += step) assert.ok(Math.abs(H(u + step) - H(u)) <= slope + 1e-6, r.dir + ' no jump at u=' + u.toFixed(4));
+  }
+});
