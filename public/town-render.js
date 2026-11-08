@@ -159,7 +159,8 @@
     const undo = [];
     try { return await build(canvas, opts, undo); } catch (e) { for (const f of undo.reverse()) try { f(); } catch {} throw e; }
   }
-  async function build(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.high, hour = null }, undo) {
+  // animals (town step 5): (t, on, visitors) -> [{id, kind, x, y, face: 'l' | 'r', frame}], asked on ambient frames.
+  async function build(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.high, hour = null, animals = null }, undo) {
     const P = root.PIXI, SP = root.OfficeSprites;
     const getJson = async u => (await fetchOk(u)).json();
     const [atlas, terrain] = await Promise.all([getJson(atlasUrl), getJson(terrainUrl)]);
@@ -236,14 +237,16 @@
     };
     let sprites = chunks.length;
     const glows = new Set(), trees = new Map(); // trees: decor index -> colour sprite (ambient sway)
-    const place = (type, x, y, decorId) => {
+    const place = (type, x, y, decorId) => { // -> the colour sprite
       const f = atlas.frames[type];
-      if (!f) return;
+      if (!f) return null;
       const [sx, sy] = atGround(x, y), px = Math.round(sx - f.ax), py = Math.round(sy - f.ay);
+      let col = null;
       for (const [layer, src] of [[world, tex[colourUrl].source], [soft, tex[shadowUrl].source]]) {
         const s = new P.Sprite(frameTex(src, type));
         s.position.set(px, py); s.cullable = true; s.zIndex = depthOf(x, y);
         layer.addChild(s); sprites++;
+        if (layer === world) col = s;
         if (layer === world && /^tree/.test(type)) { s.pivot.set(f.ax, f.ay); s.position.set(px + f.ax, py + f.ay); trees.set(decorId, s); } // sway skews about the foot
       }
       if (f.glow && hasGlow) { // lit windows: just after the colour sprite, untinted; alpha set by applyGraphics
@@ -257,14 +260,29 @@
         s.anchor.set(0.5); s.position.set(Math.round(sx), Math.round(sy)); s.scale.set(POOL_R * 2 / PW, POOL_R / PW); s.cullable = true;
         pools.addChild(s); sprites++;
       }
-      if (f.footprint) {
+      if (f.footprint && f.footprint[2] > f.footprint[0]) { // fences, water and animals have no contact blob
         const b = blobOf(f), s = new P.Sprite(blobTex);
         s.anchor.set(0.5); s.position.set(px + b.cx, py + b.cy); s.scale.set(b.rx * 2 / BW, b.ry * 2 / BH); s.cullable = true;
         blobs.addChild(s); sprites++;
       }
+      return col;
     };
     for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);
-    map.decor.forEach((d, i) => place(d.type, d.x, d.y, i));
+    // Town step 5: the waterfall and the plaza fountain's colour sprites flip through <type>.0..3 on ambient frames.
+    const falls = [], plays = { waterfall: 'falls', fountain: 'fountains' };
+    const placeLive = (type, x, y, i) => { const s = place(type, x, y, i); if (s && plays[type]) falls.push({ s, x, y, type, name: type }); };
+    map.decor.forEach((d, i) => placeLive(d.type, d.x, d.y, i));
+    for (const sp of map.spots || []) for (const p of sp.props || []) placeLive(p.type, p.x, p.y); // spot props
+    // An atlas frame on a pooled sprite at world (x, y), z px up, mirrored for flip (animals face right): balls and dogs.
+    const atlasSprite = () => { const s = new P.Sprite(P.Texture.EMPTY); s.cullable = true; world.addChild(s); sprites++; return s; };
+    function putFrame(s, e) {
+      const f = atlas.frames[e.frame];
+      if (!f) { s.visible = false; return; }
+      const [sx, sy] = atGround(e.x, e.y);
+      s.texture = frameTex(tex[colourUrl].source, e.frame); s.anchor.set(f.ax / f.w, f.ay / f.h);
+      s.position.set(Math.round(sx), Math.round(sy - (e.z || 0))); s.scale.x = e.flip ? -1 : 1;
+      s.zIndex = depthOf(e.x, e.y) + 2e-3; s.tint = tintNow;
+    }
 
     // Ambient (town step 4): sprites made once; animate(t) shows what the plan for G.ambient asks for.
     const AMB = root.TownAmbient, sparkles = [], parts = [];
@@ -292,6 +310,14 @@
     };
     function animate(t) {
       ambT = t;
+      for (const w of falls) {
+        const fk = plan[plays[w.type]].length ? w.type + '.' + (Math.floor(t / 160) % 4) : w.type;
+        if (w.name === fk || !atlas.frames[fk]) continue;
+        const f = atlas.frames[fk], [sx, sy] = atGround(w.x, w.y);
+        w.name = fk; w.s.texture = frameTex(tex[colourUrl].source, fk); w.s.position.set(Math.round(sx - f.ax), Math.round(sy - f.ay));
+      }
+      if (travOn !== plan.visitors || (plan.visitors && trav.some(v => v.pose === 'shoot' || v.pose === 'dogwalk'))) drawTrav(); // spot activities move only on ambient frames
+      if (animals && (plan.visitors || zooOn !== plan.visitors)) drawZoo(); // animals walk on ambient frames; otherwise they rest
       const water = plan.water.length > 0;
       for (let i = 0; i < sparkles.length; i++) sparkles[i].visible = water && AMB.sparkleOn(i, t);
       for (let i = 0; i < treeList.length; i++) { const { s, id, on } = treeList[i]; s.skew.x = on ? -AMB.sway(id, t) / s.pivot.y : 0; } // crown moves sway px (sin x ~ x)
@@ -310,6 +336,12 @@
     player.visible = false; world.addChild(player); sprites++;
     const charTex = new Map(), crowd = pool(), shown = new Map(); // shown: traveller id -> {x, y, name}
     let crowdOn = false, travKeys = new Set(), playerKey = null; // texture keys on screen: never evicted
+    // trav: the last setTravellers list; travOn: plan.visitors when it was last drawn. Parked visitors (pose: their spot act)
+    // are posed by TownAmbient.visit at the last ambient time, so a traveller frame never undoes an ambient one.
+    let trav = [], travOn = false, travSig = '';
+    const extras = pool(), zoo = pool(), leash = new P.Graphics();
+    let zooOn = null;
+    leash.visible = false; world.addChild(leash);
     function charTexture(look, view, pose, frame, dir) {
       const key = [look.sig, view, pose, frame, dir].join('/');
       let t = charTex.get(key);
@@ -330,6 +362,32 @@
       s.zIndex = c.z; // ties: characters after sprites
       s.visible = true;
       return key;
+    }
+
+    function drawZoo() {
+      zooOn = plan.visitors;
+      const list = animals(ambT, plan.visitors, trav).map(a => ({ id: a.id, frame: a.kind + '.' + a.frame, x: a.x, y: a.y, flip: a.face === 'l' }));
+      for (const [e, s] of syncPool(zoo, list, atlasSprite)) putFrame(s, e);
+    }
+    function drawTrav() {
+      shown.clear(); travKeys = new Set(); travOn = plan.visitors;
+      const more = [], lines = [];
+      for (const [t, s] of syncPool(crowd, trav, () => { const s = new P.Sprite(P.Texture.EMPTY); world.addChild(s); sprites++; return s; })) {
+        const v = t.pose && t.pose !== 'walk' ? AMB.visit(t, ambT, map, plan.visitors) : t;
+        travKeys.add(put(s, v.x, v.y, v.face, v.pose || 'walk', v.frame, t.look));
+        shown.set(t.id, { x: v.x, y: v.y, name: t.name, dh: s.texture.height - SP.H });
+        if (v.ball) more.push({ id: 'ball:' + t.id, frame: 'ball', x: v.ball.x, y: v.ball.y, z: v.ball.z });
+        if (v.dog) { more.push({ id: 'dog:' + t.id, frame: 'dog.' + v.dog.frame, x: v.dog.x, y: v.dog.y, flip: v.dog.face === 's' || v.dog.face === 'w' }); lines.push([v, v.dog]); }
+      }
+      for (const [e, s] of syncPool(extras, more, atlasSprite)) putFrame(s, e);
+      if (!lines.length && !leash.visible) return;
+      leash.clear(); let z = 0;
+      for (const [v, d] of lines) { // hand to collar, 1 px
+        const [hx, hy] = atGround(v.x, v.y), [dx, dy] = atGround(d.x, d.y);
+        leash.moveTo(Math.round(hx) + 5, Math.round(hy) - 9).lineTo(Math.round(dx), Math.round(dy) - 5); z = Math.max(z, depthOf(v.x, v.y));
+      }
+      if (lines.length) leash.stroke({ width: 1, color: 0x3a2416 });
+      leash.visible = lines.length > 0; leash.zIndex = z + 3e-3; leash.tint = tintNow;
     }
 
     // Count GL draw calls per render (WebGL only).
@@ -416,11 +474,8 @@
       // Agents walking the town: [{id, x, y, face, frame, look, name}]. Pooled sprites; renders only when something shows or just hid.
       setTravellers(list) {
         if (!list.length && !crowdOn) return;
-        shown.clear(); travKeys = new Set();
-        for (const [t, s] of syncPool(crowd, list, () => { const s = new P.Sprite(P.Texture.EMPTY); world.addChild(s); sprites++; return s; })) {
-          travKeys.add(put(s, t.x, t.y, t.face, 'walk', t.frame, t.look));
-          shown.set(t.id, { x: t.x, y: t.y, name: t.name, dh: s.texture.height - SP.H });
-        }
+        const sig = travSigOf(list); if (sig === travSig) return; travSig = sig; // the same list again (a stream update with agents parked): no frame
+        trav = list; drawTrav(); if (animals) drawZoo(); // a dog walker takes its dog off the herd
         crowdOn = list.length > 0;
         mark();
       },
@@ -431,6 +486,8 @@
       },
       // css px inside the canvas -> world x,y at ground level (uses the last laid-out camera, so call after a render)
       toWorld(cx, cy) { layout(); return toWorldAt(cx, cy, left, top, zoom, viewW / canvas.clientWidth); },
+      // world (x, y), `up` terrain px above the ground -> css px inside the canvas (the scenery bubble's anchor)
+      toScreen(x, y, up = 0) { layout(); const [sx, sy] = atGround(x, y), k = viewW / canvas.clientWidth; return [(sx - left) * zoom / k, (sy - up - top) * zoom / k]; },
       setCamera(x, y) { camX = x; camY = y; mark(); },
       resize,
       setGraphics(g) {
@@ -468,5 +525,7 @@
     for (const u of urls) { const n = (held.get(u) || 1) - 1; if (n > 0) held.set(u, n); else { held.delete(u); free.push(u); } }
     if (free.length) root.PIXI.Assets.unload(free);
   }
-  root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, fetchOk, mount };
+  // What a traveller list draws: the same signature means the same picture.
+  const travSigOf = list => list.map(t => [t.id, t.x, t.y, t.face, t.frame, t.pose || '', t.look && t.look.sig].join(',')).join(';');
+  root.TownRender = { travSig: travSigOf, K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, fetchOk, mount };
 })(globalThis);

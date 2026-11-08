@@ -838,7 +838,23 @@
     add(KX + 190 + KY + 150, spriteOr('karinderya.13', g => { // the karinderya cat, tail flicking
       const x = KX + 190, y = KY + 150; box(g, x - 3, y - 2, 0, 7, 5, 6); box(g, x - 2, y - 1, 6, 5, 4, 5);
     }, { over: tail }));
-  }, { spots: [...KSEATS.map((st, i) => ({ id: 'kain:' + (i + 1), dx: st.dx, dy: st.dy, face: st.face, zone: 'kain', seat: true })), { id: 'npc:cook', dx: 116, dy: 16, face: 's', zone: 'kain' }] });
+  }, { spots: [...KSEATS.map((st, i) => ({ id: 'kain:' + (i + 1), dx: st.dx, dy: st.dy, face: st.face, zone: 'kain', seat: true })), { id: 'npc:cook', dx: 116, dy: 16, face: 's', zone: 'kain' },
+    // town step 5: take-out line at the counter, where eaters wait once every seat is taken (not seats)
+    ...[76, 104, 132, 160].map((dx, i) => ({ id: 'kain:q' + (i + 1), dx, dy: 58, face: 'n', zone: 'kain' }))] });
+  // Karinderya second table (town step 5): six more seats, kain:7..12, the karinderya's long table again (three chairs on the
+  // far side, a bangko on the near side). Placed in the kain interior template; offices add it from Build. Drawn procedurally.
+  const TX = 1120, TY = 600;
+  const TSEATS = [-40, 0, 40].map(dx => ({ dx, dy: -20, face: 's' })).concat([-36, 0, 36].map(dx => ({ dx, dy: 22, face: 'n' })));
+  def('kain-table', [TX, TY], () => {
+    add(TX + TY, g => {
+      box(g, TX - 60, TY - 12, 0, 120, 24, 18, '#a8693a'); cyl(g, TX, TY, 18, 6, 7, '#f3ede2'); // table, rice pot
+      TSEATS.forEach(st => gell(g, TX + st.dx, TY + (st.face === 's' ? -6 : 6), 18.5, 4.5, '#f3ede2')); gell(g, TX + 20, TY, 19, 4.5, '#e3b23c'); gell(g, TX - 20, TY, 19, 4, '#7a3b1c');
+    });
+    TSEATS.filter(st => st.face === 's').forEach(st => add(TX + st.dx + TY + st.dy - 1, g => { // chairs (not obstacles: the seats stay reachable)
+      const x = TX + st.dx, y = TY + st.dy; box(g, x - 6, y - 7, 1, 12, 2, 29, '#7a4a2a'); box(g, x - 6, y - 5, 1, 12, 10, 11, '#8a5a32');
+    }, { nofp: true }));
+    add(TX + TY + 22 - 1, g => box(g, TX - 54, TY + 17, 0, 108, 9, 12, '#8a5a32'), { nofp: true }); // bangko
+  }, { spots: TSEATS.map((st, i) => ({ id: 'kain:' + (7 + i), dx: st.dx, dy: st.dy, face: st.face, zone: 'kain', seat: true })) });
   // Broom corner (phase 6): a mop bucket and broom; placing one adds the sweeper NPC, who starts from its npc:sweeper spot.
   def('broom-corner', [400, 380], () => add(400 + 380 + 8, spriteOr('broom-corner', g => {
     cyl(g, 404, 384, 0, 7, 12); box(g, 397, 383, 12, 14, 2, 2); // bucket, wringer

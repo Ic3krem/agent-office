@@ -92,8 +92,8 @@ test('grid: a cliff-edge cell is blocked, a ramp cell is open, a ramp side is bl
 });
 
 test('validate rejects a lot straddling two levels, a terrace with no ramp and a ramp that joins nothing', () => {
-  const bad = (mut, re) => { const d = Object.assign(real(), JSON.parse(JSON.stringify(hill))); mut(d); const v = TownMap.validate(d); assert.equal(v.ok, false); assert.match(v.errors.join(' | '), re); };
-  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.validate(Object.assign(real(), hill)))), { ok: true, errors: [] }, 'the fixture itself is valid');
+  const bad = (mut, re) => { const d = Object.assign(real(), JSON.parse(JSON.stringify(hill)), { spots: undefined }); mut(d); const v = TownMap.validate(d); assert.equal(v.ok, false); assert.match(v.errors.join(' | '), re); };
+  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.validate(Object.assign(real(), hill, { spots: undefined })))), { ok: true, errors: [] }, 'the fixture itself is valid (its terraces replace the real ones, so the spots go too)');
   bad(d => d.levels.push({ rect: [1000, 0, 1100, 100], level: 1 }), /lot home straddles two levels/);
   bad(d => d.ramps.pop(), /levels\[1\] is not reachable/);
   bad(d => d.ramps.push({ rect: [1300, 900, 1340, 940], dir: 'e' }), /ramps\[2\] does not join two levels/);
@@ -198,4 +198,86 @@ test('party world: the host owns the main house, everyone else a friend lot in j
   assert.equal(TownMap.partyWorld({ connected: false }), null);
   assert.equal(TownMap.friendTarget(lot(d, 'friend-3'), null, false).url, null);
   assert.equal(TownMap.friendTarget(lot(d, 'home'), null, false).url, '/#scene=office');
+});
+
+// ---------- town step 5: spots (places to wander) ----------
+test('spots validate: the shipped map passes; bad kinds, points outside, overlaps and too few points fail', () => {
+  const d = real();
+  assert.deepEqual(d.spots.map(s => s.id).sort(), ['court', 'park', 'pasture', 'tree', 'waterfall']);
+  for (const s of d.spots) { assert.equal(s.kind, s.id); assert.ok(s.points.length >= 8, s.id); }
+  const bad = (mut, re) => { const m = real(); mut(m); const v = TownMap.validate(m); assert.equal(v.ok, false, String(re)); assert.match(v.errors.join(' | '), re); };
+  const sp = (m, id) => m.spots.find(s => s.id === id);
+  bad(m => { sp(m, 'park').kind = 'zoo'; }, /spot park has an unknown kind/);
+  bad(m => { sp(m, 'park').points[0].x = 5; }, /spot park point 0 is outside its rect/);
+  bad(m => { sp(m, 'park').points[0].act = 'fly'; }, /spot park point 0/);
+  bad(m => { sp(m, 'court').rect = [1050, 205, 1110, 300]; }, /spot court overlaps/); // the path to the office
+  bad(m => { sp(m, 'park').rect = [600, 300, 800, 400]; }, /spot park overlaps/); // the ramp at x 620-680
+  bad(m => { sp(m, 'tree').points.length = 7; }, /spot tree needs at least 8 points/);
+  bad(m => { sp(m, 'tree').props.push({ type: 'castle', x: 190, y: 98 }); }, /spot tree prop 1 has an unknown type/);
+  bad(m => { m.spots.push(JSON.parse(JSON.stringify(sp(m, 'tree')))); }, /duplicate spot/);
+  const noSpots = real(); delete noSpots.spots;
+  assert.ok(TownMap.validate(noSpots).ok, 'spots are optional');
+});
+
+test('spot props block cells: the tree of life, a fence run and the waterfall pool', () => {
+  const d = real(), g = TownMap.grid(d), at = (x, y) => g.blocked[WorldPath.cellOf(g, { x, y })];
+  const tree = d.spots.find(s => s.id === 'tree').props.find(p => p.type === 'tree-of-life');
+  assert.equal(at(tree.x, tree.y), 1, 'under the tree of life');
+  const fence = d.spots.find(s => s.id === 'pasture').props.find(p => p.type === 'fence-x');
+  assert.equal(at(fence.x, fence.y), 1, 'under a fence run');
+  assert.equal(at(fence.x + 25, fence.y), 1, 'along the fence run');
+  const pool = d.spots.find(s => s.id === 'waterfall').pool;
+  assert.equal(at((pool[0] + pool[2]) / 2, (pool[1] + pool[3]) / 2), 1, 'in the pool');
+  const noSpots = real(); delete noSpots.spots;
+  assert.equal(TownMap.grid(noSpots).blocked[WorldPath.cellOf(g, tree)], 0, 'without spots the cell is open');
+  for (const t of ['tree-of-life', 'waterfall', 'hoop', 'fence-x', 'fence-y', 'cow-trough', 'flowerbed', 'bench-s', 'lamp']) assert.ok(TownMap.SPOT_PROPS.includes(t), t);
+});
+
+test('every lot door, ramp end and spot point is reachable from spawn; non-seat points stand on open cells; the park loop is open', () => {
+  const d = real(), g = TownMap.grid(d), reach = WorldPath.reachFrom(g, d.spawn), open = p => !g.blocked[WorldPath.cellOf(g, p)];
+  for (const l of d.lots) assert.ok(reach(l.door), l.id);
+  for (const r of d.ramps) { const [x0, y0, x1, y1] = r.rect, cx = (x0 + x1) / 2; for (const y of [y0 - 5, y1 + 5]) assert.ok(open({ x: cx, y }) && reach({ x: cx, y }), 'ramp end ' + cx + ',' + y); }
+  for (const s of d.spots) s.points.forEach((p, i) => {
+    assert.ok(reach(p), s.id + ' point ' + i);
+    if (p.act !== 'sit') assert.ok(open(p), s.id + ' point ' + i + ' on an open cell');
+  });
+  const loop = d.spots.find(s => s.id === 'park').loop;
+  assert.ok(loop.length >= 4);
+  loop.forEach((p, i) => { const q = loop[(i + 1) % loop.length]; assert.ok(WorldPath.lineClear(g, { x: p[0], y: p[1] }, { x: q[0], y: q[1] }), 'loop segment ' + i); });
+});
+
+test('spot props keep off doors, paths, ramps and bridges', () => {
+  const d = real();
+  for (const s of d.spots) for (const p of s.props) {
+    const f = TownMap.propFootprint(p);
+    if (!f) continue;
+    for (const l of d.lots) assert.ok(!ov(f, l.rect), p.type + ' on lot ' + l.id);
+    for (const r of [...d.paths, ...d.bridges, ...d.ramps.map(r => r.rect)]) assert.ok(!ov(f, r), p.type + ' on ' + r);
+  }
+});
+
+test('spotPoint: spot:<id>:<n> gives point n mod the point count; unknown or malformed ids give null', () => {
+  const d = real(), park = d.spots.find(s => s.id === 'park'), n = park.points.length;
+  const p3 = TownMap.spotPoint(d, 'spot:park:3');
+  assert.deepEqual(JSON.parse(JSON.stringify(p3)), { spot: 'park', point: 3, x: park.points[3].x, y: park.points[3].y, act: park.points[3].act, face: park.points[3].face, k: 0 });
+  const p13 = TownMap.spotPoint(d, 'spot:park:13');
+  assert.equal(p13.point, 13 % n); assert.equal(p13.k, Math.floor(13 / n));
+  for (const bad of ['spot:gone:0', 'spot:park:x', 'spot:park', 'kain', null, 'spot:park:-1']) assert.equal(TownMap.spotPoint(d, bad), null, String(bad));
+  assert.equal(TownMap.spotPoint({}, 'spot:park:1'), null, 'a map without spots');
+  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.spotsOf(d))).map(s => s.id).sort(), ['court', 'park', 'pasture', 'tree', 'waterfall']);
+  assert.ok(TownMap.spotsOf(d).every(s => s.n === d.spots.find(o => o.id === s.id).points.length));
+  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.spotsOf({}))), []);
+});
+
+// ---------- town step 5, task 7b: the plaza fountain ----------
+test('the plaza has a fountain and no well; the plaza round it stays walkable and every door reachable', () => {
+  const d = real(), g = TownMap.grid(d), at = (x, y) => g.blocked[WorldPath.cellOf(g, { x, y })];
+  const f = d.decor.filter(it => it.type === 'fountain');
+  assert.equal(f.length, 1); assert.equal(d.decor.filter(it => it.type === 'well').length, 0);
+  const [x0, y0, x1, y1] = d.plaza, { x, y } = f[0];
+  assert.ok(x > x0 && x < x1 && y > y0 && y < y1, 'on the plaza');
+  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.decorFootprint(f[0]))), [x - 7.5, y - 7.5, x + 7.5, y + 7.5], '1.5x the well footprint');
+  assert.equal(at(x, y), 1, 'the basin blocks');
+  for (const [dx, dy] of [[0, -20], [0, 20], [-20, 0], [20, 0]]) assert.equal(at(x + dx, y + dy), 0, 'walkable round it ' + dx + ',' + dy);
+  for (const l of d.lots) assert.ok(WorldPath.findPath(g, d.spawn, l.door).length > 0, l.id);
 });

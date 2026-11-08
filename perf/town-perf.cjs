@@ -14,12 +14,13 @@ const child = spawn(process.execPath, [path.join(root, 'server.mjs')], { env: { 
 let log = ''; child.stdout.on('data', d => log += d); child.stderr.on('data', d => log += d);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const done = code => { try { child.kill(); } catch {} try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} app.exit(code); };
-setTimeout(() => { console.log('FAIL watchdog: harness exceeded 240 s'); done(1); }, 240000).unref();
+setTimeout(() => { console.log('FAIL watchdog: harness exceeded 300 s'); done(1); }, 300000).unref();
 process.on('uncaughtException', e => { console.log('FAIL ' + e.stack); done(1); });
 const MB = 1048576, pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN; };
 // Low and High budgets (town step 4 plan, Task 10)
 const BUDGET = { low: { cpu: 1, p95: 16, mem: 180, tex: 48 }, high: { cpu: 3, p95: 8, mem: 250, tex: 96 } };
-const RAMP_FOOT = [650, 548]; // just below the ramp [620,380,680,540] (dir n): 1.25 s of walking world north (212 units) climbs onto the NW orchard terrace
+const RAMP_FOOT = [650, 548]; // just below the ramp [620,380,680,540] (dir n): 1.25 s of walking world north (212 units) climbs onto the NW orchard terrace (the park)
+const EAST_FOOT = [1690, 548]; // town step 5: the east ramp [1660,380,1720,540], up between the court and the pasture
 
 app.whenReady().then(async () => {
   for (let t = 0; !/running on/.test(log); t += 150) { if (t > 20000) throw new Error('server did not start: ' + log.slice(0, 300)); await wait(150); }
@@ -47,6 +48,12 @@ app.whenReady().then(async () => {
     const sampleCpu = async () => { const a = []; rendererCpu(); for (let i = 0; i < 10; i++) { await wait(1000); a.push(rendererCpu()); } return { avg: a.reduce((x, y) => x + y, 0) / a.length, max: Math.max(...a) }; };
     const g = await js('(({ kind, stats }) => ({ kind, ...stats().graphics }))(__town.api)');
 
+    // town step 5: 13 agents parked at the spots for the whole run (idle, walk, hidden), as perf/town-check.cjs injects them
+    await js(`(() => { const out = [], want = { park: ['sit', 'sit', 'dogwalk', 'dogwalk'], court: ['shoot', 'shoot', 'stand', 'stand'], tree: ['sit', 'sit'], waterfall: ['stand'], pasture: ['lean', 'lean'] };
+      for (const s of __town.map.spots) { const used = new Set(); for (const act of want[s.id] || []) { const k = s.points.findIndex((p, j) => p.act === act && !used.has(j)); if (k < 0) continue; used.add(k);
+        const p = s.points[k]; out.push({ id: 'vis-' + s.id + '-' + k, x: p.x, y: p.y, face: p.face, frame: 0, pose: act, spot: s.id, name: s.id, moving: false, look: OfficeSprites.lookOf({ id: 'vis-' + s.id + k, name: s.id }) }); } }
+      const api = __town.api; api.__orig = api.setTravellers; api.setTravellers = l => api.__orig(l.concat(window.__vis)); window.__vis = out; api.setTravellers([]); })()`);
+
     await wait(5000);
     const fi0 = await frames(), idle = await sampleCpu(), idleFrames = (await frames()) - fi0;
     // sendInputEvent mouse moves; frames in the first second and in 3 s starting 3 s later. The page counts the moves it saw.
@@ -59,13 +66,14 @@ app.whenReady().then(async () => {
     // walking: from the foot of a ramp, hold W+D (screen up-right = world north: up the ramp onto the terrace) then S+A (back
     // down), twice; lastRenderMs is
     // sampled on every drawn frame, and the highest ground the player stood on is kept
-    await js(`(() => { const q = WorldPlayer.unstick(WorldPlayer.create(${RAMP_FOOT}), __town.grid); __town.p.x = q.x; __town.p.y = q.y; })()`);
+    const foot = f => js(`(() => { const q = WorldPlayer.unstick(WorldPlayer.create(${f}), __town.grid); __town.p.x = q.x; __town.p.y = q.y; })()`);
+    await foot(RAMP_FOOT);
     const start = await js('({ x: Math.round(__town.p.x), y: Math.round(__town.p.y) })');
     await js(`window.__samples = []; window.__hmax = 0; (function s() { const f = __town.api.frameCount(); if (f !== window.__lf) { window.__lf = f; window.__samples.push(__town.api.stats().lastRenderMs); window.__hmax = Math.max(window.__hmax, TownMap.heightAt(__town.map, __town.p.x, __town.p.y)); } window.__walk = requestAnimationFrame(s); })()`);
     const fw0 = await frames(); w.webContents.focus();
-    for (let i = 0; i < 2; i++) for (const ks of [['W', 'D'], ['S', 'A']]) { for (const c of ks) k('keyDown', c); await wait(1250); for (const c of ks) k('keyUp', c); }
+    for (const f of [RAMP_FOOT, EAST_FOOT]) { await foot(f); for (let i = 0; i < 2; i++) for (const ks of [['W', 'D'], ['S', 'A']]) { for (const c of ks) k('keyDown', c); await wait(1250); for (const c of ks) k('keyUp', c); } }
     await js('cancelAnimationFrame(window.__walk)'); const walkFrames = (await frames()) - fw0;
-    if (walkFrames < 60) throw new Error('keyboard injection did not walk the player: ' + walkFrames + ' frames');
+    if (walkFrames < 120) throw new Error('keyboard injection did not walk the player: ' + walkFrames + ' frames');
     const end = await js('({ x: Math.round(__town.p.x), y: Math.round(__town.p.y) })'), samples = (await js('window.__samples')).filter(x => x > 0), hmax = await js('window.__hmax'), terrace = await js('TownMap.LEVEL_H');
     await wait(300);
 
@@ -116,7 +124,7 @@ app.whenReady().then(async () => {
     ['High: after a mouse move the town settles to its ambient cap (<= ambientFps * 3 + 2 frames in 3 s)', presets.high.mouse.moves > 0 && presets.high.mouse.after <= presets.high.graphics.ambientFps * 3 + 2, presets.high.mouse.after]);
   R.budgets = budgets.map(([name, ok, value]) => ({ name, ok, value }));
   fs.mkdirSync(path.join(__dirname, 'results'), { recursive: true });
-  fs.writeFileSync(path.join(__dirname, 'results', 'town-step4-' + R.date.slice(0, 10) + '.json'), JSON.stringify(R, null, 2));
+  fs.writeFileSync(path.join(__dirname, 'results', 'town-step5-' + R.date.slice(0, 10) + '.json'), JSON.stringify(R, null, 2));
   console.log(JSON.stringify(R.machine));
   for (const [n, ok, v] of budgets) console.log((ok ? 'PASS ' : 'FAIL ') + n + '  (' + (+v).toFixed(3) + ')');
   for (const [p, r] of Object.entries(presets)) console.log(p + ' extra: ' + r.graphics.kind + ', ambient ' + r.graphics.ambient + ' at ' + r.graphics.ambientFps + ' fps, idle frames ' + r.idle.frameDelta + ' in 10 s, idle max ' + r.idle.cpuMax.toFixed(2) + '%, hidden max ' + r.hidden.cpuMax.toFixed(2) + '%, walk p50 ' + r.walking.p50.toFixed(2) + ' max ' + r.walking.max.toFixed(2) + ' ms over ' + r.walking.samples + ' frames (from ' + JSON.stringify(r.walking.start) + ' to ' + JSON.stringify(r.walking.end) + ', highest ground ' + r.walking.highestGround + '), gpu ' + (r.memory.gpuWorkingSetMB || 0).toFixed(0) + ' MB, drawCalls ' + r.memory.drawCalls + ', sprites ' + r.memory.sprites);

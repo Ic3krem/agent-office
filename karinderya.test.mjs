@@ -105,3 +105,37 @@ test('R2: an office with its own karinderya gets no derived stand spots', () => 
     assert.ok(!Object.keys(M.SPOTS).some(k => /-stand:/.test(k)));
   } finally { M.useLayout(WM.defaultLayout()); }
 });
+
+// ---------- town step 5: twelve seats and a take-out line ----------
+const kainTpl = () => JSON.parse(fs.readFileSync(new URL('./public/world-templates/interior-kain.json', import.meta.url), 'utf8'));
+test('the kain interior has 12 seats (kain:1..12) and 4 take-out spots (kain:q1..q4), all reachable from the door', () => {
+  const l = kainTpl(), spots = J(WM.spotsOf(l)), g = WM.gridOf(l), W = loadWorld().WorldPath;
+  assert.deepEqual(J(WM.validate(l).errors), []);
+  const seats = Object.keys(spots).filter(k => /^kain:\d+$/.test(k)), q = Object.keys(spots).filter(k => /^kain:q\d$/.test(k));
+  assert.deepEqual(seats.map(k => +k.slice(5)).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.ok(seats.every(k => spots[k].seat === true), 'seats');
+  assert.deepEqual(q.sort(), ['kain:q1', 'kain:q2', 'kain:q3', 'kain:q4']);
+  assert.ok(q.every(k => !spots[k].seat), 'take-out spots are not seats');
+  const door = spots.door, reach = W.reachFrom(g, door);
+  for (const k of [...seats, ...q]) assert.ok(reach(spots[k]), k + ' reachable');
+  assert.ok(l.objects.some(o => o.type === 'kain-table'), 'the second table');
+});
+
+test('12 visiting eaters take 12 distinct seats; the 13th to 16th stand at the counter (kain:q1..q4)', () => {
+  try {
+    M.useLayout(kainTpl());
+    const eaters = Array.from({ length: 16 }, (_, i) => ({ id: 'v' + String(i).padStart(2, '0'), status: 'limited', at: 'kain', logs: [], profile: null }));
+    const f = M.createBrain({ wall: () => 1e12 }).update({ ...snap(eaters), boss: { active: true, running: 0, max: 8 } }, 0);
+    const spot = e => f.agents.find(a => a.id === e.id).spot;
+    const seated = eaters.slice(0, 12).map(spot);
+    assert.equal(new Set(seated).size, 12); assert.ok(seated.every(s => /^kain:\d+$/.test(s)), String(seated));
+    assert.deepEqual(J(eaters.slice(12).map(spot)), ['kain:q1', 'kain:q2', 'kain:q3', 'kain:q4']);
+  } finally { M.useLayout(WM.defaultLayout()); }
+});
+
+test('an office with only the karinderya piece keeps its 6 seats (plus the 4 take-out spots)', () => {
+  const spots = J(WM.spotsOf(withPieces())), seats = Object.keys(spots).filter(k => k.startsWith('kain:') && spots[k].seat);
+  assert.deepEqual(seats.sort(), ['kain:1', 'kain:2', 'kain:3', 'kain:4', 'kain:5', 'kain:6']);
+  assert.equal(Object.keys(spots).filter(k => k.startsWith('kain:q')).length, 4);
+  assert.ok(J(E.catalog()).find(c => c.type === 'kain-table').addable, 'the table can be added from Build');
+});

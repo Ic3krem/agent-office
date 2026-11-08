@@ -6,6 +6,9 @@
   const EXIT_MS = 6000, ENTER_MS = 5000, TOWN_SPEED = 80; // walk to a door; walk in from a door; town units per second
   const DESTS = ['kain', 'games'], MAX_CHAIN = 4, IDLE_DELAY = 20000; // IDLE_DELAY = OfficeMotion.IDLE_DELAY (tested)
   const cache = new WeakMap(); // town data -> { grid, pairs }
+  // Town step 5: an idle trip may end at an outdoor spot, dest 'spot:<id>:<n>' (n: the agent's roster index; the point is
+  // n mod the spot's point count, agents past the count stand CROWD units further on per lap). Its 'there' leg is in town.
+  const isSpot = d => typeof d === 'string' && /^spot:[a-z-]+:\d+$/.test(d), idleTrip = d => d === 'games' || isSpot(d), CROWD = [6, 4];
 
   // A* path between two lot doors as {pts: [[x,y]...], len}, or null for an unknown lot or no path. Cached per pair.
   function route(town, fromLot, toLot) {
@@ -14,11 +17,12 @@
     const key = fromLot + '>' + toLot;
     if (key in c.pairs) return c.pairs[key];
     const door = id => (town.lots.find(l => l.id === id) || {}).door;
-    const a = door(fromLot), b = door(toLot);
+    const sp = isSpot(toLot) ? root.TownMap.spotPoint(town, toLot) : null; // a spot: door -> its activity point
+    const a = door(fromLot), b = sp ? { x: sp.x + sp.k * CROWD[0], y: sp.y + sp.k * CROWD[1] } : door(toLot);
     const path = a && b ? root.WorldPath.findPath(c.grid, a, b) : [];
     let len = 0;
     for (let i = 1; i < path.length; i++) len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
-    return (c.pairs[key] = path.length ? { pts: path.map(p => [p.x, p.y]), len } : null);
+    return (c.pairs[key] = path.length ? Object.assign({ pts: path.map(p => [p.x, p.y]), len }, sp ? { spot: { spot: sp.spot, point: sp.point, act: sp.act, face: sp.face, x: b.x, y: b.y } } : null) : null);
   }
 
   // Trip reducer: the page keeps the returned record per agent and passes it back next tick. Times come only from
@@ -59,22 +63,23 @@
   // Leg plan of a trip: [{leg, scene, ms, dir?: 1 | -1 (town legs)}], ending at the turn (forward) or back home.
   function plan(tr, r) {
     const home = tr.fromLot && tr.fromLot !== 'home' && !tr.mine ? 'friend:' + tr.fromLot : 'office'; // mine: your agent, from your lot
-    const tms = r.len / TOWN_SPEED * 1000;
+    const tms = r.len / TOWN_SPEED * 1000, spot = isSpot(tr.dest);
+    // a spot has no building: no enter/exit leg there, and fwd and back stay the same length (the turn rule in timeline)
     const fwd = [{ leg: 'exit', scene: home, ms: EXIT_MS }, { leg: 'town', scene: 'town', ms: tms, dir: 1 },
-      { leg: 'enter', scene: tr.dest, ms: ENTER_MS }];
-    const back = [{ leg: 'back-exit', scene: tr.dest, ms: EXIT_MS }, { leg: 'back-town', scene: 'town', ms: tms, dir: -1 },
+      ...(spot ? [] : [{ leg: 'enter', scene: tr.dest, ms: ENTER_MS }])];
+    const back = [...(spot ? [] : [{ leg: 'back-exit', scene: tr.dest, ms: EXIT_MS }]), { leg: 'back-town', scene: 'town', ms: tms, dir: -1 },
       { leg: 'back-enter', scene: home, ms: ENTER_MS }];
-    return { home, fwd, back };
+    return { home, fwd, back, there: spot ? 'town' : tr.dest };
   }
 
   // Timeline: [{leg, scene, from, to, dir?}] from departAt; the last entry is open-ended ('there' or 'home').
   function timeline(tr, r, start) {
-    const { home, fwd, back } = plan(tr, r), out = [];
+    const { home, fwd, back, there } = plan(tr, r), out = [];
     let t = start, i = 0;
     const until = tr.returnAt == null ? Infinity : tr.returnAt;
     for (; i < fwd.length && t < until; i++) { out.push(Object.assign({}, fwd[i], { from: t, to: t + fwd[i].ms })); t += fwd[i].ms; }
     if (i === fwd.length && t <= until) {
-      out.push({ leg: 'there', scene: tr.dest, from: t, to: until });
+      out.push({ leg: 'there', scene: there, from: t, to: until });
       if (until === Infinity) return out;
       t = until;
     }
@@ -88,7 +93,7 @@
   const homeAt = scene => ({ scene, leg: 'home', t: 0 });
   const endOf = (tr, routes) => { const r = valid(tr, routes); if (!r) return -Infinity; const l = timeline(tr, r, startOf(tr, routes)).pop(); return l.leg === 'home' ? l.from : Infinity; };
   const startOf = (tr, routes) => tr.prev ? Math.max(tr.departAt, endOf(tr.prev, routes)) : tr.departAt;
-  const valid = (tr, routes) => tr && DESTS.includes(tr.dest) && typeof tr.departAt === 'number' ? routes(tr.fromLot || 'home', tr.dest) : null;
+  const valid = (tr, routes) => tr && (DESTS.includes(tr.dest) || isSpot(tr.dest)) && typeof tr.departAt === 'number' ? routes(tr.fromLot || 'home', tr.dest) : null;
 
   function at(pts, d) {
     for (let i = 1; i < pts.length; i++) {
@@ -111,18 +116,44 @@
     const t = l.to === Infinity ? 0 : Math.min(1, Math.max(0, (now - l.from) / (l.to - l.from)));
     const out = { scene: l.scene, leg: l.leg, t };
     if (l.dir) out.pos = at(r.pts, (l.dir > 0 ? t : 1 - t) * r.len);
+    else if (l.leg === 'there' && r.spot) Object.assign(out, { pos: { x: r.spot.x, y: r.spot.y }, spot: r.spot.spot, point: r.spot.point, act: r.spot.act, face: r.spot.face });
     return out;
   }
 
   // Where an agent goes, judged against the OFFICE layout. office: {kain, play} (OfficeMotion.travelFlags): the office has
   // its own stools / play spots, so the agent stays (ruling 3). empty: the board is empty (OfficeMotion.boardOf). Mirrors
   // nextState: limited -> cooler, idle on an empty board -> playroom; the manager never travels.
-  function destOf(agent, office, empty) {
+  // ctx (town step 5): {spots: [{id, n: point count}], ids: the snapshot's non-manager ids, sorted}; without it, no spots.
+  function destOf(agent, office, empty, ctx) {
     if (!agent || agent.isManager) return null;
     const st = agent.status;
     if (st === 'limited') return office.kain ? null : 'kain';
     if (agent.perm || ['blocked', 'error', 'working', 'nudged'].includes(st)) return null;
-    return empty && !office.play ? 'games' : null;
+    if (!empty) return null;
+    if (!ctx || !Array.isArray(ctx.spots) || !ctx.spots.length) return office.play ? null : 'games';
+    const i = Math.max(0, (ctx.ids || []).indexOf(agent.id));
+    return pickIdle(agent.id, agent.statusAt, ctx.spots.map(s => ({ id: s.id, n: i })), office.play);
+  }
+
+  // FNV-1a 32-bit: a stable hash every page computes alike (no Math.random).
+  function hash(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h >>> 0;
+  }
+  // Where an idle agent goes, from its id and the server's statusAt only, so every page agrees: 120 of 400 buckets the game
+  // hall (or, with an office playroom, null: stay), 100 the park, 45 each the other spots. spots: [{id, n: the point index}];
+  // a bucket whose spot the map lacks falls back to the game hall / null.
+  const BUCKETS = [['park', 100], ['waterfall', 45], ['tree', 45], ['court', 45], ['pasture', 45]];
+  function pickIdle(agentId, statusAt, spots, play) {
+    let b = hash(agentId + '|' + statusAt) % 400 - 120;
+    const home = play ? null : 'games';
+    if (b < 0) return home;
+    for (const [id, w] of BUCKETS) {
+      if (b < w) { const s = (spots || []).find(o => o.id === id); return s ? 'spot:' + id + ':' + s.n : home; }
+      b -= w;
+    }
+    return home;
   }
 
   // The time a trip decision takes effect (trip()'s statusAt). A games trip starts once the board has been empty for
@@ -132,8 +163,8 @@
   // pages store when they first see the board empty / full.
   function departAt(agent, dest, board, prev) {
     const s = agent.statusAt, b = board || {};
-    if (dest === 'games') return Math.max(s, (typeof b.emptyAt === 'number' ? b.emptyAt : s) + IDLE_DELAY);
-    if (!dest && prev && prev.dest === 'games' && prev.returnAt == null && typeof b.fullAt === 'number') return Math.max(s, b.fullAt);
+    if (idleTrip(dest)) return Math.max(s, (typeof b.emptyAt === 'number' ? b.emptyAt : s) + IDLE_DELAY);
+    if (!dest && prev && idleTrip(prev.dest) && prev.returnAt == null && typeof b.fullAt === 'number') return Math.max(s, b.fullAt);
     return s;
   }
 
@@ -182,12 +213,14 @@
       return { emptyAt };
     }
     return {
-      sync(agents, office, empty, now, routes, fromLot = 'home') {
+      // spots (town step 5): TownMap.spotsOf(town), so idle agents may walk out to them; omitted, nobody does.
+      sync(agents, office, empty, now, routes, fromLot = 'home', spots) {
         let stored = null;
         try { stored = JSON.parse(localStorage.getItem(TRIPS_KEY)); } catch (e) { /* no storage: memory only */ }
         let prev = plain(stored) ? stored : trips;
         if (Object.values(prev).some(r => !plain(r))) prev = Object.fromEntries(Object.entries(prev).filter(([, r]) => plain(r))); // drop junk records
-        trips = sync(prev, agents, a => destOf(a, office, empty), now, routes, boardTimes(empty, now), fromLot);
+        const ctx = Array.isArray(spots) && spots.length ? { spots, ids: (agents || []).filter(a => a && !a.isManager).map(a => a.id).sort() } : null;
+        trips = sync(prev, agents, a => destOf(a, office, empty, ctx), now, routes, boardTimes(empty, now), fromLot);
         if (trips !== stored) try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { /* memory only */ }
         return trips;
       },
@@ -226,5 +259,5 @@
     };
   }
 
-  root.AgentTravel = { route, trip, where, nextIn, destOf, departAt, sync, store, EXIT_MS, ENTER_MS, TOWN_SPEED, IDLE_DELAY };
+  root.AgentTravel = { route, trip, where, nextIn, destOf, departAt, sync, store, hash, pickIdle, isSpot, EXIT_MS, ENTER_MS, TOWN_SPEED, IDLE_DELAY };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

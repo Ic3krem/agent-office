@@ -119,7 +119,7 @@
   // Standing room for eaters past the stools: open floor beside the table (south of the back row, then east and west of
   // the rows), never a seat. Derived here (kain-stand:N), not layout spots.
   function standSpots() {
-    const st = Object.values(SPOTS).filter(s => s.id.startsWith('kain:'));
+    const st = Object.values(SPOTS).filter(s => s.id.startsWith('kain:') && s.seat);
     if (!st.length || !GRID) return;
     const xs = st.map(s => s.x), ys = st.map(s => s.y), x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = Math.max(...ys), rows = [...new Set(ys)];
     const cand = [...st.filter(s => s.y === y1).map(s => [s.x, y1 + 36, 'n']), ...rows.map(y => [x1 + 36, y, 'w']), ...rows.map(y => [x0 - 36, y, 'e'])];
@@ -252,16 +252,18 @@
     const reportLog = [];
 
     // plan limit: agents eat at a karinderya when the layout has one (its stools are kain:* spots), else stand at the cooler
-    const eatSpots = () => { const k = Object.keys(SPOTS).filter(id => id.startsWith('kain:')); return k.length ? k : COOLER; };
+    const seats = () => Object.keys(SPOTS).filter(id => id.startsWith('kain:') && SPOTS[id].seat); // the take-out line kain:q* is not a seat
+    const eatSpots = () => { const k = seats(); return k.length ? k : COOLER; };
     const claim = (map, list, id) => { if (map[id] && list.includes(map[id])) return map[id]; const used = Object.values(map); const s = list.find(x => !used.includes(x)); if (s) map[id] = s; else delete map[id]; return map[id] || null; };
     // Visiting eaters (a.at, an interior): stools in the order agents are fed (own agents before party friends'), and a
-    // stander takes a stool that frees up. Overflow stands beside the table, then at the cooler, then on any open floor
+    // stander takes a stool that frees up. Overflow waits in the take-out line at the counter, then stands beside the table,
+    // then at the cooler, then on any open floor
     // spot nobody holds: never two on one spot. Eaters in the office keep the old rule (overflow goes home to the desk).
     const held = id => new Set([playOf, gardenOf, coolOf].flatMap(m => Object.entries(m).filter(([k]) => k !== id).map(([, v]) => v)));
     const openFloor = () => Object.values(SPOTS).filter(q => !q.seat && !q.desk && q.id !== 'door' && !/^(npc|office|queue|tiro):/.test(q.id)).map(q => q.id);
     const claimEat = (id, visiting) => {
       if (!visiting) return claim(coolOf, eatSpots(), id);
-      const stools = Object.keys(SPOTS).filter(k => k.startsWith('kain:')), cur = coolOf[id], used = held(id);
+      const stools = seats(), cur = coolOf[id], used = held(id);
       if (stools.includes(cur)) return cur;
       const free = stools.find(x => !used.has(x));
       if (free) return (coolOf[id] = free);
@@ -270,7 +272,7 @@
       const isFriend = k => String(k).startsWith('friend:'), guest = !isFriend(id) && Object.keys(coolOf).find(k => isFriend(k) && stools.includes(coolOf[k]));
       if (guest) { coolOf[id] = coolOf[guest]; delete coolOf[guest]; return coolOf[id]; }
       if (cur && SPOTS[cur] && !used.has(cur)) return cur;
-      const open = openFloor(), s = [...open.filter(x => x.startsWith('kain-stand:')), ...COOLER, ...open].find(x => SPOTS[x] && !used.has(x));
+      const open = openFloor(), s = [...open.filter(x => x.startsWith('kain:q')), ...open.filter(x => x.startsWith('kain-stand:')), ...COOLER, ...open].find(x => SPOTS[x] && !used.has(x));
       if (s) coolOf[id] = s; else delete coolOf[id];
       return coolOf[id] || null;
     };

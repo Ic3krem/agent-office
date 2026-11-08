@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TiroAgents - Town</title>
 <script>if(/[#&]from=/.test(location.hash))document.documentElement.classList.add('ao-fade');</script>
-<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%;image-rendering:pixelated}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}#door{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 16px;border-radius:999px;border:1.5px solid #2a1a0c;background:#ffcf6b;color:#2a1a0c;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}#tag{position:fixed;transform:translate(-50%,-100%);padding:1px 6px;border:1.2px solid #1b1220;border-radius:4px;color:#1b1220;font:11px ui-monospace,Consolas,monospace;pointer-events:none;white-space:nowrap;box-shadow:0 2px 0 rgba(0,0,0,.3)}#door.wait{background:#3a2e25;color:#e8e6df;border-color:#8a5a1c;cursor:default}html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
+<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%;image-rendering:pixelated}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}#door{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 16px;border-radius:999px;border:1.5px solid #2a1a0c;background:#ffcf6b;color:#2a1a0c;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}#tag{position:fixed;transform:translate(-50%,-100%);padding:1px 6px;border:1.2px solid #1b1220;border-radius:4px;color:#1b1220;font:11px ui-monospace,Consolas,monospace;pointer-events:none;white-space:nowrap;box-shadow:0 2px 0 rgba(0,0,0,.3)}#say{position:fixed;transform:translate(-50%,-100%);max-width:220px;padding:6px 10px;border:1.5px solid #1b1220;border-radius:8px;background:#fffaf0;color:#1b1220;font:12px/1.35 ui-monospace,Consolas,monospace;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.3);transition:opacity .6s ease}#say.fade{opacity:0}@media (prefers-reduced-motion:reduce){#say{transition:none}}html[data-anim=off] #say{transition:none}#door.wait{background:#3a2e25;color:#e8e6df;border-color:#8a5a1c;cursor:default}html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
 </head>
 <body>
 <a href="/">Back to the office</a>
 <canvas id="town" tabindex="0"></canvas>
 <button id="door" hidden></button>
 <div id="tag" hidden></div>
+<div id="say" role="status" hidden></div>
 <div id="err" role="alert"><div id="errmsg"></div><a href="/">Back to the office</a></div>
 <script src="/vendor/pixi.min.js"></script>
 <script src="/graphics.js"></script>
@@ -25,6 +26,8 @@
 <script src="/world-player.js"></script>
 <script src="/town-map.js"></script>
 <script src="/town-ambient.js"></script>
+<script src="/town-animals.js"></script>
+<script src="/town-scenery.js"></script>
 <script src="/town-render.js"></script>
 <script src="/town-render-2d.js"></script>
 <script src="/agent-travel.js"></script>
@@ -40,6 +43,9 @@
     let drawMap = map, lotsDirty = false; // drawMap: the map with friends' office buildings on their lots (party lots)
     // ?hour=<0-23> is only for visual and perf checks: a fixed time of day.
     const hq = /[?&]hour=(\d+)/.exec(location.search), hour = hq ? Math.min(23, +hq[1]) : null;
+    // Town step 5: cows, dogs and cats, placed by wall-clock time so every page agrees; the renderer asks on its ambient frames.
+    const herd = TownAnimals.herd(map), night = () => Graphics.nightOf(hour != null ? hour : new Date().getHours() + new Date().getMinutes() / 60);
+    const animals = (t, on, visitors) => TownAnimals.frame(herd, Date.now(), grid, { on, night: night(), visitors });
     let stored = await Graphics.load().catch(() => ({ preset: Graphics.detect(Graphics.probe()) }));
     // Settings -> G. GPU asked for (preset or 'GPU if available') but no WebGL, or the GPU mount failed: the town runs
     // with Low's values (spec: the Canvas2D fallback draws the scene at the Low preset). An explicit Canvas2D choice
@@ -60,7 +66,7 @@
         const cv = canvas.cloneNode(false);
         cv.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden'; // laid out at full size, not shown
         canvas.after(cv);
-        try { return { api: await mount(cv, { map: drawMap, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: g, hour }), cv }; } catch (e) { cv.remove(); throw e; }
+        try { return { api: await mount(cv, { map: drawMap, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: g, hour, animals }), cv }; } catch (e) { cv.remove(); throw e; }
       };
       if (g.renderer === 'canvas') return attempt(TownRender2D.mount, g);
       try { return await attempt(TownRender.mount, g); } catch (e) {
@@ -122,18 +128,34 @@
     addEventListener('pageshow', e => { if (e.persisted) html.classList.remove('ao-fade'); }); // back/forward cache: show the town again
     requestAnimationFrame(() => html.classList.remove('ao-fade'));
     let look = OfficeSprites.lookOf({ look: 'ceo' }), pose = 'stand', frame = 0;
-    const draw = () => { api.setPlayer({ x: p.x, y: p.y, face: p.face, pose, frame, look }); api.setCamera(p.x, p.y); showDoor(); };
+    // Town step 5: a canned line over the player on walking into a spot, the karinderya lot or up to an animal (plain text).
+    // One at a time; it fades after SHOW_MS (just goes, under reduced motion). The town page has no modal or Build mode.
+    const sayEl = document.getElementById('say'), reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches || html.dataset.anim === 'off';
+    let scenery = null, sayUntil = 0, sayT = 0, said = 0; // said: bubbles shown (live checks)
+    fetch('/town/scenery-lines.json').then(r => r.ok ? r.json() : null).then(l => { if (l) scenery = TownScenery.create(l, map); }).catch(() => {});
+    const hideSay = () => { if (Date.now() < sayUntil - 50) return; if (reduced()) { sayEl.hidden = true; return; } sayEl.classList.add('fade'); sayT = setTimeout(() => { if (Date.now() >= sayUntil) sayEl.hidden = true; }, 600); };
+    function sayStep() {
+      if (scenery) {
+        const on = api.kind === 'gpu' && /^(all|particles)$/.test(api.stats().graphics.ambient); // the animals as drawn
+        const b = scenery.step({ x: p.x, y: p.y }, Date.now(), night(), TownAnimals.frame(herd, Date.now(), grid, { on, visitors: lastTrav }));
+        if (b) { said++; sayEl.textContent = b.text; sayEl.classList.remove('fade'); sayEl.hidden = false; sayUntil = b.until; clearTimeout(sayT); sayT = setTimeout(hideSay, b.until - Date.now()); }
+      }
+      if (sayEl.hidden) return;
+      const r = canvas.getBoundingClientRect(), [x, y] = api.toScreen(p.x, p.y, 34);
+      sayEl.style.left = (r.left + x) + 'px'; sayEl.style.top = (r.top + y) + 'px';
+    }
+    const draw = () => { api.setPlayer({ x: p.x, y: p.y, face: p.face, pose, frame, look }); api.setCamera(p.x, p.y); showDoor(); sayStep(); };
     draw();
 
     // Town step 3: agents walking to the karinderya or game hall. Same trip records and sync as the office page (shared
     // localStorage), judged against the office layout's flags; only travellers whose where() is in town are drawn.
     // The rAF runs only while one is on the road; otherwise one timeout waits for the next town leg to start.
-    const AT = AgentTravel, routes = (a, b) => AT.route(map, a, b), trips_ = AT.store(), walked = new Map(), tag = document.getElementById('tag');
+    const AT = AgentTravel, routes = (a, b) => AT.route(map, a, b), spots = TownMap.spotsOf(map), trips_ = AT.store(), walked = new Map(), tag = document.getElementById('tag');
     let snap = null, office = null, trips = {}, friends = [], tRaf = 0, tWake = 0, owv = {}, looksSig = '', hover = null;
     const officeFlags = () => fetch('/api/world', { headers: { 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' } }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.layout) { office = OfficeMotion.travelFlags(WorldModel.spotsOf(j.layout)); resync(); } }).catch(() => {});
     const resync = () => {
       if (snap) partySync(snap.party);
-      if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes, (world && world.mine) || 'home');
+      if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes, (world && world.mine) || 'home', spots);
       if (snap) friends = trips_.friends(snap.party, Date.now(), routes); // party friends' agents: name · friend, no costume
       kick();
     };
@@ -188,10 +210,10 @@
         const rec = a.trip || trips[a.id]; if (!rec) continue;
         let w, n, b; try { w = AT.where(rec, now, routes); n = AT.where(rec, now + 50, routes); b = AT.where(rec, now - 50, routes); } catch (e) { continue; }
         if (w.scene !== 'town' || !w.pos) continue;
-        const pos = w.pos, last = walked.get(a.id), [p0, p1] = n.pos ? [pos, n.pos] : [b.pos || pos, pos]; // the path segment it is on
-        const face = TownRender.faceAlong(p0, p1, last ? last.face : 's'), dist = last ? last.dist + Math.hypot(pos.x - last.x, pos.y - last.y) : 0;
+        const pos = w.pos, last = walked.get(a.id), [p0, p1] = n.pos ? [pos, n.pos] : [b.pos || pos, pos], parked = w.leg === 'there'; // the path segment it is on; parked: at a spot
+        const face = parked ? w.face : TownRender.faceAlong(p0, p1, last ? last.face : 's'), dist = last ? last.dist + Math.hypot(pos.x - last.x, pos.y - last.y) : 0;
         seen.set(a.id, { x: pos.x, y: pos.y, dist, face });
-        out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a.profile ? { id: a.id, name: a.name, key: a.profile.key, color: a.profile.color, accent: a.profile.accent } : a), name: a.name || 'Helper', accent: a.profile && a.profile.accent });
+        out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a.profile ? { id: a.id, name: a.name, key: a.profile.key, color: a.profile.color, accent: a.profile.accent } : a), name: a.name || 'Helper', accent: a.profile && a.profile.accent, moving: !parked, ...(parked ? { pose: w.act, spot: w.spot } : null) });
       }
       if (!peek) { walked.clear(); for (const [k, v] of seen) walked.set(k, v); }
       return peek ? out : out.concat(guestList(now));
@@ -225,7 +247,7 @@
         } catch (e) {}
       };
     } catch (e) {}
-    window.__town = { get api() { return api; }, p, grid, map, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, world: () => world, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { get api() { return api; }, p, grid, map, say: () => (sayEl.hidden ? null : sayEl.textContent), said: () => said, draw: () => draw(), walk: (x, y) => { const ok = WP.walkTo(p, { x, y }, grid); if (ok) go(); return !!ok; }, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, world: () => world, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;

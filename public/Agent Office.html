@@ -671,7 +671,7 @@ class Component extends DCLogic {
     fetch(WORLD_URL,{headers:{'x-nonce':nonce()}}).then(r=>r.ok?r.json():null).catch(()=>null).then(j=>{if(j&&j.layout){this.layout=j.layout;this.box=boxOf(j.layout);this.fit&&this.fit();}if(window.OfficeWorld&&(j&&j.layout||SCENE==='office'))OfficeWorld.applyLayout(j&&j.layout||WorldModel.officeLayout());if(!j&&SCENE!=='office')this.showToast('Could not load the '+SCENE_NAME.toLowerCase());if(j&&j.warning)this.showToast(j.warning);mountWorld();});
     if(SCENE==='office')setTimeout(mountWorld,400); // an interior waits for its layout: the office never flashes up first
     // Town step 3: the town map gives trip lengths (route per lot pair); an interior judges trips against the office layout.
-    if(window.TownMap&&window.AgentTravel&&window.OfficeWorld)TownMap.load('/town/town.json').then(t=>OfficeWorld.setTravel({routes:(a,b)=>AgentTravel.route(t,a,b)})).catch(e=>console.info('No agent travel:',e.message));
+    if(window.TownMap&&window.AgentTravel&&window.OfficeWorld)TownMap.load('/town/town.json').then(t=>OfficeWorld.setTravel({routes:(a,b)=>AgentTravel.route(t,a,b),spots:TownMap.spotsOf(t)})).catch(e=>console.info('No agent travel:',e.message));
     if(SCENE!=='office')this.officeFlags();
     this.ro=new ResizeObserver(fit); if(this.wrapRef.current){this.ro.observe(this.wrapRef.current);this.camEvents(this.wrapRef.current);} fit();
     api('/api/roster').then(j=>this.setState({roster:[...j.roster,...(j.available||[])]})).catch(()=>{}); // cards for every role; who has a desk comes from the snapshot

@@ -31,7 +31,7 @@
     if (!travelOn() || !s || !flags) return;
     tripStore = tripStore || root.AgentTravel.store(); // localStorage 'ao.trips' + 'ao.boardEmptyAt', shared with the town page
     const world = root.TownMap && root.TownMap.partyWorld ? root.TownMap.partyWorld(s.party) : null; // in a party your agents leave from your lot
-    trips = tripStore.sync(s.agents || [], flags, M.boardOf(s).empty, Date.now(), travel.routes, (world && world.mine) || 'home');
+    trips = tripStore.sync(s.agents || [], flags, M.boardOf(s).empty, Date.now(), travel.routes, (world && world.mine) || 'home', travel.spots);
     friends = tripStore.friends(s.party, Date.now(), travel.routes); // every page records when it first saw a friend's state
   }
   // The snapshot this scene's brain sees: only agents whose trip puts them here, with door hints for the walk in or out.
@@ -845,7 +845,7 @@
     nearKind: () => (near && ceoOn() ? near.kind : null), // read-only, for checks
     setBuild, setTool, dropAt, buildOp, STW, STH,
     setSnapshot(s) { live = s; syncTrips(s); if (!frame && !demo) { tick(0.001); render(); } wake(); },
-    // Town step 3: {routes: (fromLot, toLot) => AgentTravel.route(...)} once the town map loads; an interior page adds
+    // Town step 3: {routes: (fromLot, toLot) => AgentTravel.route(...), spots: TownMap.spotsOf(town)} once the town map loads; an interior page adds
     // {office: OfficeMotion.travelFlags(spots of the office layout)}. Merged; a snapshot re-syncs the trips.
     setTravel(t) { travel = Object.assign({}, travel, t); if (live) syncTrips(live); wake(); },
     setExtras(e) { extras = Object.assign(extras, e); wake(); },

@@ -30,7 +30,7 @@
     beanbag: 'Beanbag', 'ball-pit': 'Ball pit', hoop: 'Basketball hoop', dartboard: 'Dartboard', 'toy-bin': 'Toy bin', 'filing-cabinet': 'Filing cabinet',
     'server-rack': 'Server rack', bookshelf: 'Bookshelf', 'water-cooler': 'Water cooler', 'coffee-counter': 'Coffee bar', printer: 'Printer',
     'recycling-bin': 'Recycling bin', 'hot-desk': 'Hot desk', 'hot-chair': 'Hot-desk chair', fence: 'Fence', gate: 'Gate', 'pond-east': 'Pond',
-    'picnic-table': 'Picnic table', karinderya: 'Karinderya (eat at the plan limit)', 'broom-corner': 'Broom corner (adds a sweeper)', 'lamp-post': 'Lamp post', garage: 'Garage shed', 'mail-bench': 'Mail sorting bench', mailbox: 'Mailbox', tires: 'Tyre stack',
+    'picnic-table': 'Picnic table', karinderya: 'Karinderya (eat at the plan limit)', 'kain-table': 'Karinderya table (six more seats)', 'broom-corner': 'Broom corner (adds a sweeper)', 'lamp-post': 'Lamp post', garage: 'Garage shed', 'mail-bench': 'Mail sorting bench', mailbox: 'Mailbox', tires: 'Tyre stack',
   };
   const labelOf = type => LABELS[type] || (F.CATALOG[type] && F.CATALOG[type].label) || type;
   const catalog = () => Object.keys(F.CATALOG).filter(t => !isFixture(t)).map(type => ({

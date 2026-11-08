@@ -20,12 +20,16 @@
   }
 
   // ambient: 'off' | 'water' | 'all' (water + tree sway) | 'particles' (all + falling leaves and karinderya steam).
-  // trees[].id is the index in map.decor (the renderer's sprite key).
+  // trees[].id is the index in map.decor (the renderer's sprite key). Town step 5: falls (the waterfall props) from 'water',
+  // visitors (spot activities: hoop shots, dog walks) from 'all'.
   function plan(map, ambient) {
-    const out = { water: [], trees: [], particles: [] };
+    const out = { water: [], trees: [], particles: [], falls: [], fountains: [], visitors: false };
     if (ambient === 'off' || !ambient) return out;
     out.water = waterPoints(map);
+    for (const sp of map.spots || []) for (const p of sp.props || []) if (p.type === 'waterfall') out.falls.push({ x: p.x, y: p.y });
+    for (const it of map.decor || []) if (it.type === 'fountain') out.fountains.push({ x: it.x, y: it.y });
     if (ambient === 'water') return out;
+    out.visitors = true;
     map.decor.forEach((d, id) => { if (/^tree/.test(d.type)) out.trees.push({ id, x: d.x, y: d.y }); });
     if (ambient !== 'particles') return out;
     out.trees.forEach((t, k) => { if (k % 4 === 3) out.particles.push({ kind: 'leaf', x: t.x, y: t.y }); }); // 1 per 4 trees
@@ -33,7 +37,7 @@
     if (kain) out.particles.push({ kind: 'steam', x: kain.building.x, y: kain.building.y });
     return out;
   }
-  const isEmpty = p => !p.water.length && !p.trees.length && !p.particles.length;
+  const isEmpty = p => !p.water.length && !p.trees.length && !p.particles.length && !(p.falls || []).length && !(p.fountains || []).length && !p.visitors;
 
   const frameDue = (lastMs, nowMs, fps) => nowMs - lastMs >= 1000 / fps - 1;
 
@@ -68,5 +72,44 @@
     return out;
   }
 
-  root.TownAmbient = { GRID, MAX_WATER, MAX_LIVE, plan, isEmpty, frameDue, sway, sparkleOn, particles };
+  // ---- town step 5: what an agent parked at a spot is doing at t ms ----
+  const SHOT_MS = 3000, FLIGHT_MS = 1200, DOG_SPEED = 30, LEASH = 14, STEP = 28; // a hoop shot every 3 s; dog walk units/s; walk frame stride
+  const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0; return h; }; // = AgentTravel.hash
+  const faceOf = (dx, dy, f) => !dx && !dy ? f : Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'e' : 'w') : (dy > 0 ? 's' : 'n');
+  const spotOf = (map, id) => (map.spots || []).find(s => s.id === id);
+  // Point at arc length s along a closed loop [[x, y]...] (s wraps), with the segment direction.
+  function loopAt(loop, s) {
+    let L = 0; for (let i = 0; i < loop.length; i++) { const a = loop[i], b = loop[(i + 1) % loop.length]; L += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+    s = ((s % L) + L) % L;
+    for (let i = 0; ; i++) {
+      const a = loop[i], b = loop[(i + 1) % loop.length], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (s <= d || i === loop.length - 1) { const k = d ? Math.min(1, s / d) : 0; return { x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, dx: b[0] - a[0], dy: b[1] - a[1], L }; }
+      s -= d;
+    }
+  }
+  // v: a parked traveller {id, x, y, face, pose: its act, spot}. on: plan.visitors (else the rest frame at its point).
+  // -> {x, y, face, pose (an OfficeSprites pose), frame, ball?: {x, y, z}, dog?: {x, y, face, frame}}
+  function visit(v, t, map, on) {
+    const sp = spotOf(map, v.spot);
+    if (v.pose === 'dogwalk' && sp && Array.isArray(sp.loop) && sp.loop.length > 1) {
+      let s0 = 0, best = Infinity, acc = 0; // start where the loop passes the point
+      sp.loop.forEach((a, i) => { const d = Math.hypot(a[0] - v.x, a[1] - v.y); if (d < best) { best = d; s0 = acc; } const b = sp.loop[(i + 1) % sp.loop.length]; acc += Math.hypot(b[0] - a[0], b[1] - a[1]); });
+      if (!on) { const q = loopAt(sp.loop, s0 - LEASH); return { x: v.x, y: v.y, face: v.face, pose: 'stand', frame: 0, dog: { x: q.x, y: q.y, face: faceOf(v.x - q.x, v.y - q.y, 'e'), frame: 'rest' } }; }
+      const s = s0 + t / 1000 * DOG_SPEED, p = loopAt(sp.loop, s), q = loopAt(sp.loop, s - LEASH);
+      return { x: p.x, y: p.y, face: faceOf(p.dx, p.dy, v.face), pose: 'walk', frame: 1 + Math.floor(s / STEP) % 2, dog: { x: q.x, y: q.y, face: faceOf(q.dx, q.dy, 'e'), frame: 'walk' + Math.floor(s / 9) % 2 } };
+    }
+    if (v.pose === 'shoot') {
+      const hoop = sp && (sp.props || []).find(p => p.type === 'hoop');
+      if (!on || !hoop) return { x: v.x, y: v.y, face: v.face, pose: 'stand', frame: 0, ball: { x: v.x + 4, y: v.y + 4, z: 0 } };
+      const u = t + fnv(v.id) % SHOT_MS, i = Math.floor(u / SHOT_MS), ph = u - i * SHOT_MS, made = fnv(v.id + i) % 3 !== 0;
+      const rim = made ? { x: hoop.x, y: hoop.y + 4, z: 31 } : { x: hoop.x + 7, y: hoop.y + 8, z: 33 };
+      let ball;
+      if (ph < FLIGHT_MS) { const k = ph / FLIGHT_MS; ball = { x: v.x + (rim.x - v.x) * k, y: v.y + (rim.y - v.y) * k, z: 18 + (rim.z - 18) * k + Math.sin(Math.PI * k) * 26 }; }
+      else { const k = (ph - FLIGHT_MS) / (SHOT_MS - FLIGHT_MS); ball = { x: rim.x + (v.x + 4 - rim.x) * k, y: rim.y + (v.y + 4 - rim.y) * k, z: rim.z * Math.abs(Math.cos(k * Math.PI * 1.5)) * (1 - k) }; }
+      return { x: v.x, y: v.y, face: v.face, pose: ph < 300 ? 'celebrate' : 'stand', frame: 0, ball, made };
+    }
+    return { x: v.x, y: v.y, face: v.face, pose: v.pose === 'sit' ? 'sit' : 'stand', frame: 0 };
+  }
+
+  root.TownAmbient = { GRID, MAX_WATER, MAX_LIVE, plan, isEmpty, frameDue, sway, sparkleOn, particles, visit, loopAt, SHOT_MS, FLIGHT_MS, DOG_SPEED, LEASH };
 })(globalThis);

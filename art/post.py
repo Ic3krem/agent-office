@@ -172,7 +172,7 @@ def preview(out, png):
             canvas.alpha_composite(Image.open(os.path.join(out, 'terrain', f'r{r}c{c}.png')).convert('RGBA'), (c * tj['chunk'], r * tj['chunk']))
     atlas, atlas_sh = Image.open(os.path.join(out, 'atlas.png')).convert('RGBA'), Image.open(os.path.join(out, 'atlas-shadow.png')).convert('RGBA')
     ox, oy = tj['originPx']
-    items = [(l['building']['type'], l['building']['x'], l['building']['y']) for l in town['lots']] + [(d['type'], d['x'], d['y']) for d in town['decor']]
+    items = [(l['building']['type'], l['building']['x'], l['building']['y']) for l in town['lots']] + [(d['type'], d['x'], d['y']) for d in town['decor']] + [(p['type'], p['x'], p['y']) for sp in town.get('spots', []) for p in sp['props']]
     items.sort(key=lambda i: i[1] + i[2])
     for src in (atlas_sh, atlas):  # all shadows first, then sprites back to front
         for (n, x, y) in items:

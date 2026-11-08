@@ -122,7 +122,8 @@ for _ in range(int(W * D * 0.14)):
     x, y, gw, gd = rnd.uniform(0, W - 1.2), rnd.uniform(0, D - 1.2), rnd.uniform(.5, 1.6), rnd.uniform(.5, 1.6)
     col = rnd.choice(GRASS)
     if flat(x, y, gw, gd): box(x, y, z_at(x, y), gw, gd, 0.03, col)
-paved = lambda x, y: inside(x, y, PLAZA, .5) or any(inside(x, y, p, .3) for p in PATHS) or any(inside(x, y, w, .6) for w in WATER)
+SPOT_GROUND = [U(s[k]) for s in town.get('spots', []) for k in ('floor', 'pool') if k in s]
+paved = lambda x, y: inside(x, y, PLAZA, .5) or any(inside(x, y, p, .3) for p in PATHS) or any(inside(x, y, w, .6) for w in WATER) or any(inside(x, y, g, .3) for g in SPOT_GROUND)
 for _ in range(int(W * D * 0.05)):
     x, y = rnd.uniform(0.3, W - 0.5), rnd.uniform(0.3, D - 0.5)
     if paved(x, y): continue
@@ -164,6 +165,39 @@ for (x0, y0, x1, y1) in WATER:
         box(W, y0 + .3, -DEP - 0.6, 0.12, y1 - y0 - .6, DEP + 0.68, '#3f8fc4')
         for _ in range(14): box(W + 0.12, rnd.uniform(y0 + .4, y1 - .8), rnd.uniform(-DEP, -1), .02, .3, rnd.uniform(1, 2.5), '#bfe6ff')
     if y1 >= D: box(x0, D, -DEP - 0.6, x1 - x0, 0.12, DEP + 0.68, '#3f8fc4')
+
+
+# ---- town step 5: spot grounds (the court floor, the park loop path, the waterfall pool), on their terrace ----
+SPOTS = town.get('spots', [])
+for sp in SPOTS:
+    if 'floor' in sp:  # half basketball court: clay floor, white lines, key and arc under the hoop on the north side
+        x0, y0, x1, y1 = U(sp['floor']); z = z_at(x0 + .1, y0 + .1)
+        box(x0, y0, z, x1 - x0, y1 - y0, 0.07, '#b8572f'); box(x0 + .2, y0 + .2, z + .07, x1 - x0 - .4, y1 - y0 - .4, 0.01, '#c9693a')
+        L = lambda a, b, w, d: box(a, b, z + .08, w, d, 0.01, '#f6f1e3')
+        L(x0 + .3, y0 + .3, x1 - x0 - .6, .12); L(x0 + .3, y1 - .42, x1 - x0 - .6, .12); L(x0 + .3, y0 + .3, .12, y1 - y0 - .6); L(x1 - .42, y0 + .3, .12, y1 - y0 - .6)
+        cx = (x0 + x1) / 2; L(cx - 1.6, y0 + .3, .12, 5.6); L(cx + 1.48, y0 + .3, .12, 5.6); L(cx - 1.6, y0 + 5.8, 3.2, .12)
+        for i in range(25):
+            a = math.pi * i / 24; box(cx + math.cos(a) * 6.5 - .06, y0 + .3 + math.sin(a) * 6.5 - .06, z + .08, .12, .12, 0.01, '#f6f1e3')
+    if 'pool' in sp:  # the waterfall pool with a stone rim
+        x0, y0, x1, y1 = U(sp['pool']); z = z_at(x0 + .1, y1 - .1)
+        box(x0, y0, z, x1 - x0, y1 - y0, 0.08, '#3f8fc4'); box(x0 + .4, y0 + .4, z + .08, x1 - x0 - .8, .2, 0.01, '#bfe6ff')
+        x = x0
+        while x < x1:
+            sw = min(rnd.uniform(.6, 1.1), x1 - x); box(x, y1 - .3, z, sw - .05, .45, rnd.uniform(.15, .3), rnd.choice(STONE)); x += sw
+        for xx in (x0 - .3, x1 - .15):
+            y = y0
+            while y < y1:
+                sd = min(rnd.uniform(.6, 1.1), y1 - y); box(xx, y, z, .45, sd - .05, rnd.uniform(.15, .3), rnd.choice(STONE)); y += sd
+    if 'loop' in sp:  # a dirt path round the park, 2 units wide
+        pts = [(p[0] / 10, p[1] / 10) for p in sp['loop']]
+        for i, (ax, ay) in enumerate(pts):
+            bx, by = pts[(i + 1) % len(pts)]; n = max(1, int(math.hypot(bx - ax, by - ay) / 0.5))
+            for k in range(n + 1):
+                x, y = ax + (bx - ax) * k / n, ay + (by - ay) * k / n
+                box(x - 1, y - 1, z_at(x, y), 2, 2, 0.07, '#c49a62')
+            for _ in range(int(math.hypot(bx - ax, by - ay))):
+                t = rnd.random(); x, y = ax + (bx - ax) * t + rnd.uniform(-.8, .5), ay + (by - ay) * t + rnd.uniform(-.8, .5)
+                box(x, y, z_at(x, y) + 0.07, .35, .35, .03, rnd.choice(['#a98250', '#d8b07a']))
 
 # ---- wooden bridges (deck runs north-south) ----
 for (x0, y0, x1, y1) in BRIDGES:
