@@ -37,6 +37,7 @@
     // ?failgl=1 is only for perf/town-check.cjs: it makes WebGL setup fail so the Canvas2D fallback can be checked.
     if (/[?&]failgl=1/.test(location.search)) PIXI.Application.prototype.init = () => Promise.reject(new Error('WebGL unavailable'));
     const map = await TownMap.load('/town/town.json'), grid = TownMap.grid(map);
+    let drawMap = map, lotsDirty = false; // drawMap: the map with friends' office buildings on their lots (party lots)
     // ?hour=<0-23> is only for visual and perf checks: a fixed time of day.
     const hq = /[?&]hour=(\d+)/.exec(location.search), hour = hq ? Math.min(23, +hq[1]) : null;
     let stored = await Graphics.load().catch(() => ({ preset: Graphics.detect(Graphics.probe()) }));
@@ -59,7 +60,7 @@
         const cv = canvas.cloneNode(false);
         cv.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden'; // laid out at full size, not shown
         canvas.after(cv);
-        try { return { api: await mount(cv, { map, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: g, hour }), cv }; } catch (e) { cv.remove(); throw e; }
+        try { return { api: await mount(cv, { map: drawMap, atlasUrl: '/art/town/atlas.json', terrainUrl: '/art/town/terrain.json', graphics: g, hour }), cv }; } catch (e) { cv.remove(); throw e; }
       };
       if (g.renderer === 'canvas') return attempt(TownRender2D.mount, g);
       try { return await attempt(TownRender.mount, g); } catch (e) {
@@ -86,7 +87,8 @@
     let queue = Promise.resolve();
     const regraph = () => { queue = queue.then(async () => {
       const g = resolveG();
-      if (g.renderer === api.kind) return api.setGraphics(g);
+      if (g.renderer === api.kind && !lotsDirty) return api.setGraphics(g);
+      lotsDirty = false;
       swapping = true;
       try {
         const m = await mountHidden(g), old = api;
@@ -105,13 +107,16 @@
     // Doors: near one, a prompt says where it goes; E or a tap on the prompt fades out and goes there. Friend lots wait for party mode.
     const doorBtn = document.getElementById('door'), html = document.documentElement;
     let near = null;
+    let party = null; // the party view from the stream (set by resync below)
+    const members = () => (party && party.connected && party.members) || [];
+    const target = l => TownMap.friendTarget(l, members(), !!(party && party.connected));
     const nearDoor = () => { let best = null, bd = WP.REACH; for (const l of map.lots) { const d = Math.hypot(l.door.x - p.x, l.door.y - p.y); if (d <= bd) { bd = d; best = l; } } return best; };
     const showDoor = () => {
       const l = nearDoor(); if (l === near) return; near = l;
       if (!l) { doorBtn.hidden = true; return; }
-      const t = TownMap.enterTarget(l); doorBtn.textContent = t.url ? t.label + ' · E' : t.label; doorBtn.className = t.url ? '' : 'wait'; doorBtn.hidden = false;
+      const t = target(l); doorBtn.textContent = t.url ? t.label + ' · E' : t.label; doorBtn.className = t.url ? '' : 'wait'; doorBtn.hidden = false;
     };
-    const enter = () => { const t = near && TownMap.enterTarget(near); if (!t || !t.url || html.classList.contains('ao-fade')) return; html.classList.add('ao-fade'); setTimeout(() => { location.href = t.url; }, 200); };
+    const enter = () => { const t = near && target(near); if (!t || !t.url || html.classList.contains('ao-fade')) return; html.classList.add('ao-fade'); setTimeout(() => { location.href = t.url; }, 200); };
     doorBtn.addEventListener('click', () => { enter(); canvas.focus(); });
     addEventListener('pageshow', e => { if (e.persisted) html.classList.remove('ao-fade'); }); // back/forward cache: show the town again
     requestAnimationFrame(() => html.classList.remove('ao-fade'));
@@ -128,9 +133,47 @@
     const resync = () => {
       if (snap && office) trips = trips_.sync(snap.agents || [], office, OfficeMotion.boardOf(snap).empty, Date.now(), routes);
       if (snap) friends = trips_.friends(snap.party, Date.now(), routes); // party friends' agents: name · friend, no costume
+      if (snap) partySync(snap.party);
       kick();
     };
     const kick = () => { if (!tRaf) tRaf = requestAnimationFrame(tTick); };
+    // Party lots (town step 5): friends' offices stand on the friend lots, and members walking the town show where they
+    // are, gliding to each position update. Your own position is sent once a second while it changes.
+    const guests = new Map(), GUEST_SPEED = 160; // id -> {x, y, tx, ty, face, dist, name}
+    let lotsKey = '[]', guestAt = 0, avKey = ''; // '[]': no friend lots, the map as loaded (no remount outside a party)
+    function partySync(P) {
+      party = P || null;
+      const ms = members(), key = JSON.stringify(Object.entries(TownMap.friendLots(ms)));
+      if (key !== lotsKey) { lotsKey = key; drawMap = TownMap.withFriends(map, ms); lotsDirty = true; near = null; regraph(); }
+      const seen = new Set();
+      for (const m of ms) {
+        const a = m.avatar; if (!a || a.room !== 'town') continue;
+        seen.add(m.id);
+        const g = guests.get(m.id);
+        if (g) { g.tx = a.x; g.ty = a.y; g.name = m.name; } else guests.set(m.id, { x: a.x, y: a.y, tx: a.x, ty: a.y, face: 's', dist: 0, name: m.name });
+      }
+      for (const id of [...guests.keys()]) if (!seen.has(id)) guests.delete(id);
+    }
+    function guestList(now) {
+      const dt = guestAt ? Math.min(0.25, (now - guestAt) / 1000) : 0; guestAt = now;
+      const out = [];
+      for (const [id, g] of guests) {
+        const dx = g.tx - g.x, dy = g.ty - g.y, d = Math.hypot(dx, dy), step = GUEST_SPEED * dt;
+        const moving = d > 0.5;
+        if (moving) {
+          const k = d > 400 || step >= d ? 1 : step / d; // far behind (a missed update): jump
+          const nx = g.x + dx * k, ny = g.y + dy * k;
+          g.face = TownRender.faceAlong({ x: g.x, y: g.y }, { x: nx, y: ny }, g.face); g.dist += Math.hypot(nx - g.x, ny - g.y); g.x = nx; g.y = ny;
+        }
+        out.push({ id: 'guest:' + id, x: g.x, y: g.y, face: g.face, frame: moving ? TownRender.walkFrame(g.dist) : 0, look: OfficeSprites.lookOf({ id, name: g.name }), name: g.name, accent: '#ffcf6b', moving });
+      }
+      return out;
+    }
+    setInterval(() => {
+      if (!party || !party.connected || document.hidden) return;
+      const k = Math.round(p.x) + ',' + Math.round(p.y); if (k === avKey) return; avKey = k;
+      fetch('/api/party/avatar', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '' }, body: JSON.stringify({ x: p.x, y: p.y, room: 'town' }) }).catch(() => { avKey = ''; });
+    }, 1000);
     function travellers(now, peek) { // peek: a read-only snapshot (debug hook), the walk state stays as it is
       const out = [], seen = new Map();
       for (const a of ((snap && snap.agents) || []).concat(friends)) {
@@ -143,13 +186,13 @@
         out.push({ id: a.id, x: pos.x, y: pos.y, face, frame: TownRender.walkFrame(dist), look: OfficeSprites.lookOf(a.profile ? { id: a.id, name: a.name, key: a.profile.key, color: a.profile.color, accent: a.profile.accent } : a), name: a.name || 'Helper', accent: a.profile && a.profile.accent });
       }
       if (!peek) { walked.clear(); for (const [k, v] of seen) walked.set(k, v); }
-      return out;
+      return peek ? out : out.concat(guestList(now));
     }
     function tTick() {
       tRaf = 0; clearTimeout(tWake); tWake = 0;
       const now = Date.now(), list = travellers(now);
       api.setTravellers(list); lastTrav = list; showTag(list);
-      if (list.length) { tRaf = requestAnimationFrame(tTick); return; }
+      if (list.some(t => t.moving !== false)) { tRaf = requestAnimationFrame(tTick); return; } // agents on the road always move; guests only while gliding
       let next = Infinity;
       for (const tr of Object.values(trips).concat(friends.map(f => f.trip))) next = Math.min(next, AT.nextIn(tr, 'town', now, routes));
       if (next < Infinity) tWake = setTimeout(kick, Math.min(next - now + 1, 2147483647));
@@ -174,7 +217,7 @@
         } catch (e) {}
       };
     } catch (e) {}
-    window.__town = { get api() { return api; }, p, grid, map, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { get api() { return api; }, p, grid, map, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;

@@ -25,6 +25,7 @@ test('cleaners drop unknown fields and clamp everything', () => {
   assert.equal(cleanOffice({ layout: { big: 'x'.repeat(LIMITS.layoutBytes) } }).layout, null);
   assert.equal(cleanOffice({ agents: Array.from({ length: 50 }, (_, i) => ({ id: 'a' + i, name: 'n' })) }).agents.length, LIMITS.agents);
   assert.deepEqual(cleanAvatar({ x: 1e9, y: -5, room: 'office:../../etc', presence: 'root' }), { x: 4000, y: 0, room: 'home', presence: 'available' });
+  assert.equal(cleanAvatar({ x: 1, y: 2, room: 'town' }).room, 'town'); // the shared town square (town step 5: party lots)
   assert.equal(cleanName('  <b>Bo\u0000b</b>  \u2028'), 'Bo b');
   assert.equal(cleanName('Room 2089 \u202eevil'), 'Room 2089 evil', 'digits survive; bidi overrides do not');
   assert.equal(cleanChat('call 2028 0829'), 'call 2028 0829');

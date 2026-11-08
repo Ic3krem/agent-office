@@ -182,7 +182,7 @@
     const urls = hasGlow ? [colourUrl, shadowUrl, glowUrl] : [colourUrl, shadowUrl];
     for (let r = 0; r < terrain.rows; r++) for (let c = 0; c < terrain.cols; c++) urls.push(chunkUrl(r, c));
     P.Assets.setPreferences({ preferWorkers: false }); // the server's CSP has no worker-src, so Pixi's blob decode worker is blocked
-    undo.push(() => P.Assets.unload(urls));
+    holdUrls(urls); undo.push(() => releaseUrls(urls));
     const tex = await P.Assets.load(urls, { strategy: 'retry', retryCount: 1, retryDelay: 250 }).catch(e => { e.asset = true; throw e; });
     let textureBytes = 0;
     for (const u of urls) textureBytes += tex[u].source.pixelWidth * tex[u].source.pixelHeight * 4;
@@ -453,11 +453,20 @@
         for (const s of parts) if (!s.parent) s.destroy(); // never shown: not in world, so app.destroy misses it
         charTex.clear();
         app.destroy({ removeView: false }, { children: true });
-        P.Assets.unload(urls);
+        releaseUrls(urls);
         sys.autoStart = sysWas.autoStart; if (sysWas.started) sys.start();
       },
     };
   }
 
+  // PIXI.Assets is one cache for the page: a remount (renderer swap, party lots) loads the same files while the old
+  // renderer still holds them, so a file is unloaded only when the last renderer using it lets go.
+  const held = new Map();
+  const holdUrls = urls => { for (const u of urls) held.set(u, (held.get(u) || 0) + 1); };
+  function releaseUrls(urls) {
+    const free = [];
+    for (const u of urls) { const n = (held.get(u) || 1) - 1; if (n > 0) held.set(u, n); else { held.delete(u); free.push(u); } }
+    if (free.length) root.PIXI.Assets.unload(free);
+  }
   root.TownRender = { K, CHAR_CAP, setOrigin: o => { O = o; }, setMap: m => { M = m; }, ground: atGround, travellerHit, cameraRect, toWorldAt, backingSize, lightClock, blobOf, lightAt, project, unproject, zoomFor, visibleChunks, depthOf, charPlace, faceAlong, walkFrame, STRIDE, pool, syncPool, lruEvict, fetchOk, mount };
 })(globalThis);

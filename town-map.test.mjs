@@ -167,3 +167,18 @@ test('ramp ends meet their levels exactly: no height jump stepping onto the terr
     for (let u = -4 * step; u < 1 + 4 * step; u += step) assert.ok(Math.abs(H(u + step) - H(u)) <= slope + 1e-6, r.dir + ' no jump at u=' + u.toFixed(4));
   }
 });
+
+test('party lots: friends get an office building on a friend lot and the door visits it', () => {
+  const d = real(), members = [{ id: 'a1b2c3d4', name: 'Ana' }, { id: '0000000f', name: 'Ben' }];
+  const m = TownMap.withFriends(d, members), lot = id => m.lots.find(l => l.id === id);
+  assert.equal(lot('friend-1').building.type, TownMap.styleOf('a1b2c3d4'));
+  assert.equal(lot('friend-2').building.type, TownMap.styleOf('0000000f'));
+  assert.equal(lot('friend-3').building.type, 'lot-empty');
+  assert.equal(d.lots.find(l => l.id === 'friend-1').building.type, 'lot-empty'); // the loaded map is not changed
+  assert.ok(TownMap.validate(m).ok);
+  assert.ok(['office-country', 'office-japanese', 'office-modern'].includes(TownMap.styleOf('zz')));
+  assert.deepEqual(JSON.parse(JSON.stringify(TownMap.friendTarget(lot('friend-1'), members, true))), { url: '/#visit=a1b2c3d4', label: "Visit Ana's office" });
+  assert.equal(TownMap.friendTarget(lot('friend-3'), members, true).label, 'An empty lot');
+  assert.equal(TownMap.friendTarget(lot('friend-3'), [], false).url, null);
+  assert.equal(TownMap.friendTarget(lot('home'), members, true).url, '/#scene=office');
+});

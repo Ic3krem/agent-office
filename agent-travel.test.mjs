@@ -465,7 +465,7 @@ test('town.html: the __town.travellers() debug read leaves the walk state alone'
     AT: { where: (rec, now) => ({ scene: 'town', pos: { x: now / 1000, y: 0 } }) },
     TownRender: { faceAlong: () => 'e', walkFrame: d => d },
     OfficeSprites: { lookOf: a => a },
-    snap: { agents: [{ id: 'a1', trip: {} }] }, friends: [], trips: {}, routes: null, walked: new Map([['a1', { x: 1, y: 0, dist: 5, face: 'e' }]]) });
+    snap: { agents: [{ id: 'a1', trip: {} }] }, friends: [], trips: {}, routes: null, guestList: () => [], walked: new Map([['a1', { x: 1, y: 0, dist: 5, face: 'e' }]]) });
   vm.runInContext(fn + ';globalThis.hook = () => ' + hook + ';', c);
   const before = JSON.stringify([...c.walked]);
   c.hook(); c.hook();

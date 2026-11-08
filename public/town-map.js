@@ -204,5 +204,21 @@
     return out;
   }
 
-  root.TownMap = { validate, grid, heightAt, LEVEL_H, decorFootprint, load, enterTarget, lotOfScene, friendLots };
+  // Party lots: the map with each assigned friend lot showing an office building (style picked from the member id, the
+  // same on every page), and where a lot's door leads. members: the party view's list (never includes you).
+  const STYLES = ['office-country', 'office-japanese', 'office-modern'];
+  const styleOf = id => STYLES[parseInt(String(id).slice(0, 8), 16) % STYLES.length || 0] || STYLES[0];
+  function withFriends(map, members) {
+    const lots = friendLots(members), byLot = {};
+    for (const [id, lot] of Object.entries(lots)) byLot[lot] = id;
+    return Object.assign({}, map, { lots: map.lots.map(l => byLot[l.id] ? Object.assign({}, l, { building: Object.assign({}, l.building, { type: styleOf(byLot[l.id]) }) }) : l) });
+  }
+  function friendTarget(lot, members, connected) {
+    if (!lot || lot.kind !== 'friend') return enterTarget(lot);
+    const lots = friendLots(members), id = Object.keys(lots).find(k => lots[k] === lot.id), m = id && members.find(x => x.id === id);
+    if (m) return { url: '/#visit=' + encodeURIComponent(m.id), label: 'Visit ' + (m.name || 'Guest') + "'s office" };
+    return { url: null, label: connected ? 'An empty lot' : 'Friend lots open in party mode' };
+  }
+
+  root.TownMap = { validate, grid, heightAt, LEVEL_H, decorFootprint, load, enterTarget, lotOfScene, friendLots, withFriends, friendTarget, styleOf };
 })(globalThis);
