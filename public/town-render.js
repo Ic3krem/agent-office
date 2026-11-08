@@ -159,7 +159,8 @@
     const undo = [];
     try { return await build(canvas, opts, undo); } catch (e) { for (const f of undo.reverse()) try { f(); } catch {} throw e; }
   }
-  async function build(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.high, hour = null }, undo) {
+  // animals (town step 5): (t, on, visitors) -> [{id, kind, x, y, face: 'l' | 'r', frame}], asked on ambient frames.
+  async function build(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.high, hour = null, animals = null }, undo) {
     const P = root.PIXI, SP = root.OfficeSprites;
     const getJson = async u => (await fetchOk(u)).json();
     const [atlas, terrain] = await Promise.all([getJson(atlasUrl), getJson(terrainUrl)]);
@@ -314,6 +315,7 @@
         w.name = fk; w.s.texture = frameTex(tex[colourUrl].source, fk); w.s.position.set(Math.round(sx - f.ax), Math.round(sy - f.ay));
       }
       if (travOn !== plan.visitors || (plan.visitors && trav.some(v => v.pose === 'shoot' || v.pose === 'dogwalk'))) drawTrav(); // spot activities move only on ambient frames
+      if (animals && (plan.visitors || zooOn !== plan.visitors)) drawZoo(); // animals walk on ambient frames; otherwise they rest
       const water = plan.water.length > 0;
       for (let i = 0; i < sparkles.length; i++) sparkles[i].visible = water && AMB.sparkleOn(i, t);
       for (let i = 0; i < treeList.length; i++) { const { s, id, on } = treeList[i]; s.skew.x = on ? -AMB.sway(id, t) / s.pivot.y : 0; } // crown moves sway px (sin x ~ x)
@@ -335,7 +337,8 @@
     // trav: the last setTravellers list; travOn: plan.visitors when it was last drawn. Parked visitors (pose: their spot act)
     // are posed by TownAmbient.visit at the last ambient time, so a traveller frame never undoes an ambient one.
     let trav = [], travOn = false;
-    const extras = pool(), leash = new P.Graphics();
+    const extras = pool(), zoo = pool(), leash = new P.Graphics();
+    let zooOn = null;
     leash.visible = false; world.addChild(leash);
     function charTexture(look, view, pose, frame, dir) {
       const key = [look.sig, view, pose, frame, dir].join('/');
@@ -359,6 +362,11 @@
       return key;
     }
 
+    function drawZoo() {
+      zooOn = plan.visitors;
+      const list = animals(ambT, plan.visitors, trav).map(a => ({ id: a.id, frame: a.kind + '.' + a.frame, x: a.x, y: a.y, flip: a.face === 'l' }));
+      for (const [e, s] of syncPool(zoo, list, atlasSprite)) putFrame(s, e);
+    }
     function drawTrav() {
       shown.clear(); travKeys = new Set(); travOn = plan.visitors;
       const more = [], lines = [];
@@ -464,7 +472,7 @@
       // Agents walking the town: [{id, x, y, face, frame, look, name}]. Pooled sprites; renders only when something shows or just hid.
       setTravellers(list) {
         if (!list.length && !crowdOn) return;
-        trav = list; drawTrav();
+        trav = list; drawTrav(); if (animals) drawZoo(); // a dog walker takes its dog off the herd
         crowdOn = list.length > 0;
         mark();
       },

@@ -15,7 +15,7 @@
     return px;
   }
 
-  async function mount(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.low, hour = null }) {
+  async function mount(canvas, { map, atlasUrl, terrainUrl, graphics = root.Graphics.PRESETS.low, hour = null, animals = null }) {
     const SP = root.OfficeSprites;
     const cx = canvas.getContext('2d');
     if (!cx) throw new Error('Canvas2D unavailable');
@@ -72,9 +72,9 @@
     }
 
     // Characters: {cv, px, py, z, flip}, placed by charPlace as the GPU put().
-    let player = null, trav = [];
+    let player = null, trav = [], zoo = []; // zoo: the animals at rest (no ambient here), redone when a dog walker comes or goes
     const shown = new Map(); // traveller id -> {x, y, name, dh}
-    const chars = () => player ? trav.concat(player) : trav;
+    const chars = () => (player ? trav.concat(player) : trav).concat(zoo);
     function charItem(x, y, face, pose, frame, look) {
       const c = R.charPlace(x, y, face), g = SP.get(look, c.view, pose, frame, c.dir);
       return { cv: g.cv, w: g.w, h: g.h, px: c.px, py: c.py - (g.h - SP.H), z: c.z, flip: c.flip }; // a short/tall sprite keeps its feet on the ground point
@@ -82,6 +82,9 @@
 
     // An atlas frame drawn as a character-like item (balls, dogs): mirrored about its anchor when flip.
     const frameItem = (name, x, y, flip) => { const f = atlas.frames[name]; if (!f) return null; const [sx, sy] = R.ground(x, y); return { f, px: Math.round(sx - f.ax), py: Math.round(sy - f.ay), z: R.depthOf(x, y) + 2e-3, mirror: flip }; };
+
+    const rest = visitors => { zoo = animals ? animals(0, false, visitors).map(a => frameItem(a.kind + '.' + a.frame, a.x, a.y, a.face === 'l')).filter(Boolean) : []; };
+    rest([]);
 
     let camX = map.spawn.x, camY = map.spawn.y, zoom = 1, viewW = 1, viewH = 1;
     let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, draws = 0, lastDraws = 0, dead = false;
@@ -186,6 +189,7 @@
           return c;
         });
         trav = trav.concat(more.filter(Boolean));
+        rest(list);
         mark();
       },
       travellerAt(x, y) { layout(); return R.travellerHit(shown, x, y, left, top, zoom, viewW / canvas.clientWidth); },
