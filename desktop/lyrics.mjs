@@ -55,6 +55,17 @@ export function lookupUrl(np) {
   return `${LRCLIB}?${q}`;
 }
 
+// The exact match (/api/get) misses when the player's album name or length differs from LRCLIB's copy; then search by a
+// cleaned title and the artist and take the first synced result whose title and artist match and length is within 3 s.
+const clean = s => String(s || '').replace(/\s*[([].*?[)\]]/g, '').replace(/\s+-\s+.*$/, '').trim();
+const norm = s => clean(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+export const searchUrl = np => `${LRCLIB.replace(/\/get$/, '/search')}?${new URLSearchParams({ track_name: clean(np.title), artist_name: np.artist })}`;
+export function pickResult(list, np) {
+  const t = norm(np.title), a = norm(np.artist), d = np.dur / 1000;
+  return (Array.isArray(list) ? list : []).find(r => r && typeof r.syncedLyrics === 'string' && !r.instrumental && norm(r.trackName) === t
+    && (norm(r.artistName).includes(a) || a.includes(norm(r.artistName))) && Math.abs(Number(r.duration) - d) <= 3) || null;
+}
+
 // get(np) -> [{t,text}] | null. Cached on disk under dir (one small JSON per track). Never throws.
 export const MAX_FAILED = 200, MAX_FILES = 500, MAX_BYTES = 10 * 1024 * 1024;
 export function createLyrics({ dir, fetchFn = globalThis.fetch, timeoutMs = 3000, userAgent = 'AgentOffice (local desktop app)', now = () => Date.now() } = {}) {
@@ -74,20 +85,24 @@ export function createLyrics({ dir, fetchFn = globalThis.fetch, timeoutMs = 3000
   const readCache = key => {
     try {
       const j = JSON.parse(fs.readFileSync(file(key), 'utf8'));
-      if (j?.v !== 1) return undefined;
+      if (j?.v !== 2) return undefined; // v2: misses before the search fallback are retried
       if (j.lines === null) return now() - j.at < NEG_TTL ? null : undefined;
       return Array.isArray(j.lines) ? j.lines.map(([t, text]) => ({ t, text })) : undefined;
     } catch { return undefined; }
   };
-  const writeCache = (key, lines) => { if (++writes % 25 === 0) pruneCache(); try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file(key), JSON.stringify({ v: 1, at: now(), lines: lines && lines.map(l => [l.t, l.text]) })); } catch {} };
+  const writeCache = (key, lines) => { if (++writes % 25 === 0) pruneCache(); try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file(key), JSON.stringify({ v: 2, at: now(), lines: lines && lines.map(l => [l.t, l.text]) })); } catch {} };
+  const getJson = async url => {
+    const r = await fetchFn(url, { signal: AbortSignal.timeout(timeoutMs), headers: { 'user-agent': userAgent, accept: 'application/json' } });
+    if (r.status === 404) return { miss: true };
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const body = await r.text();
+    if (body.length > MAX_BODY) throw new Error('too big');
+    return { j: JSON.parse(body) };
+  };
   async function lookup(np, key) {
     try {
-      const r = await fetchFn(lookupUrl(np), { signal: AbortSignal.timeout(timeoutMs), headers: { 'user-agent': userAgent, accept: 'application/json' } });
-      if (r.status === 404) { writeCache(key, null); return null; }
-      if (!r.ok) { markFailed(key); return null; }
-      const body = await r.text();
-      if (body.length > MAX_BODY) { markFailed(key); return null; }
-      const j = JSON.parse(body);
+      let { j, miss } = await getJson(lookupUrl(np));
+      if (miss) j = pickResult((await getJson(searchUrl(np))).j, np);
       const lines = !j || j.instrumental ? [] : parseLrc(j.syncedLyrics);
       const res = lines.length ? lines : null; writeCache(key, res); return res;
     } catch { markFailed(key); return null; }

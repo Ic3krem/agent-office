@@ -85,10 +85,37 @@ test('createLyrics: 404, instrumental and plain-only are cached as "no lyrics" (
   for (const r of [resp(404, {}), resp(200, { instrumental: true, syncedLyrics: '[00:01.00]x' }), resp(200, { plainLyrics: 'only plain', syncedLyrics: null })]) {
     const dir = mk(); let calls = 0, t = 1e12;
     const c = () => createLyrics({ dir, fetchFn: async () => { calls++; return r; }, now: () => t });
-    assert.equal(await c().get(TRACK), null); assert.equal(await c().get(TRACK), null); assert.equal(calls, 1);
-    t += 4 * 24 * 3600 * 1000; assert.equal(await c().get(TRACK), null); assert.equal(calls, 2);
+    const per = r.status === 404 ? 2 : 1; // a 404 on the exact match is followed by one search
+    assert.equal(await c().get(TRACK), null); assert.equal(await c().get(TRACK), null); assert.equal(calls, per);
+    t += 4 * 24 * 3600 * 1000; assert.equal(await c().get(TRACK), null); assert.equal(calls, 2 * per);
     fs.rmSync(dir, { recursive: true });
   }
+});
+
+test('createLyrics: no exact match -> search by title and artist; picks synced lyrics within 3 s, ignoring album and title extras', async () => {
+  const dir = mk(), urls = [];
+  const results = [
+    { trackName: 'Yesterday', artistName: 'The Beatles', duration: 140, syncedLyrics: '[00:01.00]too long' },        // 14 s off
+    { trackName: 'Yesterday', artistName: 'Someone Else', duration: 125, syncedLyrics: '[00:01.00]other artist' },
+    { trackName: 'Yesterday', artistName: 'The Beatles', duration: 126, syncedLyrics: null, plainLyrics: 'plain' },
+    { trackName: 'Yesterday (Remastered 2009)', artistName: 'The Beatles', duration: 127, syncedLyrics: '[00:01.00]right one' },
+  ];
+  const fetchFn = async url => { urls.push(url); return /\/api\/get\?/.test(url) ? resp(404, {}) : resp(200, results); };
+  const c = createLyrics({ dir, fetchFn });
+  assert.deepEqual(await c.get({ ...TRACK, title: 'Yesterday - Remastered 2009' }), [{ t: 1000, text: 'right one' }]);
+  assert.match(urls[1], /^https:\/\/lrclib\.net\/api\/search\?track_name=Yesterday&artist_name=The\+Beatles$/);
+  assert.equal(await createLyrics({ dir, fetchFn: async () => { throw new Error('no network'); } }).get({ ...TRACK, title: 'Yesterday - Remastered 2009' }).then(l => l.length), 1, 'cached');
+  fs.rmSync(dir, { recursive: true });
+});
+
+test('createLyrics: a "no lyrics" answer cached by an older version is retried', async () => {
+  const dir = mk(); let calls = 0;
+  fs.mkdirSync(dir, { recursive: true });
+  const old = createLyrics({ dir, fetchFn: async () => resp(404, {}) }); await old.get(TRACK);
+  for (const f of fs.readdirSync(dir)) fs.writeFileSync(path.join(dir, f), JSON.stringify({ v: 1, at: Date.now(), lines: null }));
+  const c = createLyrics({ dir, fetchFn: async () => { calls++; return resp(200, { syncedLyrics: '[00:01.00]back' }); } });
+  assert.equal((await c.get(TRACK))[0].text, 'back'); assert.equal(calls, 1);
+  fs.rmSync(dir, { recursive: true });
 });
 
 test('createLyrics: network errors, timeouts, 5xx and junk fail silently, are not cached, and back off 5 minutes', async () => {
