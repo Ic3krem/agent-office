@@ -221,5 +221,23 @@
     };
   }
 
-  root.WorldEdit = { toGround, snap, catalog, availableRoles, labelOf, createSession, pieceAt, isFixture };
+  // A desk for `role` without Build mode (the Agents panel's Add desk): the free spot nearest the other desks that passes the
+  // same checks as a drop in Build mode and leaves a valid layout (every spot reachable). -> {ok, layout} or {ok: false, reason}.
+  function addDeskAuto(layout, role) {
+    const s = createSession(layout), l = s.layout(), desks = desksOf(l);
+    const cx = desks.length ? desks.reduce((a, o) => a + o.x, 0) / desks.length : l.size.w / 2, cy = desks.length ? desks.reduce((a, o) => a + o.y, 0) / desks.length : l.size.h / 2;
+    const pts = [];
+    for (let x = 0; x <= l.size.w; x += 30) for (let y = 0; y <= l.size.h; y += 30) pts.push([Math.hypot(x - cx, y - cy), x, y]);
+    pts.sort((a, b) => a[0] - b[0]);
+    let why = 'no free spot for a desk';
+    for (const [, x, y] of pts) {
+      const r = s.add('dept-desk', x, y, { role });
+      if (!r.ok) { if (/role|already has a desk|limit/.test(r.reason)) return fail(r.reason); continue; }
+      if (WM.validate(s.layout()).ok) return { ok: true, layout: s.layout(), id: r.id };
+      s.undo(); why = 'no free spot that everyone can reach';
+    }
+    return fail(why);
+  }
+
+  root.WorldEdit = { toGround, snap, catalog, availableRoles, labelOf, createSession, pieceAt, isFixture, addDeskAuto };
 })(globalThis);

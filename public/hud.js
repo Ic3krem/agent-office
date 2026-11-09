@@ -32,6 +32,7 @@
   }
   const btn = (label, on, extra) => h('button', Object.assign({ type: 'button', class: 'hud-btn', onclick: on }, extra || {}), label);
   const sect = t => h('div', { class: 'hud-sect' }, t);
+  const sections = new Set(); // mounted party-music sections (HUD panels, the office Party panel), refreshed on every snapshot
   let snap = null, open = '', panel = null, bar = null, toast = null, opts = {};
   const say = t => { if (!toast) { toast = h('div', { class: 'hud-toast', role: 'status' }); root.document.body.append(toast); } toast.textContent = t; toast.hidden = false; clearTimeout(say.t); say.t = setTimeout(() => { toast.hidden = true; }, 4000); };
   const fail = e => say(e && e.message ? e.message : String(e));
@@ -65,7 +66,7 @@
   } };
   // The party's shared player: now playing, a link box, play/pause/stop for whoever may DJ, the host's "anyone can DJ".
   function musicSection() {
-    const box = h('div', { 'data-party-music': 1, style: 'display:flex;flex-direction:column;gap:6px' });
+    const box = h('div', { 'data-party-music': 1, style: 'display:flex;flex-direction:column;gap:6px' }); sections.add(box);
     const link = h('input', { 'aria-label': 'Music link', placeholder: 'YouTube or Spotify link, or https:// radio stream', maxlength: '300' });
     const play = () => { const v = link.value.trim(); if (!v) return; api('/api/party/music', { link: v }).then(() => { link.value = ''; }).catch(fail); };
     link.addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
@@ -179,6 +180,8 @@
     snap = d;
     if (root.PartyMusic) root.PartyMusic.sync(d && d.party && d.party.connected ? d.party.music : null);
     if (open && panel && P[open].update) P[open].update(panel.lastChild);
+    for (const b of sections) if (!b.isConnected) sections.delete(b); else if (!panel || !panel.contains(b)) b.update();
   }
-  root.Hud = { tasksOf, bubbleText, init, toggle, close, setSnapshot, toast: say, isOpen: () => open };
+  const musicSectionNow = () => { const b = musicSection(); if (snap) b.update(); return b; };
+  root.Hud = { tasksOf, bubbleText, init, toggle, close, setSnapshot, toast: say, isOpen: () => open, musicSection: musicSectionNow };
 })(globalThis);

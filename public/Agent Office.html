@@ -20,6 +20,10 @@
 <script src="./chismis-tl.js"></script>
 <script src="./graphics.js"></script>
 <script src="./office-world.js"></script>
+<script src="./manor.js"></script>
+<script src="./bg-music.js"></script>
+<script src="./party-music.js"></script>
+<script src="./hud.js"></script>
 <script src="./agent-history.js" defer></script>
 </head>
 <body>
@@ -191,6 +195,9 @@ button:disabled{opacity:.45;cursor:default}
       <button class="pill sm" onClick="{{ toggleLegend }}" title="Show or hide the zone labels" style="border-color:{{ legendBorder }};">Labels</button>
       <button class="pill sm" onClick="{{ toggleSaver }}" title="Power saver: the office redraws slowly while nothing moves and not at all when hidden. Turn off for a constant 30 fps." aria-pressed="{{ saverOn }}" style="border-color:{{ saverBorder }};">Power saver</button>
       <button class="pill sm" onClick="{{ openGfx }}" title="Graphics: quality preset and detail settings" style="border-color:var(--line);">Graphics: {{ gfxName }}</button>
+      <button class="pill sm" onClick="{{ openMusic }}" title="Background music and party music" data-hud-open="music">Music</button>
+      <button class="pill sm" onClick="{{ openManor }}" title="Manor: your office theme (party guests see it)" data-hud-open="manor">Manor</button>
+      <button class="pill sm" onClick="{{ openClaude }}" title="Settings · Claude: sign in, or use an API key" data-hud-open="claude">Claude</button>
       <a class="pill sm" href="/town" title="Walk the town (preview)" style="text-decoration:none;">Town (preview)</a>
       <button class="pill sm" onClick="{{ toggleBuild }}" aria-pressed="{{ buildPressed }}" title="Build mode: move, add and remove furniture and zones" style="display:{{ buildPillDisp }}; border-color:{{ buildBorder }}; color:{{ buildColor }};">Build</button>
       <button class="pill sm" onClick="{{ cycleDemo }}" title="Preview every state (work, think, blocked, report, empty board) without live agents" style="border-color:{{ demoBorder }}; color:{{ demoColor }};">{{ demoLabel }}</button>
@@ -277,6 +284,7 @@ button:disabled{opacity:.45;cursor:default}
               <input value="{{ chatDraft }}" onChange="{{ onChatDraft }}" onKeyDown="{{ onChatKey }}" maxlength="200" placeholder="Say something in the lounge" aria-label="Chat message" class="pin" style="flex:1; min-width:0;"></input>
               <button class="wbtn" onClick="{{ sendChat }}">Send</button>
             </div>
+            <div ref="{{ partyMusicRef }}"></div>
             <button class="wbtn" onClick="{{ partyLeave }}" style="align-self:flex-start;">Leave the party</button>
           </sc-if>
         </div>
@@ -330,10 +338,15 @@ button:disabled{opacity:.45;cursor:default}
             <div data-cli="{{ d.cli }}" style="padding:7px 9px; border-radius:8px; background:#120e0c; border:1px solid #2a211b; display:flex; flex-direction:column; gap:3px;">
               <div style="display:flex; align-items:center; gap:7px;"><span style="font-size:13px; color:#ffdca0;">{{ d.label }}</span><span style="flex:1;"></span><span style="font-size:11.5px; color:{{ d.color }};">{{ d.state }}</span></div>
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#a8998a; word-break:break-all;">{{ d.detail }}</div>
+              <div data-signin="{{ d.signinState }}" style="font-size:12px; color:{{ d.signinColor }};">{{ d.signin }}</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="wbtn" onClick="{{ d.onAdd }}" disabled="{{ d.addOff }}" title="{{ d.addTitle }}" data-add-desk="{{ d.cli }}">Add desk</button>
+                <sc-if value="{{ d.canSignin }}" hint-placeholder-val="{{ false }}"><button class="wbtn" onClick="{{ d.onSignin }}" title="Opens a terminal window running its own sign-in">Sign in</button></sc-if>
+              </div>
             </div>
           </sc-for>
           <div class="sect">External desks</div>
-          <sc-if value="{{ agentsNoDesks }}" hint-placeholder-val="{{ false }}"><div class="empty">No external desk yet. In Build mode, place a Codex, Gemini, OpenCode or Custom desk.</div></sc-if>
+          <sc-if value="{{ agentsNoDesks }}" hint-placeholder-val="{{ false }}"><div class="empty">No external desk yet. Press Add desk above, or place one in Build mode.</div></sc-if>
           <sc-for list="{{ agentsDesks }}" as="x" hint-placeholder-count="0">
             <div data-ext-desk="{{ x.key }}" style="padding:9px 10px; border-radius:8px; background:#120e0c; border:1px solid #2a211b; display:flex; flex-direction:column; gap:5px;">
               <div style="display:flex; align-items:center; gap:7px;"><span style="font-size:13px; color:#ffdca0;">{{ x.name }}</span><span style="flex:1; font-size:12px; color:#a8998a;">{{ x.label }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:1px 6px; border-radius:4px; background:#2a211b; color:#d7c3a8;">{{ x.usage }}</span></div>
@@ -690,6 +703,7 @@ class Component extends DCLogic {
       gfxRows:G.UI.map(r=>({label:r.label,options:r.options.map(([v,l])=>({label:l,pressed:cur[r.key]===v,border:bd(cur[r.key]===v),on:()=>custom(r.key,v)}))}))};
   }
   componentDidMount(){
+    if(window.Hud){Hud.init({place:SCENE,onManor:m=>{if(SCENE==='office'&&!this.state.visit&&window.OfficeWorld&&OfficeWorld.setManor)OfficeWorld.setManor(Manor.resolve(m).wash);}});window.BgMusic&&BgMusic.start(SCENE);}
     if(window.Graphics){Graphics.load().catch(()=>({preset:Graphics.detect(Graphics.probe())})).then(g=>this.useGfx(g));this.gfxOff=Graphics.onChange(g=>this.useGfx(g));}
     this.gameTimer=setInterval(()=>{const G=this.state.party&&this.state.party.game;if(this.state.partyOpen&&G&&(G.race||G.quiz))this.setState({gameTick:Date.now()});},250);
     this.avTimer=setInterval(()=>{const P=this.state.party;if(!P||!P.connected||!window.OfficeWorld)return;const c=OfficeWorld.ceo(),v=this.state.visit,room=SCENE==='office'?(v?'office:'+v.id:'home'):SCENE,k=[Math.round(c.x),Math.round(c.y),room].join(',');if(k===this.avKey)return;this.avKey=k;api('/api/party/avatar',{x:c.x,y:c.y,room}).catch(()=>{this.avKey='';});},1000);
@@ -721,7 +735,7 @@ class Component extends DCLogic {
     this.es.onerror=()=>this.setState({online:false});
     window.officeToast=t=>this.showToast(t);
     window.OfficeObjects&&OfficeObjects.onState(x=>this.setState({music:x.playing}));
-    this.es.onmessage=ev=>{const d=JSON.parse(ev.data);this.worldVersion(d.worldVersion&&d.worldVersion[SCENE]);if(SCENE!=='office'){const v=d.worldVersion&&d.worldVersion.office;if(this.owv!==undefined&&v!==this.owv)this.officeFlags();this.owv=v;}this.applyNames(d.names);if(!this.state.visit)SP.setCostumes(d.looks);this.syncGuests(d.party,this.state.visit);this.tryVisit(d.party);this.live=d;window.OfficeObjects&&OfficeObjects.update(d);window.OfficeWorld&&OfficeWorld.setSnapshot(d);this.setState(s=>({looks:d.looks||{},party:d.party||null,manager:d.manager,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,doneN:d.doneReports||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,tasksDone:d.tasksDone,hires:d.hires||[],names:d.names||null,desks:d.roster||null,...(s.demo?{}:{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null})}));};
+    this.es.onmessage=ev=>{const d=JSON.parse(ev.data);window.Hud&&Hud.setSnapshot(d);if(SCENE==='office'&&!this.state.visit&&window.Manor&&window.OfficeWorld&&OfficeWorld.setManor)OfficeWorld.setManor(Manor.resolve(d.manor).wash);this.worldVersion(d.worldVersion&&d.worldVersion[SCENE]);if(SCENE!=='office'){const v=d.worldVersion&&d.worldVersion.office;if(this.owv!==undefined&&v!==this.owv)this.officeFlags();this.owv=v;}this.applyNames(d.names);if(!this.state.visit)SP.setCostumes(d.looks);this.syncGuests(d.party,this.state.visit);this.tryVisit(d.party);this.live=d;window.OfficeObjects&&OfficeObjects.update(d);window.OfficeWorld&&OfficeWorld.setSnapshot(d);this.setState(s=>({looks:d.looks||{},party:d.party||null,manager:d.manager,switches:d.switches,rack:d.rack,memoryN:d.memoryN||0,reportsN:d.reportsN||0,doneN:d.doneReports||0,usage:d.usage||null,claudeMissing:!!d.claudeMissing,tasksDone:d.tasksDone,hires:d.hires||[],names:d.names||null,desks:d.roster||null,...(s.demo?{}:{goals:d.goals||[],boss:d.boss,agents:d.agents,overflow:d.overflow,selectedId:d.agents.some(a=>a.id===s.selectedId)?s.selectedId:null})}));};
     this.onKey=e=>{
       if(this.state.ask){if(e.key==='Escape'){e.preventDefault();this.setState({ask:null});}else if(e.key==='Tab'){const bs=[...document.querySelectorAll('[role=dialog] button')],i=bs.indexOf(document.activeElement);if(bs.length){e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}}return;}
       if(this.state.gfxOpen||this.state.usageOpen){if(e.key==='Escape')this.setState({gfxOpen:false,usageOpen:false});else if(e.key==='Tab')this.trapTab(e);return;} // a modal swallows keys: Y/N must never decide a permission hidden under it
@@ -737,7 +751,7 @@ class Component extends DCLogic {
     // Deep links from the Tiro island dock: #today, #reports, #usage.
     this.onHash=()=>{const h=location.hash.slice(1);if(!h)return;const vm=/(?:^|&)visit=([a-f0-9]{1,16})(?:&|$)/.exec(h);if(vm){this.pendingVisit=vm[1];this.tryVisit();}const m=/(?:^|&)scene=([^&]*)/.exec(h);
       if(m){if((['office','kain','games'].includes(m[1])?m[1]:'office')!==SCENE){if(this.session&&this.session.dirty())history.replaceState(null,'',location.pathname+location.search+(SCENE==='office'?'':'#scene='+SCENE));else location.reload();}return;} // back/forward to another scene: load it afresh
-      history.replaceState(null,'',location.pathname+location.search+(SCENE==='office'?'':'#scene='+SCENE));if(h==='usage')this.setState({usageOpen:true});else if(h==='reports')this.openReports();else if(h==='today')this.setState({todayOpen:true});};
+      history.replaceState(null,'',location.pathname+location.search+(SCENE==='office'?'':'#scene='+SCENE));if(h==='build'){let n=0;const go=()=>{if(window.OfficeWorld&&OfficeWorld.setBuild&&(this.layout||n>=12))this.enterBuild();else if(n++<40)setTimeout(go,150);};go();}else if(h==='usage')this.setState({usageOpen:true});else if(h==='reports')this.openReports();else if(h==='today')this.setState({todayOpen:true});};
     window.addEventListener('hashchange',this.onHash);this.onHash();
   }
   componentWillUnmount(){this.gfxOff&&this.gfxOff();clearInterval(this.avTimer);clearInterval(this.gameTimer);this.camOff&&this.camOff();this.es&&this.es.close();this.ro&&this.ro.disconnect();window.removeEventListener('keydown',this.onKey);window.removeEventListener('resize',this.onResize);}
@@ -884,7 +898,7 @@ class Component extends DCLogic {
     const max=Math.max(...days.map(d=>d.tokens),1), cr=u.credits||{}, crToday=cr[today.day]||0, since=u.creditsSince;
     const rows=[['Current session (5 hours)',L.session],['Weekly, all models',L.weekly],...(L.models||[]).map(m=>['Weekly, '+m.name,m])].filter(r=>r[1]);
     return {
-      openGfx:()=>this.setState({gfxOpen:true}),closeGfx:()=>this.setState({gfxOpen:false}),gfxOpen:s.gfxOpen,...this.gfxView(s),
+      openGfx:()=>this.setState({gfxOpen:true}),openMusic:()=>window.Hud&&Hud.toggle('music'),openManor:()=>window.Hud&&Hud.toggle('manor'),openClaude:()=>window.Hud&&Hud.toggle('claude'),closeGfx:()=>this.setState({gfxOpen:false}),gfxOpen:s.gfxOpen,...this.gfxView(s),
       openUsage:()=>this.setState({usageOpen:true}),closeUsage:()=>this.setState({usageOpen:false}),usageOpen:s.usageOpen,
       refreshLimits:()=>api('/api/limits').then(()=>this.showToast('Plan limits updated')).catch(e=>this.showToast(e.message)),
       costToday:$(today.cost),tokToday:tok(today.tokens),creditsToday:$(crToday),
@@ -1014,13 +1028,23 @@ class Component extends DCLogic {
   roleName(r){return (this.state.names||{})[r.key]||r.name;}
   // ---------- Agents: external specialists (Codex, Gemini CLI, OpenCode, a custom command) ----------
   loadExternal(fresh){return fetch('/api/external'+(fresh?'?refresh=1':'')).then(r=>r.json()).then(j=>{if(j&&j.desks)this.setState({ext:j});}).catch(()=>{});}
+  // Agents panel: an external desk without Build mode, at a free reachable spot (the same checks as a drop), saved at once.
+  addExtDesk(key){
+    if(!key)return;if(SCENE!=='office'||this.state.visit)return this.showToast('Go back to your office first.');if(this.session)return this.showToast('Leave Build mode first.');
+    const r=WorldEdit.addDeskAuto(this.layout||WorldModel.officeLayout(),key);if(!r.ok)return this.showToast("Can't add the desk: "+r.reason);
+    this.ownSave=true;api('/api/world',{layout:r.layout}).then(()=>{this.layout=r.layout;window.OfficeWorld&&OfficeWorld.applyLayout(r.layout);this.showToast('Desk added: '+this.roleName(RoleCatalog.get(key)));this.loadExternal();}).catch(e=>{this.ownSave=false;this.showToast(e.message);});
+  }
   stopExternal(key){if(!key)return;api('/api/external/stop',{key}).then(()=>{this.showToast('Stopped');this.loadExternal();}).catch(e=>this.showToast(e.message));}
   agentsView(s){const X=s.ext||{detected:[],desks:[]},dr=s.extDraft||{},D=window.agentOfficeDesktop&&window.agentOfficeDesktop.external;
     const setD=(k,f)=>e=>{const v=f==='auto'?e:e.target.value;this.setState(p=>({extDraft:{...p.extDraft,[k]:{...(p.extDraft||{})[k],[f]:v}}}));};
     return {agentsOpen:!!s.agentsOpen,agentsBorder:s.agentsOpen?'#8a5a1c':'#3a2e25',
       toggleAgents:()=>{const o=!s.agentsOpen;this.setState({agentsOpen:o,rosterOpen:false,partyOpen:false});if(o)this.loadExternal();},agentsRefresh:()=>this.loadExternal(true),
-      agentsDetected:(X.detected||[]).map(d=>({cli:d.cli,label:d.label,state:d.installed?(d.version||'installed'):'not installed',color:d.installed?'#5fd38d':'#7d7064',
-        detail:d.installed?(d.error||d.path)+' · uses its own settings in '+d.configHint:'Install: '+d.install})),
+      agentsDetected:(X.detected||[]).map(d=>{const si=d.signin||{state:'unknown'},taken=new Set((X.desks||[]).filter(x=>x.cli===d.cli).map(x=>x.key)),key=[1,2,3].map(n=>'ext-'+d.cli+'-'+n).find(k=>!taken.has(k)),A=window.agentOfficeDesktop&&window.agentOfficeDesktop.auth;
+        return {cli:d.cli,label:d.label,state:d.installed?(d.version||'installed'):'not installed',color:d.installed?'#5fd38d':'#7d7064',
+        detail:d.installed?(d.error||d.path)+' · uses its own settings in '+d.configHint:'Install: '+d.install,
+        signinState:si.state,signin:si.state==='yes'?'Signed in':si.state==='no'?'Not signed in':(si.note||'Sign-in unknown'),signinColor:si.state==='yes'?'#5fd38d':si.state==='no'?'#ffb547':'#a8998a',
+        addOff:!d.installed||!key||!!d.error,addTitle:!d.installed?'Install it first':!key?'3 desks is the limit':'Adds '+(key||'')+' at a free spot in the office',onAdd:()=>this.addExtDesk(key),
+        canSignin:!!A&&d.installed&&!d.error,onSignin:()=>A.login(d.cli).then(r=>{if(r&&r.copy)this.showToast('Run this in a terminal: '+r.copy);else if(r&&r.ok)this.showToast('A terminal opened: sign in there, then press Refresh.');}).catch(e=>this.showToast(e.message))};}),
       agentsNoDesks:!(X.desks||[]).length,
       agentsDesks:(X.desks||[]).map(x=>{const d=dr[x.key]||{},v=f=>d[f]!==undefined?d[f]:x.settings[f],auto=!!v('auto');
         return {key:x.key,name:x.name,label:x.label,usage:x.usage,warning:x.warning,readOnly:!x.settings.auto,outside:!x.confirmed,isCustom:x.cli==='custom',working:!!x.working,
@@ -1041,6 +1065,7 @@ class Component extends DCLogic {
       partyMembers:(P.members||[]).map(m=>({name:m.name,presence:m.presence,dot:DOT[m.presence]||'#7d7064',info:(m.room==='lounge'?'in the lounge · ':'')+m.agents+' agent'+(m.agents===1?'':'s')+(m.working?' · '+m.working+' working':''),onVisit:()=>this.visitMember(m.id,m.name)})),
       partyEmpty:on&&!(P.members||[]).length,partyChat:(P.chat||[]).map(l=>({name:l.mine?'You':l.name,text:l.text,col:l.mine?'#ffcf6b':'#8fd3ff'})),
       chatDraft:s.chatDraft||'',onChatDraft:e=>this.setState({chatDraft:e.target.value}),onChatKey:e=>{if(e.key==='Enter')this.sendChat();},sendChat:()=>this.sendChat(),
+      partyMusicRef:this.pmRef||(this.pmRef=el=>{if(el&&window.Hud&&!el.firstChild)el.append(Hud.musicSection());}),
       partyLeave:()=>{this.goHome();api('/api/party/leave').then(j=>this.setState({party:j.party})).catch(e=>this.showToast(e.message));},
       visiting:!!s.visit,visitName:s.visit?s.visit.name:'',goHome:()=>this.goHome(),g:this.gamesView(s,P)};}
   // Who of the party is standing in the office on screen: the friend we visit (in their own office) and anyone in the same room.
@@ -1075,12 +1100,12 @@ class Component extends DCLogic {
       const o=j.office;if(!o)throw new Error(name+' has not shared an office yet.');
       const L=o.layout&&WorldModel.validate(o.layout).ok?o.layout:WorldModel.officeLayout();
       if(this.state.demo){W.setDemo(null);this.setState({demo:''});}
-      W.applyLayout(L);SP.setCostumes(o.looks||{});
+      W.applyLayout(L);SP.setCostumes(o.looks||{});W.setManor&&window.Manor&&W.setManor(Manor.resolve(o.manor).wash); // their manor theme
       const T=OfficeMotion.TEAM,agents=o.agents.map(a=>{const tiro=a.key==='tiro',t=T.find(x=>x.key===a.key);return {id:'visit-'+a.id,isManager:tiro,name:a.name,role:tiro?'Manager':t?t.role:'Helper',profile:tiro?{...OfficeMotion.TIRO,name:a.name}:t?{key:t.key,name:a.name,role:t.role,color:t.color,accent:t.accent,desk:t.desk}:undefined,model:'',status:a.state,task:a.state==='idle'?'':a.bubble,turnTok:0,logs:[],perm:null};});
       W.setVisit({agents,goals:[],boss:{active:true,running:0,max:8},demo:true});
       this.setState({visit:{id,name},partyOpen:false,selectedId:null});this.syncGuests(this.state.party,{id,name});
     }).catch(e=>this.showToast(e.message));}
-  goHome(){if(!this.state.visit)return;const W=window.OfficeWorld;W.setVisit(null);W.applyLayout(this.layout||WorldModel.officeLayout());SP.setCostumes((this.live||{}).looks);if(this.live)W.setSnapshot(this.live);this.setState({visit:null});this.syncGuests(this.state.party,null);}
+  goHome(){if(!this.state.visit)return;const W=window.OfficeWorld;W.setVisit(null);W.setManor&&window.Manor&&W.setManor(Manor.resolve((this.live||{}).manor).wash);W.applyLayout(this.layout||WorldModel.officeLayout());SP.setCostumes((this.live||{}).looks);if(this.live)W.setSnapshot(this.live);this.setState({visit:null});this.syncGuests(this.state.party,null);}
   // Wardrobe (phase 5): each button steps one preset list and saves at once; Reset drops the costume.
   wardrobe(c){const W=RoleCatalog.WARDROBE,key=c.key,cur=(this.state.looks||{})[key]||{},n={hair:W.hair.length,skin:W.skin.length,style:W.styles.length,outfit:W.outfits.length};
     const set=costume=>api('/api/looks/set',{key,costume}).then(j=>{SP.setCostumes(j.looks);this.setState({looks:j.looks});}).catch(e=>this.showToast(e.message));

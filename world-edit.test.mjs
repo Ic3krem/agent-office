@@ -244,3 +244,14 @@ test('desks can be removed, but not the last one; a freed desk id is reused', ()
   assert.deepEqual(J(s.remove('desk-8')), { ok: false, reason: 'keep at least one desk' });
   assert.deepEqual(J(s.add('dept-desk', 155, 352, { role: 'auditor' })), { ok: true, id: 'desk-1' });
 });
+
+test('addDeskAuto: an external desk lands on a free, reachable spot of a valid layout (Agents panel, beta.6)', () => {
+  const r = J(E.addDeskAuto(WM.defaultLayout(), 'ext-codex-1'));
+  assert.equal(r.ok, true, r.reason);
+  const d = r.layout.objects.find(o => o.type === 'dept-desk' && o.role === 'ext-codex-1');
+  assert.ok(d, 'the desk is in the layout');
+  assert.equal(WM.validate(r.layout).ok, true, 'the layout validates (spots reachable)');
+  const again = J(E.addDeskAuto(r.layout, 'ext-codex-1'));
+  assert.equal(again.ok, false); assert.match(again.reason, /already has a desk/);
+  assert.equal(J(E.addDeskAuto(r.layout, 'nope')).ok, false);
+});
