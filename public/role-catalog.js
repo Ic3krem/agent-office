@@ -18,6 +18,17 @@
     { key: 'auditor', name: 'Vera', role: 'Auditor and compliance reviewer', kind: 'research', model: 'opus', color: '#4a4f8c', accent: '#a6aae0', props: 'auditor' },
     { key: 'notetaker', name: 'Memo', role: 'Meeting notes and minutes', kind: 'writer', model: 'haiku', color: '#7f8c8d', accent: '#c8d0d1', props: 'notetaker' },
   ];
+  // External specialists: fixed desk slots run by another CLI (Codex, Gemini CLI, OpenCode or a custom command), never by the SDK.
+  const EXTERNAL = [
+    ['codex', 'Codex', 'External coding agent (Codex CLI)', ['#3d4a5c', '#55657a', '#6b7c93'], '#b9c6d8'],
+    ['gemini', 'Gemini', 'External coding agent (Gemini CLI)', ['#3a6fc4', '#4f86dc', '#6a9ae6'], '#b8d0f7'],
+    ['opencode', 'Ollie', 'External agent (OpenCode: any provider or local model)', ['#2d6b66', '#3b8580', '#4f9c96'], '#a8dcd7'],
+    ['custom', 'Custom', 'External agent (custom command)', ['#7a5c3a', '#93704a', '#a8865e'], '#e3c9a6'],
+  ];
+  for (const [cli, name, role, colors, accent] of EXTERNAL) for (let n = 1; n <= 3; n++) {
+    ROLES.push({ key: 'ext-' + cli + '-' + n, name: n === 1 ? name : name + ' ' + n, role, kind: 'external', external: cli, model: null, color: colors[n - 1], accent, props: 'external' });
+  }
+  const externalOf = key => (/^ext-(codex|gemini|opencode|custom)-[1-3]$/.exec(String(key)) || [])[1] || null;
   // Saved layouts from before roles existed: a desk without a role param holds its built-in role.
   const BUILTIN_DESKS = { 'desk-1': 'pixel', 'desk-2': 'forge', 'desk-3': 'warden', 'desk-4': 'probe', 'desk-5': 'atlas', 'desk-6': 'cabalan', 'desk-7': 'tally', 'desk-8': 'scribe' };
   // Wardrobe presets (phase 5): a costume is a set of indices into these lists, never free colours or uploads.
@@ -53,6 +64,6 @@
     for (const k of LOOK_KEYS()) { if (!Object.prototype.hasOwnProperty.call(obj, k)) continue; const c = cleanCostume(obj[k]); if (c) out[k] = c; }
     return out;
   }
-  const api = { ROLES, BUILTIN_DESKS, WARDROBE, ROLE_PROP, LOOK_KEYS, cleanCostume, cleanLooks, get: key => ROLES.find(r => r.key === key) || null, keys: () => ROLES.map(r => r.key) };
+  const api = { ROLES, BUILTIN_DESKS, WARDROBE, ROLE_PROP, LOOK_KEYS, cleanCostume, cleanLooks, externalOf, isExternal: key => externalOf(key) !== null, get: key => ROLES.find(r => r.key === key) || null, keys: () => ROLES.map(r => r.key) };
   root.RoleCatalog = api;
 })(globalThis);

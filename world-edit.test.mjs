@@ -85,7 +85,7 @@ test('catalog skips fixtures and offers desks with their roles', () => {
   const c = J(E.catalog());
   assert.ok(!c.some((t) => /^fixture-/.test(t.type)));
   const desk = c.find((t) => t.type === 'dept-desk');
-  assert.deepEqual({ ...desk, roles: desk.roles.length }, { type: 'dept-desk', label: 'Department desk', group: 'desk', addable: true, deletable: true, roles: 13 });
+  assert.deepEqual({ ...desk, roles: desk.roles.length }, { type: 'dept-desk', label: 'Department desk', group: 'desk', addable: true, deletable: true, roles: 25 }, '13 Claude roles and 12 external desk slots');
   assert.equal(desk.roles.find((r) => r.key === 'auditor').name, 'Vera');
   assert.ok(c.every((t) => ['furniture', 'decor', 'nature', 'desk'].includes(t.group)));
   const s = E.createSession(WM.defaultLayout());
@@ -220,7 +220,7 @@ test('water zones follow their pond: no retype, resize, delete, or painting over
 // ---- department desks ----
 test('add a desk for a role: next free desk id, one desk per role, 12 at most', () => {
   const s = E.createSession(WM.defaultLayout());
-  assert.deepEqual(J(E.availableRoles(s.layout())).map((r) => r.key), ['it', 'accounting', 'marketing', 'auditor', 'notetaker']);
+  assert.deepEqual(J(E.availableRoles(s.layout())).filter((r) => r.kind !== 'external').map((r) => r.key), ['it', 'accounting', 'marketing', 'auditor', 'notetaker']);
   assert.deepEqual(J(s.add('dept-desk', 880, 720, { role: 'chef' })), { ok: false, reason: 'pick a role' });
   assert.deepEqual(J(s.add('dept-desk', 880, 720, { role: 'warden' })), { ok: false, reason: 'Warden already has a desk' });
   assert.deepEqual(J(s.add('dept-desk', 880, 720, { role: 'it' })), { ok: true, id: 'desk-9' });

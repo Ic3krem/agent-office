@@ -246,3 +246,17 @@ test('readForWrite at startup: a torn file is re-read, not replaced by defaults;
   assert.deepEqual(readForWrite(f, { wait: () => {}, log: m => logs.push(m) }), {});
   assert.equal(fs.readdirSync(d0).filter(n => n.startsWith('kiro.json.bad-')).length, 1); assert.equal(logs.length, 1);
 });
+
+test('team line marks external desks', async () => {
+  const { managerPrompt, externalKeys } = await import('./company.mjs');
+  const p = managerPrompt(['forge', 'ext-codex-1']);
+  assert.ok(p.includes('ext-codex-1 (Codex CLI, external: use mcp__office__delegate, not the Agent tool)'));
+  assert.match(p, /External specialists \(keys starting ext-\)/);
+  assert.deepEqual(externalKeys(['forge', 'ext-codex-1', 'ext-custom-3']), ['ext-codex-1', 'ext-custom-3']);
+});
+
+test('SDK agents exclude external desks', async () => {
+  const { teamFromSops } = await import('./company.mjs');
+  const team = teamFromSops([{ name: 'specialist-ext-codex-1', text: 'x' }], ['forge', 'ext-codex-1']);
+  assert.deepEqual(Object.keys(team), ['forge']);
+});

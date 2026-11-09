@@ -24,10 +24,10 @@ test('catalog matches ROSTER for the built-ins', () => {
   assert.deepEqual(Object.values(RoleCatalog.BUILTIN_DESKS), BUILTIN);
 });
 
-test('13 roles, unique keys, names and colours', () => {
-  const R = RoleCatalog.ROLES;
+test('13 Claude roles, unique keys, names and colours', () => {
+  const R = RoleCatalog.ROLES.filter(r => r.kind !== 'external');
   assert.equal(R.length, 13);
-  assert.deepEqual([...RoleCatalog.keys()], [...BUILTIN, ...NEW]);
+  assert.deepEqual([...R.map(r => r.key)], [...BUILTIN, ...NEW]);
   for (const f of ['key', 'name', 'color', 'accent']) assert.equal(new Set(R.map(r => r[f].toLowerCase())).size, 13, f);
   assert.ok(!R.some(r => r.color === MANAGER.color), 'no role takes Tiro\'s colour');
   for (const r of R) {
@@ -139,4 +139,17 @@ test('the helper example in the brief uses the display name, not the key', () =>
   assert.ok(managerPrompt(['it', 'pixel']).includes('(a second Byte is a "Byte helper" and needs'));
   assert.ok(MANAGER_PROMPT.includes('(a second Forge is a "Forge helper" and needs'));
   assert.doesNotMatch(managerPrompt(['it']), /a second it\b/);
+});
+
+test('external slots', () => {
+  const ext = RoleCatalog.ROLES.filter(r => r.kind === 'external');
+  assert.equal(ext.length, 12);
+  for (const r of ext) { assert.match(r.key, /^ext-(codex|gemini|opencode|custom)-[123]$/); assert.equal(r.model, null); assert.equal(r.external, r.key.split('-')[1]); }
+  assert.equal(RoleCatalog.isExternal('ext-codex-1'), true);
+  assert.equal(RoleCatalog.isExternal('forge'), false);
+  assert.equal(RoleCatalog.externalOf('ext-gemini-2'), 'gemini');
+  assert.equal(RoleCatalog.externalOf('forge'), null);
+  assert.deepEqual([...ext.filter(r => r.external === 'opencode').map(r => r.name)], ['Ollie', 'Ollie 2', 'Ollie 3']);
+  assert.equal(RoleCatalog.get('ext-custom-1').role, 'External agent (custom command)');
+  for (const f of ['key', 'name', 'color']) assert.equal(new Set(RoleCatalog.ROLES.map(r => r[f].toLowerCase())).size, RoleCatalog.ROLES.length, f);
 });

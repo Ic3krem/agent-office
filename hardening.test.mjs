@@ -206,7 +206,7 @@ test('/api/roster follows the desks: adding an it desk via /api/world puts it on
   const h = { cookie, 'x-nonce': page.headers['set-cookie'].join(';').match(/ao_nonce=([0-9a-f]+)/)[1] };
   const r0 = JSON.parse((await call(s.port, '/api/roster', { headers: h })).body);
   assert.deepEqual(r0.roster.map(r => r.key), ['pixel', 'forge', 'warden', 'probe', 'atlas', 'cabalan', 'tally', 'scribe']);
-  assert.deepEqual(r0.available.map(r => r.key).sort(), ['accounting', 'auditor', 'it', 'marketing', 'notetaker']);
+  assert.deepEqual(r0.available.map(r => r.key).filter(k => !k.startsWith('ext-')).sort(), ['accounting', 'auditor', 'it', 'marketing', 'notetaker']);
   assert.equal(r0.max, 8);
   const { layout } = JSON.parse((await call(s.port, '/api/world', { method: 'GET', headers: h })).body);
   layout.objects.push({ id: 'desk-9', type: 'dept-desk', x: 1120, y: 500, desk: 'desk-9', role: 'it' });
