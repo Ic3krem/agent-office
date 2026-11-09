@@ -33,6 +33,8 @@ import { PROVIDERS, providerOf, which, resolveLaunch, shellPath, splitArgs, dete
 import { effectiveExternal, confirmedFile, saveModel } from './external-settings.mjs';
 import { killAll as killExternal, runExternal } from './external-run.mjs';
 import { probeSignin, parseClaudeStatus } from './cli-auth.mjs';
+import { cleanMusicPrefs, listAudio, fileAt, parseRange, TYPES as AUDIO_TYPES } from './music.mjs';
+import { readForWrite, readSoft } from './prefs-file.mjs';
 import { createDelegator } from './external-delegate.mjs';
 
 let PORT = 0; // set once bound (see listenFirstFree in ports.mjs)
@@ -625,6 +627,14 @@ every(60e3, () => { const on = new Set(delegator.active()); for (const a of agen
 // POSIX: a plain kill of the server still stops the runs (their own process groups would outlive it otherwise).
 process.once('SIGTERM', () => { killExternal(); process.exit(0); });
 
+// ---------- background music (kiro.json music) and the manor theme (kiro.json manor) ----------
+const KIRO = path.join(CFG_DIR, 'kiro.json');
+const musicPrefs = () => cleanMusicPrefs(readSoft(KIRO).music);
+let tracks = { folder: '', at: 0, list: [] }; // the folder's listing, re-read at most every 30 s
+const trackList = () => { const f = musicPrefs().folder; if (f !== tracks.folder || Date.now() - tracks.at > 30e3) tracks = { folder: f, at: Date.now(), list: listAudio(f) }; return tracks.list; };
+const musicView = () => { const m = musicPrefs(); return { bg: m.bg === 'folder' && !m.folder ? 'builtin' : m.bg, volume: m.volume, folderName: m.folder ? path.basename(m.folder) : '', tracks: trackList().map(t => t.split('/').pop().replace(/\.[^.]+$/, '')) }; };
+const savePref = (k, v) => { const cur = readForWrite(KIRO, { log: m => console.error(m) }); cur[k] = v; fs.writeFileSync(KIRO, JSON.stringify(cur)); };
+
 // ---------- snapshot ----------
 const statusSince = new Map(); // agent id -> {status, at}: when its computed status last changed
 function snapshot() {
@@ -786,6 +796,14 @@ async function handle(req, res) {
     const scene = url.pathname === '/api/world' ? parseScene(url.searchParams.get('scene')) : 'office';
     if (!scene) return json(res, 400, { error: 'scene must be office, kain or games' });
     if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, scene === 'office' ? worldNow : worldStore.load(scene));
+    if (req.method === 'GET' && url.pathname === '/api/music/file') { // one track of the music folder, by index, with range requests (seeking)
+      const f = fileAt(musicPrefs().folder, trackList(), Number(url.searchParams.get('i')));
+      if (!f) return json(res, 404, { error: 'not found' });
+      const size = fs.statSync(f).size, r = parseRange(req.headers.range, size), type = AUDIO_TYPES[path.extname(f).slice(1).toLowerCase()] || 'application/octet-stream';
+      if (r === 'bad') { res.writeHead(416, { 'content-range': 'bytes */' + size }); return res.end(); }
+      res.writeHead(r ? 206 : 200, { 'content-type': type, 'accept-ranges': 'bytes', 'content-length': r ? r.end - r.start + 1 : size, ...(r && { 'content-range': `bytes ${r.start}-${r.end}/${size}` }) });
+      return fs.createReadStream(f, r ? { start: r.start, end: r.end } : {}).pipe(res);
+    }
     if (req.method === 'GET' && url.pathname === '/api/claude') return json(res, 200, await claudeView(url.searchParams.get('refresh') === '1'));
     if (req.method === 'GET' && url.pathname === '/api/external') return json(res, 200, await extView(url.searchParams.get('refresh') === '1'));
     if (req.method === 'GET' && url.pathname === '/api/world/templates') return json(res, 200, worldStore.listTemplates());
@@ -921,6 +939,12 @@ async function handle(req, res) {
       case '/api/party/presence': return json(res, (await partyClient.setPresence(b.presence)) ? 200 : 400, { party: partyView() });
       case '/api/party/avatar': { partyAvatar = cleanAvatar(b); return json(res, 200, {}); }
       case '/api/party/office': { const o = await partyClient.office(String(b.id || '')).catch(() => null); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'not in the party' }); }
+      case '/api/music': return json(res, 200, musicView());
+      case '/api/music/set': { // bg and volume only: the folder is set by the desktop app's picker
+        const cur = cleanMusicPrefs(readSoft(KIRO).music), next = cleanMusicPrefs({ ...cur, ...(b.bg !== undefined && { bg: b.bg }), ...(b.volume !== undefined && { volume: b.volume }) });
+        if (next.bg === 'folder' && !next.folder) return json(res, 400, { error: 'Choose a music folder first.' });
+        savePref('music', next); return json(res, 200, musicView());
+      }
       case '/api/graphics': return json(res, 200, { graphics: graphicsBox.get() });
       case '/api/graphics/set': { try { graphicsBox.set(b); } catch (e) { return json(res, e.status || 400, { error: e.message }); } return json(res, 200, { graphics: graphicsBox.get() }); }
       case '/api/looks/set': { try { lookBox.set(String(b.key), b.costume); } catch (e) { return json(res, e.status || 400, { error: e.message }); } bump(); return json(res, 200, { looks: lookBox.get() }); }
