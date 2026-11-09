@@ -115,7 +115,8 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
       st = { base, token: j.token, you: String(j.id || ''), host: j.host === true, seq: Number.isInteger(j.seq) ? j.seq : 0, name: cleanName(j.name) || 'Guest', party: cleanName(j.party) || 'Party', members: new Map(), chat: [], game: { race: null, quiz: null }, presence: 'available', ctrl: new AbortController(), live: false, lastOffice: '', avatar: '' };
       error = ''; stream(st); onChange(); return true;
     },
-    async leave() { if (!st) return; const me = st; try { await call('/leave'); } catch {} if (st === me) drop(); },
+    // stop the stream/poll loop first: the server answers a pending poll on /leave, and that answer must not start another poll
+    async leave() { if (!st) return; const me = st; try { me.ctrl.abort(); } catch {} clearTimeout(me.retry); try { await call('/leave'); } catch {} if (st === me) drop(); },
     async say(text) { const t = cleanChat(text); if (!st || !t) return false; return call('/chat', { text: t }); },
     // Mini-games: action race | type | quiz | answer. Returns the server's answer ({ok, error?, wpm?}).
     async game(action, b = {}) {
