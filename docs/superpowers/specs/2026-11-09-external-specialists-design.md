@@ -51,6 +51,15 @@ Each external desk runs with **that CLI's own settings**, exactly as configured 
 
 Because TiroAgents' Security Guard and approval cards do not see what these CLIs run, the desk's settings and the hire card say so in one line ("runs with Codex's own permissions; TiroAgents' Security Guard does not check its commands"). The hire approval of the exact prompt still applies.
 
+## Decisions after the builder check (my calls, 2026-11-09)
+
+- **Desks are new specialists, not catalog roles run by another CLI.** Each external desk gets its own key (`ext-<cli>-<n>`, e.g. `ext-codex-1`), name, look and brief; several desks may use the same CLI (two OpenCode desks on different models). `delegate(key, prompt)` takes that key. The catalog (`public/role-catalog.js`) gains the external desk types; ROSTER, name checks and Tiro's team line include external desks marked "(Codex)", etc.
+- **`delegate` runs in the background**, like a Claude hire: it returns at once, the desk shows progress, and the CLI's final answer reaches Tiro through `tellBoss`. External runs count toward MAX_SPECIALISTS. A run outlives Tiro's turn; a stopped app stops its runs.
+- **One approval, one run.** Because the Security Guard cannot see these CLIs, every `delegate` needs its own approved `request_hire` prompt (use once). Each run starts a fresh CLI session; Tiro passes what the follow-up needs in the prompt.
+- **Work folder:** Tiro's work folder, the same as Claude specialists.
+- **Custom command lines and extra arguments are local-only settings** (stored in kiro.json, keyed by desk key), never in the layout, a template or anything a party sees. A layout only says "an external desk of type Codex is here"; without a local setting the desk is unconfigured and cannot run.
+- **Timeouts:** 20 minutes per run by default, stoppable from the desk.
+
 ## Left to the builder
 
 PATH resolution details, output parsing per CLI (JSON event streams where offered, plain text otherwise), timeouts, the Agents panel layout, role templates for external desks, and the art for their desks (a small brand-neutral badge per provider, no logos).
