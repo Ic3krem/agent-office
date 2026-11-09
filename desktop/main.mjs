@@ -3,6 +3,8 @@ import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, gl
 import crypto from 'node:crypto';
 import { normalizeGuardConfig, effectiveConfig, weakenings, signConfig, signRemember, verifyRemember } from '../guard/config.mjs';
 import { CAT_NAMES } from '../guard/rules.mjs';
+import { effectiveExternal, confirmedFile, confirmExternal, cleanExternal } from '../external-settings.mjs';
+import { PROVIDERS } from '../external-agents.mjs';
 import { unsafeSwitches, unsafeEnv, unsafeMessage } from './startup-guard.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -44,7 +46,7 @@ const logLine = line => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try 
 const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(readForWrite(KIRO_FILE, { log: logText }))); } catch (e) { logText('prefs not read, using defaults: ' + e.message); return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
 // agentNames, looks and graphics are owned by the server (rename, wardrobe and Graphics UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
 // A torn kiro.json is re-read once; a corrupt one is moved aside to kiro.json.bad-<time> and logged (readForWrite), so saves never stall.
-const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk; try { disk = readForWrite(KIRO_FILE, { log: logText }); } catch (e) { logText('prefs not saved: ' + e.message); return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
+const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk; try { disk = readForWrite(KIRO_FILE, { log: logText }); } catch (e) { logText('prefs not saved: ' + e.message); return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics', 'external']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 // The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly
@@ -318,6 +320,24 @@ ipcMain.handle('guard:forget', (e, key) => {
   const entries = key === 'all' ? [] : guardRemembered().filter(r => r.key !== key);
   try { fs.writeFileSync(path.join(GUARD_DIR, 'remember.json'), JSON.stringify({ entries }), { mode: 0o600 }); } catch { return null; }
   return guardView();
+});
+// External desks: Auto mode, extra arguments and a custom command line apply only after this native confirmation (signed with GUARD_KEY).
+ipcMain.handle('external:confirm', async (e, key, vals) => {
+  if (!fromOffice(e) || typeof key !== 'string' || !/^ext-(codex|gemini|opencode|custom)-[1-3]$/.test(key) || !vals || typeof vals !== 'object' || Array.isArray(vals)) return null;
+  const next = cleanExternal({ [key]: vals })[key] || {};
+  const want = { auto: next.auto === true, args: next.args || '', command: next.command || '' };
+  const cur = effectiveExternal(readForWrite(KIRO_FILE, { log: logText }).external, readJ(confirmedFile(CFG_DIR)), GUARD_KEY)[key] || { auto: false, args: '', command: '' };
+  const weaker = (want.auto && !cur.auto) || (want.args && want.args !== cur.args) || (want.command && want.command !== cur.command);
+  if (weaker) {
+    const cli = key.split('-')[1], label = PROVIDERS[cli]?.label || 'the custom command';
+    const lines = [want.auto && !cur.auto && 'Auto mode on' + (PROVIDERS[cli]?.autoArgs.length ? ' (adds: ' + PROVIDERS[cli].autoArgs.join(' ') + ')' : ''),
+      want.args && want.args !== cur.args && 'Extra arguments: ' + want.args, want.command && want.command !== cur.command && 'Command line: ' + want.command].filter(Boolean).join('\n');
+    const r = await dialog.showMessageBox(office || undefined, { type: 'warning', title: 'External specialist', message: 'Let ' + label + ' run with these settings?',
+      detail: lines + '\n\nRuns with ' + label.replace(/ CLI$/, '') + "'s own permissions; TiroAgents' Security Guard does not check its commands. Only continue if you started this change yourself.",
+      buttons: ['Cancel', 'Allow'], defaultId: 0, cancelId: 0, noLink: true });
+    if (r.response !== 1) return { ok: false };
+  }
+  try { confirmExternal({ cfgDir: CFG_DIR, kiroFile: KIRO_FILE, secret: GUARD_KEY }, key, want); return { ok: true }; } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('notch:get', e => (fromOffice(e) ? notchOn() : null));
 ipcMain.handle('notch:set', (e, on) => { if (!fromOffice(e) || typeof on !== 'boolean') return null; setNotch(on); return notchOn(); });

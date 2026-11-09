@@ -29,7 +29,8 @@ import { createAuth, loadBridgeKey, lockDown, rand, safeLocal, writePrivate, saf
 import { redact, hasSecret, redactDeep } from './redact.mjs';
 import { prune } from './retention.mjs';
 import { createWorldStore, parseScene, SCENES } from './world-store.mjs';
-import { PROVIDERS, providerOf, which, resolveLaunch, shellPath, splitArgs } from './external-agents.mjs';
+import { PROVIDERS, providerOf, which, resolveLaunch, shellPath, splitArgs, detect } from './external-agents.mjs';
+import { effectiveExternal, confirmedFile, saveModel } from './external-settings.mjs';
 import { killAll as killExternal } from './external-run.mjs';
 import { createDelegator } from './external-delegate.mjs';
 
@@ -540,7 +541,27 @@ function tellBoss(text) {
 // ---------- external specialists (Codex, Gemini CLI, OpenCode, a custom command): run headless by mcp__office__delegate ----------
 const extLabel = key => providerOf(RoleCatalog.externalOf(key))?.label || 'external CLI';
 const extWarning = key => 'Runs with ' + extLabel(key).replace(/ CLI$| command$/, '') + "'s own permissions; TiroAgents' Security Guard does not check its commands.";
-const extSettings = () => ({ auto: false }); // Task 5 replaces this with the desktop-confirmed settings
+// Local desk settings: model as written; Auto, extra arguments and a custom command only as confirmed in the desktop app (HMAC).
+let extOutsideSeen = '';
+const extSettings = () => {
+  const e = effectiveExternal(readJsonSafe(path.join(CFG_DIR, 'kiro.json'))?.external, readJsonSafe(confirmedFile(CFG_DIR)), GUARD_KEY || null);
+  const sig = e.changedOutside.join(); if (sig && sig !== extOutsideSeen) host.note('External desk settings changed outside the app were ignored: ' + sig);
+  extOutsideSeen = sig; return e;
+};
+let extDetected = { at: 0, list: null };
+const extDetect = async (fresh = false) => {
+  if (fresh || !extDetected.list || Date.now() - extDetected.at > 60e3) extDetected = { at: Date.now(), list: await detect({ pathStr: EXT_PATH() }).catch(() => []) };
+  return extDetected.list;
+};
+const extView = async fresh => {
+  const eff = extSettings(), dn = dnames(), active = delegator.active();
+  return { detected: await extDetect(fresh), canConfirm: !!GUARD_KEY, changedOutside: eff.changedOutside,
+    desks: currentKeys().filter(k => RoleCatalog.isExternal(k)).map(key => {
+      const s = eff[key] || { model: '', auto: false, args: '', command: '' };
+      return { key, cli: RoleCatalog.externalOf(key), name: dn[key], label: extLabel(key), settings: s, confirmed: !eff.changedOutside.includes(key), working: active.includes(key),
+        warning: extWarning(key), readOnly: !s.auto, usage: 'usage: external' };
+    }) };
+};
 // How to start a CLI without a shell: found on the user's PATH (plus the usual install folders), npm shims resolved to node + script.
 const EXT_PATH = () => shellPath();
 function extLaunch(cli, s) {
@@ -741,6 +762,7 @@ async function handle(req, res) {
     const scene = url.pathname === '/api/world' ? parseScene(url.searchParams.get('scene')) : 'office';
     if (!scene) return json(res, 400, { error: 'scene must be office, kain or games' });
     if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, scene === 'office' ? worldNow : worldStore.load(scene));
+    if (req.method === 'GET' && url.pathname === '/api/external') return json(res, 200, await extView(url.searchParams.get('refresh') === '1'));
     if (req.method === 'GET' && url.pathname === '/api/world/templates') return json(res, 200, worldStore.listTemplates());
     if (req.method === 'GET' && url.pathname === '/api/world/template') {
       const id = url.searchParams.get('id') || '';
@@ -751,6 +773,10 @@ async function handle(req, res) {
     if (req.method !== 'POST' && url.pathname !== '/bridge/poll') return json(res, 405, { error: 'POST only' });
     const b = req.method === 'POST' ? await readBody(req) : {};
     switch (url.pathname) {
+      case '/api/external/settings': {
+        try { saveModel(path.join(CFG_DIR, 'kiro.json'), String(b.key || ''), String(b.model ?? '').trim()); } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+        bump(); return json(res, 200, await extView());
+      }
       case '/api/external/stop': {
         const key = String(b.key || '');
         return delegator.stop(key) ? json(res, 200, { ok: true }) : json(res, 404, { error: 'That desk is not running a task.' });
