@@ -21,7 +21,7 @@ test('the feed carries names, roles, states and generic bubbles, never task text
 
 test('cleaners drop unknown fields and clamp everything', () => {
   const o = cleanOffice({ layout: { a: 1 }, agents: [{ id: 'ab', name: 'X', state: 'hacking', bubble: 'I am reading /etc/passwd', task: 'x', extra: 1 }], prompt: 'x' });
-  assert.deepEqual(o, { stats: { done: 0, reports: 0 }, layout: { a: 1 }, looks: {}, agents: [{ id: 'ab', name: 'X', key: null, state: 'idle', bubble: 'Idle' }] });
+  assert.deepEqual(o, { stats: { done: 0, reports: 0 }, layout: { a: 1 }, looks: {}, manor: null, agents: [{ id: 'ab', name: 'X', key: null, state: 'idle', bubble: 'Idle' }] });
   assert.equal(cleanOffice({ layout: { big: 'x'.repeat(LIMITS.layoutBytes) } }).layout, null);
   assert.equal(cleanOffice({ agents: Array.from({ length: 50 }, (_, i) => ({ id: 'a' + i, name: 'n' })) }).agents.length, LIMITS.agents);
   assert.deepEqual(cleanAvatar({ x: 1e9, y: -5, room: 'office:../../etc', presence: 'root' }), { x: 4000, y: 0, room: 'home', presence: 'available' });

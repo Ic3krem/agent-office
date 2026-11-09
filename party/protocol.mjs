@@ -42,7 +42,37 @@ export function cleanLayout(l) {
 export function cleanOffice(o) {
   if (!plain(o)) return null;
   const st = plain(o.stats) ? o.stats : {};
-  return { stats: { done: int(st.done, 1e6) || 0, reports: int(st.reports, 1e6) || 0 }, layout: cleanLayout(o.layout), looks: cleanLooks(o.looks), agents: (Array.isArray(o.agents) ? o.agents : []).slice(0, LIMITS.agents).map(cleanAgent).filter(Boolean) };
+  return { stats: { done: int(st.done, 1e6) || 0, reports: int(st.reports, 1e6) || 0 }, layout: cleanLayout(o.layout), looks: cleanLooks(o.looks), manor: cleanManor(o.manor), agents: (Array.isArray(o.agents) ? o.agents : []).slice(0, LIMITS.agents).map(cleanAgent).filter(Boolean) };
+}
+// Manor theme (beta.6): a preset name and up to four #rrggbb overrides, nothing else (friends' lots and visits draw it).
+export const MANOR_THEMES = ['modern', 'country', 'japanese', 'beach', 'cyber', 'cottage'];
+const HEX = /^#[0-9a-f]{6}$/i;
+export function cleanManor(m) {
+  if (!plain(m) || !MANOR_THEMES.includes(m.theme)) return null;
+  const colors = {}, c = plain(m.colors) ? m.colors : {};
+  for (const k of ['wall', 'floor', 'roof', 'accent']) if (typeof c[k] === 'string' && HEX.test(c[k])) colors[k] = c[k].toLowerCase();
+  return { theme: m.theme, colors };
+}
+// Party music (beta.6): a pasted link -> {src, ref}. YouTube video ids, Spotify track/album/playlist/episode ids, or an
+// https audio stream without credentials. Nothing is downloaded or re-streamed; each app plays it from the source.
+const YT_ID = /^[\w-]{11}$/, SP_ID = /^[A-Za-z0-9]{22}$/, SP_KINDS = ['track', 'album', 'playlist', 'episode'];
+export function parseMusicLink(text) {
+  const t = String(text ?? '').trim();
+  const uri = /^spotify:([a-z]+):([A-Za-z0-9]+)$/.exec(t);
+  if (uri) return SP_KINDS.includes(uri[1]) && SP_ID.test(uri[2]) ? { src: 'spotify', ref: uri[1] + ':' + uri[2] } : null;
+  let u; try { u = new URL(t); } catch { return null; }
+  if (u.protocol !== 'https:' || u.username || u.password) return null;
+  const host = u.hostname.toLowerCase();
+  if (/^(www\.|m\.|music\.)?youtube\.com$/.test(host)) { const v = u.searchParams.get('v'); return v && YT_ID.test(v) ? { src: 'youtube', ref: v } : null; }
+  if (host === 'youtu.be') { const v = u.pathname.slice(1); return YT_ID.test(v) ? { src: 'youtube', ref: v } : null; }
+  if (host === 'open.spotify.com') { const p = u.pathname.split('/').filter(x => x && !/^intl-/.test(x)); return p.length === 2 && SP_KINDS.includes(p[0]) && SP_ID.test(p[1]) ? { src: 'spotify', ref: p[0] + ':' + p[1] } : null; }
+  return t.length <= 300 ? { src: 'stream', ref: u.href } : null;
+}
+const refOk = (src, ref) => typeof ref === 'string' && (src === 'youtube' ? YT_ID.test(ref) : src === 'spotify' ? (([k, id]) => SP_KINDS.includes(k) && SP_ID.test(id || ''))(ref.split(':')) : src === 'stream' && (p => !!p && p.src === 'stream' && p.ref === ref)(parseMusicLink(ref)));
+const num = (v, max) => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(max, v)) : 0;
+export function cleanMusic(m) {
+  if (!plain(m) || !['youtube', 'spotify', 'stream'].includes(m.src) || !refOk(m.src, m.ref)) return null;
+  return { src: m.src, ref: m.ref, title: cleanChat(String(m.title ?? '').replace(/<[^>]*>/g, ' ')).slice(0, 80), startedAt: num(m.startedAt, 9e15), paused: m.paused === true, pos: num(m.pos, 1e6) };
 }
 const coord = v => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(4000, Math.round(v))) : 0;
 export function cleanAvatar(a) {
@@ -73,5 +103,5 @@ export function feedOf(snapshot, layout, looks, hashId) {
     id: hashId(a.id), name: a.isManager || (a.profile && a.profile.key && !a.profile.helper) ? a.name : 'Helper ' + (++helper), key: a.isManager ? 'tiro' : (a.profile && a.profile.key) || null,
     state: STATES.includes(a.status) ? a.status : 'idle', bubble: bubbleOf(a),
   }));
-  return cleanOffice({ stats: { done: snapshot && snapshot.tasksDone, reports: snapshot && snapshot.doneReports }, layout, looks, agents });
+  return cleanOffice({ stats: { done: snapshot && snapshot.tasksDone, reports: snapshot && snapshot.doneReports }, layout, looks, manor: snapshot && snapshot.manor, agents });
 }
