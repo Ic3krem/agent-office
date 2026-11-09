@@ -81,3 +81,27 @@ test('party music: anyone can DJ by default; with it off only the host can', () 
   assert.equal(p.music(h, { music: null }).ok, true); assert.equal(p.hello(g).music, null, 'the host can stop it');
   assert.equal(p.music(h, { music: { src: 'file', ref: '/etc/passwd' } }).ok, false);
 });
+
+// ---------- the player in each app (public/party-music.js) ----------
+import { loadWorld } from './world-vm.mjs';
+const PM = loadWorld({ extra: ['party-music.js'] }).PartyMusic;
+
+test('posOf: paused stays put, playing moves with the clock', () => {
+  assert.equal(PM.posOf({ startedAt: 1000, pos: 10, paused: true }, 9000), 10);
+  assert.equal(PM.posOf({ startedAt: 1000, pos: 10, paused: false }, 6000), 15);
+  assert.equal(PM.posOf(null, 5), 0);
+});
+
+test('embed: privacy-enhanced YouTube with the start time, the Spotify embed, a stream as audio', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(PM.embed({ src: 'youtube', ref: YT, startedAt: 0, pos: 0, paused: false }, 42500))),
+    { kind: 'iframe', url: 'https://www.youtube-nocookie.com/embed/' + YT + '?enablejsapi=1&autoplay=1&playsinline=1&start=42' });
+  assert.equal(PM.embed({ src: 'spotify', ref: 'playlist:' + SP }).url, 'https://open.spotify.com/embed/playlist/' + SP);
+  assert.deepEqual(JSON.parse(JSON.stringify(PM.embed({ src: 'stream', ref: 'https://radio.example.com/a.mp3' }))), { kind: 'audio', url: 'https://radio.example.com/a.mp3' });
+});
+
+test('drift: resync only past 2 seconds', () => {
+  const m = { startedAt: 0, pos: 0, paused: false };
+  assert.equal(PM.drift(10.5, m, 9000), false);
+  assert.equal(PM.drift(6.9, m, 9000), true);
+  assert.equal(PM.drift(11.5, m, 9000), true);
+});
