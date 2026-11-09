@@ -159,7 +159,7 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
       if (!st) return { connected: false, error };
       return { connected: true, live: st.live, host: new URL(st.base).host, party: st.party, you: { id: st.you, name: st.name, presence: st.presence, host: st.host, seq: st.seq }, error,
         game: st.game, music: st.music || null, djAll: st.djAll !== false, canDj: st.host || st.djAll !== false,
-        members: [...st.members.values()].sort((a, b) => a.seq - b.seq).map(m => ({ host: m.host, seq: m.seq, stats: m.office ? m.office.stats : null, id: m.id, name: m.name, presence: (m.avatar && m.avatar.presence) || 'available', room: (m.avatar && m.avatar.room) || 'home', agents: m.office ? m.office.agents.length : 0, working: m.office ? m.office.agents.filter(a => a.state === 'working').length : 0, crew: m.office ? m.office.agents.map(({ id, name, key, state, bubble }) => ({ id, name, key, state, bubble })) : [], avatar: m.avatar })),
+        members: [...st.members.values()].sort((a, b) => a.seq - b.seq).map(m => ({ host: m.host, seq: m.seq, stats: m.office ? m.office.stats : null, id: m.id, name: m.name, presence: (m.avatar && m.avatar.presence) || 'available', room: (m.avatar && m.avatar.room) || 'home', agents: m.office ? m.office.agents.length : 0, working: m.office ? m.office.agents.filter(a => a.state === 'working').length : 0, manor: m.office ? m.office.manor : null, crew: m.office ? m.office.agents.map(({ id, name, key, state, bubble }) => ({ id, name, key, state, bubble })) : [], avatar: m.avatar })),
         chat: st.chat.slice(-30) };
     },
   };

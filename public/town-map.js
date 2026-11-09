@@ -265,10 +265,18 @@
     all.filter(m => m !== host).slice(0, FRIEND_LOTS.length).forEach((m, i) => { owners[FRIEND_LOTS[i]] = m; });
     return { owners, mine: Object.keys(owners).find(k => owners[k].me) || null };
   }
-  // The map with an office building on every owned friend lot (style from the owner's id, the same on every app).
-  function withFriends(map, world) {
-    const owners = (world && world.owners) || {};
-    return Object.assign({}, map, { lots: map.lots.map(l => l.kind === 'friend' && owners[l.id] ? Object.assign({}, l, { building: Object.assign({}, l.building, { type: styleOf(owners[l.id].id) }) }) : l) });
+  // The map with an office building on every owned friend lot, drawn in its owner's manor theme (beta.6) or, without one,
+  // in a style from the owner's id (the same on every app). The main house is the host's manor (yours outside a party).
+  // mine: your own manor (the party view does not carry it for you).
+  function withFriends(map, world, mine) {
+    const owners = (world && world.owners) || {}, M = root.Manor;
+    const manorOf = o => (o ? (o.me ? mine : o.manor) : null);
+    const build = (l, m, fallback) => { const b = M ? M.building(m, fallback) : { type: fallback, tint: 0 }; return Object.assign({}, l, { building: Object.assign({}, l.building, { type: b.type }, b.tint ? { tint: b.tint } : null) }); };
+    return Object.assign({}, map, { lots: map.lots.map(l => {
+      if (l.kind === 'friend' && owners[l.id]) return build(l, manorOf(owners[l.id]), styleOf(owners[l.id].id));
+      if (l.kind === 'home') { const m = owners.home ? manorOf(owners.home) : mine; return m ? build(l, m, l.building.type) : l; }
+      return l;
+    }) });
   }
   // Where a lot's door leads in the party world: your own office, a visit to the owner's office, or the shared rooms.
   function friendTarget(lot, world, connected) {

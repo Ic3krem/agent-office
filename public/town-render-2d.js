@@ -47,6 +47,7 @@
       const [sx, sy] = R.ground(x, y);
       items.push({ f, px: Math.round(sx - f.ax), py: Math.round(sy - f.ay), z: R.depthOf(x, y), glow: !!(f.glow && hasGlow), blob: f.footprint && f.footprint[2] > f.footprint[0] && R.blobOf(f) });
     };
+    // ponytail: the manor tint (building.tint) is drawn by the GPU renderer only; Canvas2D (the Low fallback) keeps the style untinted. Add a per-tint copy cache here if Low users ask for it.
     for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);
     for (const d of map.decor) place(d.type, d.x, d.y);
     for (const sp of map.spots || []) for (const p of sp.props || []) place(p.type, p.x, p.y); // town step 5: drawn at rest (no ambient here)

@@ -865,6 +865,8 @@
     legend: () => legend,
     setHour(h) { hourOverride = h; bg = null; wake(); },
     // Graphics.resolve(...) output: render scale, fps cap, shadows and lighting (the office has no ambient layer of its own)
+    // Manor theme wash (beta.6): Manor.resolve(...).wash ({wall, floor}) or null; the background is baked again.
+    setManor(w) { const k = JSON.stringify(w || null); if (k === JSON.stringify(F.state.manor || null)) return; F.state.manor = w || null; bg = null; wake(); },
     setGraphics(g) { G = g; F.state.shadows = g.shadows; F.state.lighting = g.lighting; bg = null; setScale(scaleCss); },
     graphics: () => G,
     setDemo(scene) { // scene string, or null to return to live data

@@ -267,7 +267,7 @@
       }
       return col;
     };
-    for (const l of map.lots) place(l.building.type, l.building.x, l.building.y);
+    for (const l of map.lots) { const s = place(l.building.type, l.building.x, l.building.y); if (s && l.building.tint) s.baseTint = l.building.tint; } // manor tint (beta.6)
     // Town step 5: the waterfall and the plaza fountain's colour sprites flip through <type>.0..3 on ambient frames.
     const falls = [], plays = { waterfall: 'falls', fountain: 'fountains' };
     const placeLive = (type, x, y, i) => { const s = place(type, x, y, i); if (s && plays[type]) falls.push({ s, x, y, type, name: type }); };
@@ -402,6 +402,7 @@
     let left = 0, top = 0, dirty = true, raf = 0, frames_ = 0, lastRenderMs = 0, dead = false;
     let G = graphics, tintNow = 0xffffff;
     const clock = lightClock(hour, () => mark()); // render on demand: once a minute (and on becoming visible), re-render only if the night tenth moved
+    const mulHex = (a, b) => [16, 8, 0].reduce((o, sh) => o | Math.round((a >> sh & 255) * (b >> sh & 255) / 255) << sh, 0);
     function applyGraphics() {
       shade.visible = G.shadows !== 'off'; blobs.visible = G.shadows === 'blob'; soft.visible = G.shadows === 'soft' || G.shadows === 'tint';
       if (!clock.changed(G)) return;
@@ -409,7 +410,7 @@
       const L = lightAt(h, G.lighting);
       tintNow = ground.tint = ambLow.tint = L.tint;
       // world is tinted per sprite, not as a container: a container tint would also darken the additive glow sprites in it
-      for (const s of world.children) if (!glows.has(s)) s.tint = L.tint;
+      for (const s of world.children) if (!glows.has(s)) s.tint = s.baseTint ? mulHex(s.baseTint, L.tint) : L.tint;
       for (const s of glows) { s.alpha = L.glow; s.visible = L.glow > 0; }
       pools.alpha = L.pools; pools.visible = L.pools > 0;
       soft.tint = G.shadows === 'tint' ? root.Graphics.tintOf(root.Graphics.nightOf(h)) : 0xffffff;

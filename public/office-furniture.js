@@ -277,6 +277,7 @@
     x.globalCompositeOperation = 'source-in'; x.fillStyle = '#233466'; x.fillRect(0, 0, c.width, c.height);
     return c;
   }
+  const INDOOR = new Set(['office', 'focus', 'play', 'lounge', 'utility']);
   function bake(g) {
     const nt = ST.night;
     // floor slab (front edges)
@@ -285,6 +286,9 @@
     const dflt = !ZONES || !root.WorldModel || root.WorldModel.isDefaultZones(ZONES), A = ATLAS && ATLAS.frames;
     const Z = ZONES || (root.WorldModel && root.WorldModel.defaultLayout().zones);
     if (Z) bakeZoneFloor(g, Z); // tiled zones from the office art, plain ones without it
+    const W8 = state.manor; // manor theme (beta.6): a colour wash over the indoor floors and the walls
+    const wash = (pts, col) => { g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = .45; poly(g, pts, col, null); g.restore(); };
+    if (W8 && Z) for (const q of Z) if (INDOOR.has(q.type)) { const [x0, y0, x1, y1] = q.rect; wash([P(x0, y0, 0), P(x1, y0, 0), P(x1, y1, 0), P(x0, y1, 0)], W8.floor); }
     if (dflt && A && A['floor@wood']) decor(g); // the default layout's rugs, beds and park paths over the tiles
 
     // ---- left wall (plane x=0) and right wall (plane y=0) ----
@@ -293,6 +297,7 @@
       // lighting 'tint' has no glow: the panes (the glow sheet's shape) only darken to the night sky
       const sky = nt > 0 && ATLAS.glow && ST.lighting === 'tint' ? nightPanes() : null;
       for (const n of ['wall@y', 'wall@x']) { sprite(g, n, 0, 0); if (nt > 0 && ATLAS.glow && A[n].glow) sprite(g, n, 0, 0, nt, null, sky || ATLAS.glow); }
+      if (W8) { wash([P(0, 0, 0), P(0, WYm(), 0), P(0, WYm(), WH), P(0, 0, WH)], W8.wall); wash([P(0, 0, 0), P(WXm(), 0, 0), P(WXm(), 0, WH), P(0, 0, WH)], W8.wall); }
     } else { // the atlas is missing: two plain wall planes
       const WYv = WYm(), WXv = WXm();
       poly(g, [P(0, 0, 0), P(0, WYv, 0), P(0, WYv, WH), P(0, 0, WH)], '#8d919b', null);
