@@ -103,7 +103,7 @@ The user runs a small "company" of Claude agents from a pixel-office dashboard a
 ## Team
 - Hiring is the exception, not the default. Do the work yourself when it is a quick read, a lookup or a small edit. Reuse a specialist who is already on the team (SendMessage to an idle one) before hiring another. Hire only when a goal truly needs separate hands: work too large or too specialised for you, or independent work that should run in parallel.
 - You cannot hire on your own. First call mcp__office__request_hire (specialist, goal_id, why: a concrete reason this needs a sub-agent, prompt: the exact first prompt you will send). The Agent call must then use that prompt unchanged. The user approves or denies it on the dashboard; the call returns their answer. Only after "approved" use the Agent tool, once, for that specialist. A denied request means do the work yourself or mark the goal blocked; do not ask again for the same reason.
-- Hire with the Agent tool, always with run_in_background: true. At most ${MAX_SPECIALISTS} work at the same time; if you are told the team is full, wait for a report before requesting another hire.
+${extLine(keys)}- Hire with the Agent tool, always with run_in_background: true. At most ${MAX_SPECIALISTS} work at the same time; if you are told the team is full, wait for a report before requesting another hire.
 ${teamLine(keys)}
 - Each specialist is ONE person with one desk. Never spawn a second copy of a type on your own, and never let a specialist spawn one. If a specialist is short on capacity or needs help, it says so in its report; you then call mcp__office__request_hire for the type that is needed (a second ${helperEg(keys)} is a "${helperEg(keys)} helper" and needs the user's approval like any hire). Tell every specialist you brief: do not spawn, ask for help in your report.
 ${coderLine(keys)}- Pick the model for each hire with the Agent tool's model field: haiku for lookups and small mechanical edits, sonnet for most work, opus only for hard design or debugging.
@@ -160,6 +160,14 @@ const SPECS = {
   notetaker: { effort: 'low', tools: [...READ_ONLY, 'Write'], team: 'meeting notes and minutes; never sends',
     brief: ['Turns meeting transcripts and notes into clean minutes.', 'Lists decisions, owners and due dates as action items.', 'Saves drafts to files; never sends them.'] },
 };
+// External desks run another company's CLI through mcp__office__delegate; the SDK never sees them as subagents.
+const EXT_LABEL = { codex: 'Codex CLI', gemini: 'Gemini CLI', opencode: 'OpenCode', custom: 'custom command' };
+for (const [cli, label] of Object.entries(EXT_LABEL)) for (let n = 1; n <= 3; n++) SPECS['ext-' + cli + '-' + n] = { tools: [], team: label + ', external: use mcp__office__delegate, not the Agent tool',
+  brief: ['Another company\'s agent (' + label + ') that runs headless with its own settings and login.', 'Gets one approved prompt per task and remembers nothing between tasks.', 'Its answer comes back to Tiro, who checks it before filing a report.'] };
+export const externalKeys = keys => keys.filter(k => RoleCatalog.isExternal(k));
+const EXT_LINE = '- External specialists (keys starting ext-) are other companies\' coding agents. Ask with request_hire exactly as for others; once approved, call mcp__office__delegate(specialist, prompt) once with the approved prompt. Their answer arrives later as a message; check it before you file a report. Every task needs its own approval; they remember nothing between tasks.\n';
+// Only a team with external desks gets the line, so the built-in brief (and its legacy hash) is unchanged.
+function extLine(keys) { return externalKeys(keys).length ? EXT_LINE : ''; }
 // Display data comes from the page's own catalog script, so the two can never drift.
 const box = {};
 vm.runInNewContext(fs.readFileSync(new URL('./public/role-catalog.js', import.meta.url), 'utf8'), box, { filename: 'role-catalog.js' });
@@ -342,14 +350,14 @@ export const LEGACY_MANAGER_PROMPT = MANAGER_PROMPT.replace(teamLine(BUILTIN), '
   BUILTIN.map(k => k + ' (' + ROSTER[k].team + ')').join(', ') + '. Old names still work: researcher=cabalan, builder=forge, ops=forge, writer=scribe, reviewer=probe.')
   .replace('a second Forge is', 'a second forge is');
 // An edited brief keeps its own team text; when the desks differ from the built-in eight, this note names the team Tiro has now.
-export const teamNote = keys => [...keys].sort().join() === [...BUILTIN].sort().join() ? '' : '\n\n## The team now (from the office desks; this replaces any other team list above)\n' + teamLine(keys);
+export const teamNote = keys => [...keys].sort().join() === [...BUILTIN].sort().join() ? '' : '\n\n## The team now (from the office desks; this replaces any other team list above)\n' + teamLine(keys) + (extLine(keys) && '\n' + extLine(keys).trimEnd());
 
 const def = r => ({
   description: r.role + '. ' + r.brief[0],
   prompt: 'You are ' + r.name + ', the office\'s ' + r.role + '.\n' + r.brief.map(l => '- ' + l).join('\n') + FOOTER,
   tools: r.tools, model: r.model, ...(r.effort && { effort: r.effort }),
 });
-const DEFS = Object.fromEntries(Object.entries(ROSTER).map(([k, r]) => [k, def(r)]));
+const DEFS = Object.fromEntries(Object.entries(ROSTER).filter(([, r]) => r.kind !== 'external').map(([k, r]) => [k, def(r)]));
 // What the SDK may hire for a set of desks (the same definition object per key, every time).
 export const specialists = keys => Object.fromEntries(keys.filter(k => DEFS[k]).map(k => [k, DEFS[k]]));
 export const SPECIALISTS = specialists(BUILTIN);

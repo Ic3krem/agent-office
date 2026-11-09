@@ -557,6 +557,13 @@
       // desk mic on a stand; the tip glows while recording
       cyl(g, cx + 38, y0 + 18, 35, 4, 1.4, '#2b2f3a'); cyl(g, cx + 38, y0 + 18, 36.4, .9, 10, '#4a4f5c'); ball(g, cx + 38, y0 + 18, 45.4, 3, on ? '#ff5a4a' : '#6a6f7c');
     },
+    external(g, d, t, st) { // an external specialist: a laptop and a small letter plate for its CLI (brand-neutral, no logos)
+      PROPS.laptop(g, d, t, st);
+      const { cx, rect: r } = d, y0 = r.y0, k = String(d.key).split('-')[1];
+      box(g, cx + 22, y0 + 30, 35, 14, 6, 9, '#1c1612');
+      const c = P(cx + 29, y0 + 33, 44); g.save(); g.fillStyle = t.accent; g.font = 'bold 8px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText({ codex: 'C', gemini: 'G', opencode: 'O', custom: '\u2318' }[k] || '?', c[0], c[1]); g.restore();
+    },
     laptop(g, d, t, st) { // any role without its own props
       const { cx, rect: r } = d, y0 = r.y0, on = st.working;
       box(g, cx - 20, y0 + 22, 35, 32, 22, 1.5, '#cfd3dc'); box(g, cx - 20, y0 + 20, 35, 32, 2, 22, '#cfd3dc', { noT: true });
@@ -566,7 +573,7 @@
   function drawDesk(g, d, base) { // base: the desk's sprite painter (deskBase as its fallback)
     const t = teamOf(d.key), st = dstate(d.id);
     g.save(); if (!st.present) g.globalAlpha = .55;
-    base(g); (PROPS[d.key] || PROPS.laptop)(g, d, t, st);
+    base(g); (PROPS[d.key] || (/^ext-/.test(d.key) ? PROPS.external : PROPS.laptop))(g, d, t, st);
     g.restore();
     if (!st.present) { const c = P(d.cx, d.rect.y0 + 20, 36); g.save(); g.fillStyle = 'rgba(20,16,40,.28)'; poly(g, [P(d.block.x0, d.block.y0, 0), P(d.block.x1, d.block.y0, 0), P(d.block.x1, d.block.y1, 0), P(d.block.x0, d.block.y1, 0)], 'rgba(20,16,40,.22)'); g.restore(); void c; }
   }
