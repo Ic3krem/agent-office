@@ -1,6 +1,6 @@
 # External specialists: other coding agents and LLMs on Tiro's team (design)
 
-Date: 2026-11-09. Status: draft, waiting on the user's answer to the security question below.
+Date: 2026-11-09. Status: draft; the safety question is answered (2026-11-09).
 
 ## Intent
 
@@ -38,11 +38,18 @@ TiroAgents' team today is Claude only: Tiro (Claude Opus) orchestrates and hires
 
 Flags are checked against each CLI's `--help` at build time; Dev-Labs `src/shared/agentProvider.ts` is the reference table (MIT; credit it in THIRD_PARTY_NOTICES.md if code is reused).
 
-## Open question (the user's)
+## Safety mode (the user's answer: same as Dev-Labs)
 
-**Safety mode for external specialists.** Their commands run inside their own CLI, so TiroAgents' Security Guard and its approval cards do not see them. Either:
-- **(a) Read-only by default:** each external desk starts in its CLI's read-only or "ask" mode (for example Codex `--sandbox read-only`, Gemini without auto-approve), so it can read, research and propose changes; the user switches a desk to "can edit" on purpose; or
-- **(b) Their own settings, as configured:** whatever the user set in that CLI applies (closest to Dev-Labs).
+Each external desk runs with **that CLI's own settings**, exactly as configured on this PC; TiroAgents adds no permission flags. Like Dev-Labs, each desk has an optional **Auto mode** switch (off by default) that adds the CLI's own no-prompt flag, using Dev-Labs' table:
+
+| Agent | Auto mode adds |
+|---|---|
+| Codex | `-a never -s workspace-write` (no prompts, Codex's sandbox stays on) |
+| Gemini CLI | `--approval-mode=yolo` |
+| OpenCode | none needed in `opencode run`; its own permission config applies |
+| Custom | whatever the user types |
+
+Because TiroAgents' Security Guard and approval cards do not see what these CLIs run, the desk's settings and the hire card say so in one line ("runs with Codex's own permissions; TiroAgents' Security Guard does not check its commands"). The hire approval of the exact prompt still applies.
 
 ## Left to the builder
 
