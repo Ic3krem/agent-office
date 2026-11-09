@@ -1,6 +1,6 @@
 # External specialists: other coding agents and LLMs on Tiro's team (design)
 
-Date: 2026-11-09. Status: draft; the safety question is answered (2026-11-09).
+Date: 2026-11-09. Status: final, all questions answered (2026-11-09).
 
 ## Intent
 
@@ -52,6 +52,8 @@ Each external desk runs with **that CLI's own settings**, exactly as configured 
 Because TiroAgents' Security Guard and approval cards do not see what these CLIs run, the desk's settings and the hire card say so in one line ("runs with Codex's own permissions; TiroAgents' Security Guard does not check its commands"). The hire approval of the exact prompt still applies.
 
 ## Decisions after the builder check (my calls, 2026-11-09)
+
+- **Auto mode off means read-only (the user's answer, 2026-11-09).** Headless runs have nobody to answer a CLI's permission questions, so with Auto off a desk reads, researches and proposes changes; the desk says "read-only: turn on Auto mode to let it edit". Auto on uses the CLI's own no-prompt mode from the table above. Forwarding CLI permission questions to TiroAgents approval cards is out of scope.
 
 - **Desks are new specialists, not catalog roles run by another CLI.** Each external desk gets its own key (`ext-<cli>-<n>`, e.g. `ext-codex-1`), name, look and brief; several desks may use the same CLI (two OpenCode desks on different models). `delegate(key, prompt)` takes that key. The catalog (`public/role-catalog.js`) gains the external desk types; ROSTER, name checks and Tiro's team line include external desks marked "(Codex)", etc.
 - **`delegate` runs in the background**, like a Claude hire: it returns at once, the desk shows progress, and the CLI's final answer reaches Tiro through `tellBoss`. External runs count toward MAX_SPECIALISTS. A run outlives Tiro's turn; a stopped app stops its runs.
