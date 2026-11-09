@@ -493,7 +493,9 @@ function buildTray() {
 
 app.on('second-instance', () => openOffice());
 app.on('window-all-closed', () => {}); // keep running in the tray
-app.on('before-quit', () => { quitting = true; clearTimeout(restartTimer); server?.kill(); fsProc?.kill(); np.stop(); });
+// Windows: kill the server's whole tree, so an external specialist's CLI (a child of the server) never outlives the app.
+const killServer = () => { if (process.platform === 'win32' && server?.pid) { try { spawnSync(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe'), ['/pid', String(server.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 }); } catch {} } server?.kill(); };
+app.on('before-quit', () => { quitting = true; clearTimeout(restartTimer); killServer(); fsProc?.kill(); np.stop(); });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.whenReady().then(async () => {
