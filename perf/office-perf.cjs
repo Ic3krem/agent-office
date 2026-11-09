@@ -8,6 +8,8 @@
 const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
+// A visible window that other windows cover fully gets no frames on Windows (native occlusion): measure it as if on top.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.commandLine.appendSwitch('js-flags', '--expose-gc'); // a gc() before each cycle's memory sample keeps the drift honest
 const root = path.join(__dirname, '..'), port = 4794, base = 'http://127.0.0.1:' + port, key = crypto.randomBytes(24).toString('hex');
 require('./tmp-sweep.cjs').sweep();

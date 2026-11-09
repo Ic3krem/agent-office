@@ -1,6 +1,6 @@
 {
   "name": "agent-office",
-  "version": "2.0.0-beta.4",
+  "version": "2.0.0-beta.5",
   "description": "A pixel office for your Claude Code agents: Tiro the manager, specialists, approvals, reports and memory.",
   "main": "desktop/main.mjs",
   "scripts": {
