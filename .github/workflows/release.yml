@@ -6,6 +6,12 @@
 name: release
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'always = upload to the release; never = build only, keep the installers as workflow artifacts (pre-releases: attach them by hand)'
+        default: 'always'
+        type: choice
+        options: [always, never]
 permissions: {}
 jobs:
   build:
@@ -32,9 +38,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npx electron-builder ${{ matrix.args }} --publish always
+      - run: npx electron-builder ${{ matrix.args }} --publish ${{ inputs.publish }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false' # unsigned builds (no Authenticode/Apple certificate yet); see docs/RELEASING.md to add one
           # Authenticode (Windows): set CSC_LINK (base64 .pfx or URL) and CSC_KEY_PASSWORD as repository secrets, then drop the line above.
           # macOS signing/notarisation: CSC_LINK + CSC_KEY_PASSWORD (Developer ID) plus APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
+      - if: inputs.publish == 'never'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
+          retention-days: 14
