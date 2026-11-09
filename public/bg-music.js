@@ -80,6 +80,7 @@
   if (root.document && root.addEventListener) root.document.addEventListener('visibilitychange', () => { // power saver: nothing plays while hidden
     if (root.document.hidden) { if (st.on) { stop(); st.resume = true; } } else if (st.resume) { st.resume = false; start(); }
   });
+  if (root.addEventListener) root.addEventListener('pagehide', () => stop()); // release the AudioContext on every page change (town <-> office)
   root.BgMusic = { DUCK, plan, shuffle, start, stop, state,
     setVolume(v) { st.volume = Math.max(0, Math.min(1, +v || 0)); apply(); },
     duck(on) { if (st.ducked === !!on) return; st.ducked = !!on; apply(); },
