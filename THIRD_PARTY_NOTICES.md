@@ -16,6 +16,8 @@ Agent Office itself is licensed under the Apache License 2.0 (see LICENSE and NO
 
 - **Pixelify Sans, IBM Plex Mono, Instrument Sans** (latin and latin-ext subsets) are vendored in `public/fonts/` and served locally, so the pages make no request to Google Fonts. All three are licensed under the SIL Open Font License 1.1; the license texts are in `public/fonts/OFL-*.txt`.
 
+- **Dev-Labs** (MIT, github.com/jeffreycayao/Dev-Labs): the external-specialist provider table (each CLI's model and Auto-mode flags, install commands shown as text) and the approach for finding CLIs (the login shell's PATH plus the usual install folders) in `external-agents.mjs` follow Dev-Labs' `src/shared/agentProvider.ts` and `src/main/shellEnv.ts`. No Dev-Labs code is bundled verbatim.
+
 All other packages are MIT, ISC, BSD, Apache-2.0 or Unlicense.
 
 ## Full list
