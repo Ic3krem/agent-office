@@ -31,7 +31,8 @@ import { prune } from './retention.mjs';
 import { createWorldStore, parseScene, SCENES } from './world-store.mjs';
 import { PROVIDERS, providerOf, which, resolveLaunch, shellPath, splitArgs, detect } from './external-agents.mjs';
 import { effectiveExternal, confirmedFile, saveModel } from './external-settings.mjs';
-import { killAll as killExternal } from './external-run.mjs';
+import { killAll as killExternal, runExternal } from './external-run.mjs';
+import { probeSignin, parseClaudeStatus } from './cli-auth.mjs';
 import { createDelegator } from './external-delegate.mjs';
 
 let PORT = 0; // set once bound (see listenFirstFree in ports.mjs)
@@ -69,6 +70,9 @@ if (process.env.AGENT_OFFICE_PARENT_PIPE === '1') {
   process.stdin.on('end', gone); process.stdin.on('error', gone); process.stdin.resume();
 }
 // The HMAC key that proves a weaker Security Guard setting was confirmed in the desktop app (never in kiro.json, never in an agent's environment).
+// Key mode (desktop): ANTHROPIC_API_KEY is in the environment for Claude; the page only ever sees this hint ("…abcd").
+const KEY_HINT = process.env.ANTHROPIC_API_KEY && /^…[A-Za-z0-9_-]{4}$/.test(process.env.AGENT_OFFICE_KEY_HINT || '') ? process.env.AGENT_OFFICE_KEY_HINT : '';
+delete process.env.AGENT_OFFICE_KEY_HINT;
 const GUARD_KEY = typeof process.env.AGENT_OFFICE_GUARD_KEY === 'string' && process.env.AGENT_OFFICE_GUARD_KEY.length >= 32 ? process.env.AGENT_OFFICE_GUARD_KEY : '';
 delete process.env.AGENT_OFFICE_GUARD_KEY;
 const AUTH = createAuth({ bridgeKey: BRIDGE_KEY, uiKey: ENV_UI_KEY || rand(24) });
@@ -553,9 +557,27 @@ const extDetect = async (fresh = false) => {
   if (fresh || !extDetected.list || Date.now() - extDetected.at > 60e3) extDetected = { at: Date.now(), list: await detect({ pathStr: EXT_PATH() }).catch(() => []) };
   return extDetected.list;
 };
+// Signed in? Read-only probes (5 s, cached 60 s per CLI); the answer is only yes / no / unknown, never a token.
+const signinCache = new Map();
+const extSignin = async (d, fresh) => {
+  const c = signinCache.get(d.cli); if (!fresh && c && Date.now() - c.at < 60e3) return c.v;
+  const l = d.installed ? extLaunch(d.cli, {}) : null;
+  const v = await probeSignin(d.cli, { run: runExternal, env: extEnv(), home: HOME, launch: l && !l.error ? l : null });
+  signinCache.set(d.cli, { at: Date.now(), v }); return v;
+};
+// Claude Code's own sign-in (`claude auth status`), cached 60 s. using: what TiroAgents' sessions use (the desktop app sets the key mode).
+let claudeCache = { at: 0, v: null };
+const claudeView = async fresh => {
+  if (fresh || !claudeCache.v || Date.now() - claudeCache.at > 60e3) {
+    let status = { loggedIn: false, method: '', email: '', expires: '' };
+    if (CLAUDE) try { status = parseClaudeStatus((await runExternal({ cmd: CLAUDE, args: ['auth', 'status'], timeoutMs: 5000, env: process.env })).stdoutTail); } catch {}
+    claudeCache = { at: Date.now(), v: { found: !!CLAUDE, install: 'npm install -g @anthropic-ai/claude-code', status, using: KEY_HINT ? 'key' : 'account', keyHint: KEY_HINT } };
+  }
+  return claudeCache.v;
+};
 const extView = async fresh => {
   const eff = extSettings(), dn = dnames(), active = delegator.active();
-  return { detected: await extDetect(fresh), canConfirm: !!GUARD_KEY, changedOutside: eff.changedOutside,
+  return { detected: await Promise.all((await extDetect(fresh)).map(async d => ({ ...d, signin: await extSignin(d, fresh) }))), canConfirm: !!GUARD_KEY, changedOutside: eff.changedOutside,
     desks: currentKeys().filter(k => RoleCatalog.isExternal(k)).map(key => {
       const s = eff[key] || { model: '', auto: false, args: '', command: '' };
       return { key, cli: RoleCatalog.externalOf(key), name: dn[key], label: extLabel(key), settings: s, confirmed: !eff.changedOutside.includes(key), working: active.includes(key),
@@ -571,7 +593,8 @@ function extLaunch(cli, s) {
   if (!file) return null;
   return resolveLaunch(file, process.platform, undefined, EXT_PATH()) || { error: 'Cannot run this CLI safely from TiroAgents (unrecognised launcher)' };
 }
-const extEnv = () => { const e = { ...process.env }; for (const k of Object.keys(e)) if (k.toUpperCase() === 'PATH') delete e[k]; e.PATH = EXT_PATH(); return e; };
+// The Claude API key (desktop key mode) is for Claude only: external CLIs never see it.
+const extEnv = () => { const e = { ...process.env }; for (const k of Object.keys(e)) if (k.toUpperCase() === 'PATH' || k === 'ANTHROPIC_API_KEY') delete e[k]; e.PATH = EXT_PATH(); return e; };
 let lastExternalTell = '';
 const TEST_HOOKS = process.env.AGENT_OFFICE_TEST_HOOKS === '1'; delete process.env.AGENT_OFFICE_TEST_HOOKS;
 const delegator = createDelegator({
@@ -763,6 +786,7 @@ async function handle(req, res) {
     const scene = url.pathname === '/api/world' ? parseScene(url.searchParams.get('scene')) : 'office';
     if (!scene) return json(res, 400, { error: 'scene must be office, kain or games' });
     if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, scene === 'office' ? worldNow : worldStore.load(scene));
+    if (req.method === 'GET' && url.pathname === '/api/claude') return json(res, 200, await claudeView(url.searchParams.get('refresh') === '1'));
     if (req.method === 'GET' && url.pathname === '/api/external') return json(res, 200, await extView(url.searchParams.get('refresh') === '1'));
     if (req.method === 'GET' && url.pathname === '/api/world/templates') return json(res, 200, worldStore.listTemplates());
     if (req.method === 'GET' && url.pathname === '/api/world/template') {
