@@ -52,3 +52,32 @@ test('cleanOffice carries the manor; feedOf copies it from the snapshot', () => 
   assert.equal(cleanOffice({ agents: [], manor: { theme: 'x' } }).manor, null);
   assert.deepEqual(feedOf({ agents: [], manor: { theme: 'japanese', colors: {} } }, null, {}, x => x).manor, { theme: 'japanese', colors: {} });
 });
+
+// ---------- the party's shared player (party/server.mjs createParty) ----------
+import { createParty } from './party/server.mjs';
+const partyOf = () => {
+  let t = 5000; const p = createParty({ code: 'ABC', adminKey: 'k'.repeat(32), now: () => t });
+  const join = (name, host) => { const r = p.join({ code: 'ABC', name, ...(host ? { hostKey: 'k'.repeat(32) } : {}) }, name); const m = p.member(r.body.token); m.got = []; p.attach(m, ev => ev && m.got.push(ev)); return m; };
+  return { p, join, tick: d => { t += d; } };
+};
+
+test('party music: the host plays a link; everyone gets it with a server start time', () => {
+  const { p, join } = partyOf(), h = join('Hal', true), g = join('Gus');
+  assert.deepEqual(p.music(h, { music: { src: 'youtube', ref: YT, title: 'Song', startedAt: 1, pos: 3 } }), { ok: true });
+  const ev = g.got.find(e => e.t === 'music');
+  assert.equal(ev.music.startedAt, 5000, 'stamped by the server'); assert.equal(ev.music.pos, 3); assert.equal(ev.djAll, true);
+  assert.equal(p.hello(g).music.ref, YT, 'late joiners get it in the hello');
+});
+
+test('party music: anyone can DJ by default; with it off only the host can', () => {
+  const { p, join } = partyOf(), h = join('Hal', true), g = join('Gus');
+  assert.equal(p.music(g, { music: { src: 'stream', ref: 'https://radio.example.com/a.mp3' } }).ok, true);
+  assert.equal(p.music(g, { djAll: false }).ok, false, 'only the host switches it');
+  assert.equal(p.music(h, { djAll: false }).ok, true);
+  const before = h.got.length;
+  assert.equal(p.music(g, { music: { src: 'youtube', ref: YT } }).ok, false);
+  assert.equal(h.got.length, before, 'nothing relayed');
+  assert.equal(p.music(g, { music: { src: 'youtube', ref: 'nope' } }).ok, false);
+  assert.equal(p.music(h, { music: null }).ok, true); assert.equal(p.hello(g).music, null, 'the host can stop it');
+  assert.equal(p.music(h, { music: { src: 'file', ref: '/etc/passwd' } }).ok, false);
+});

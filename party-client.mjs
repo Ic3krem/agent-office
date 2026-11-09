@@ -3,7 +3,7 @@
 // (party/protocol.mjs feedOf: no task text, prompts, commands or paths) and the CEO avatar, and keeps what the others
 // share. Everything that arrives is re-cleaned with the same protocol cleaners; party data is never trusted.
 import crypto from 'node:crypto';
-import { cleanName, cleanChat, cleanOffice, cleanAvatar, PRESENCE, LIMITS } from './party/protocol.mjs';
+import { cleanName, cleanChat, cleanOffice, cleanAvatar, cleanMusic, PRESENCE, LIMITS } from './party/protocol.mjs';
 
 const STREAM_MAX = 2_000_000; // one SSE event bigger than this ends the connection
 const GIVE_UP = 6; // reconnect attempts (backoff 1 s .. 30 s, about a minute) before telling the user the party is gone
@@ -35,6 +35,7 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
     const upsert = m => { if (!m || typeof m.id !== 'string' || !/^[a-f0-9]{1,16}$/.test(m.id) || m.id === st.you) return;
       if (!st.members.has(m.id) && st.members.size >= LIMITS.members) return;
       const cur = st.members.get(m.id) || {}; st.members.set(m.id, { id: m.id, host: m.host === true || (m.host === undefined && !!cur.host), seq: Number.isInteger(m.seq) ? m.seq : cur.seq || 0, name: cleanName(m.name) || cur.name || 'Guest', office: m.office !== undefined ? cleanOffice(m.office) : cur.office || null, avatar: m.avatar !== undefined ? cleanAvatar(m.avatar) : cur.avatar || null }); };
+    if (ev.t === 'hello' || ev.t === 'music') onMusic(ev);
     if (ev.t === 'hello') { if (typeof ev.host === 'boolean') st.host = ev.host; if (Number.isInteger(ev.seq)) st.seq = ev.seq; st.game = { race: null, quiz: null }; const gs = ev.game || {}; if (gs.race) onGame({ t: 'race', at: gs.at, ...gs.race }); if (gs.quiz) { onGame({ t: 'quiz', id: gs.quiz.id }); onGame({ t: 'quiz-q', at: gs.at, ...gs.quiz }); } st.members.clear(); (Array.isArray(ev.members) ? ev.members : []).slice(0, LIMITS.members).forEach(upsert); st.chat = []; (Array.isArray(ev.chat) ? ev.chat : []).forEach(addChat); }
     else if (ev.t === 'member') upsert(ev.m);
     else if (ev.t === 'avatar') { const m = st.members.get(ev.id); if (m) m.avatar = cleanAvatar(ev.avatar); }
@@ -55,7 +56,9 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
     else if (ev.t === 'quiz-reveal' && g.quiz && ev.id === g.quiz.id) { if (g.quiz.q) g.quiz.q.correct = Number.isInteger(ev.correct) && ev.correct >= 0 && ev.correct < 4 ? ev.correct : null; g.quiz.scores = people(ev.scores); }
     else if (ev.t === 'quiz-end' && g.quiz && ev.id === g.quiz.id) { g.quiz.over = true; g.quiz.q = null; g.quiz.scores = people(ev.scores); }
   }
-  function addChat(l) { if (!l || typeof l !== 'object') return; const text = cleanChat(l.text); if (!text) return; st.chat.push({ name: cleanName(l.name) || 'Guest', text, mine: l.id === st.you, at: Number.isFinite(l.at) ? l.at : Date.now() }); if (st.chat.length > LIMITS.chatKeep) st.chat.shift(); }
+  // The player's start time moves onto this machine's clock with the server stamp `at` (as the games do).
+  function onMusic(ev) { const c = cleanMusic(ev.music); st.music = c && { ...c, startedAt: c.startedAt - num(ev.at) + Date.now() }; if (typeof ev.djAll === 'boolean') st.djAll = ev.djAll; }
+  function addChat(l) { if (!l || typeof l !== 'object') return; const text = cleanChat(l.text); if (!text) return; st.chat.push({ id: typeof l.id === 'string' && /^[a-f0-9]{1,16}$/.test(l.id) ? l.id : '', name: cleanName(l.name) || 'Guest', text, mine: l.id === st.you, at: Number.isFinite(l.at) ? l.at : Date.now() }); if (st.chat.length > LIMITS.chatKeep) st.chat.shift(); }
 
   // SSE first. The server sends the hello at once, so a stream with no bytes after firstByteMs is being buffered
   // (Cloudflare quick tunnels do that): switch this session to the /poll long poll.
@@ -117,6 +120,13 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
     },
     // stop the stream/poll loop first: the server answers a pending poll on /leave, and that answer must not start another poll
     async leave() { if (!st) return; const me = st; try { me.ctrl.abort(); } catch {} clearTimeout(me.retry); try { await call('/leave'); } catch {} if (st === me) drop(); },
+    // Shared player: {music: {...}|null} or {djAll: bool} -> the server's answer ({ok, error?}).
+    async music(b) {
+      if (!st) return { ok: false, error: 'not in a party' };
+      const r = await fetchImpl(st.base + '/music', { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + st.token }, body: JSON.stringify(b || {}), signal: AbortSignal.timeout(10_000) });
+      let j = {}; try { j = await r.json(); } catch {}
+      return { ok: !!j.ok, error: typeof j.error === 'string' ? cleanChat(j.error) : '' };
+    },
     async say(text) { const t = cleanChat(text); if (!st || !t) return false; return call('/chat', { text: t }); },
     // Mini-games: action race | type | quiz | answer. Returns the server's answer ({ok, error?, wpm?}).
     async game(action, b = {}) {
@@ -148,7 +158,7 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
     view() {
       if (!st) return { connected: false, error };
       return { connected: true, live: st.live, host: new URL(st.base).host, party: st.party, you: { id: st.you, name: st.name, presence: st.presence, host: st.host, seq: st.seq }, error,
-        game: st.game,
+        game: st.game, music: st.music || null, djAll: st.djAll !== false, canDj: st.host || st.djAll !== false,
         members: [...st.members.values()].sort((a, b) => a.seq - b.seq).map(m => ({ host: m.host, seq: m.seq, stats: m.office ? m.office.stats : null, id: m.id, name: m.name, presence: (m.avatar && m.avatar.presence) || 'available', room: (m.avatar && m.avatar.room) || 'home', agents: m.office ? m.office.agents.length : 0, working: m.office ? m.office.agents.filter(a => a.state === 'working').length : 0, crew: m.office ? m.office.agents.map(({ id, name, key, state, bubble }) => ({ id, name, key, state, bubble })) : [], avatar: m.avatar })),
         chat: st.chat.slice(-30) };
     },

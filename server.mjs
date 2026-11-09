@@ -17,7 +17,7 @@ import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
 import { createPartyClient } from './party-client.mjs';
 import { createPartyHost } from './party-host.mjs';
-import { feedOf, cleanAvatar, cleanName } from './party/protocol.mjs';
+import { feedOf, cleanAvatar, cleanName, parseMusicLink } from './party/protocol.mjs';
 import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, lookStore, graphicsStore, promptHash, paceFor, paceError, priorityError, hirePace, RoleCatalog } from './company.mjs';
 import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx } from './reports.mjs';
 import { findVault, agentVault, seedMemory } from './vault.mjs';
@@ -908,6 +908,15 @@ async function handle(req, res) {
       }
       case '/api/party/leave': { if (partyHost.status().state !== 'off') await partyHost.stop(); else await partyClient.leave(); partyAvatar = null; return json(res, 200, { party: partyView() }); }
       case '/api/party/game': { if (!['race', 'type', 'quiz', 'answer'].includes(b.action)) return json(res, 400, { error: 'unknown game action' }); const { action, ...rest } = b; try { return json(res, 200, await partyClient.game(action, rest)); } catch (e) { return json(res, 502, { error: 'party server unreachable' }); } }
+      case '/api/party/music': { // {link, title?} plays a pasted link; {music} (play/pause/seek), {stop: true} or {djAll} pass through
+        let body;
+        if (typeof b.djAll === 'boolean') body = { djAll: b.djAll };
+        else if (b.stop === true) body = { music: null };
+        else if (typeof b.link === 'string') { const l = parseMusicLink(b.link); if (!l) return json(res, 400, { error: 'Paste a YouTube or Spotify link, or an https:// audio stream.' }); body = { music: { ...l, title: b.title, paused: false, pos: 0 } }; }
+        else if (b.music && typeof b.music === 'object') body = { music: b.music };
+        else return json(res, 400, { error: 'bad request' });
+        try { const r = await partyClient.music(body); return json(res, r.ok ? 200 : 400, r.ok ? { party: partyView() } : { error: r.error || 'refused' }); } catch { return json(res, 502, { error: 'party server unreachable' }); }
+      }
       case '/api/party/chat': return json(res, (await partyClient.say(b.text)) ? 200 : 400, {});
       case '/api/party/presence': return json(res, (await partyClient.setPresence(b.presence)) ? 200 : 400, { party: partyView() });
       case '/api/party/avatar': { partyAvatar = cleanAvatar(b); return json(res, 200, {}); }
