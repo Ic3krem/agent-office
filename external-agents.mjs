@@ -80,9 +80,10 @@ export function which(bin, pathStr, platform = process.platform) {
 export function resolveLaunch(file, platform = process.platform, readFile = fs.readFileSync, pathStr = shellPath(process.env, platform)) {
   if (platform !== 'win32' || !/\.(cmd|bat)$/i.test(file)) return { cmd: file, pre: [] };
   let text; try { text = String(readFile(file, 'utf8')); } catch { return null; }
-  const m = /"%~?dp0%?\\?([^"%]+\.[cm]?js)"\s+%\*/i.exec(text);
+  const m = /"%~?dp0%?\\?([^"%]+\.(?:[cm]?js|exe))"\s+%\*/i.exec(text);
   if (!m) return null;
   const dir = path.win32.dirname(file), entry = path.win32.join(dir, m[1]);
+  if (/\.exe$/i.test(entry)) return { cmd: entry, pre: [] }; // a native binary behind the shim (opencode-ai)
   const local = path.win32.join(dir, 'node.exe');
   const node = isFile(local) ? local : which('node', pathStr, 'win32');
   return node ? { cmd: node, pre: [entry] } : null;

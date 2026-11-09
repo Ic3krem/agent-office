@@ -77,6 +77,13 @@ test('failure releases the count', async () => {
   assert.equal(calls.dec, 1); assert.equal(calls.end[0][1].ok, false);
 });
 
+test('a JSON error on stderr (Gemini not signed in) is reported, not its last line', async () => {
+  const err = '{\n  "session_id": "x",\n  "error": {\n    "type": "Error",\n    "message": "Please set an Auth method",\n    "code": 41\n  }\n}\n';
+  const { d, hires, toldP } = setup({ approve: false, run: () => ({ ok: false, code: 41, stdoutTail: '', stderrTail: err }) });
+  approved(hires, KEY, PROMPT); d.delegate(KEY, PROMPT);
+  assert.match(await toldP, /could not finish: Please set an Auth method$/);
+});
+
 test('run throws (spawn ENOENT): one clear line, no unhandled rejection', async () => {
   const { d, hires, calls, toldP } = setup({ approve: false, run: () => { throw Object.assign(new Error('spawn codex ENOENT'), { code: 'ENOENT' }); } });
   approved(hires, KEY, PROMPT); d.delegate(KEY, PROMPT);

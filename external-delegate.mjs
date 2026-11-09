@@ -44,7 +44,7 @@ export function createDelegator({ hires, settings = () => ({}), launch, run = ru
         if (r.stopped) why = 'stopped by the user';
         else if (r.timedOut) why = 'timed out after ' + Math.round(timeoutMs / 60e3) + ' minutes';
         else if (r.ok && out.text) { ok = true; text = out.text; }
-        else why = out.error || lastLine(r.stderrTail) || (r.code ? 'exited with code ' + r.code : 'it printed no answer');
+        else why = out.error || parseOutput('gemini-json', r.stderrTail).error || lastLine(r.stderrTail) || (r.code ? 'exited with code ' + r.code : 'it printed no answer'); // Gemini prints its JSON error on stderr
       } catch (e) {
         why = e?.code === 'ENOENT' ? NOT_INSTALLED(p.label) : (e?.message || String(e));
       } finally { runs.delete(key); dec(); }

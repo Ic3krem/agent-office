@@ -58,6 +58,9 @@ test('npm shim resolution', { skip: process.platform !== 'win32' && 'Windows pat
   assert.equal(resolveLaunch(path.join(dir, 'odd.cmd'), 'win32'), null, 'unrecognised launcher');
   assert.deepEqual(resolveLaunch('/usr/bin/codex', 'linux'), { cmd: '/usr/bin/codex', pre: [] });
   assert.deepEqual(resolveLaunch('C:\\x\\codex.exe', 'win32'), { cmd: 'C:\\x\\codex.exe', pre: [] });
+  // opencode-ai's npm shim starts a native exe directly (no node)
+  fs.writeFileSync(path.join(dir, 'opencode.cmd'), '@ECHO off\r\nGOTO start\r\n:find_dp0\r\nSET dp0=%~dp0\r\nEXIT /b\r\n:start\r\nSETLOCAL\r\nCALL :find_dp0\r\n"%dp0%\\node_modules\\opencode-ai\\bin\\opencode.exe"   %*\r\n');
+  assert.deepEqual(resolveLaunch(path.join(dir, 'opencode.cmd'), 'win32'), { cmd: path.join(dir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe'), pre: [] });
 });
 
 test('parse codex jsonl', () => {
