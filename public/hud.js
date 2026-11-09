@@ -47,6 +47,31 @@
     + '.hud-panel input[type=text],.hud-panel input:not([type]){flex:1;min-width:0;padding:7px 8px;border-radius:7px;border:1px solid #3a2e25;background:#0e0b09;color:#f0e4d4;font:inherit}'
     + '.hud-chat{max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}.hud-toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:5300;padding:8px 14px;border-radius:9px;background:#fffaf0;color:#1b1220;font:13px system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.4)}';
 
+  // Menu icons: 24px stroke paths drawn as CSS masks, so <span class="ico ico-x"> takes the text colour (office and town).
+  const ICONS = {
+    menu: 'M4 7h16M4 12h16M4 17h16',
+    tasks: 'M10 6h10M10 12h10M10 18h10M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17',
+    graphics: 'M3 5h18v11H3zM8 20h8M12 16v4',
+    build: 'M13 3l8 8-3 3-8-8zM12 10l-9 9 2 2 9-9',
+    party: 'M12 3a6 6 0 0 1 6 6c0 4-3 7-6 7s-6-3-6-7a6 6 0 0 1 6-6zM11 16l1 2 1-2M12 18c0 2-2 2-2 4',
+    music: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+    manor: 'M3 11l9-8 9 8M5 9v12h14V9M10 21v-6h4v6',
+    claude: 'M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4',
+    follow: 'M12 2v4M12 18v4M2 12h4M18 12h4M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10z',
+    team: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3 3-5 6-5s6 2 6 5M16 5a3 3 0 0 1 0 6M18 15c2 .5 3 2.5 3 5',
+    agents: 'M3 4h18v16H3zM7 9l3 3-3 3M12 15h5',
+    labels: 'M3 12V3h9l9 9-9 9zM7.5 7.5h.01',
+    saver: 'M5 19c0-9 6-14 15-14 0 9-5 14-15 14zM5 19l8-8',
+    town: 'M12 3l6 9h-4l4 6H6l4-6H6zM12 18v3',
+    demo: 'M7 4l13 8-13 8z',
+  };
+  const icoCss = '.ico{display:inline-block;flex:none;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i) center/contain no-repeat;mask:var(--i) center/contain no-repeat}'
+    + Object.entries(ICONS).map(([k, d]) => '.ico-' + k + '{--i:url("data:image/svg+xml,' + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='" + d + "'/></svg>") + '")}').join('')
+    + '.hud-menu{display:flex;flex-direction:column;gap:2px;min-width:190px;padding:6px;border-radius:12px;background:#1a1512;border:1px solid #4a3a2c;box-shadow:0 10px 30px rgba(0,0,0,.45)}'
+    + '.hud-menu button,.hud-menu a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:#f0e4d4;font:500 13px system-ui,sans-serif;text-align:left;text-decoration:none;cursor:pointer}'
+    + '.hud-menu button:hover,.hud-menu a:hover,.hud-menu [aria-pressed=true],.hud-menu [aria-expanded=true]{background:#2a211b;color:#ffdca0}.hud-menu :focus-visible{outline:2px solid #ffcf6b;outline-offset:-2px}';
+  const ico = n => h('span', { class: 'ico ico-' + n, 'aria-hidden': 'true' });
+
   // ---------- panels: build(el) once; update(el) on each snapshot (inputs are never rebuilt while typing) ----------
   const P = {};
   P.tasks = { title: 'Tasks', build(el) { el.append(sect('On it'), h('div', { 'data-on': 1 }), sect('Waiting'), h('div', { 'data-wait': 1 }), h('a', { href: '/', class: 'hud-btn', style: 'text-decoration:none;align-self:flex-start' }, 'Open in office')); },
@@ -169,10 +194,16 @@
   let styled = false;
   function init(o) {
     opts = o || {};
-    if (!styled) { styled = true; root.document.head.append(h('style', null, CSS)); root.document.addEventListener('keydown', e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); close(); } }, true); }
+    if (!styled) { styled = true; root.document.head.append(h('style', null, CSS + icoCss));root.document.addEventListener('keydown', e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); close(); } }, true); }
     if (opts.toolbar) {
       const L = { tasks: 'Tasks', graphics: 'Graphics', build: 'Build', party: 'Party', music: 'Music', manor: 'Manor', claude: 'Claude' };
-      bar = h('nav', { class: 'hud-bar', 'aria-label': 'Town settings' }, opts.toolbar.map(n => btn(L[n], () => toggle(n), { 'data-hud': n, 'aria-expanded': n === 'build' ? null : 'false' })));
+      // One ☰ button; its list holds every setting (icon + name). Picking one closes the list.
+      const list = h('div', { class: 'hud-menu', hidden: true, id: 'hud-menu' }, opts.toolbar.map(n => btn([ico(n), L[n]], () => { list.hidden = true; menu.setAttribute('aria-expanded', 'false'); toggle(n); }, { 'data-hud': n, 'aria-expanded': n === 'build' ? null : 'false' })));
+      const menu = btn(ico('menu'), () => { list.hidden = !list.hidden; menu.setAttribute('aria-expanded', String(!list.hidden)); if (!list.hidden) list.querySelector('button').focus(); },
+        { 'aria-label': 'Settings menu', 'aria-expanded': 'false', 'aria-controls': 'hud-menu', 'data-hud-menu': 1 });
+      bar = h('nav', { class: 'hud-bar', 'aria-label': 'Town settings', style: 'flex-direction:column;align-items:flex-end' }, menu, list);
+      list.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); list.hidden = true; menu.setAttribute('aria-expanded', 'false'); menu.focus(); } });
+      root.document.addEventListener('pointerdown', e => { if (!list.hidden && !bar.contains(e.target)) { list.hidden = true; menu.setAttribute('aria-expanded', 'false'); } });
       root.document.body.append(bar);
     }
   }

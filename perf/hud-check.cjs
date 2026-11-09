@@ -54,7 +54,7 @@ app.whenReady().then(async () => {
   const H = await mk(4791, 'Hal'), B = await mk(4792, 'Ben');
 
   // ---- HUD on the town page ----
-  const bar = await H.js(`[...document.querySelectorAll('.hud-bar [data-hud]')].map(b => { const r = b.getBoundingClientRect(); return [b.dataset.hud, Math.round(r.height), Math.round(r.width)]; })`);
+  const bar = await H.js(`document.querySelector('[data-hud-menu]').click(), [...document.querySelectorAll('.hud-bar [data-hud]')].map(b => { const r = b.getBoundingClientRect(); return [b.dataset.hud, Math.round(r.height), Math.round(r.width)]; })`);
   check('town HUD: six buttons, top right, at least 44 px', bar.map(b => b[0]).join() === 'tasks,graphics,build,party,music,manor' && bar.every(b => b[1] >= 44 && b[2] >= 44), bar);
   await H.post('/api/task', { text: 'Check the beta.6 HUD' });
   await H.js(`Hud.toggle('tasks')`);
@@ -121,6 +121,7 @@ app.whenReady().then(async () => {
   const cl = await B.get('/api/claude');
   check('/api/claude answers (found or the install line, a status, what is used)', typeof cl.found === 'boolean' && cl.status && typeof cl.status.loggedIn === 'boolean' && cl.using === 'account', cl && { found: cl.found, loggedIn: cl.status && cl.status.loggedIn, using: cl.using });
   for (const p of ['music', 'manor', 'claude']) {
+    await B.js(`document.querySelector('[aria-label="Settings menu"]').click()`); await until(() => B.js(`!!document.querySelector('[data-hud-open=${p}]')`));
     await B.js(`document.querySelector('[data-hud-open=${p}]').click()`);
     check('office ' + p + ' pill opens its panel', !!(await until(() => B.js(`!!document.querySelector('[data-hud-panel=${p}]')`))));
   }
