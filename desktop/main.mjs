@@ -4,7 +4,11 @@ import crypto from 'node:crypto';
 import { normalizeGuardConfig, effectiveConfig, weakenings, signConfig, signRemember, verifyRemember } from '../guard/config.mjs';
 import { CAT_NAMES } from '../guard/rules.mjs';
 import { effectiveExternal, confirmedFile, confirmExternal, cleanExternal } from '../external-settings.mjs';
-import { PROVIDERS } from '../external-agents.mjs';
+import { PROVIDERS, which, resolveLaunch, shellPath } from '../external-agents.mjs';
+import { LOGIN, terminalPlan } from '../cli-auth.mjs';
+import { keyShape, keyHint, saveKey, loadKey, removeKey } from '../claude-key.mjs';
+import { runExternal } from '../external-run.mjs';
+import { findClaude } from '../office.mjs';
 import { unsafeSwitches, unsafeEnv, unsafeMessage } from './startup-guard.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -46,7 +50,7 @@ const logLine = line => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); try 
 const prefs = (() => { try { return migrateLyricsPrefs(migrateNotchPrefs(readForWrite(KIRO_FILE, { log: logText }))); } catch (e) { logText('prefs not read, using defaults: ' + e.message); return migrateLyricsPrefs(migrateNotchPrefs({})); } })();
 // agentNames, looks and graphics are owned by the server (rename, wardrobe and Graphics UI): keep whatever is on disk so a stale in-memory copy never overwrites it.
 // A torn kiro.json is re-read once; a corrupt one is moved aside to kiro.json.bad-<time> and logged (readForWrite), so saves never stall.
-const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk; try { disk = readForWrite(KIRO_FILE, { log: logText }); } catch (e) { logText('prefs not saved: ' + e.message); return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics', 'external']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
+const savePrefs = () => { try { fs.mkdirSync(CFG_DIR, { recursive: true }); let disk; try { disk = readForWrite(KIRO_FILE, { log: logText }); } catch (e) { logText('prefs not saved: ' + e.message); return; } const out = { ...prefs }; for (const k of ['agentNames', 'looks', 'graphics', 'external', 'music', 'manor']) { if (disk[k]) out[k] = disk[k]; else delete out[k]; } fs.writeFileSync(KIRO_FILE, JSON.stringify(out)); } catch {} };
 
 // ---------- the office server (reused if it is already running, e.g. from start.ps1) ----------
 // The UI key exists only here and in the server's memory (env at spawn, then removed there). The windows get it as an HttpOnly
@@ -71,13 +75,14 @@ function spawnServer() {
   // Packaged, ROOT is inside app.asar, which the OS sees as a file: a cwd there fails the spawn with ENOENT. Electron still
   // reads server.mjs from the archive, so only the working directory has to be a real folder.
   const started = Date.now();
-  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: app.isPackaged ? process.resourcesPath : ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY, AGENT_OFFICE_PARENT_PIPE: '1' }, stdio: ['pipe', 'ignore', serverErr()], windowsHide: true });
+  const key = claudeKey(); // Settings -> Claude, "Use: API key": only then do the server and Claude under it get the key
+  const child = spawn(process.execPath, [path.join(ROOT, 'server.mjs')], { cwd: app.isPackaged ? process.resourcesPath : ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AGENT_OFFICE_UI_KEY: UI_KEY, AGENT_OFFICE_GUARD_KEY: GUARD_KEY, AGENT_OFFICE_PARENT_PIPE: '1', ...(key && { ANTHROPIC_API_KEY: key, AGENT_OFFICE_KEY_HINT: keyHint(key) }) }, stdio: ['pipe', 'ignore', serverErr()], windowsHide: true });
   server = child;
   child.stdin.on('error', () => {}); // the pipe is only held open: the server exits when it closes
   child.on('error', e => logEvent({ event: 'spawn-error', error: e?.code }));
   child.on('exit', (code, signal) => {
     if (server === child) server = null;
-    if (quitting) return;
+    if (quitting || child.planned) return; // planned: restartServer() starts the next one
     const r = restart.onExit(Date.now() - started);
     logEvent({ event: 'exited', code, signal, attempt: r.attempt, delayMs: r.retry ? r.delayMs : undefined });
     if (!r.retry) { gaveUp = true; logEvent({ event: 'gave-up', attempt: r.attempt }); try { tray?.displayBalloon?.({ title: 'TiroAgents', content: 'The office server stopped and could not be restarted. Quit and reopen Agent Office.' }); } catch {} return; }
@@ -156,7 +161,7 @@ const VIEWS = new Set(['today', 'reports', 'usage', 'office']);
 function openOffice(view) {
   view = typeof view === 'string' && VIEWS.has(view) && view !== 'office' ? view : ''; // 'office' = just open the window
   if (!office) {
-    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'TiroAgents', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { preload: path.join(ROOT, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
+    office = new BrowserWindow({ width: 1440, height: 900, minWidth: 380, minHeight: 500, title: 'TiroAgents', icon: ICON, backgroundColor: '#0f0c0d', autoHideMenuBar: true, show: false, webPreferences: { preload: path.join(ROOT, 'desktop', 'office-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, autoplayPolicy: 'no-user-gesture-required' } }); // background music starts with the page
     office.loadURL(url('/') + (view ? '#' + view : ''));
     external(office.webContents);
     // The page refuses to unload while Build mode has unsaved changes: ask here, or the window would silently stay open.
@@ -338,6 +343,88 @@ ipcMain.handle('external:confirm', async (e, key, vals) => {
     if (r.response !== 1) return { ok: false };
   }
   try { confirmExternal({ cfgDir: CFG_DIR, kiroFile: KIRO_FILE, secret: GUARD_KEY }, key, want); return { ok: true }; } catch (err) { return { ok: false, error: err.message }; }
+});
+// ---------- sign-ins: each CLI's own login in a visible terminal, and Claude's API-key alternative ----------
+// The terminal runs a resolved executable with the fixed LOGIN args (cli-auth.mjs): no user text, no shell option.
+const launchOf = cli => {
+  if (cli === 'claude' || cli === 'claude-console') { const c = findClaude(); return c ? { cmd: c, pre: [] } : null; }
+  const f = PROVIDERS[cli] && which(PROVIDERS[cli].bin, shellPath()); return f ? resolveLaunch(f, process.platform, undefined, shellPath()) : null;
+};
+ipcMain.handle('auth:login', (e, cli) => {
+  if (!fromOffice(e) || !Object.prototype.hasOwnProperty.call(LOGIN, cli)) return null;
+  const copy = [cli.startsWith('claude') ? 'claude' : PROVIDERS[cli].bin, ...LOGIN[cli]].join(' ');
+  const plan = terminalPlan(process.platform, launchOf(cli), LOGIN[cli], { copyAs: copy, tmpdir: os.tmpdir() });
+  if (plan.copy !== undefined) return { copy: plan.copy };
+  try {
+    if (plan.file) fs.writeFileSync(plan.file, plan.text, { mode: 0o700 });
+    spawn(plan.cmd, plan.args, { detached: true, stdio: 'ignore' }).unref();
+    return { ok: true };
+  } catch { return { copy }; }
+});
+ipcMain.handle('auth:logout', async e => {
+  if (!fromOffice(e)) return null;
+  const r = await dialog.showMessageBox(office, { type: 'question', title: 'Claude', message: 'Sign out of Claude Code?', detail: 'Claude Code signs out on this PC (terminals too). Tiro stops until you sign in again.', buttons: ['Cancel', 'Sign out'], defaultId: 0, cancelId: 0, noLink: true });
+  if (r.response !== 1) return { ok: false };
+  const c = findClaude(); if (!c) return { ok: false, error: 'Claude Code was not found.' };
+  try { return { ok: (await runExternal({ cmd: c, args: ['auth', 'logout'], timeoutMs: 15000, env: process.env })).code === 0 }; } catch { return { ok: false }; }
+});
+const KEY_FILE = path.join(CFG_DIR, 'claude-key.enc');
+const keyAvailable = () => { try { return safeStorage.isEncryptionAvailable(); } catch { return false; } };
+const storedKey = () => (keyAvailable() ? loadKey(KEY_FILE, b => safeStorage.decryptString(b)) : '');
+function claudeKey() { return prefs.claudeAuth === 'key' ? storedKey() : ''; }
+const keyState = () => { const k = storedKey(), on = keyAvailable(); return { available: on, reason: on ? '' : 'This system has no OS key storage, so an API key cannot be kept safely.', set: !!k, hint: keyHint(k), mode: prefs.claudeAuth === 'key' && k ? 'key' : 'account' }; };
+// A planned restart (the key mode changed): the old server goes, a new one starts with the new environment, windows reload.
+async function restartServer() {
+  if (server) { server.planned = true; killServer(); }
+  await new Promise(r => setTimeout(r, 500));
+  spawnServer();
+  if (await waitForServer()) relocateWindows();
+}
+const setClaudeMode = async mode => { prefs.claudeAuth = mode; savePrefs(); await restartServer(); return keyState(); };
+ipcMain.handle('auth:keyState', e => (fromOffice(e) ? keyState() : null));
+ipcMain.handle('auth:setMode', (e, mode) => (!fromOffice(e) || !['account', 'key'].includes(mode) || (mode === 'key' && !storedKey()) ? null : setClaudeMode(mode)));
+ipcMain.handle('auth:removeKey', e => { if (!fromOffice(e)) return null; removeKey(KEY_FILE); return setClaudeMode('account'); });
+// The key is typed into a native window of its own (a local file page: no server, no network), never into the office page.
+let keyWin = null;
+ipcMain.handle('auth:setKey', e => {
+  if (!fromOffice(e) || !keyAvailable()) return null;
+  if (keyWin) { keyWin.focus(); return null; }
+  const me = keyWin = new BrowserWindow({ parent: office || undefined, modal: !!office, width: 460, height: 250, resizable: false, minimizable: false, title: 'Claude API key', autoHideMenuBar: true, backgroundColor: '#1a1512',
+    webPreferences: { preload: path.join(ROOT, 'desktop', 'key-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
+  me.webContents.setWindowOpenHandler(() => ({ action: 'deny' })); me.webContents.on('will-navigate', ev => ev.preventDefault());
+  me.loadFile(path.join(ROOT, 'desktop', 'key-entry.html'));
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = v => { if (settled) return; settled = true; ipcMain.removeListener('keyentry:submit', onKey); if (keyWin === me) keyWin = null; try { me.destroy(); } catch {} resolve(v); };
+    const onKey = async (ev, key) => {
+      if (ev.sender !== me.webContents) return;
+      if (!key) return finish(keyState());
+      if (!keyShape(key)) return; // the window checks the shape too
+      try { saveKey(KEY_FILE, key, k => safeStorage.encryptString(k)); } catch { return finish(keyState()); }
+      finish(await setClaudeMode('key'));
+    };
+    ipcMain.on('keyentry:submit', onKey);
+    me.on('closed', () => finish(keyState()));
+  });
+});
+// ---------- the music folder (native picker only: the page and agents never set a path) and Spotify sign-in ----------
+ipcMain.handle('music:pickFolder', async e => {
+  if (!fromOffice(e)) return null;
+  const r = await dialog.showOpenDialog(office, { title: 'Choose your music folder', properties: ['openDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return { folder: '' };
+  try { const k = readForWrite(KIRO_FILE, { log: logText }); k.music = { ...(k.music && typeof k.music === 'object' ? k.music : {}), folder: r.filePaths[0], bg: 'folder' }; fs.writeFileSync(KIRO_FILE, JSON.stringify(k)); } catch { return { folder: '' }; }
+  return { folder: path.basename(r.filePaths[0]) };
+});
+// Full Spotify songs in the party player need each listener signed in on this app's session: Spotify's own site in a window.
+let spotWin = null;
+ipcMain.handle('spotify:signIn', e => {
+  if (!fromOffice(e)) return null;
+  if (spotWin) { spotWin.focus(); return true; }
+  spotWin = new BrowserWindow({ width: 480, height: 760, title: 'Sign in to Spotify', autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
+  spotWin.webContents.setWindowOpenHandler(({ url: u }) => { if (/^https:/.test(u)) shell.openExternal(u); return { action: 'deny' }; });
+  spotWin.loadURL('https://accounts.spotify.com/login?continue=' + encodeURIComponent('https://open.spotify.com/'));
+  spotWin.on('closed', () => { spotWin = null; });
+  return true;
 });
 ipcMain.handle('notch:get', e => (fromOffice(e) ? notchOn() : null));
 ipcMain.handle('notch:set', (e, on) => { if (!fromOffice(e) || typeof on !== 'boolean') return null; setNotch(on); return notchOn(); });

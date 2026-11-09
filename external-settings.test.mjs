@@ -77,7 +77,7 @@ test('desktop: the confirm handler is sender-checked, asks natively, signs with 
   const main = fs.readFileSync(new URL('./desktop/main.mjs', import.meta.url), 'utf8');
   const h = main.slice(main.indexOf("ipcMain.handle('external:confirm'"), main.indexOf("ipcMain.handle('notch:get'"));
   assert.match(h, /if \(!fromOffice\(e\)/); assert.match(h, /dialog\.showMessageBox/); assert.match(h, /secret: GUARD_KEY/);
-  assert.match(main, /for \(const k of \['agentNames', 'looks', 'graphics', 'external'\]\)/, 'savePrefs never overwrites desk settings');
+  assert.match(main, /for \(const k of \['agentNames', 'looks', 'graphics', 'external', 'music', 'manor'\]\)/, 'savePrefs never overwrites desk settings');
   const srv = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(srv, /confirmExternal|signExternal/);
   assert.match(srv, /effectiveExternal\(readJsonSafe\(path\.join\(CFG_DIR, 'kiro\.json'\)\)\?\.external, readJsonSafe\(confirmedFile\(CFG_DIR\)\), GUARD_KEY \|\| null\)/);

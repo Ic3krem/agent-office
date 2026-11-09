@@ -73,7 +73,9 @@ test('desktop wiring: one setter, sender-checked IPC with a validated payload, t
   assert.match(main, /const fromOffice = e => office && !office\.isDestroyed\(\) && e\.sender === office\.webContents/);
   assert.match(pre, /ipcRenderer\.invoke\('notch:get'\)/); assert.match(pre, /ipcRenderer\.invoke\('notch:set', on === true\)/);
   assert.equal((pre.match(/ipcRenderer\.invoke\('notch:/g) || []).length, 2, 'the notch part exposes nothing but get and set');
-  assert.deepEqual([...pre.matchAll(/ipcRenderer\.invoke\('([a-z]+):/g)].map(m => m[1]).filter((v, i, all) => all.indexOf(v) === i).sort(), ['external', 'guard', 'notch'], 'the office preload only reaches the notch, Security Guard and external-desk confirm handlers');
+  assert.deepEqual([...pre.matchAll(/ipcRenderer\.invoke\('([a-z]+):/g)].map(m => m[1]).filter((v, i, all) => all.indexOf(v) === i).sort(), ['auth', 'external', 'guard', 'music', 'notch', 'spotify'], 'the office preload only reaches the notch, Security Guard, external-desk confirm, sign-in, music folder and Spotify sign-in handlers');
+  // every one of those handlers checks the sender
+  for (const ch of ['auth:login', 'auth:logout', 'auth:keyState', 'auth:setKey', 'auth:removeKey', 'auth:setMode', 'music:pickFolder', 'spotify:signIn']) assert.match(main, new RegExp("ipcMain\\.handle\\('" + ch + "', [^]{0,50}?fromOffice\\(e\\)"), ch + ' is sender-checked');
   assert.match(main, /preload: path\.join\(ROOT, 'desktop', 'office-preload\.cjs'\)/);
   // the island's own toggle goes through the existing, sender-checked settings channel and is validated by normalizeSettings
   assert.match(main, /ipcMain\.on\('island:settings', \(e, patch\) => \{\s*if \(!fromIsland\(e\)/);
