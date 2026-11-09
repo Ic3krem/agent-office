@@ -60,7 +60,9 @@ test('every external host the pages reference is allowed by the CSP, and scripts
   const dirs = Object.fromEntries(csp.split(';').map(d => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
   const scriptSrc = dirs['script-src'] || [];
   assert.ok(!scriptSrc.some(v => /^https?:/.test(v) || v === '*'), 'script-src must stay local');
-  const allowed = new Set(Object.values(dirs).flat().filter(v => /^https:/.test(v)).map(v => new URL(v).host));
+  assert.deepEqual(dirs['frame-src'], ['https://www.youtube-nocookie.com', 'https://open.spotify.com'], 'frames: the two music embeds only');
+  assert.ok(!(dirs['connect-src'] || []).some(v => /^https?:/.test(v)), 'connect-src stays local');
+  const allowed = new Set(Object.values(dirs).flat().filter(v => /^https:\/\//.test(v)).map(v => new URL(v).host));
   const dir = new URL('./public/', import.meta.url);
   for (const f of fs.readdirSync(dir).filter(n => /\.(js|html)$/.test(n))) {
     const t = fs.readFileSync(new URL(f, dir), 'utf8');

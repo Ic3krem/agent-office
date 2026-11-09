@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TiroAgents - Town</title>
 <script>if(/[#&]from=/.test(location.hash))document.documentElement.classList.add('ao-fade');</script>
-<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%;image-rendering:pixelated}a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}#door{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 16px;border-radius:999px;border:1.5px solid #2a1a0c;background:#ffcf6b;color:#2a1a0c;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}#tag{position:fixed;transform:translate(-50%,-100%);padding:1px 6px;border:1.2px solid #1b1220;border-radius:4px;color:#1b1220;font:11px ui-monospace,Consolas,monospace;pointer-events:none;white-space:nowrap;box-shadow:0 2px 0 rgba(0,0,0,.3)}#say{position:fixed;transform:translate(-50%,-100%);max-width:220px;padding:6px 10px;border:1.5px solid #1b1220;border-radius:8px;background:#fffaf0;color:#1b1220;font:12px/1.35 ui-monospace,Consolas,monospace;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.3);transition:opacity .6s ease}#say.fade{opacity:0}@media (prefers-reduced-motion:reduce){#say{transition:none}}html[data-anim=off] #say{transition:none}#door.wait{background:#3a2e25;color:#e8e6df;border-color:#8a5a1c;cursor:default}html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
+<style>html,body{margin:0;height:100%;background:#1b1f2a;color:#e8e6df;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%;image-rendering:pixelated}body>a{position:fixed;top:12px;left:12px;color:#e8e6df}#err{display:none;position:fixed;inset:0;margin:auto;width:min(420px,80vw);height:fit-content;padding:18px 22px;background:#241b15;border:1px solid #8a5a1c;border-radius:12px}#err a{position:static;display:inline-block;margin-top:10px;color:#ffdca0}#door{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 16px;border-radius:999px;border:1.5px solid #2a1a0c;background:#ffcf6b;color:#2a1a0c;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}#tag{position:fixed;transform:translate(-50%,-100%);padding:1px 6px;border:1.2px solid #1b1220;border-radius:4px;color:#1b1220;font:11px ui-monospace,Consolas,monospace;pointer-events:none;white-space:nowrap;box-shadow:0 2px 0 rgba(0,0,0,.3)}#say{position:fixed;transform:translate(-50%,-100%);max-width:220px;padding:6px 10px;border:1.5px solid #1b1220;border-radius:8px;background:#fffaf0;color:#1b1220;font:12px/1.35 ui-monospace,Consolas,monospace;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.3);transition:opacity .6s ease}#say.fade,.bub.fade{opacity:0}.bub{position:fixed;transform:translate(-50%,-100%);max-width:220px;padding:6px 10px;border:1.5px solid #1b1220;border-radius:8px;background:#e8f6ff;color:#1b1220;font:12px/1.35 ui-monospace,Consolas,monospace;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.3);transition:opacity .6s ease;overflow-wrap:anywhere}@media (prefers-reduced-motion:reduce){#say{transition:none}}html[data-anim=off] #say{transition:none}#door.wait{background:#3a2e25;color:#e8e6df;border-color:#8a5a1c;cursor:default}html{transition:opacity .2s ease}html.ao-fade{opacity:0}</style>
 </head>
 <body>
 <a href="/">Back to the office</a>
@@ -24,6 +24,7 @@
 <script src="/office-furniture.js"></script>
 <script src="/world-model.js"></script>
 <script src="/world-player.js"></script>
+<script src="/manor.js"></script>
 <script src="/town-map.js"></script>
 <script src="/town-ambient.js"></script>
 <script src="/town-animals.js"></script>
@@ -31,6 +32,9 @@
 <script src="/town-render.js"></script>
 <script src="/town-render-2d.js"></script>
 <script src="/agent-travel.js"></script>
+<script src="/bg-music.js"></script>
+<script src="/party-music.js"></script>
+<script src="/hud.js"></script>
 <script>
 (async function () {
   let canvas = document.getElementById('town'), api = null, gpuFailed = false;
@@ -163,12 +167,13 @@
     // Party lots (town step 5): friends' offices stand on the friend lots, and members walking the town show where they
     // are, gliding to each position update. Your own position is sent once a second while it changes.
     const guests = new Map(), GUEST_SPEED = 160; // id -> {x, y, tx, ty, face, dist, name}
-    let lotsKey = '[]', guestAt = 0, avKey = ''; // '[]': no friend lots, the map as loaded (no remount outside a party)
+    let lotsKey = '[]', guestAt = 0, avKey = '', myManor = null; // '[]': no friend lots, the map as loaded (no remount outside a party)
     function partySync(P) {
       party = P || null;
       const ms = members(); world = TownMap.partyWorld(party);
-      const key = JSON.stringify(world ? Object.entries(world.owners).filter(([l]) => l !== 'home').map(([l, o]) => [l, o.id]) : []);
-      if (key !== lotsKey) { lotsKey = key; drawMap = TownMap.withFriends(map, world); lotsDirty = true; regraph(); }
+      // beta.6: lots also follow manor themes (yours on your lot, a friend's on theirs); no manor and no party = the map as loaded
+      const key = JSON.stringify(world ? Object.entries(world.owners).filter(([l]) => l !== 'home' || !world.owners.home.me).map(([l, o]) => [l, o.id, o.me ? null : o.manor || null]) : []) + (myManor ? JSON.stringify(myManor) : '');
+      if (key !== lotsKey) { lotsKey = key; drawMap = TownMap.withFriends(map, world, myManor); lotsDirty = true; regraph(); }
       showDoor(true); // door labels follow the party (who owns which lot)
       // Out of your own office in a party where you are a guest: you come out at your lot, not the host's house (once,
       // and only if you have not walked yet).
@@ -235,6 +240,40 @@
       tag.textContent = a.name; tag.style.background = a.accent || '#d8d2c4';
       tag.style.left = (r.left + t.sx) + 'px'; tag.style.top = (r.top + t.sy - 2) + 'px'; tag.hidden = false;
     }
+    // beta.6 HUD: Tasks, Graphics, Build, Party, Music, Manor (top right); background music for the town.
+    Hud.init({ toolbar: ['tasks', 'graphics', 'build', 'party', 'music', 'manor'], place: 'town', onManor: m => { myManor = m; if (snap) partySync(snap.party); } });
+    BgMusic.start('town');
+    // Party chat as speech bubbles over the speaker (you, or a member walking the town; anyone else gets a toast), and a
+    // toast when Tiro writes to you. Plain text, at most 140 characters, gone after about 6 s. History is never replayed.
+    const bubs = new Map(); let chatSeen = null, tiroSeen = null, bubRaf = 0, bubbled = 0;
+    const lineKey = l => l && (l.at + '|' + l.name + '|' + l.text);
+    function bubble(who, text) {
+      let b = bubs.get(who);
+      if (!b) { b = { el: Object.assign(document.createElement('div'), { className: 'bub' }) }; b.el.setAttribute('role', 'status'); document.body.append(b.el); bubs.set(who, b); }
+      b.el.textContent = Hud.bubbleText(text); b.el.classList.remove('fade'); b.until = Date.now() + 6000; bubbled++;
+      if (!bubRaf) bubRaf = requestAnimationFrame(placeBubbles);
+    }
+    function placeBubbles() {
+      bubRaf = 0; const now = Date.now(), r = canvas.getBoundingClientRect();
+      for (const [who, b] of bubs) {
+        const g = who === 'me' ? { x: p.x, y: p.y } : guests.get(who);
+        if (!g || now > b.until + 600) { b.el.remove(); bubs.delete(who); continue; }
+        if (now > b.until) { if (reduced()) { b.el.remove(); bubs.delete(who); continue; } b.el.classList.add('fade'); }
+        const [x, y] = api.toScreen(g.x, g.y, 34 + (who === 'me' && !sayEl.hidden ? 40 : 0));
+        b.el.style.left = (r.left + x) + 'px'; b.el.style.top = (r.top + y) + 'px';
+      }
+      if (bubs.size) bubRaf = requestAnimationFrame(placeBubbles);
+    }
+    function chatBubbles(d) {
+      const chat = (d.party && d.party.connected && d.party.chat) || [];
+      if (chatSeen === null) chatSeen = lineKey(chat[chat.length - 1]) || '';
+      else { let i = chat.length; while (i > 0 && lineKey(chat[i - 1]) !== chatSeen) i--; if (!chatSeen) i = 0;
+        for (const l of chat.slice(i)) { const who = l.mine ? 'me' : l.id; if (who === 'me' || guests.has(who)) bubble(who, l.text); else Hud.toast(l.name + ': ' + Hud.bubbleText(l.text)); }
+        chatSeen = lineKey(chat[chat.length - 1]) || chatSeen; }
+      const t = (d.agents || []).find(a => a.isManager), last = t && (t.logs || []).filter(x => x.k === 'agent').pop(), tk = last ? last.t + '|' + last.text : '';
+      if (tiroSeen !== null && tk && tk !== tiroSeen) Hud.toast(t.name + ': ' + Hud.bubbleText(last.text));
+      tiroSeen = tk;
+    }
     try { // the stream: the CEO's saved wardrobe and the agents (trips); the office layout's flags when it changes
       const es = new EventSource('/api/stream');
       es.onmessage = ev => {
@@ -243,11 +282,11 @@
           if (sig !== looksSig) { looksSig = sig; OfficeSprites.setCostumes(d.looks); look = OfficeSprites.lookOf({ look: 'ceo' }); draw(); } // only on change: idle stays idle
           const v = d.worldVersion && d.worldVersion.office;
           if (v !== owv) { owv = v; officeFlags(); }
-          snap = d; resync();
+          snap = d; myManor = d.manor || null; resync(); Hud.setSnapshot(d); chatBubbles(d);
         } catch (e) {}
       };
     } catch (e) {}
-    window.__town = { get api() { return api; }, p, grid, map, say: () => (sayEl.hidden ? null : sayEl.textContent), said: () => said, draw: () => draw(), walk: (x, y) => { const ok = WP.walkTo(p, { x, y }, grid); if (ok) go(); return !!ok; }, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, world: () => world, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type) }; // handle for perf/town-check.cjs and perf/scene-check.cjs
+    window.__town = { get api() { return api; }, p, grid, map, say: () => (sayEl.hidden ? null : sayEl.textContent), said: () => said, draw: () => draw(), walk: (x, y) => { const ok = WP.walkTo(p, { x, y }, grid); if (ok) go(); return !!ok; }, toWorld: (x, y) => api.toWorld(x, y), near: () => near && near.id, travellers: () => travellers(Date.now(), true), trips: () => trips, world: () => world, guests: () => [...guests].map(([id, g]) => ({ id, x: g.tx, y: g.ty, name: g.name })), lots: () => drawMap.lots.map(l => l.id + ':' + l.building.type + (l.building.tint ? ':' + l.building.tint.toString(16) : '')), bubbles: () => [...bubs].map(([who, b]) => ({ who, text: b.el.textContent })), bubbled: () => bubbled }; // handle for perf/town-check.cjs and perf/scene-check.cjs
 
     const keys = new Set();
     let raf = 0, last = 0;
