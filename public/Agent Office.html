@@ -128,6 +128,7 @@ button:disabled{opacity:.45;cursor:default}
           <div style="font-size:12px; color:#cdbda9; word-break:break-word;">For: {{ h.goal }}</div>
           <div style="font-size:12px; color:#a8998a; word-break:break-word;">Why: {{ h.why }}</div>
           <sc-if value="{{ h.paceLine }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px; color:#ffcf6b;">{{ h.paceLine }}</div></sc-if>
+          <sc-if value="{{ h.warning }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px; color:#ffb547;">{{ h.warning }}</div></sc-if>
           <div style="font-size:11.5px; color:#a8998a;">Prompt it will send (full request: {{ h.promptN }} characters, scroll to read it all):</div>
           <div style="font-size:11.5px; color:#8f8070; word-break:break-word; max-height:180px; overflow:auto; white-space:pre-wrap; padding:5px 7px; border:1px solid #3a2c1e; border-radius:5px; background:#15100b;" tabindex="0">{{ h.prompt }}</div>
           <div style="display:flex; gap:6px;">
@@ -185,6 +186,7 @@ button:disabled{opacity:.45;cursor:default}
       </div>
       <button class="pill sm" onClick="{{ toggleFollow }}" aria-pressed="{{ followOn }}" title="Zoomed in, the camera follows you as you walk" style="border-color:{{ followBorder }};">Follow me</button>
       <button class="pill sm" onClick="{{ toggleRoster }}" title="The team: one specialist per desk" style="border-color:{{ rosterBorder }};"><span>Team {{ rosterCount }}/{{ deskCount }}</span></button>
+      <button class="pill sm" onClick="{{ toggleAgents }}" title="Agents: Codex, Gemini CLI, OpenCode and custom commands on this PC" style="border-color:{{ agentsBorder }};">Agents</button>
       <button class="pill sm" onClick="{{ toggleParty }}" title="Party: share your office with friends (generic status only, never prompts or commands)" style="border-color:{{ partyBorder }}; color:{{ partyColor }};">{{ partyLabel }}</button>
       <button class="pill sm" onClick="{{ toggleLegend }}" title="Show or hide the zone labels" style="border-color:{{ legendBorder }};">Labels</button>
       <button class="pill sm" onClick="{{ toggleSaver }}" title="Power saver: the office redraws slowly while nothing moves and not at all when hidden. Turn off for a constant 30 fps." aria-pressed="{{ saverOn }}" style="border-color:{{ saverBorder }};">Power saver</button>
@@ -315,6 +317,43 @@ button:disabled{opacity:.45;cursor:default}
         </div>
       </div>
     </sc-if>
+    <sc-if value="{{ agentsOpen }}" hint-placeholder-val="{{ false }}">
+      <div role="dialog" aria-label="Agents" data-agents-panel="1" style="position:absolute; right:16px; top:{{ panelTop }}px; z-index:2950; width:360px; max-height:calc(100vh - {{ panelTop }}px - 24px); display:flex; flex-direction:column; border-radius:10px; background:var(--panel); border:1px solid #3a2e25; box-shadow:0 10px 30px rgba(0,0,0,.4); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid #33281f;">
+          <span style="flex:1; font-family:'Pixelify Sans',sans-serif; font-size:15px; color:#ffdca0;">Agents</span>
+          <button class="wbtn" onClick="{{ agentsRefresh }}" title="Look for installed CLIs again">Refresh</button>
+          <button class="xbtn" onClick="{{ toggleAgents }}" aria-label="Close the agents panel" style="width:26px; height:26px;">×</button>
+        </div>
+        <div style="overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
+          <div class="sect">Detected CLIs</div>
+          <sc-for list="{{ agentsDetected }}" as="d" hint-placeholder-count="3">
+            <div data-cli="{{ d.cli }}" style="padding:7px 9px; border-radius:8px; background:#120e0c; border:1px solid #2a211b; display:flex; flex-direction:column; gap:3px;">
+              <div style="display:flex; align-items:center; gap:7px;"><span style="font-size:13px; color:#ffdca0;">{{ d.label }}</span><span style="flex:1;"></span><span style="font-size:11.5px; color:{{ d.color }};">{{ d.state }}</span></div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#a8998a; word-break:break-all;">{{ d.detail }}</div>
+            </div>
+          </sc-for>
+          <div class="sect">External desks</div>
+          <sc-if value="{{ agentsNoDesks }}" hint-placeholder-val="{{ false }}"><div class="empty">No external desk yet. In Build mode, place a Codex, Gemini, OpenCode or Custom desk.</div></sc-if>
+          <sc-for list="{{ agentsDesks }}" as="x" hint-placeholder-count="0">
+            <div data-ext-desk="{{ x.key }}" style="padding:9px 10px; border-radius:8px; background:#120e0c; border:1px solid #2a211b; display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; align-items:center; gap:7px;"><span style="font-size:13px; color:#ffdca0;">{{ x.name }}</span><span style="flex:1; font-size:12px; color:#a8998a;">{{ x.label }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:1px 6px; border-radius:4px; background:#2a211b; color:#d7c3a8;">{{ x.usage }}</span></div>
+              <div data-warning="1" style="font-size:12px; color:#ffb547;">{{ x.warning }}</div>
+              <sc-if value="{{ x.readOnly }}" hint-placeholder-val="{{ false }}"><div data-readonly="1" style="font-size:12px; color:#a8998a;">Read-only: turn on Auto mode to let it edit.</div></sc-if>
+              <sc-if value="{{ x.outside }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px; color:#ff7a6b;">Settings changed outside the app were ignored.</div></sc-if>
+              <div style="display:flex; gap:6px; align-items:center;"><span style="font-size:12px; color:#a8998a; width:52px;">Model</span><input value="{{ x.model }}" onChange="{{ x.onModel }}" placeholder="its own default" aria-label="Model for {{ x.name }}" style="flex:1; min-width:0; padding:4px 7px; border-radius:6px; border:1px solid #3a2e25; background:#0e0b09; color:#f0e4d4; font:inherit; font-size:12px; outline:none;"></input><button class="wbtn" onClick="{{ x.onModelSave }}">Save</button></div>
+              <sc-if value="{{ x.isCustom }}" hint-placeholder-val="{{ false }}"><div style="display:flex; gap:6px; align-items:center;"><span style="font-size:12px; color:#a8998a; width:52px;">Command</span><input value="{{ x.command }}" onChange="{{ x.onCommand }}" placeholder="mytool --ask {prompt}" aria-label="Command line for {{ x.name }}" style="flex:1; min-width:0; padding:4px 7px; border-radius:6px; border:1px solid #3a2e25; background:#0e0b09; color:#f0e4d4; font-family:'IBM Plex Mono',monospace; font-size:11.5px; outline:none;"></input></div></sc-if>
+              <div style="display:flex; gap:6px; align-items:center;"><span style="font-size:12px; color:#a8998a; width:52px;">Args</span><input value="{{ x.args }}" onChange="{{ x.onArgs }}" placeholder="extra arguments" aria-label="Extra arguments for {{ x.name }}" style="flex:1; min-width:0; padding:4px 7px; border-radius:6px; border:1px solid #3a2e25; background:#0e0b09; color:#f0e4d4; font-family:'IBM Plex Mono',monospace; font-size:11.5px; outline:none;"></input></div>
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <button class="wbtn" onClick="{{ x.onAuto }}" aria-pressed="{{ x.autoOn }}" style="border-color:{{ x.autoBorder }};">Auto mode: {{ x.autoLabel }}</button>
+                <button class="wbtn" onClick="{{ x.onConfirm }}" disabled="{{ x.noConfirm }}">Confirm in TiroAgents</button>
+                <sc-if value="{{ x.working }}" hint-placeholder-val="{{ false }}"><button class="wbtn" onClick="{{ x.onStop }}" style="color:#ff7a6b;">Stop</button></sc-if>
+              </div>
+              <sc-if value="{{ x.noConfirm }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px; color:#7d7064;">Open TiroAgents to change this.</div></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
     <sc-if value="{{ hasDeskInfo }}" hint-placeholder-val="{{ false }}">
       <div style="position:absolute; right:16px; bottom:56px; z-index:2960; width:310px; padding:12px 14px; border-radius:10px; background:var(--panel); border:1px solid {{ deskInfo.color }}; box-shadow:0 10px 30px rgba(0,0,0,.45); display:flex; flex-direction:column; gap:6px; animation:pop .2s ease-out;">
         <div style="display:flex; align-items:center; gap:8px;">
@@ -350,7 +389,7 @@ button:disabled{opacity:.45;cursor:default}
         </div>
         <div style="font-size:12px; color:{{ card.statusColor }};">● {{ card.status }}</div>
         <div style="font-size:12.5px; line-height:1.4; color:#e8d9c4; word-break:break-word;">{{ card.task }}</div>
-        <button class="pill sm cta" onClick="{{ card.chat }}" style="align-self:flex-start;">Chat</button>
+        <div style="display:flex; gap:6px;"><button class="pill sm cta" onClick="{{ card.chat }}" style="align-self:flex-start;">Chat</button><sc-if value="{{ card.canStop }}" hint-placeholder-val="{{ false }}"><button class="pill sm" onClick="{{ card.stop }}" title="Stop this external run" style="color:#ff7a6b;">Stop</button></sc-if></div>
       </div>
     </sc-if>
     <div onPointerDown="{{ joyDown }}" onPointerMove="{{ joyMove }}" onPointerUp="{{ joyUp }}" onPointerCancel="{{ joyUp }}" onLostPointerCapture="{{ joyUp }}" data-joystick="1" aria-hidden="true" style="position:absolute; left:16px; bottom:{{ joyBottom }}; z-index:2950; width:96px; height:96px; border-radius:50%; display:{{ joyDisp }}; touch-action:none; background:rgba(26,20,17,.55); border:2px solid #4a3a2c;">
@@ -758,7 +797,7 @@ class Component extends DCLogic {
       pickTitle:m&&m.kind==='pick'?{prio:'Prioritize a goal',boost:'Boost a goal (Opus)',speed:'Speed up a goal (Haiku)'}[m.mode]:'',
       pickGoals:m&&m.kind==='pick'?s.goals.filter(OPEN_GOAL).map(g=>{const on=m.mode==='prio'?g.priority==='high':g.pace===m.mode;return {label:(on?(m.mode==='prio'?'★ ':m.mode==='boost'?'Stop boost · ':'Stop speed · '):'')+cut(g.text,80),onClick:()=>this.goalAct(m.mode,g)};}):[],
       noPick:!!m&&m.kind==='pick'&&!s.goals.some(OPEN_GOAL),closeMenu:()=>this.setState({menu:null}),
-      card:a?{name:a.name,role:a.profile&&!a.isManager?a.profile.role:a.role||'',status:st[0],statusColor:st[1],task:cut(a.task||'No task right now',140),chat:()=>this.setState({menu:null,selectedId:a.id})}:{name:'',role:'',status:'',statusColor:'#fff',task:'',chat:()=>{}},
+      card:a?{name:a.name,role:a.profile&&!a.isManager?a.profile.role:a.role||'',status:st[0],statusColor:st[1],task:cut(a.task||'No task right now',140),chat:()=>this.setState({menu:null,selectedId:a.id}),canStop:!!(a.profile&&RoleCatalog.isExternal(a.profile.key)&&a.status!=='idle'),stop:()=>this.stopExternal(a.profile&&a.profile.key)}:{name:'',role:'',status:'',statusColor:'#fff',task:'',chat:()=>{},canStop:false,stop:()=>{}},
       joyDisp:coarse&&!s.building&&!s.demo?'block':'none',joyBottom:vw<700?'76px':'56px', // above the Agent history button (and the narrow Today bar)
       joyDown:e=>{e.currentTarget.setPointerCapture(e.pointerId);joy(e);},joyMove:e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))joy(e);},joyUp:joyEnd,
     };
@@ -870,6 +909,7 @@ class Component extends DCLogic {
       reportsLabel:'Reports'+(s.reportsN?' ('+s.reportsN+')':''),
       hot:hs.map(h=>({title:h.label,l:h.l,t:h.t,w:h.w,h:h.h,onClick:()=>OfficeWorld.activate(h.id),onKey:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();OfficeWorld.activate(h.id);}}})),
       ...this.partyView(s),
+      ...this.agentsView(s),
       rosterOpen:s.rosterOpen,toggleRoster:()=>this.setState({rosterOpen:!s.rosterOpen,deskInfo:null}),rosterCount:hired.size,deskCount:roster.length,rosterMeter:Math.min(100,Math.round(hired.size/Math.max(1,roster.length)*100))+'%',rosterBorder:s.rosterOpen?'#8a5a1c':'#3a2e25',
       rosterCards:[{key:'ceo',name:'You',defaultName:'You',role:'CEO (the avatar you walk)',model:'you',color:'#2b2f3e',accent:'#ffd23f',brief:'Walk with WASD, arrows, a click or the joystick. Press E near Tiro for Chat, Prioritize, Boost and Speed.',tools:'',isMgr:true,noRename:true},{key:'tiro',name:OfficeMotion.TIRO.name,defaultName:'Tiro',role:'Office manager',model:'sonnet',color:OfficeMotion.TIRO.color,accent:OfficeMotion.TIRO.accent,brief:'Plans the day, asks you before hiring, checks the work.',tools:'manager',isMgr:true},...roster.map(r=>({key:r.key,defaultName:r.defaultName||r.name,name:r.name,role:r.role,model:r.model,color:r.color,accent:r.accent,brief:(r.brief||[]).join(String.fromCharCode(10)),tools:(r.tools||[]).join(' · '),isMgr:false}))].map(c=>{const hiredNow=c.isMgr||hired.has(c.key),draft=(s.nameDraft||{})[c.key],save=v=>api('/api/names/set',{key:c.key,name:v}).then(()=>{this.setState(p=>({nameDraft:{...p.nameDraft,[c.key]:undefined}}));this.showToast(v?'Renamed to '+v:'Name reset to '+c.defaultName);}).catch(e=>this.showToast(e.message));return {name:c.name,defaultName:c.defaultName,role:c.role,model:c.model,color:c.color,accent:c.accent,brief:c.brief,tools:c.tools,hired:c.key==='ceo'?'that is you':c.isMgr?'manager':hired.has(c.key)?'at work':'not hired',canRename:!c.noRename,...this.wardrobe(c),hiredColor:hiredNow?'#5fd38d':'#7d7064',op:hiredNow?1:.78,draft:draft===undefined?c.name:draft,onDraft:e=>this.setState(p=>({nameDraft:{...p.nameDraft,[c.key]:e.target.value}})),onKey:e=>{if(e.key==='Enter')save(e.target.value);},onSave:()=>save(draft===undefined?c.name:draft),canReset:c.name!==c.defaultName,onReset:()=>api('/api/names/reset',{key:c.key}).then(()=>{this.setState(p=>({nameDraft:{...p.nameDraft,[c.key]:undefined}}));this.showToast('Name reset to '+c.defaultName);}).catch(e=>this.showToast(e.message))};}),
       hasDeskInfo:!!di,deskInfo:di?{name:di.name,role:di.role,model:di.model,color:di.color,accent:di.accent,brief:(di.brief||[]).join('\n')}:{name:'',role:'',model:'',color:'#3a2e25',accent:'#fff',brief:''},closeDeskInfo:()=>this.setState({deskInfo:null}),
@@ -901,7 +941,7 @@ class Component extends DCLogic {
       tidyOffice:()=>api('/api/tidy').then(r=>this.showToast('Tidied: '+r.desks+' idle desk'+(r.desks===1?'':'s')+' hidden, '+r.goals+' finished goal'+(r.goals===1?'':'s')+' cleared. Reports are kept.')).catch(e=>this.showToast(e.message)),
       resetBoss:()=>{if(!confirm('Start '+MGR()+' with a clean memory? Goals and reports stay.'))return;api('/api/boss-reset').then(()=>this.showToast(''+MGR()+' will start fresh next time')).catch(e=>this.showToast(e.message));},
       startBoss:()=>api('/api/boss').then(()=>this.showToast(''+MGR()+' is checking the board')).catch(e=>this.showToast(e.message)),
-      guardBannerOn:!!((s.guard&&s.guard.banner)||(s.guard&&s.guard.notices&&s.guard.notices.length)),guardBanner:((s.guard&&s.guard.banner)||'')+((s.guard&&s.guard.notices&&s.guard.notices.length)?(((s.guard&&s.guard.banner)?' ':'')+'Guard setting changed outside the app; kept '+s.guard.notices.map(n=>n.what+':'+n.kept).join(', ')+'.'):''),mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,prompt:h.prompt||'',promptN:String((h.prompt||'').length),paceLine:h.pace?(h.model?(h.pace==='boost'?'Boost':'Speed')+': runs on '+cap(h.model):h.paceSkip?'Boost skipped: '+h.paceSkip:''):'',onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
+      guardBannerOn:!!((s.guard&&s.guard.banner)||(s.guard&&s.guard.notices&&s.guard.notices.length)),guardBanner:((s.guard&&s.guard.banner)||'')+((s.guard&&s.guard.notices&&s.guard.notices.length)?(((s.guard&&s.guard.banner)?' ':'')+'Guard setting changed outside the app; kept '+s.guard.notices.map(n=>n.what+':'+n.kept).join(', ')+'.'):''),mgrName:MGR(),hireCards:(s.hires||[]).map(h=>({warning:h.warning||'',title:MGR()+' wants to hire '+h.name+' ('+h.role+')',goal:h.goalText,why:h.why,prompt:h.prompt||'',promptN:String((h.prompt||'').length),paceLine:h.pace?(h.model?(h.pace==='boost'?'Boost':'Speed')+': runs on '+cap(h.model):h.paceSkip?'Boost skipped: '+h.paceSkip:''):'',onApprove:()=>api('/api/hire/decide',{id:h.id,approve:true}).then(()=>this.showToast('Hire approved')).catch(e=>this.showToast(e.message)),onDeny:()=>api('/api/hire/decide',{id:h.id,approve:false}).then(()=>this.showToast('Hire denied')).catch(e=>this.showToast(e.message))})),
       goalText:s.goalText,onGoalInput:e=>this.setState({goalText:e.target.value}),onGoalKey:e=>{if(e.key==='Enter')addGoal();},addGoal,
       goalsV:live.map(g=>{const c=GOAL[g.status]||GOAL.todo,done=g.status==='done';return {badge:(g.priority==='high'?'★':'')+(g.pace==='boost'?'⚡':g.pace==='speed'?'⏩':''),badgeTitle:[g.priority==='high'?'High priority':'',g.pace==='boost'?'Boost: strongest model':g.pace==='speed'?'Speed: fastest model':''].filter(Boolean).join(' · '),text:done?cut(g.text,70):g.text,note:done?cut(g.note||'',110):(g.note||''),hasNote:!!g.note,label:c[0],chipBg:c[1],chipFg:c[2],
         border:g.status==='blocked'?'#8a5a1c':g.status==='proposed'?'#4a3f6b':'#2a211b',fg:g.status==='done'?'#8c8278':'#f0e4d4',strike:g.status==='done'?'line-through':'none',
@@ -972,6 +1012,24 @@ class Component extends DCLogic {
   // piece = a catalog type, or 'dept-desk:<role>' from the Desks tab.
   place(piece,x,y){const [type,role]=piece.split(':'),r=OfficeWorld.dropAt(type,x,y,role?{role}:undefined);if(r.ok)this.setState({armed:null});else this.showToast(r.toast||"Can't put the "+WorldEdit.labelOf(type)+' there: '+r.reason);return r;}
   roleName(r){return (this.state.names||{})[r.key]||r.name;}
+  // ---------- Agents: external specialists (Codex, Gemini CLI, OpenCode, a custom command) ----------
+  loadExternal(fresh){return fetch('/api/external'+(fresh?'?refresh=1':'')).then(r=>r.json()).then(j=>{if(j&&j.desks)this.setState({ext:j});}).catch(()=>{});}
+  stopExternal(key){if(!key)return;api('/api/external/stop',{key}).then(()=>{this.showToast('Stopped');this.loadExternal();}).catch(e=>this.showToast(e.message));}
+  agentsView(s){const X=s.ext||{detected:[],desks:[]},dr=s.extDraft||{},D=window.agentOfficeDesktop&&window.agentOfficeDesktop.external;
+    const setD=(k,f)=>e=>{const v=f==='auto'?e:e.target.value;this.setState(p=>({extDraft:{...p.extDraft,[k]:{...(p.extDraft||{})[k],[f]:v}}}));};
+    return {agentsOpen:!!s.agentsOpen,agentsBorder:s.agentsOpen?'#8a5a1c':'#3a2e25',
+      toggleAgents:()=>{const o=!s.agentsOpen;this.setState({agentsOpen:o,rosterOpen:false,partyOpen:false});if(o)this.loadExternal();},agentsRefresh:()=>this.loadExternal(true),
+      agentsDetected:(X.detected||[]).map(d=>({cli:d.cli,label:d.label,state:d.installed?(d.version||'installed'):'not installed',color:d.installed?'#5fd38d':'#7d7064',
+        detail:d.installed?(d.error||d.path)+' · uses its own settings in '+d.configHint:'Install: '+d.install})),
+      agentsNoDesks:!(X.desks||[]).length,
+      agentsDesks:(X.desks||[]).map(x=>{const d=dr[x.key]||{},v=f=>d[f]!==undefined?d[f]:x.settings[f],auto=!!v('auto');
+        return {key:x.key,name:x.name,label:x.label,usage:x.usage,warning:x.warning,readOnly:!x.settings.auto,outside:!x.confirmed,isCustom:x.cli==='custom',working:!!x.working,
+          model:v('model')||'',args:v('args')||'',command:v('command')||'',onModel:setD(x.key,'model'),onArgs:setD(x.key,'args'),onCommand:setD(x.key,'command'),
+          autoOn:auto?'true':'false',autoLabel:auto?'on':'off',autoBorder:auto?'#ffb547':'#4a3a2c',onAuto:()=>setD(x.key,'auto')(!auto),
+          onModelSave:()=>api('/api/external/settings',{key:x.key,model:String(v('model')||'')}).then(j=>{this.setState(p=>({ext:j,extDraft:{...p.extDraft,[x.key]:{...(p.extDraft||{})[x.key],model:undefined}}}));this.showToast('Model saved');}).catch(e=>this.showToast(e.message)),
+          noConfirm:!D||!X.canConfirm,onConfirm:()=>{if(!D)return;D.confirm(x.key,{auto,args:String(v('args')||''),command:String(v('command')||'')}).then(r=>{if(r&&r.ok){this.setState(p=>({extDraft:{...p.extDraft,[x.key]:undefined}}));this.showToast('Saved');}else if(r&&r.error)this.showToast(r.error);this.loadExternal();});},
+          onStop:()=>this.stopExternal(x.key)};})};
+  }
   // ---------- Party (phase 7): join, presence, chat, visit a friend's office (view only) ----------
   partyView(s){const P=s.party||{connected:false},on=!!P.connected,f=s.pf||{},DOT={available:'#5fd38d',busy:'#ff7a6b',working:'#ffcf6b',away:'#7d7064'};
     const setF=k=>e=>{const v=e.target.value;this.setState(p=>({pf:{...p.pf,[k]:v}}));};

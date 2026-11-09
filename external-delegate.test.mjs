@@ -140,3 +140,9 @@ test('server wiring: delegate is an office tool, runs outlive Tiro\'s session, q
   assert.match(run, /process\.once\('exit', killAll\)/);
   for (const f of ['./external-run.mjs', './external-agents.mjs', './external-delegate.mjs']) assert.doesNotMatch(fs.readFileSync(new URL(f, import.meta.url), 'utf8'), /shell:\s*true\s*[,}]/, f);
 });
+
+test('party: external desks travel as ordinary agents with generic bubbles only', async () => {
+  const { cleanAgent } = await import('./party/protocol.mjs');
+  for (const key of ['ext-codex-1', 'ext-gemini-3', 'ext-opencode-3', 'ext-custom-2'])
+    assert.deepEqual(cleanAgent({ id: 'a1', name: 'Ollie', key, state: 'working', bubble: 'Coding…', command: 'x', prompt: 'p' }), { id: 'a1', name: 'Ollie', key, state: 'working', bubble: 'Coding…' });
+});

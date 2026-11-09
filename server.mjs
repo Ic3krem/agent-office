@@ -573,6 +573,7 @@ function extLaunch(cli, s) {
 }
 const extEnv = () => { const e = { ...process.env }; for (const k of Object.keys(e)) if (k.toUpperCase() === 'PATH') delete e[k]; e.PATH = EXT_PATH(); return e; };
 let lastExternalTell = '';
+const TEST_HOOKS = process.env.AGENT_OFFICE_TEST_HOOKS === '1'; delete process.env.AGENT_OFFICE_TEST_HOOKS;
 const delegator = createDelegator({
   hires, settings: key => extSettings()[key] || { auto: false }, launch: extLaunch, redact, env: extEnv,
   tell: text => { lastExternalTell = text; if (tellBoss(text) === false) host.note(text.slice(0, 300)); },
@@ -776,6 +777,13 @@ async function handle(req, res) {
       case '/api/external/settings': {
         try { saveModel(path.join(CFG_DIR, 'kiro.json'), String(b.key || ''), String(b.model ?? '').trim()); } catch (e) { return json(res, e.status || 400, { error: e.message }); }
         bump(); return json(res, 200, await extView());
+      }
+      case '/api/external/test-run': { // live harness only (AGENT_OFFICE_TEST_HOOKS=1): approve and delegate without Tiro, read the last report-back
+        if (!TEST_HOOKS) return json(res, 404, { error: 'not found' });
+        if (b.lastTell) return json(res, 200, { lastTell: lastExternalTell });
+        const key = String(b.key || ''), prompt = String(b.prompt || '');
+        const { id } = hires.request({ key, goalId: '', promptHash: promptHash(prompt) }); hires.decide(id, true);
+        return json(res, 200, delegator.delegate(key, prompt));
       }
       case '/api/external/stop': {
         const key = String(b.key || '');
