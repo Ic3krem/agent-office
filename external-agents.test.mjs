@@ -47,7 +47,7 @@ test('splitArgs', () => {
   assert.throws(() => splitArgs('"open'), /quote/);
 });
 
-test('npm shim resolution', () => {
+test('npm shim resolution', { skip: process.platform !== 'win32' && 'Windows paths on a real Windows file system' }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-shim-')), shim = path.join(dir, 'codex.cmd');
   const text = '@ECHO off\r\nGOTO start\r\n:find_dp0\r\nSET dp0=%~dp0\r\nEXIT /b\r\n:start\r\nSETLOCAL\r\nCALL :find_dp0\r\n\r\nIF EXIST "%dp0%\\node.exe" (\r\n  SET "_prog=%dp0%\\node.exe"\r\n) ELSE (\r\n  SET "_prog=node"\r\n  SET PATHEXT=%PATHEXT:;.JS;=;%\r\n)\r\n\r\nendLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js" %*\r\n';
   fs.writeFileSync(shim, text);
@@ -73,7 +73,7 @@ test('parse gemini json and text', () => {
   assert.deepEqual(parseOutput('text', '  hello\n'), { text: 'hello' });
 });
 
-test('which on win32 honours PATHEXT', () => {
+test('which on win32 honours PATHEXT', { skip: process.platform !== 'win32' && 'Windows paths on a real Windows file system' }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-which-'));
   fs.writeFileSync(path.join(dir, 'codex.cmd'), '');
   fs.writeFileSync(path.join(dir, 'codex.ps1'), '');
