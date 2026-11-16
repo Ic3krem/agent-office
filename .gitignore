@@ -21,3 +21,5 @@ art/.raw/
 perf/results/*
 !perf/results/.gitkeep
 __pycache__/
+# stray Windows profile folders created by test runs with a temp APPDATA/LOCALAPPDATA
+Microsoft/
