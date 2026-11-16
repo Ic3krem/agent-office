@@ -1,5 +1,7 @@
 import { test, expect, mock } from 'claude-code/testing'
 
+type On = Parameters<typeof mock.clock>[0] // the host's hook registrar, as the harness hands it to each test
+
 // Runs inside Claude Code's own test harness (it cannot run in this repo's npm test). bridge-register.test.mjs drives the same
 // register.ts against the real server with a small host fake and runs in npm test.
 const CFG = JSON.stringify({ port: 4777, key: 'k' })
@@ -7,21 +9,23 @@ const CFG = JSON.stringify({ port: 4777, key: 'k' })
 type Seen = { path: string; headers: Record<string, string>; body?: string }
 type Opts = { registerAnswer?: { status: number; text: string }; settings?: Record<string, string> }
 
-function fakeHost(on: Parameters<Parameters<typeof test>[1] & ((...a: never[]) => unknown)>[1], answers: Record<string, string>, submitted: string[], asked: unknown[], seen: Seen[], opts: Opts = {}) {
+function fakeHost(on: On, answers: Record<string, string>, submitted: string[], asked: unknown[], seen: Seen[], opts: Opts = {}) {
   on('ui.status', () => ({ value: undefined }))
   on('env.get', ($, e) => ({ value: e.name === 'USERPROFILE' ? 'C:/Users/T' : undefined }))
   on('fs.read', ($, e) => {
     const p = e.path.split('\\').join('/')
     if (p === 'C:/Users/T/.claude/agent-office/bridge.json') return { value: CFG }
-    if (opts.settings && p in opts.settings) return { value: opts.settings[p] }
+    const v = opts.settings?.[p]
+    if (v !== undefined) return { value: v }
     throw new Error('ENOENT ' + p)
   })
   on('session.id', () => ({ value: 'sess-1' }))
   on('http.fetch', ($, e) => {
     expect(e.init?.headers?.['x-key']).toBe('k')
-    const path = e.url.replace('http://127.0.0.1:4777', '').split('?')[0]
-    seen.push({ path, headers: (e.init?.headers ?? {}) as Record<string, string>, body: e.init?.body })
-    if (path === '/bridge/ask') asked.push(JSON.parse(e.init!.body!))
+    const path = e.url.replace('http://127.0.0.1:4777', '').split('?')[0] ?? ''
+    const body = typeof e.init?.body === 'string' ? e.init.body : undefined // register.ts only sends text bodies
+    seen.push({ path, headers: (e.init?.headers ?? {}) as Record<string, string>, body })
+    if (path === '/bridge/ask') asked.push(JSON.parse(body!))
     if (path === '/bridge/register') {
       const r = opts.registerAnswer ?? { status: 200, text: '{"token":"t"}' }
       return { value: { status: r.status, ok: r.status >= 200 && r.status < 300, headers: {}, text: r.text } }

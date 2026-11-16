@@ -30,13 +30,13 @@ Quick links for Agent Office 1.2.8 (Windows installer only for now). The install
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.8/install.ps1 | iex
+irm https://raw.githubusercontent.com/Ic3krem/agent-office/v2.0.0/install.ps1 | iex
 ```
 
 macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.8/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v2.0.0/install.sh | bash
 ```
 
 Both are pinned to a release tag (the tag is in the URL), verify the Ed25519 signature of that release's manifest against the key built into the script, then check the SHA-256 of the download, and stop if anything is missing or wrong. Update with the island's Settings > Updates or by running the script again. Uninstall from Windows Settings > Apps, delete the macOS app, or remove the Linux AppImage; your data in `~/.claude/agent-office` stays until you delete it. More in the [README](../README.md#install).

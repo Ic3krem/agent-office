@@ -28,7 +28,7 @@ test('install scripts: pinned tag, signed manifest, sha256, https only, no execu
   const ps = read('./install.ps1'), sh = read('./install.sh');
   for (const t of [ps, sh]) {
     assert.match(t, /releases\/download\/\$/); // manifest fetched from a tag URL, not "latest"
-    assert.match(t, /latest\.json\.sig/); assert.match(t, /v1\.\d+\.\d+/);
+    assert.match(t, /latest\.json\.sig/); assert.match(t, /v\d+\.\d+\.\d+/);
     assert.doesNotMatch(t, /api\.github\.com|releases\/latest/);
     assert.doesNotMatch(t, /http:\/\//);
     assert.doesNotMatch(t, /ExecutionPolicy|-Scope Process Bypass|Set-ExecutionPolicy/i);

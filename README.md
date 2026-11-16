@@ -67,7 +67,7 @@ All screenshots use demo data. The [user guide](docs/GUIDE.md) has the rest.
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later, macOS, or Linux.
 
-**Download.** Get `Agent-Office-Setup-<version>.exe` from the [latest release](https://github.com/Ic3krem/agent-office/releases/latest) and run it (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). Or build it from source (below).
+**Download.** Get `TiroAgents-Setup-<version>.exe` from the [latest release](https://github.com/Ic3krem/agent-office/releases/latest) and run it (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). Or build it from source (below).
 
 **Check before installing.** Download the release's `latest.json` and `latest.json.sig` next to the installer, set `AGENT_OFFICE_VERIFY_ONLY` to that folder's path and run `install.ps1` or `install.sh` from this repository. The check verifies the **Ed25519 signature** of the manifest against the release key built into the script (fingerprint in [SECURITY.md](SECURITY.md)) and the installer's **SHA-256**, and installs nothing.
 
@@ -144,7 +144,7 @@ npm run dist       # electron-builder: installer for this OS, written to dist/
 
 `node --check <file>` syntax-checks any `.mjs` file. To run a server next to an installed copy, set `AGENT_OFFICE_PORT` and a temporary `USERPROFILE` so it does not touch the installed app's key and state.
 
-`npm run dist` on Windows produces `dist/Agent-Office-Setup-<version>.exe` (NSIS), plus `latest.yml`, a `.blockmap` and the unpacked app. macOS builds are `Agent-Office-<version>-<arch>.dmg` and `.zip`; Linux builds are `Agent-Office-<version>-<arch>.AppImage` and `.deb`. Any new root-level `.mjs` file must be added to `build.files` in `package.json`, or the packaged app will not start.
+`npm run dist` on Windows produces `dist/TiroAgents-Setup-<version>.exe` (NSIS), plus `latest.yml`, a `.blockmap` and the unpacked app. macOS builds are `TiroAgents-<version>-<arch>.dmg` and `.zip`; Linux builds are `TiroAgents-<version>-<arch>.AppImage` and `.deb`. Any new root-level `.mjs` file must be added to `build.files` in `package.json`, or the packaged app will not start.
 
 ## Cutting a release
 

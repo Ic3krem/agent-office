@@ -14,8 +14,7 @@ test('no private names (employer, clients, machines) in any tracked text file', 
     .filter(f => !/^(node_modules|docs\/images|public\/vendor|public\/fonts|package-lock\.json)/.test(f) && !/\.(png|woff2|ico|jpg)$/i.test(f));
   for (const f of files) {
     let t = fs.readFileSync(path.join(root, f), 'utf8');
-    // the publisher's own name is public on purpose, in package.json's author and copyright only
-    if (f === 'package.json') { const p = JSON.parse(t); t = t.split(p.author.name).join('').split(p.build.copyright).join(''); }
+    // no exemptions: the publisher is the Ic3krem handle, so package.json is checked like every other file
     const m = t.match(bad);
     assert.ok(!m, f + ' mentions "' + (m && m[0]) + '"');
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Agent Office installer for macOS and Linux. Use the script from the release tag you want to install (the tag is pinned in the URL):
-#   curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.8/install.sh | bash
+# TiroAgents (formerly Agent Office) installer for macOS and Linux. Use the script from the release tag you want to install (the tag is pinned in the URL):
+#   curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v2.0.0/install.sh | bash
 # What it does, and what it refuses to do:
 #   1. downloads latest.json + latest.json.sig from THAT release tag over https (no "latest" lookup, no API),
 #   2. verifies the Ed25519 signature of the manifest against the release public key pinned below (OpenSSL 3 or Node.js),
@@ -10,7 +10,7 @@
 # Verify a downloaded release folder without installing:  AGENT_OFFICE_VERIFY_ONLY=/path/to/folder bash install.sh
 set -euo pipefail
 REPO="Ic3krem/agent-office"
-DEFAULT_TAG="v1.2.8"   # bumped for every release so this script and the release it installs always match
+DEFAULT_TAG="v2.0.0"   # bumped for every release so this script and the release it installs always match
 TAG="${AGENT_OFFICE_TAG:-$DEFAULT_TAG}"
 # Ed25519 release key (SPKI PEM); same key as desktop/update-key.mjs
 PUBKEY_PEM='-----BEGIN PUBLIC KEY-----
@@ -100,12 +100,12 @@ case "$(uname -s)" in
     ARCH="$(uname -m)"; [ "$ARCH" = "x86_64" ] && ARCH="x64"
     fetch_verified darwin "$ARCH" "$TMP/app.dmg"
     MNT="$(hdiutil attach -nobrowse -quiet "$TMP/app.dmg" | tail -n1 | awk -F'\t' '{print $NF}')"
-    rm -rf "/Applications/Agent Office.app"; cp -R "$MNT/Agent Office.app" /Applications/
+    rm -rf "/Applications/Agent Office.app" "/Applications/TiroAgents.app" "$DESKTOP/Agent Office"; cp -R "$MNT/TiroAgents.app" /Applications/
     hdiutil detach -quiet "$MNT"
     # The app isn't signed by Apple; allow it to open without the Gatekeeper prompt.
-    xattr -dr com.apple.quarantine "/Applications/Agent Office.app" 2>/dev/null || true
-    ln -sfn "/Applications/Agent Office.app" "$DESKTOP/Agent Office"
-    open "/Applications/Agent Office.app"
+    xattr -dr com.apple.quarantine "/Applications/TiroAgents.app" 2>/dev/null || true
+    ln -sfn "/Applications/TiroAgents.app" "$DESKTOP/TiroAgents"
+    open "/Applications/TiroAgents.app"
     ;;
   Linux)
     BIN="$HOME/.local/bin"; APPS="$HOME/.local/share/applications"; ICONS="$HOME/.local/share/icons"
@@ -115,7 +115,7 @@ case "$(uname -s)" in
     curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/$REPO/$TAG/desktop/icon.png" -o "$ICONS/agent-office.png" || true
     cat > "$APPS/agent-office.desktop" <<EOF
 [Desktop Entry]
-Name=Agent Office
+Name=TiroAgents
 Comment=Pixel office for your Claude Code agents
 Exec=$BIN/agent-office.AppImage %U
 Icon=$ICONS/agent-office.png
@@ -129,4 +129,4 @@ EOF
     ;;
   *) echo "Unsupported system: $(uname -s). On Windows use install.ps1."; exit 1 ;;
 esac
-echo "Done. Agent Office $TAG is running, and there is a shortcut on your desktop."
+echo "Done. TiroAgents $TAG is running, and there is a shortcut on your desktop."

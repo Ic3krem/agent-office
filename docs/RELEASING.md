@@ -15,20 +15,25 @@ The app (`desktop/updater.mjs`) and the install scripts (`install.ps1`, `install
 
 1. Branch is clean and `npm ci && npm test` pass.
 2. Bump `version` in `package.json` (and `package-lock.json`) and add the entry to [CHANGELOG.md](../CHANGELOG.md).
-3. Build: `npm run dist` (Windows installer, `dist/Agent-Office-Setup-<version>.exe`). For macOS and Linux run the manual `release` workflow or build on those systems. Install the exact build you will ship and check the dashboard renders.
+3. Build: `npm run dist` (Windows installer, `dist/TiroAgents-Setup-<version>.exe`). For macOS and Linux run the manual `release` workflow or build on those systems. Install the exact build you will ship and check the dashboard renders.
 4. Sign the manifest (private key: see below):
    ```
    node scripts/sign-release.mjs --version <version> --out release-out \
-     --asset win32=dist/Agent-Office-Setup-<version>.exe
+     --asset win32=dist/TiroAgents-Setup-<version>.exe
    ```
    Add `--asset darwin/arm64=...`, `--asset darwin/x64=...`, `--asset linux/x64=...` for other platforms. The script hashes the files, writes `release-out/latest.json` and `latest.json.sig`, and verifies the result against the pinned public key before it exits. Check it again at any time with `node scripts/sign-release.mjs --verify release-out`.
 5. Bump `DEFAULT_TAG` in `install.ps1` and `install.sh` (`defaultTag` / `DEFAULT_TAG`) to `v<version>` and the tag in the README install commands, commit, and tag that commit.
 6. Publish exactly the tested files:
    ```
    gh release create v<version> --target <commit> --latest \
-     dist/Agent-Office-Setup-<version>.exe release-out/latest.json release-out/latest.json.sig
+     dist/TiroAgents-Setup-<version>.exe release-out/latest.json release-out/latest.json.sig
    ```
    The manifest URLs are `https://github.com/Ic3krem/agent-office/releases/download/v<version>/<file>`, so the release tag must be `v<version>` and the asset names must match the manifest.
+   Attach the party server from tracked files only, never by zipping the folder (it holds the host's `.env`):
+   ```
+   git archive -o party-server.zip v<version>:party
+   gh release upload v<version> party-server.zip
+   ```
 7. Verify as a user would: `AGENT_OFFICE_VERIFY_ONLY=<folder with the downloaded manifest and signature> bash install.sh`, then install the published build once.
 
 `.github/workflows/release.yml` is manual-only. Its builds are unsigned by the release key; if you use it, download the artifacts, sign them as above and attach `latest.json` and `latest.json.sig` to the release.

@@ -1,5 +1,5 @@
-# Agent Office installer for Windows. Use the script from the release tag you want to install (the tag is pinned in the URL):
-#   irm https://raw.githubusercontent.com/Ic3krem/agent-office/v1.2.8/install.ps1 | iex
+# TiroAgents (formerly Agent Office) installer for Windows. Use the script from the release tag you want to install (the tag is pinned in the URL):
+#   irm https://raw.githubusercontent.com/Ic3krem/agent-office/v2.0.0/install.ps1 | iex
 # What it does, and what it refuses to do:
 #   1. downloads latest.json + latest.json.sig from THAT release tag over https (no "latest" lookup, no API),
 #   2. verifies the Ed25519 signature of the manifest against the release public key pinned below (pure PowerShell, no extra tools),
@@ -9,7 +9,7 @@
 # Verify a downloaded release folder without installing:  $env:AGENT_OFFICE_VERIFY_ONLY='C:\path\to\folder'; .\install.ps1
 $ErrorActionPreference = 'Stop'
 $repo = 'Ic3krem/agent-office'
-$defaultTag = 'v1.2.8'   # bumped for every release so this script and the release it installs always match
+$defaultTag = 'v2.0.0'   # bumped for every release so this script and the release it installs always match
 $tag = if ($env:AGENT_OFFICE_TAG) { $env:AGENT_OFFICE_TAG } else { $defaultTag }
 $PublicKeyBase64 = 'UOhtrcwZBBls13mV3jdJsk4V8xBZOB3cQNypRjN0Vcc='   # Ed25519 release key; same value as desktop/update-key.mjs
 if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw "Invalid release tag '$tag'." }
@@ -123,6 +123,6 @@ try {
 } catch { $failed = $true; Write-Host "Install stopped: $($_.Exception.Message)" -ForegroundColor Red } finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
 if ($failed) { return }
 
-$exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'Agent Office.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($exe) { Start-Process $exe.FullName; Write-Host "Done. Agent Office $tag is running, and there is a shortcut on your desktop." -ForegroundColor Green }
-else { Write-Host 'Installed. Open Agent Office from the desktop shortcut.' -ForegroundColor Green }
+$exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'TiroAgents.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($exe) { Start-Process $exe.FullName; Write-Host "Done. TiroAgents $tag is running, and there is a shortcut on your desktop." -ForegroundColor Green }
+else { Write-Host 'Installed. Open TiroAgents from the desktop shortcut.' -ForegroundColor Green }

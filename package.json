@@ -1,6 +1,6 @@
 {
   "name": "agent-office",
-  "version": "2.0.0-beta.8",
+  "version": "2.0.0",
   "description": "A pixel office for your Claude Code agents: Tiro the manager, specialists, approvals, reports and memory.",
   "main": "desktop/main.mjs",
   "scripts": {
@@ -12,7 +12,7 @@
     "check:hud": "electron perf/hud-check.cjs"
   },
   "author": {
-    "name": "John Example",
+    "name": "Ic3krem",
     "email": "Ic3krem@users.noreply.github.com"
   },
   "type": "module",
@@ -86,7 +86,7 @@
         "releaseType": "release"
       }
     ],
-    "copyright": "Copyright © 2026 John Example",
+    "copyright": "Copyright © 2026 Ic3krem",
     "win": {
       "target": "nsis",
       "icon": "desktop/icon.png",

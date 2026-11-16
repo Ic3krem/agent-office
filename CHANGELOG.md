@@ -3,9 +3,16 @@
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
 
-## Unreleased — TiroAgents (v2)
+## 2.0.0 — TiroAgents (2026-11-17)
 
-The next major version, coming soon. Agent Office is being renamed **TiroAgents**, after Tiro, the manager agent. Everything below is built and tested on the development branch and not released yet; the current download stays 1.2.8. Windows pre-releases (`TiroAgents-Setup-2.0.0-beta.N.exe`, now beta.8) are out for live testing. It installs beside Agent Office 1.2.x and shares its settings; only one can run at a time. It is unsigned (Windows SmartScreen warns); updates arrive only once a signed release is published.
+Agent Office is now **TiroAgents**, named after Tiro, the manager agent. This is the first stable v2 release, for Windows, macOS and Linux; it follows the 2.0.0 beta pre-releases. The installers are still unsigned (Windows SmartScreen and macOS Gatekeeper warn); the release manifest is signed as before, so updates are verified.
+
+**Upgrade notes**
+
+- **TiroAgents replaces Agent Office.** The update from Agent Office 1.2.x installs TiroAgents and then removes Agent Office 1.x silently. Your settings, team, memory and reports in `~/.claude/agent-office` are kept: both apps use that folder. Start with Windows carries over. On macOS the install script removes `Agent Office.app`; on Linux it replaces the AppImage.
+- **The office layout is upgraded once** (see the note at the end of this section).
+
+**What's new**
 
 - **Lyrics find more songs (beta.8).** When the exact match misses (the player's album name or length differs from the lyrics library's copy), the island now searches by title and artist and picks synced lyrics within 3 seconds of the song's length. Songs remembered as "no lyrics" by earlier versions are looked up again.
 - **One settings menu with icons (beta.7).** In the office and in the town, the settings (team, agents, party, music, manor, Claude, graphics, power saver, labels, preview) sit in one ☰ menu, each with its own icon; zoom, Build and Town stay at hand. The app now names its publisher in its file details.
@@ -31,10 +38,7 @@ The next major version, coming soon. Agent Office is being renamed **TiroAgents*
 
 **Upgrade note: the office layout is upgraded once.** The playroom moved to the game hall and the garden outdoors, so the first start of this build rewrites the office layout (`~/.claude/agent-office/world/layout.json`) without them. The original is kept beside it as `layout.v1.json`. To roll back, stop the app, copy `layout.v1.json` over `layout.json`, add `"migrated": 2` to it if you are staying on the new build (otherwise it is upgraded again), then restart. Older builds can't read the new office.
 
-**Planned after v2** (not built yet): a wardrobe with costumes; zero-token NPCs and a karinderya break room; a self-hosted party server to visit friends' offices; mini-games.
-
-
-## Unreleased (release/1.2.9)
+## 1.2.9 (not released separately; included in 2.0.0)
 
 - **Open source: Apache License 2.0.** Agent Office is now licensed under Apache-2.0 (`LICENSE`, `NOTICE`), replacing the proprietary draft licence of 1.2.8. Contributions are welcome under the same licence (see `CONTRIBUTING.md`). Releases are downloadable from GitHub Releases; the install scripts and README no longer describe distribution by invitation. `@anthropic-ai/claude-agent-sdk` stays Anthropic's proprietary dependency under its own terms.
 - The list of names that must never appear in the repository now lives outside it (`private-terms.mjs` reads `~/.agent-office-private-terms.txt`; the check is skipped without that file).
