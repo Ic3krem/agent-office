@@ -2,7 +2,7 @@
 
 The local HTTP API the dashboard and island use.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 
 The dashboard, island and tools talk to a local HTTP API. Every call to `/api/...` is a **POST** with a JSON body, authenticated by the UI session cookie (there is no key in URLs or headers; the bridge key only opens `/bridge/*`). Decision endpoints (`/api/decide`, `/api/hire/decide`, `/api/switch`, `/api/send`, `/api/task`, `/api/sops/save`, `/api/boss-reset`) also need the per-session nonce in the `x-nonce` header. Not signed in returns 401, a missing nonce 403, a wrong `Host` header 403. `GET /api/stream` is a Server-Sent Events feed of the live snapshot. The bridge plugin also uses `/bridge/ask` and `/bridge/poll`.

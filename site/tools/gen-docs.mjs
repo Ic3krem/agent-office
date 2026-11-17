@@ -231,7 +231,7 @@ ${GROUPS.map(g => `### ${g.name}\n\n${g.pages.map(p => `- [${p.title}](${b}docs/
   const parts = clMd.split(/^## /m).slice(1);
   for (const part of parts) {
     const head = part.split('\n')[0];
-    const m = head.match(/^(\d+\.\d+\.\d+)\s+\((\d{4}-\d{2}-\d{2})\)/);
+    const m = head.match(/^(\d+\.\d+\.\d+)(?:\s+—\s+[^(]+?)?\s+\((\d{4}-\d{2}-\d{2})\)/);
     if (!m) continue;
     const rest = part.split('\n').slice(1).join('\n');
     const firstPara = (rest.trim().split(/\n\n/)[0] || '').replace(/\*\*|`/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
@@ -241,14 +241,14 @@ ${GROUPS.map(g => `### ${g.name}\n\n${g.pages.map(p => `- [${p.title}](${b}docs/
   const updated = entries.length ? entries[0].d : release.date;
   write('releases.xml', `<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-<title>Agent Office releases</title>
-<subtitle>New versions of Agent Office, from the changelog.</subtitle>
+<title>TiroAgents releases</title>
+<subtitle>New versions of TiroAgents (Agent Office before 2.0), from the changelog.</subtitle>
 <link href="${b}releases.xml" rel="self" type="application/atom+xml"/>
 <link href="${b}changelog.html" rel="alternate" type="text/html"/>
 <id>${b}</id>
 <updated>${updated}T00:00:00Z</updated>
 ${entries.map(e => `<entry>
-<title>Agent Office ${e.v}</title>
+<title>${+e.v.split('.')[0] >= 2 ? 'TiroAgents' : 'Agent Office'} ${e.v}</title>
 <link href="${b}changelog.html#${e.id}"/>
 <id>${b}changelog.html#${e.id}</id>
 <updated>${e.d}T00:00:00Z</updated>

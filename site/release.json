@@ -1,13 +1,17 @@
 {
   "schema": 1,
-  "version": "1.2.8",
-  "asset": "Agent-Office-Setup-1.2.8.exe",
-  "url": "https://github.com/Ic3krem/agent-office/releases/download/v1.2.8/Agent-Office-Setup-1.2.8.exe",
-  "sha256": "d101594d116e0e7e133aa03a84d0faa3cbc9111c9a03fde41a297febf3f5eb7b",
-  "size": 111158533,
-  "date": "2026-11-04",
-  "notes": "Licence, privacy and Security Guard release. Windows installer, not code-signed.",
-  "releaseUrl": "https://github.com/Ic3krem/agent-office/releases/tag/v1.2.8",
-  "platforms": { "windows": "available", "macos": "coming-soon", "linux": "coming-soon" },
+  "version": "2.0.0",
+  "asset": "TiroAgents-Setup-2.0.0.exe",
+  "url": "https://github.com/Ic3krem/agent-office/releases/download/v2.0.0/TiroAgents-Setup-2.0.0.exe",
+  "sha256": "5b01d1aa67719b93e44f85d0682455bc9de3bc41706a595702b692ddfebf2fc9",
+  "size": 108528133,
+  "date": "2026-11-17",
+  "notes": "TiroAgents 2.0.0: the town, party, external specialists, music and manor themes. Replaces Agent Office 1.x. Installers are not code-signed.",
+  "releaseUrl": "https://github.com/Ic3krem/agent-office/releases/tag/v2.0.0",
+  "platforms": {
+    "windows": "available",
+    "macos": "available",
+    "linux": "available"
+  },
   "previous": []
 }

@@ -2,7 +2,7 @@
 
 Agent Office runs on your own Claude Code configuration. What is the same, what differs and what reaches you.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 Agent Office acts like Claude Code with the same configuration. Only the integrations differ: the island and the minimalist dashboard, the configured roster of agents, the hire gate, and the surface where permission prompts are shown.
 

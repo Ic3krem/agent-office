@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-<title>Agent Office releases</title>
-<subtitle>New versions of Agent Office, from the changelog.</subtitle>
+<title>TiroAgents releases</title>
+<subtitle>New versions of TiroAgents (Agent Office before 2.0), from the changelog.</subtitle>
 <link href="https://ic3krem.github.io/agent-office/releases.xml" rel="self" type="application/atom+xml"/>
 <link href="https://ic3krem.github.io/agent-office/changelog.html" rel="alternate" type="text/html"/>
 <id>https://ic3krem.github.io/agent-office/</id>
-<updated>2026-11-04T00:00:00Z</updated>
+<updated>2026-11-17T00:00:00Z</updated>
+<entry>
+<title>TiroAgents 2.0.0</title>
+<link href="https://ic3krem.github.io/agent-office/changelog.html#200-tiroagents-2026-11-17"/>
+<id>https://ic3krem.github.io/agent-office/changelog.html#200-tiroagents-2026-11-17</id>
+<updated>2026-11-17T00:00:00Z</updated>
+<summary>Agent Office is now TiroAgents, named after Tiro, the manager agent. This is the first stable v2 release, for Windows, macOS and Linux; it follows the 2.0.0 beta pre-releases. The installers are still unsigned (Windows SmartScreen and macOS Gatekeeper warn); the release manifest is signed as before, so updates are verified.</summary>
+</entry>
 <entry>
 <title>Agent Office 1.2.8</title>
 <link href="https://ic3krem.github.io/agent-office/changelog.html#128-2026-11-04"/>

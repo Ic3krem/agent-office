@@ -2,7 +2,7 @@
 
 The notch-style overlay, the desktop character, the tray menu and keyboard use.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 ## The island
 

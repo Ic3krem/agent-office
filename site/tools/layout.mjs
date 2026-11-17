@@ -65,7 +65,7 @@ export function layout({ root, title, desc, nav, main, scripts = [], bodyClass =
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="icon" href="${root}assets/favicon.svg" type="image/svg+xml">
-<link rel="alternate" type="application/atom+xml" title="Agent Office releases" href="${root}releases.xml">
+<link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="${root}releases.xml">
 <link rel="stylesheet" href="${root}assets/fonts/fonts.css">
 <link rel="stylesheet" href="${root}assets/site.css">
 </head>

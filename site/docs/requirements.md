@@ -2,13 +2,13 @@
 
 What you need before installing.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 Agent Office needs:
 
 - **Windows 10 or later.** macOS and Linux builds are not published yet.
 - **Claude Code** installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan.
-- Disk space for the installer (about 106 MB) and your notes and reports.
+- Disk space for the installer (about 104 MB) and your notes and reports.
 
 Nothing else is required. The office uses no tokens. Models only run while an agent works, through your own Claude Code plan.
 

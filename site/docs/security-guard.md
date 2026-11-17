@@ -2,7 +2,7 @@
 
 An ask-only safety net for secrets, downloaded scripts and untrusted instructions.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 The Security Guard is an extra layer that watches for the things an AI agent should not do quietly: sending your secrets off the computer, running a script someone else wrote, harvesting credentials, or acting on instructions hidden in a web page or an email. It is a **safety net, not a boundary**: it asks you first; it never decides for you.
 

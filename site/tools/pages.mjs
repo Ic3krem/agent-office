@@ -24,7 +24,7 @@ export function downloadPage() {
 <p class="meta"><a data-release-link href="${esc(r.releaseUrl || r.url)}">Release page on GitHub</a>${r.checksumsUrl ? ` &middot; <a data-checksums-link href="${esc(r.checksumsUrl)}">SHA256SUMS.txt</a>` : ''} &middot; <a href="changelog.html">Changelog</a></p>
 </div>
 
-<div class="notice"><p><strong>Coming soon: Tiro Workspace (v2).</strong> The next major version renames Agent Office to Tiro Workspace and adds build mode, department desks and walking the office as the CEO. It is not released yet; the installer above is the current version. <a href="changelog.html#unreleased-tiro-workspace-v2">See what's coming</a>.</p></div>
+<div class="notice"><p><strong>Agent Office is now TiroAgents.</strong> Installing 2.0 replaces Agent Office 1.x and keeps your settings, team, memory and reports. <a href="changelog.html#200-tiroagents-2026-11-17">See what's new</a>.</p></div>
 
 <details id="dl-previous" class="faq-like" hidden><summary>Previous versions</summary><ul></ul></details>
 
@@ -49,8 +49,8 @@ export function downloadPage() {
 
 <h2 id="platforms">Other platforms</h2>
 <div class="grid">
-<div class="card muted"><h3>macOS</h3><p>Coming soon. No build is published yet.</p></div>
-<div class="card muted"><h3>Linux</h3><p>Coming soon. No build is published yet.</p></div>
+<div class="card"><h3>macOS</h3><p>Apple Silicon and Intel <code>.dmg</code> on the <a href="${esc(r.releaseUrl)}">release page</a>, or the install script, which checks the signed manifest: <code>curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v${esc(r.version)}/install.sh | bash</code>. The app is not signed by Apple.</p></div>
+<div class="card"><h3>Linux</h3><p>x64 <code>.AppImage</code> and <code>.deb</code> on the <a href="${esc(r.releaseUrl)}">release page</a>, or the same install script.</p></div>
 </div>
 <p>To hear about new releases, subscribe to the <a href="releases.xml">releases feed (Atom)</a> or use Watch, then Releases, on the GitHub repository.</p>
 <p>The updater and the install scripts verify an Ed25519 signature on the release manifest as well as the installer's SHA-256. See <a href="docs/install.html">Install and verify</a>, <a href="docs/update.html">Update</a> and <a href="docs/uninstall.html">Uninstall</a>.</p>

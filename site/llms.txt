@@ -1,6 +1,6 @@
 # Agent Office
 
-> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v1.2.8); macOS and Linux are not published yet. Builds are not code-signed. Open source, Apache-2.0.
+> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v2.0.0); macOS and Linux are not published yet. Builds are not code-signed. Open source, Apache-2.0.
 
 ## Start
 

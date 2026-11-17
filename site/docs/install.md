@@ -2,12 +2,12 @@
 
 Install Agent Office on Windows and check the download.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later. macOS and Linux builds are not published yet.
 
-**Download.** Get `Agent-Office-Setup-<version>.exe` from the latest release and run it (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). Or build it from source (below).
+**Download.** Get `TiroAgents-Setup-<version>.exe` from the latest release and run it (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). Or build it from source (below).
 
 **Check before installing.** Download the release's `latest.json` and `latest.json.sig` next to the installer, set `AGENT_OFFICE_VERIFY_ONLY` to that folder's path and run `install.ps1` or `install.sh` from this repository. The check verifies the **Ed25519 signature** of the manifest against the release key built into the script (fingerprint in SECURITY.md) and the installer's **SHA-256**, and installs nothing.
 

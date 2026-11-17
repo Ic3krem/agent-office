@@ -2,7 +2,7 @@
 
 Remove the app and decide what to do with your data.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 
 - **Windows:** Settings, Apps, Installed apps, Agent Office, Uninstall.

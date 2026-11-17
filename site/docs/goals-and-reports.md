@@ -2,7 +2,7 @@
 
 The Today board, reports with PDF and Excel export, and the memory corkboard.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 
 - **Today panel** lists today's goals (proposed, todo, doing, blocked, done). Tiro may propose follow-ups; they wait for you to accept or dismiss. Use Tidy to clear finished goals and idle desks from view.

@@ -2,7 +2,7 @@
 
 How the local server, the windows, installs and approvals are protected.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 ## Security model
 

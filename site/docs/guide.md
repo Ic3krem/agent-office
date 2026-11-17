@@ -2,9 +2,9 @@
 
 Every panel, the island, the tray, settings files and the API table.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
-The current release is v1.2.8. It ships the Windows installer only for now; the macOS and Linux install script finds no asset until those builds are published.
+The current release is v2.0.0 (TiroAgents), for Windows, macOS and Linux.
 
 This guide covers every part of the app. For install, update and uninstall see the README. For a link index see RESOURCES.md.
 

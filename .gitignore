@@ -23,3 +23,6 @@ perf/results/*
 __pycache__/
 # stray Windows profile folders created by test runs with a temp APPDATA/LOCALAPPDATA
 Microsoft/
+ci-art/
+release-out/
+party-server.zip

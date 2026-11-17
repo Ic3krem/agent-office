@@ -132,7 +132,7 @@ test('release.json schema, and the pages bake the same values', () => {
   const r = release;
   assert.equal(r.schema, 1);
   assert.match(r.version, /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
-  assert.equal(r.asset, `Agent-Office-Setup-${r.version}.exe`);
+  assert.equal(r.asset, +r.version.split('.')[0] >= 2 ? `TiroAgents-Setup-${r.version}.exe` : `Agent-Office-Setup-${r.version}.exe`);
   assert.equal(r.url, `https://github.com/Ic3krem/agent-office/releases/download/v${r.version}/${r.asset}`, 'url is the public release asset');
   assert.match(r.sha256, /^[0-9a-f]{64}$/);
   assert.ok(Number.isInteger(r.size) && r.size > 0);
@@ -145,13 +145,13 @@ test('release.json schema, and the pages bake the same values', () => {
   const d = rs('download.html'), h = rs('index.html');
   for (const v of [r.sha256, r.asset, r.url, r.version, r.date]) assert.ok(d.includes(v), 'download.html lacks ' + v);
   assert.ok(h.includes(r.url) && h.includes(r.sha256.slice(0, 8) + '\u2026'), 'landing bakes url and short sha');
-  assert.match(d, /Get-FileHash \.\\Agent-Office-Setup/);
+  assert.match(d, /Get-FileHash \.\\(TiroAgents|Agent-Office)-Setup/);
 });
 
 test('download page: Windows notes, platforms, no-JS link, wired ids', () => {
   const d = rs('download.html'), js_ = rs('assets/release.js');
   assert.match(d, /SmartScreen/); assert.match(d, /Smart App Control/); assert.match(d, /More info/); assert.match(d, /Run anyway/);
-  assert.match(d, /Coming soon/); assert.match(d, /releases\.xml/);
+  assert.match(d, /install\.sh/); assert.match(d, /releases\.xml/);
   assert.match(d, /id="dl-button"[^>]*href="https:\/\/github\.com\/Ic3krem\/agent-office\/releases\/download\//);
   for (const id of [...js_.matchAll(/\$\('([a-z-]+)'\)/g)].map(m => m[1])) assert.ok(d.includes(`id="${id}"`), 'download.html missing #' + id);
   assert.match(rs('docs/troubleshooting.html'), /Smart App Control/);
@@ -235,7 +235,7 @@ test('llms.txt links to existing Markdown copies; releases.xml is a valid Atom f
   assert.match(x, /^<\?xml version="1.0" encoding="utf-8"\?>\n<feed xmlns="http:\/\/www\.w3\.org\/2005\/Atom">/);
   assert.equal((x.match(/<entry>/g) || []).length, (x.match(/<\/entry>/g) || []).length);
   assert.ok((x.match(/<entry>/g) || []).length >= 4);
-  assert.match(x, new RegExp(`<title>Agent Office ${release.version.replaceAll('.', '\\.')}</title>`));
+  assert.match(x, new RegExp(`<title>${+release.version.split('.')[0] >= 2 ? 'TiroAgents' : 'Agent Office'} ${release.version.replaceAll('.', '\\.')}</title>`));
   for (const id of [...x.matchAll(/<id>([^<]+)<\/id>/g)].map(m => m[1])) assert.ok(id.startsWith(base), id);
   assert.doesNotMatch(x, /<entry>[\s\S]*<updated>(?!\d{4}-\d{2}-\d{2}T)/);
 });

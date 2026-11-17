@@ -39,7 +39,6 @@ const v2 = [
   ['Security hardening for release', 'Every write needs the session token, malformed transcripts, notes and layouts cannot break the office, secret redaction is better, and hire approvals show the full request.'],
 ];
 
-const roadmap = ['A wardrobe with costumes', 'Zero-token NPCs and a karinderya break room', 'A self-hosted party server to visit friends\' offices', 'Mini-games'];
 
 const faq = [
   ['Does the office cost tokens?', 'No. Only agents that are working cost tokens, and only on your Claude Code plan.'],
@@ -104,14 +103,11 @@ ${panels.map(([img, t, d, href, linkText, alt], i) => `<div class="panel${i % 2 
 
 <section class="block" id="next">
 <div class="wrap">
-<div class="section-head"><p><span class="badge">Coming soon</span></p><h2>Coming soon: Tiro Workspace (v2)</h2><p>The next major version renames Agent Office to Tiro Workspace, after Tiro, the manager agent. These features are built and tested on the development branch but not released yet. Today's download is v${release.version}. <a href="changelog.html#unreleased-tiro-workspace-v2">Read the changelog</a>.</p></div>
+<div class="section-head"><p><span class="badge">New in 2.0</span></p><h2>Agent Office is now TiroAgents</h2><p>Version 2.0 renames Agent Office to TiroAgents, after Tiro, the manager agent, and turns the office into a town. Installing it replaces Agent Office 1.x and keeps your settings. <a href="changelog.html#200-tiroagents-2026-11-17">Read the changelog</a>.</p></div>
 <div class="panel"><div class="panel-text"><h3>${esc(v2[0][0])}</h3><p>${esc(v2[0][1])}</p></div><div class="panel-shot">${picture('', '18-build-mode', 'Build mode: the furniture palette on the left, the office floor with zones painted on it and the Undo, Redo, Delete, Duplicate, Templates and Save toolbar on top', { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>
 <div class="panel flip"><div class="panel-text"><h3>${esc(v2[2][0])}</h3><p>${esc(v2[2][1])}</p></div><div class="panel-shot">${picture('', '19-ceo-radial-menu', 'The CEO standing next to Tiro, with the Chat, Prioritize, Boost and Speed menu around Tiro', { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>
 <div class="grid">${[v2[1], v2[3]].map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>
-<h3>Planned after v2</h3>
-<p class="meta">Ideas on the roadmap, not built yet.</p>
-<ul>${roadmap.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
-<div class="btn-row">${dlButton({ id: '', label: `Get v${release.version} today` })}<a class="btn secondary" href="changelog.html#unreleased-tiro-workspace-v2">What's coming</a></div>
+<div class="btn-row">${dlButton({ id: '', label: `Get v${release.version}` })}<a class="btn secondary" href="changelog.html#200-tiroagents-2026-11-17">What's new</a></div>
 </div>
 </section>
 

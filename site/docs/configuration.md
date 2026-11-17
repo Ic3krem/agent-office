@@ -2,7 +2,7 @@
 
 Preferences, environment variables, settings files, the scheduler job and the terminal bridge.
 
-(Agent Office v1.2.8, 2026-11-04)
+(Agent Office v2.0.0, 2026-11-17)
 
 
 State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tray menu and the island Settings tab write most of them, and you rarely need to edit it by hand.
