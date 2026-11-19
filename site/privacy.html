@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://dl.bmos.website; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
@@ -11,21 +11,21 @@
 <title>Privacy - TiroAgents</title>
 <meta name="description" content="This site sets no cookies. What it loads, who is responsible and how long data is kept.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="canonical" href="https://ic3krem.github.io/agent-office/privacy.html">
+<link rel="canonical" href="https://tiroagents.bmos.website/privacy.html">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="TiroAgents">
 <meta property="og:title" content="Privacy - TiroAgents">
 <meta property="og:description" content="This site sets no cookies. What it loads, who is responsible and how long data is kept.">
-<meta property="og:url" content="https://ic3krem.github.io/agent-office/privacy.html">
-<meta property="og:image" content="https://ic3krem.github.io/agent-office/assets/img/og-card.png">
+<meta property="og:url" content="https://tiroagents.bmos.website/privacy.html">
+<meta property="og:image" content="https://tiroagents.bmos.website/assets/img/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="TiroAgents: a pixel office with Tiro, an orange cube-crab, and Claude Code agents at their desks">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Privacy - TiroAgents">
 <meta name="twitter:description" content="This site sets no cookies. What it loads, who is responsible and how long data is kept.">
-<meta name="twitter:image" content="https://ic3krem.github.io/agent-office/assets/img/og-card.png">
+<meta name="twitter:image" content="https://tiroagents.bmos.website/assets/img/og-card.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="releases.xml">
 <link rel="stylesheet" href="assets/fonts/fonts.css">
@@ -54,7 +54,7 @@
 <li>It sets no cookies and stores nothing in your browser.</li>
 <li>It loads no remote fonts, scripts, images or trackers. Everything comes from this site's own files, including the 3D library on the home page.</li>
 <li>No analytics are enabled right now.</li>
-<li>The download buttons go through this site's download counter at <code>tiroagents.bmos.website</code>, which then sends you to the file on GitHub. GitHub receives that request under its own privacy terms.</li>
+<li>The download buttons go through this site's download counter at <code>dl.bmos.website</code>, which then sends you to the file on GitHub. GitHub receives that request under its own privacy terms.</li>
 </ul>
 <h2 id="counter">The download counter</h2>
 <ul>
@@ -62,7 +62,7 @@
 <li>Your IP address is used only as the input to that keyed hash (HMAC-SHA-256 with a secret key, shortened to 128 bits), so that the same file downloaded again on the same day counts once. The address itself is never stored or logged, and the hash cannot be turned back into it without the key.</li>
 <li>Only totals per system and per region are published. Per-country numbers are never shown.</li>
 <li>No cookies, no identifiers in the link and nothing about the page you came from are kept.</li>
-<li>The home page reads the totals from <code>tiroagents.bmos.website/stats</code>; that request carries no data about you beyond what any web request does.</li>
+<li>The home page reads the totals from <code>dl.bmos.website/stats</code>; that request carries no data about you beyond what any web request does.</li>
 </ul>
 <h2>Download statistics</h2>
 <p>The <a href="stats.html">statistics page</a> shows GitHub's own installer download counts per release. Nothing about visitors is collected or stored there. See the method note on that page.</p>
@@ -70,7 +70,7 @@
 <dl class="dl-meta"><dt>Controller</dt><dd>Ic3krem, the owner of the TiroAgents repository</dd><dt>Contact</dt><dd>Open an issue or a private security advisory on the repository</dd><dt>Retention</dt><dd>No personal data is stored by this site. Aggregate counters are kept as long as the statistics page exists.</dd></dl>
 <h2>The app itself</h2>
 <p>TiroAgents keeps its state on your computer. Model calls go to Anthropic through your own Claude Code install, as in the terminal. Other network use includes the signed update check and, if you turn it on, synced lyrics lookups (title, artist, album and duration only). In a party's meeting room, voice goes directly between the apps in the room: nothing is recorded, the party server only passes connection setup messages, and the people in the room and the public STUN servers (<code>stun.l.google.com</code>, <code>stun.cloudflare.com</code>) can see your IP address. Listen only never opens your microphone; an optional relay (TURN) server you set yourself carries the call when a network blocks direct ones. See the <a href="docs/party.html">party page</a> and the <a href="docs/security.html">security page</a>.</p>
-<p class="meta">Content Security Policy of every page of this site: <code>default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'</code></p>
+<p class="meta">Content Security Policy of every page of this site: <code>default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://dl.bmos.website; base-uri 'none'; form-action 'none'</code></p>
 </div>
 </main>
 <footer class="site-footer">

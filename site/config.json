@@ -1,5 +1,5 @@
 {
-  "baseUrl": "https://ic3krem.github.io/agent-office/",
+  "baseUrl": "https://tiroagents.bmos.website/",
   "repo": "https://github.com/Ic3krem/agent-office",
   "analytics": {
     "provider": "none",
@@ -17,7 +17,7 @@
   },
   "edge": {
     "_comment": "Download counter (site/edge). Empty: buttons link to the GitHub files and counts come from stats.json. Set to the worker origin (https://...): buttons use <origin>/dl/<asset>, the home map reads <origin>/stats, and connect-src allows that origin. Regenerate after changing it.",
-    "origin": "https://tiroagents.bmos.website",
+    "origin": "https://dl.bmos.website",
     "closed": false,
     "cap": 500
   }

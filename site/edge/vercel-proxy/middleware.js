@@ -1,4 +1,4 @@
-// Front proxy for the download counter's custom domain (tiroagents.bmos.website on Vercel).
+// Front proxy for the download counter's custom domain (dl.bmos.website on Vercel).
 // Vercel serves the domain; the counter itself is the Cloudflare Worker in ../worker.js. Requests are passed on with
 // the visitor's IP and country as Vercel saw them (x-real-ip, x-vercel-ip-country, both set by Vercel, not the client),
 // signed with PROXY_KEY so the Worker trusts only this proxy. Nothing is logged or stored here.
@@ -10,7 +10,7 @@ export default async function middleware(request) {
   // Anything that is not the counter (the bare domain, a typo) goes to the website, keeping the page path.
   if (!/^\/(stats|dl\/[a-z0-9-]{1,32})\/?$/.test(url.pathname)) {
     const page = /^\/[A-Za-z0-9._\/-]{0,200}$/.test(url.pathname) ? url.pathname.replace(/^\//, '') : '';
-    return Response.redirect('https://ic3krem.github.io/agent-office/' + page, 308);
+    return Response.redirect('https://tiroagents.bmos.website/' + page, 308);
   }
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, HEAD, OPTIONS' } });
   const headers = new Headers();

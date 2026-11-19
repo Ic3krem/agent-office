@@ -15,7 +15,7 @@ database_id = "6d5924b6-867b-4a45-83d7-838155d0b616"
 
 [vars]
 # Origin of the Pages site, no trailing slash. The only origin allowed to read /stats from a browser.
-SITE_ORIGIN = "https://ic3krem.github.io"
+SITE_ORIGIN = "https://tiroagents.bmos.website"
 # Release the /dl/<asset> links redirect to. Bump on every release.
 DL_VERSION = "2.1.0"
 # Downloads counted before this worker existed. Added to total and byPlatform (they have no region).

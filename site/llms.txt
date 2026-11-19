@@ -4,48 +4,48 @@
 
 ## Start
 
-- [Quickstart](https://ic3krem.github.io/agent-office/quickstart.html): install and finish a first task
-- [Download](https://ic3krem.github.io/agent-office/download.html): files for every system, SHA-256 and install warnings
-- [Changelog](https://ic3krem.github.io/agent-office/changelog.html): what changed in each version
+- [Quickstart](https://tiroagents.bmos.website/quickstart.html): install and finish a first task
+- [Download](https://tiroagents.bmos.website/download.html): files for every system, SHA-256 and install warnings
+- [Changelog](https://tiroagents.bmos.website/changelog.html): what changed in each version
 
 ## Docs (Markdown copies)
 
 ### Get started
 
-- [Requirements](https://ic3krem.github.io/agent-office/docs/requirements.md): What you need before installing TiroAgents: a supported system and Claude Code, signed in.
-- [Install and verify](https://ic3krem.github.io/agent-office/docs/install.md): Install TiroAgents on Windows, macOS or Linux and check the download.
-- [First task with Tiro](https://ic3krem.github.io/agent-office/docs/first-task.md): Open the office and give Tiro its first goal, then approve the hire and read the report.
-- [Update](https://ic3krem.github.io/agent-office/docs/update.md): Check for and install a new version from the island.
-- [Uninstall](https://ic3krem.github.io/agent-office/docs/uninstall.md): Remove the app and decide what to do with your data.
+- [Requirements](https://tiroagents.bmos.website/docs/requirements.md): What you need before installing TiroAgents: a supported system and Claude Code, signed in.
+- [Install and verify](https://tiroagents.bmos.website/docs/install.md): Install TiroAgents on Windows, macOS or Linux and check the download.
+- [First task with Tiro](https://tiroagents.bmos.website/docs/first-task.md): Open the office and give Tiro its first goal, then approve the hire and read the report.
+- [Update](https://tiroagents.bmos.website/docs/update.md): Check for and install a new version from the island.
+- [Uninstall](https://tiroagents.bmos.website/docs/uninstall.md): Remove the app and decide what to do with your data.
 
 ### Using the office
 
-- [The dashboard and the office](https://ic3krem.github.io/agent-office/docs/office.md): The panels, the world, the objects and the agent history.
-- [Hiring and approvals](https://ic3krem.github.io/agent-office/docs/approvals.md): The strict hiring gate and Claude Code tool approvals.
-- [The team](https://ic3krem.github.io/agent-office/docs/team.md): Tiro's eight specialists, how to rename them, and the SOPs that guide their work.
-- [Agents and memory](https://ic3krem.github.io/agent-office/docs/agents-and-memory.md): The team, the hiring gate and per-agent memory and history.
-- [Goals, reports and the vault](https://ic3krem.github.io/agent-office/docs/goals-and-reports.md): The Today board, reports with PDF and Excel export, and the memory corkboard.
-- [The island, Tiro and the tray](https://ic3krem.github.io/agent-office/docs/island.md): The notch-style overlay, the desktop character, the tray menu and keyboard use.
-- [Party and the meeting room](https://ic3krem.github.io/agent-office/docs/party.md): Play together, and talk by voice in the meeting room: what others see and how listen only works.
-- [Scheduler](https://ic3krem.github.io/agent-office/docs/scheduler.md): The scheduler station, the job and the inbox feed file.
+- [The dashboard and the office](https://tiroagents.bmos.website/docs/office.md): The panels, the world, the objects and the agent history.
+- [Hiring and approvals](https://tiroagents.bmos.website/docs/approvals.md): The strict hiring gate and Claude Code tool approvals.
+- [The team](https://tiroagents.bmos.website/docs/team.md): Tiro's eight specialists, how to rename them, and the SOPs that guide their work.
+- [Agents and memory](https://tiroagents.bmos.website/docs/agents-and-memory.md): The team, the hiring gate and per-agent memory and history.
+- [Goals, reports and the vault](https://tiroagents.bmos.website/docs/goals-and-reports.md): The Today board, reports with PDF and Excel export, and the memory corkboard.
+- [The island, Tiro and the tray](https://tiroagents.bmos.website/docs/island.md): The notch-style overlay, the desktop character, the tray menu and keyboard use.
+- [Party and the meeting room](https://tiroagents.bmos.website/docs/party.md): Play together, and talk by voice in the meeting room: what others see and how listen only works.
+- [Scheduler](https://tiroagents.bmos.website/docs/scheduler.md): The scheduler station, the job and the inbox feed file.
 
 ### Safety
 
-- [Permissions and Claude Code parity](https://ic3krem.github.io/agent-office/docs/permissions.md): TiroAgents runs on your own Claude Code configuration. What is the same, what differs and what reaches you.
-- [Security model](https://ic3krem.github.io/agent-office/docs/security.md): How the local server, the windows, installs and approvals are protected.
-- [Security Guard](https://ic3krem.github.io/agent-office/docs/security-guard.md): An ask-only safety net for secrets, downloaded scripts and untrusted instructions.
-- [Breaker box and subscription guard](https://ic3krem.github.io/agent-office/docs/breaker-box.md): Hard switches, and the guard that stops at your plan limit.
+- [Permissions and Claude Code parity](https://tiroagents.bmos.website/docs/permissions.md): TiroAgents runs on your own Claude Code configuration. What is the same, what differs and what reaches you.
+- [Security model](https://tiroagents.bmos.website/docs/security.md): How the local server, the windows, installs and approvals are protected.
+- [Security Guard](https://tiroagents.bmos.website/docs/security-guard.md): An ask-only safety net for secrets, downloaded scripts and untrusted instructions.
+- [Breaker box and subscription guard](https://tiroagents.bmos.website/docs/breaker-box.md): Hard switches, and the guard that stops at your plan limit.
 
 ### Reference
 
-- [Configuration](https://ic3krem.github.io/agent-office/docs/configuration.md): Preferences, environment variables, settings files, the scheduler job and the terminal bridge.
-- [Troubleshooting](https://ic3krem.github.io/agent-office/docs/troubleshooting.md): Windows install warnings and fixes for common problems with TiroAgents.
-- [FAQ](https://ic3krem.github.io/agent-office/docs/faq.md): Short answers to common questions about TiroAgents: tokens, hiring, your data and installing.
-- [API reference](https://ic3krem.github.io/agent-office/docs/api.md): The local HTTP API that the TiroAgents dashboard and the island use, route by route.
-- [Full user guide](https://ic3krem.github.io/agent-office/docs/guide.md): Every panel, the island, the tray, settings files and the API table.
+- [Configuration](https://tiroagents.bmos.website/docs/configuration.md): Preferences, environment variables, settings files, the scheduler job and the terminal bridge.
+- [Troubleshooting](https://tiroagents.bmos.website/docs/troubleshooting.md): Windows install warnings and fixes for common problems with TiroAgents.
+- [FAQ](https://tiroagents.bmos.website/docs/faq.md): Short answers to common questions about TiroAgents: tokens, hiring, your data and installing.
+- [API reference](https://tiroagents.bmos.website/docs/api.md): The local HTTP API that the TiroAgents dashboard and the island use, route by route.
+- [Full user guide](https://tiroagents.bmos.website/docs/guide.md): Every panel, the island, the tray, settings files and the API table.
 
 ## Optional
 
-- [Releases feed](https://ic3krem.github.io/agent-office/releases.xml)
-- [Privacy](https://ic3krem.github.io/agent-office/privacy.html)
-- [Download statistics](https://ic3krem.github.io/agent-office/stats.html)
+- [Releases feed](https://tiroagents.bmos.website/releases.xml)
+- [Privacy](https://tiroagents.bmos.website/privacy.html)
+- [Download statistics](https://tiroagents.bmos.website/stats.html)

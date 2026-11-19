@@ -192,7 +192,7 @@ test('schema.sql matches SCHEMA in worker.js, and wrangler.toml holds placeholde
   const toml = fs.readFileSync(path.join(HERE, 'wrangler.toml'), 'utf8');
   assert.match(toml, /^name = "tiroagents-dl"$/m);
   assert.match(toml, /database_id = "(REPLACE_WITH_[^"]*|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/); // a D1 id is an identifier, not a secret
-  assert.match(toml, /SITE_ORIGIN = "https:\/\/ic3krem\.github\.io"/);
+  assert.match(toml, /SITE_ORIGIN = "https:\/\/tiroagents\.bmos\.website"/);
   assert.match(toml, /DL_VERSION = "2\.1\.0"/);
   assert.doesNotMatch(toml, /^\s*(ADMIN_TOKEN|HASH_SALT)\s*=/m);
   assert.match(toml, /enabled = false/);
