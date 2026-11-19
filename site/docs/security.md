@@ -2,7 +2,7 @@
 
 How the local server, the windows, installs and approvals are protected.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 ## Security model
 
@@ -10,7 +10,7 @@ How the local server, the windows, installs and approvals are protected.
 - **Strict Content-Security-Policy.** Pages load scripts, styles and fonts only from the app itself (`script-src 'self'`, plus inline and eval, which the page runtime needs). React, ReactDOM, Babel standalone and the fonts are vendored in `public/` (pinned SHA-384 hashes for the scripts, OFL licence texts for the fonts), so nothing loads from a CDN or Google Fonts. Framing, plugins and `<base>` tricks are blocked.
 - **Electron hardening.** Windows run with context isolation and sandbox on, `nodeIntegration` off and `webSecurity` on. They cannot navigate away from the local server or open webviews, and external links open in your browser.
 - **Verified installs.** The install scripts and the updater check SHA-256 before running anything, and use https only.
-- **Hiring and approvals.** Agent-tool hires require your one-shot approval, tied to the goal and the exact first prompt (a best-effort check also blocks launching `claude` from Bash; it is not a sandbox). Tool permissions are Claude Code's own: what your settings allow runs, what they deny is denied, and what Claude Code would ask about is shown to you with Claude Code's choices. Agent Office does not auto-approve anything.
+- **Hiring and approvals.** Agent-tool hires require your one-shot approval, tied to the goal and the exact first prompt (a best-effort check also blocks launching `claude` from Bash; it is not a sandbox). Tool permissions are Claude Code's own: what your settings allow runs, what they deny is denied, and what Claude Code would ask about is shown to you with Claude Code's choices. TiroAgents does not auto-approve anything.
 - **No built-in mail access.** The scheduler only reads a local feed file.
 - **Your data.** Office state and notes stay on your machine; model calls go through your Claude Code install to Anthropic, as in the terminal. The server needs the local key for every API call.
 - **Unsigned builds.** If in doubt, compare the SHA-256 the install script prints with the one GitHub shows on the release asset.
@@ -25,7 +25,7 @@ The server is local only, requires a random key, checks the `Host` header and se
 
 ### Background work and memory
 
-Agent Office keeps its background work small. Two settings in `kiro.json` tune it:
+TiroAgents keeps its background work small. Two settings in `kiro.json` tune it:
 
 - `tiroIdleMinutes` (default 15, `0` = never): Tiro's own `claude` process holds a few hundred MB while idle, so it is closed after this many idle minutes and resumed with the same session id when the next goal arrives. It is never closed while an approval is pending, a specialist is running, a goal is being worked on or Tiro is working.
 - `limitsProbeMinutes` (default 15, at least 5): how often the plan limits are checked. The check starts a `claude` process, so it only runs while a window is visible or Tiro is working.

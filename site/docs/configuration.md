@@ -2,7 +2,7 @@
 
 Preferences, environment variables, settings files, the scheduler job and the terminal bridge.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 
 State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tray menu and the island Settings tab write most of them, and you rarely need to edit it by hand.
@@ -37,7 +37,7 @@ State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tr
 
 Other files in `~/.claude/agent-office/`: `bridge.json` (port and terminal bridge key, do not share), `switches.json`, `goals.json`, `credits.json`, `scheduler.json`, and `agents/`. Reports, daily notes, memory and SOPs live in your Obsidian vault (or `~/Documents/Agent Office Vault`). Claude Code transcripts stay in `~/.claude/projects`. The full list is in the guide.
 
-**Scheduler job.** `node scheduler-job.mjs --dry-run` tries it without writing anything. Agent Office has no mail access built in: you provide a read-only reader that writes `~/.claude/agent-office/inbox-feed.json`. See docs/scheduler.md.
+**Scheduler job.** `node scheduler-job.mjs --dry-run` tries it without writing anything. TiroAgents has no mail access built in: you provide a read-only reader that writes `~/.claude/agent-office/inbox-feed.json`. See docs/scheduler.md.
 
 **Terminal bridge (optional).** Install the bridge plugin so your own Claude Code terminals can receive messages and send approvals to the office:
 

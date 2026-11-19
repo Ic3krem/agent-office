@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#16110e">
-<title>Quickstart - Agent Office</title>
-<meta name="description" content="Install Agent Office and finish your first task with Tiro in about ten minutes.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
+<title>Quickstart - TiroAgents</title>
+<meta name="description" content="Install TiroAgents and finish your first task with Tiro in about ten minutes.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="releases.xml">
 <link rel="stylesheet" href="assets/fonts/fonts.css">
@@ -18,47 +19,40 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
 <div class="wrap">
-<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<a class="brand" href="index.html"><img src="assets/img/tiro-idle.png" width="167" height="139" alt="" decoding="async" loading="eager">TiroAgents</a>
 <nav class="site-nav" aria-label="Main">
-<a href="quickstart.html" aria-current="page">Quickstart</a>
+<a href="index.html#features" class="wide-only">Features</a>
+<a href="index.html#security" class="wide-only">Security</a>
+<a href="quickstart.html" aria-current="page" class="wide-only">Quickstart</a>
 <a href="docs/index.html">Docs</a>
-<a href="changelog.html">Changelog</a>
-<a href="stats.html">Stats</a>
-<a href="download.html" class="nav-cta">Download</a>
+<a href="changelog.html" class="wide-only">Changelog</a>
+<a href="download.html" class="btn primary small">Download</a>
 </nav>
 </div>
 </header>
 <main id="main">
-<div class="wrap doc narrow">
-<h1>Quickstart</h1>
-<p class="lead">From download to your first finished task. About ten minutes.</p>
-<ol class="qs">
-<li><h2>Get Claude Code ready</h2><p>Install <a href="https://claude.com/claude-code" rel="noopener noreferrer">Claude Code</a> and run <code>claude</code> once so you are logged in. Agent Office runs on your own install and plan. The office itself costs no tokens.</p></li>
-<li><h2>Download and verify</h2><p>Get the installer from the <a href="download.html">download page</a>, then compare its SHA-256 with the one shown there. The build is not code-signed, so read the <a href="download.html#smartscreen">Windows warning notes</a> first.</p></li>
-<li><h2>Install and start</h2><p>Run the setup wizard. Open Agent Office from the desktop shortcut. Tiro appears on your desktop. Double-click Tiro, or use the tray menu and choose Open office.</p></li>
+<div class="wrap page narrow">
+<div class="page-head"><h1>Quickstart</h1><p class="lede">From download to your first finished task. About ten minutes.</p></div>
+<ol class="qs"><li><h2>Get Claude Code ready</h2><p>Install <a href="https://claude.com/claude-code" rel="noopener noreferrer">Claude Code</a> and run <code>claude</code> once so you are signed in. TiroAgents runs on your own install and plan. The office itself costs no tokens.</p></li>
+<li><h2>Download and verify</h2><p>Get the file for your system from the <a href="download.html">download page</a> and check its SHA-256. The builds are not code-signed, so read the <a href="download.html#smartscreen">notes on install warnings</a> first.</p></li>
+<li><h2>Install and start</h2><p>Install it and open TiroAgents. Tiro appears on your desktop. Double-click Tiro, or use the tray menu and choose Open office.</p></li>
 <li><h2>Give Tiro a task</h2><p>Type a task in the dispatch box, for example "Review the README and list any wrong claims". It is added to today's board as a goal.</p></li>
 <li><h2>Approve the hire</h2><p>Tiro asks to hire a specialist. A card shows the goal and the reason. Choose Approve hire or Deny. One approval buys one hire and expires after 10 minutes.</p></li>
-<li><h2>Answer prompts, read the report</h2><p>Prompts that Claude Code would show you appear in the dashboard and the island. When the work is done, Tiro files a report you can open and export to PDF or Excel.</p></li>
-</ol>
+<li><h2>Answer prompts, read the report</h2><p>Prompts that Claude Code would show you appear in the office and the notch. When the work is done, Tiro files a report you can open and export to PDF or Excel.</p></li></ol>
 <h2>Next</h2>
-<ul>
+<ul class="link-list">
 <li><a href="docs/guide.html">The full user guide</a></li>
 <li><a href="docs/approvals.html">Hiring and approvals</a></li>
 <li><a href="docs/configuration.html">Configuration</a></li>
 <li><a href="docs/troubleshooting.html">Troubleshooting</a></li>
 </ul>
-<div class="btn-row"><a class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v2.1.0/TiroAgents-Setup-2.1.0.exe" data-dl-link download="TiroAgents-Setup-2.1.0.exe"><span>Download for Windows</span></a></div>
+<div class="cta-row"><a class="btn primary" href="https://tiroagents.bmos.website/dl/windows" data-dl-main data-href-windows="https://tiroagents.bmos.website/dl/windows" data-href-macos="https://tiroagents.bmos.website/dl/mac-arm64" data-href-linux="https://tiroagents.bmos.website/dl/linux-appimage"><span data-dl-label>Download for Windows</span></a><a class="btn quiet" href="download.html#platforms">Every file</a></div>
 </div>
 </main>
 <footer class="site-footer">
 <div class="wrap">
-<div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
-<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="quickstart.html">Quickstart</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="releases.xml">Releases feed (Atom)</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="docs/index.html">Documentation</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="index.html#licence">Licence: Apache-2.0</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="stats.html">Download statistics</a></li></ul></div>
-</div>
-<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<nav aria-label="Footer"><a href="docs/index.html">Docs</a><a href="quickstart.html">Quickstart</a><a href="download.html">Download</a><a href="changelog.html">Changelog</a><a href="docs/security.html">Security</a><a href="privacy.html">Privacy</a><a href="stats.html">Download statistics</a><a href="releases.xml">Releases feed</a><a href="llms.txt">llms.txt</a></nav>
+<p class="legal">Open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and TiroAgents runs on your own Claude Code install and plan. Installers are not code-signed. This site sets no cookies.</p>
 </div>
 </footer>
 <script src="assets/common.js" defer></script>

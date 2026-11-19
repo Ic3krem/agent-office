@@ -29,5 +29,19 @@ for s in srcs:
         h = round(im.height * 640 / im.width)
         save(im.resize((640, h), Image.LANCZOS), os.path.join(OUT, name + '-640'))
     print(name, im.size)
+# Tiro's moods as single sprites with a transparent background, cut from the 4 x 2 sheet (250 px cells, label strip dropped).
+MOODS = ['idle', 'all-done', 'working', 'building', 'planning', 'approval', 'done', 'paused']
+sheet = Image.open(os.path.join(REPO, 'docs', 'kiro-moods.png')).convert('RGBA')
+for i, mood in enumerate(MOODS):
+    cx, cy = (i % 4) * 250, (i // 4) * 250
+    cell = sheet.crop((cx + 20, cy + 5, cx + 230, cy + (200 if i < 4 else 182)))  # the second row's labels sit higher
+    key = cell.getpixel((1, 1))
+    from PIL import ImageDraw
+    for corner in [(0, 0), (cell.width - 1, 0), (0, cell.height - 1), (cell.width - 1, cell.height - 1)]:
+        ImageDraw.floodfill(cell, corner, (0, 0, 0, 0), thresh=26)
+    cell = cell.crop(cell.getbbox())
+    save(cell, os.path.join(OUT, 'tiro-' + mood))
+    print('tiro-' + mood, cell.size)
+
 tot = sum(os.path.getsize(f) for f in glob.glob(os.path.join(OUT, '*')))
 print('total', round(tot / 1024), 'KB')

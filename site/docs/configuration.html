@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#16110e">
-<title>Configuration - Agent Office docs</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
+<title>Configuration - TiroAgents docs</title>
 <meta name="description" content="Preferences, environment variables, settings files, the scheduler job and the terminal bridge.">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="../releases.xml">
@@ -18,13 +19,14 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
 <div class="wrap">
-<a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<a class="brand" href="../index.html"><img src="../assets/img/tiro-idle.png" width="167" height="139" alt="" decoding="async" loading="eager">TiroAgents</a>
 <nav class="site-nav" aria-label="Main">
-<a href="../quickstart.html">Quickstart</a>
+<a href="../index.html#features" class="wide-only">Features</a>
+<a href="../index.html#security" class="wide-only">Security</a>
+<a href="../quickstart.html" class="wide-only">Quickstart</a>
 <a href="../docs/index.html" aria-current="page">Docs</a>
-<a href="../changelog.html">Changelog</a>
-<a href="../stats.html">Stats</a>
-<a href="../download.html" class="nav-cta">Download</a>
+<a href="../changelog.html" class="wide-only">Changelog</a>
+<a href="../download.html" class="btn primary small">Download</a>
 </nav>
 </div>
 </header>
@@ -36,7 +38,7 @@
 <p><strong>Environment variables</strong></p>
 <div class="table-wrap" role="region" aria-label="Variable table" tabindex="0"><table><thead><tr><th scope="col">Variable</th><th scope="col">Effect</th></tr></thead><tbody><tr><td><code>AGENT_OFFICE_PORT</code></td><td>Pins the server to one port (dev servers next to an installed copy). Unset, the server uses 4777, or the next free port up to 4796 when another program holds it, and writes the port it bound to <code>bridge.json</code>; the desktop app and the terminal bridge follow it.</td></tr><tr><td><code>AGENT_OFFICE_TEAM_ONLY=1</code></td><td>Presentation mode: show only Tiro and its specialists.</td></tr><tr><td><code>AGENT_OFFICE_SHOW_ALL=1</code></td><td>Show the logs and prompts of your other Claude sessions on their desks (hidden by default).</td></tr><tr><td><code>AGENT_OFFICE_MAILBOX</code></td><td>The one mailbox the scheduler job reports on (overrides <code>schedulerMailbox</code>).</td></tr><tr><td><code>CLAUDE_CODE_PATH</code></td><td>Where the Claude Code executable is, if it is not found automatically.</td></tr></tbody></table></div>
 <p>Other files in <code>~/.claude/agent-office/</code>: <code>bridge.json</code> (port and terminal bridge key, do not share), <code>switches.json</code>, <code>goals.json</code>, <code>credits.json</code>, <code>scheduler.json</code>, and <code>agents/</code>. Reports, daily notes, memory and SOPs live in your Obsidian vault (or <code>~/Documents/Agent Office Vault</code>). Claude Code transcripts stay in <code>~/.claude/projects</code>. The full list is in the <a href="guide.html#settings-files">guide</a>.</p>
-<p><strong>Scheduler job.</strong> <code>node scheduler-job.mjs --dry-run</code> tries it without writing anything. Agent Office has no mail access built in: you provide a read-only reader that writes <code>~/.claude/agent-office/inbox-feed.json</code>. See <a href="scheduler.html">Scheduler</a>.</p>
+<p><strong>Scheduler job.</strong> <code>node scheduler-job.mjs --dry-run</code> tries it without writing anything. TiroAgents has no mail access built in: you provide a read-only reader that writes <code>~/.claude/agent-office/inbox-feed.json</code>. See <a href="scheduler.html">Scheduler</a>.</p>
 <p><strong>Terminal bridge (optional).</strong> Install the bridge plugin so your own Claude Code terminals can receive messages and send approvals to the office:</p>
 <pre tabindex="0"><code>claude plugin marketplace add Ic3krem/agent-office
 claude plugin install agent-office-bridge@agent-office</code></pre>
@@ -46,13 +48,8 @@ claude plugin install agent-office-bridge@agent-office</code></pre>
 <p>Reports, daily notes, memory and SOPs live in your vault (<code>Agent Office/</code> folder). Claude Code transcripts stay in <code>~/.claude/projects</code>. Environment variables: <code>AGENT_OFFICE_PORT</code> (server port), <code>AGENT_OFFICE_TEAM_ONLY=1</code> (show only Tiro and its team), <code>AGENT_OFFICE_MAILBOX</code> (scheduler mailbox) and <code>CLAUDE_CODE_PATH</code> (where Claude Code is).</p><nav class="prev-next" aria-label="Previous and next page"><a class="prev" href="breaker-box.html"><span>Previous</span>Breaker box and subscription guard</a><a class="next" href="troubleshooting.html"><span>Next</span>Troubleshooting</a></nav></main></div>
 <footer class="site-footer">
 <div class="wrap">
-<div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
-<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../quickstart.html">Quickstart</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../releases.xml">Releases feed (Atom)</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="../docs/index.html">Documentation</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting</a></li><li><a href="../llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="../index.html#licence">Licence: Apache-2.0</a></li><li><a href="../privacy.html">Privacy</a></li><li><a href="../stats.html">Download statistics</a></li></ul></div>
-</div>
-<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<nav aria-label="Footer"><a href="../docs/index.html">Docs</a><a href="../quickstart.html">Quickstart</a><a href="../download.html">Download</a><a href="../changelog.html">Changelog</a><a href="../docs/security.html">Security</a><a href="../privacy.html">Privacy</a><a href="../stats.html">Download statistics</a><a href="../releases.xml">Releases feed</a><a href="../llms.txt">llms.txt</a></nav>
+<p class="legal">Open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and TiroAgents runs on your own Claude Code install and plan. Installers are not code-signed. This site sets no cookies.</p>
 </div>
 </footer>
 <script src="../assets/common.js" defer></script>

@@ -2,7 +2,7 @@
 
 Eight specialists, renaming and SOPs.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 
 Tiro leads eight specialists:

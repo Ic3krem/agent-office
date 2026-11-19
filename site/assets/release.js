@@ -1,4 +1,5 @@
-// Fills version, size, date and SHA-256 from release.json and detects the visitor's OS. The download link works without JavaScript.
+// Fills version, size, date and SHA-256 from release.json and points the download buttons at the visitor's OS.
+// Every link is baked into the page (Windows by default), so downloading works without JavaScript.
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -24,9 +25,7 @@
     each('[data-fill="asset"]', function (e) { e.textContent = r.asset; });
     each('[data-fill="size"]', function (e) { e.textContent = size(r.size) || '-'; });
     each('[data-fill="date"]', function (e) { e.textContent = r.date || '-'; });
-    each('[data-dl-link]', function (e) { e.href = r.url; e.setAttribute('download', r.asset); });
     each('[data-fill="sha"]', function (e) { e.textContent = SHA.test(sha) ? sha : 'Not published yet for this release. Do not install an installer you cannot verify.'; });
-    each('[data-fill="sha-short"]', function (e) { e.textContent = SHA.test(sha) ? sha.slice(0, 8) + '…' + sha.slice(-8) : 'not published'; });
     each('[data-fill="verify"]', function (e) { e.textContent = 'Get-FileHash .\\' + r.asset + ' -Algorithm SHA256'; });
     each('[data-fill="notes"]', function (e) { e.textContent = r.notes || ''; });
     each('[data-copy-sha]', function (e) { e.hidden = !SHA.test(sha); });
@@ -45,18 +44,29 @@
     }
   }
 
+  var NAME = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
   function osUi() {
-    var os = detect(), note = $('os-note'), btn = $('dl-button'), label = $('dl-label'), cp = $('copy-page');
-    if (!note || !btn) return;
-    if (os === 'macos' || os === 'linux') {
-      note.textContent = 'Agent Office is Windows-only for now. macOS and Linux builds are not published yet.';
-      if (label) label.textContent = 'Download Windows installer anyway';
-      btn.classList.add('secondary');
-    } else if (os === 'mobile') {
-      note.textContent = 'Agent Office is a Windows desktop app. Open this page on your PC to install it.';
+    var os = detect(), note = $('os-note'), cp = $('copy-page');
+    if (NAME[os]) {
+      each('[data-dl-main]', function (a) {
+        var h = a.getAttribute('data-href-' + os), l = a.querySelector('[data-dl-label]');
+        if (h) a.href = h;
+        if (l) l.textContent = 'Download for ' + NAME[os];
+      });
+      each('[data-dl-other]', function (a) { var l = a.getAttribute('data-label-' + os); if (l) a.textContent = l; });
+      each('[data-os-row]', function (row) {
+        row.querySelectorAll('[data-os-btn]').forEach(function (b) {
+          var mine = b.getAttribute('data-os-btn') === os, n = NAME[b.getAttribute('data-os-btn')];
+          b.className = 'btn ' + (mine ? 'primary' : 'quiet');
+          b.textContent = mine ? 'Download for ' + n : n;
+          if (mine) row.insertBefore(b, row.firstChild);
+        });
+      });
+    } else if (os === 'mobile' && note) {
+      note.textContent = 'TiroAgents is a desktop app for Windows, macOS and Linux. Open this page on your computer to install it.';
       if (cp) cp.hidden = false;
     }
-    note.hidden = !note.textContent;
+    if (note) note.hidden = !note.textContent;
   }
 
   var cp = $('copy-page');

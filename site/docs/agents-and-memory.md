@@ -2,9 +2,9 @@
 
 The team, the hiring gate and per-agent memory and history.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
-Everything here describes Agent Office 1.2.8. Source files are named so each claim can be checked.
+Everything here describes TiroAgents 1.2.8. Source files are named so each claim can be checked.
 
 ## The team
 
@@ -56,9 +56,9 @@ agents/tiro/<key>/history/   index.jsonl plus one <task>.md summary per task
 The code is `agent-home.mjs`. Folders are keyed by type, never by display name.
 
 - **Fresh context per task.** Each hire starts with an empty context. The only thing that carries over is that agent's own `memory/` folder. Its instructions point at the folder, ask it to read `MEMORY.md` first and, when it is allowed to write files, to add a short note for durable facts before it finishes.
-- **Read-only specialists** (warden, probe, atlas, cabalan) have no Write or Edit tool in their roster definition, so they cannot write notes; Agent Office files their final report into their `history/` for them. Whether any agent may run a given command or write a given file is decided by your Claude Code permissions, not by Agent Office.
+- **Read-only specialists** (warden, probe, atlas, cabalan) have no Write or Edit tool in their roster definition, so they cannot write notes; TiroAgents files their final report into their `history/` for them. Whether any agent may run a given command or write a given file is decided by your Claude Code permissions, not by TiroAgents.
 - **History** is recorded by hooks. When a hire starts, a task entry is written with the goal id, description and brief. When the specialist stops, `<task>.md` holds its final report and its transcript path, and the index entry is closed. Tiro's history lists every hire. Transcripts stay where Claude Code wrote them, under `~/.claude/projects/`.
-- **No secrets in our files.** Summaries and briefs (Agent Office's own history, memory, report and daily files; not Claude's transcripts) pass through one shared redaction step (passwords, tokens, API keys, bearer tokens and private key blocks become `[redacted]`). Agents are also told never to store secrets. Redaction is pattern based, so it is a safety net, not a guarantee.
+- **No secrets in our files.** Summaries and briefs (TiroAgents's own history, memory, report and daily files; not Claude's transcripts) pass through one shared redaction step (passwords, tokens, API keys, bearer tokens and private key blocks become `[redacted]`). Agents are also told never to store secrets. Redaction is pattern based, so it is a safety net, not a guarantee.
 - Nothing is migrated or deleted automatically. Old vault notes and reports are untouched.
 
 ### Agent history overlay and API

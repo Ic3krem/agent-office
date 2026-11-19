@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#16110e">
-<title>The island, Tiro and the tray - Agent Office docs</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
+<title>The island, Tiro and the tray - TiroAgents docs</title>
 <meta name="description" content="The notch-style overlay, the desktop character, the tray menu and keyboard use.">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="../releases.xml">
@@ -18,13 +19,14 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
 <div class="wrap">
-<a class="brand" href="../index.html"><img src="../assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<a class="brand" href="../index.html"><img src="../assets/img/tiro-idle.png" width="167" height="139" alt="" decoding="async" loading="eager">TiroAgents</a>
 <nav class="site-nav" aria-label="Main">
-<a href="../quickstart.html">Quickstart</a>
+<a href="../index.html#features" class="wide-only">Features</a>
+<a href="../index.html#security" class="wide-only">Security</a>
+<a href="../quickstart.html" class="wide-only">Quickstart</a>
 <a href="../docs/index.html" aria-current="page">Docs</a>
-<a href="../changelog.html">Changelog</a>
-<a href="../stats.html">Stats</a>
-<a href="../download.html" class="nav-cta">Download</a>
+<a href="../changelog.html" class="wide-only">Changelog</a>
+<a href="../download.html" class="btn primary small">Download</a>
 </nav>
 </div>
 </header>
@@ -48,18 +50,13 @@
 <p>Tiro lives as a small always-on-top character on your desktop. Click to chat, give tasks and approve requests; double-click to open the office. Its mood follows the work: idle, typing, waving a flag when you are needed, confetti when a goal is done, asleep when paused. Hide or show it from the tray.</p>
 <p><picture><source type="image/avif" srcset="../assets/img/17-tiro-window.avif 420w" sizes="(min-width: 1200px) 760px, 100vw"><source type="image/webp" srcset="../assets/img/17-tiro-window.webp 420w" sizes="(min-width: 1200px) 760px, 100vw"><img src="../assets/img/17-tiro-window.png" width="420" height="420" alt="The small Tiro desktop character with its greeting bubble" decoding="async" loading="lazy"></picture></p>
 <h2 id="tray">Tray</h2>
-<p>The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit Agent Office.</p>
+<p>The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit TiroAgents.</p>
 <h2 id="keyboard-and-accessibility">Keyboard and accessibility</h2>
 <ul><li>Office objects and desks are focusable with the keyboard and have labels (name, role, status).</li><li>Camera: <code>+</code>, <code>-</code>, <code>0</code>, mouse wheel, drag.</li><li>Island: <code>Ctrl+Alt+K</code> expands or pins it (not while the notch is off); an optional shortcut you set turns the notch on or off; <code>Y</code> and <code>N</code> answer the request card you have focused (never while you type in a field), <code>Esc</code> closes the notch; arrow keys, Home and End move along the tabs.</li><li>Reduced motion: the office and island follow the system &quot;reduce motion&quot; setting and the animation preference; characters then appear in place instead of walking.</li></ul><nav class="prev-next" aria-label="Previous and next page"><a class="prev" href="goals-and-reports.html"><span>Previous</span>Goals, reports and the vault</a><a class="next" href="party.html"><span>Next</span>Party and the meeting room</a></nav></main><nav class="page-toc" aria-label="On this page"><h2>On this page</h2><ul><li><a href="#the-island">The island</a></li><li><a href="#tiro-on-your-desktop">Tiro on your desktop</a></li><li><a href="#tray">Tray</a></li><li><a href="#keyboard-and-accessibility">Keyboard and accessibility</a></li></ul></nav></div>
 <footer class="site-footer">
 <div class="wrap">
-<div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
-<div><h2>Get it</h2><ul><li><a href="../download.html">Download for Windows</a></li><li><a href="../quickstart.html">Quickstart</a></li><li><a href="../changelog.html">Changelog</a></li><li><a href="../releases.xml">Releases feed (Atom)</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="../docs/index.html">Documentation</a></li><li><a href="../docs/security.html">Security</a></li><li><a href="../docs/troubleshooting.html">Troubleshooting</a></li><li><a href="../llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="../index.html#licence">Licence: Apache-2.0</a></li><li><a href="../privacy.html">Privacy</a></li><li><a href="../stats.html">Download statistics</a></li></ul></div>
-</div>
-<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<nav aria-label="Footer"><a href="../docs/index.html">Docs</a><a href="../quickstart.html">Quickstart</a><a href="../download.html">Download</a><a href="../changelog.html">Changelog</a><a href="../docs/security.html">Security</a><a href="../privacy.html">Privacy</a><a href="../stats.html">Download statistics</a><a href="../releases.xml">Releases feed</a><a href="../llms.txt">llms.txt</a></nav>
+<p class="legal">Open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and TiroAgents runs on your own Claude Code install and plan. Installers are not code-signed. This site sets no cookies.</p>
 </div>
 </footer>
 <script src="../assets/common.js" defer></script>

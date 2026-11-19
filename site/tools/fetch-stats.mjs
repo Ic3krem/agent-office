@@ -8,8 +8,11 @@ import { fileURLToPath } from 'node:url';
 export const PLATFORM = [[/\.exe$/i, 'windows'], [/\.dmg$/i, 'macos'], [/\.(AppImage|deb)$/i, 'linux']];
 export const platformOf = name => (PLATFORM.find(([re]) => re.test(name)) || [])[1] || null;
 
-export function summarise(releases, asOf) {
-  const byPlatform = { windows: 0, macos: 0, linux: 0 }, byRelease = [];
+// Frozen installer counts from the earlier repository, which no longer reports them. Added to every total.
+export const LEGACY = Object.freeze({ windows: 14, macos: 18, linux: 10 });
+
+export function summarise(releases, asOf, legacy = LEGACY) {
+  const byPlatform = { windows: legacy.windows, macos: legacy.macos, linux: legacy.linux }, byRelease = [];
   for (const r of releases) {
     if (r.draft) continue;
     let n = 0;
@@ -17,7 +20,7 @@ export function summarise(releases, asOf) {
     byRelease.push({ version: String(r.tag_name).replace(/^v/, ''), date: String(r.published_at || '').slice(0, 10), downloads: n });
   }
   byRelease.sort((a, b) => (a.date < b.date) - (a.date > b.date));
-  return { schema: 2, placeholder: false, asOf, source: 'GitHub release asset download counts (installers only; in-app updates included)', total: Object.values(byPlatform).reduce((a, b) => a + b, 0), byPlatform, byRelease };
+  return { schema: 2, placeholder: false, asOf, source: 'GitHub release asset download counts (installers only; in-app updates included), plus frozen counts from the earlier repository', legacy: { ...legacy }, total: Object.values(byPlatform).reduce((a, b) => a + b, 0), byPlatform, byRelease };
 }
 
 async function fetchReleases(repo, token) {

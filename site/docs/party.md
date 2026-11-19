@@ -2,7 +2,7 @@
 
 Play together, and talk by voice in the meeting room: what others see and how listen only works.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 Play together: host or join a party from the **Party** panel (in the office ☰ menu or at the top right of the town). The host's office is the main house of the town and every guest's office stands on a friend lot. To host without the app, with Docker, see `party/README.md`.
 

@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#16110e">
-<title>Privacy - Agent Office</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
+<title>Privacy - TiroAgents</title>
 <meta name="description" content="This site sets no cookies. What it loads, who is responsible and how long data is kept.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="releases.xml">
@@ -18,45 +19,48 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
 <div class="wrap">
-<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<a class="brand" href="index.html"><img src="assets/img/tiro-idle.png" width="167" height="139" alt="" decoding="async" loading="eager">TiroAgents</a>
 <nav class="site-nav" aria-label="Main">
-<a href="quickstart.html">Quickstart</a>
+<a href="index.html#features" class="wide-only">Features</a>
+<a href="index.html#security" class="wide-only">Security</a>
+<a href="quickstart.html" class="wide-only">Quickstart</a>
 <a href="docs/index.html">Docs</a>
-<a href="changelog.html">Changelog</a>
-<a href="stats.html">Stats</a>
-<a href="download.html" class="nav-cta">Download</a>
+<a href="changelog.html" class="wide-only">Changelog</a>
+<a href="download.html" class="btn primary small">Download</a>
 </nav>
 </div>
 </header>
 <main id="main">
-<div class="wrap doc narrow">
-<h1>Privacy</h1>
-<p class="lead">This site sets no cookies and shows no consent banner, because it does not need one.</p>
+<div class="wrap page narrow">
+<div class="page-head"><h1>Privacy</h1><p class="lede">This site sets no cookies and shows no consent banner, because it does not need one.</p></div>
 <h2>What this site does</h2>
 <ul>
 <li>It sets no cookies and stores nothing in your browser.</li>
-<li>It loads no remote fonts, scripts, images or trackers. Everything comes from this site's own files.</li>
+<li>It loads no remote fonts, scripts, images or trackers. Everything comes from this site's own files, including the 3D library on the home page.</li>
 <li>No analytics are enabled right now.</li>
-<li>The download link goes to GitHub. GitHub receives your request under its own privacy terms, and shows an installer download count per release.</li>
+<li>The download buttons go through this site's download counter at <code>tiroagents.bmos.website</code>, which then sends you to the file on GitHub. GitHub receives that request under its own privacy terms.</li>
+</ul>
+<h2 id="counter">The download counter</h2>
+<ul>
+<li>Each download is recorded as one row: a keyed hash of your IP address, the file, the UTC day, your country and its world region (North America, South America, Europe, Africa, Asia or Oceania), as reported by the network edge.</li>
+<li>Your IP address is used only as the input to that keyed hash (HMAC-SHA-256 with a secret key, shortened to 128 bits), so that the same file downloaded again on the same day counts once. The address itself is never stored or logged, and the hash cannot be turned back into it without the key.</li>
+<li>Only totals per system and per region are published. Per-country numbers are never shown.</li>
+<li>No cookies, no identifiers in the link and nothing about the page you came from are kept.</li>
+<li>The home page reads the totals from <code>tiroagents.bmos.website/stats</code>; that request carries no data about you beyond what any web request does.</li>
 </ul>
 <h2>Download statistics</h2>
-<p>The <a href="stats.html">statistics page</a> shows GitHub's own installer download counts per release. Nothing about visitors is collected or stored. See the method note there.</p>
+<p>The <a href="stats.html">statistics page</a> shows GitHub's own installer download counts per release. Nothing about visitors is collected or stored there. See the method note on that page.</p>
 <h2>Who is responsible</h2>
-<dl class="dl-meta"><dt>Controller</dt><dd>Ic3krem, the owner of the Agent Office repository</dd><dt>Contact</dt><dd>Open an issue or a private security advisory on the repository</dd><dt>Retention</dt><dd>No personal data is stored by this site. Aggregate counters are kept as long as the statistics page exists.</dd></dl>
+<dl class="dl-meta"><dt>Controller</dt><dd>Ic3krem, the owner of the TiroAgents repository</dd><dt>Contact</dt><dd>Open an issue or a private security advisory on the repository</dd><dt>Retention</dt><dd>No personal data is stored by this site. Aggregate counters are kept as long as the statistics page exists.</dd></dl>
 <h2>The app itself</h2>
-<p>Agent Office keeps its state on your machine. Model calls go to Anthropic through your own Claude Code install, as in the terminal. Other network use includes the signed update check and, if you turn it on, synced lyrics lookups (title, artist, album and duration only). In a party's meeting room, voice goes directly between the apps in the room: nothing is recorded, the party server only passes connection setup messages, and the people in the room and the public STUN servers (<code>stun.l.google.com</code>, <code>stun.cloudflare.com</code>) can see your IP address. Listen only never opens your microphone; an optional relay (TURN) server you set yourself carries the call when a network blocks direct ones. See the <a href="docs/party.html">party page</a> and the <a href="docs/security.html">security page</a>.</p>
-<p class="meta">Content Security Policy of every page of this site: <code>default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'</code></p>
+<p>TiroAgents keeps its state on your computer. Model calls go to Anthropic through your own Claude Code install, as in the terminal. Other network use includes the signed update check and, if you turn it on, synced lyrics lookups (title, artist, album and duration only). In a party's meeting room, voice goes directly between the apps in the room: nothing is recorded, the party server only passes connection setup messages, and the people in the room and the public STUN servers (<code>stun.l.google.com</code>, <code>stun.cloudflare.com</code>) can see your IP address. Listen only never opens your microphone; an optional relay (TURN) server you set yourself carries the call when a network blocks direct ones. See the <a href="docs/party.html">party page</a> and the <a href="docs/security.html">security page</a>.</p>
+<p class="meta">Content Security Policy of every page of this site: <code>default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'</code></p>
 </div>
 </main>
 <footer class="site-footer">
 <div class="wrap">
-<div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
-<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="quickstart.html">Quickstart</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="releases.xml">Releases feed (Atom)</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="docs/index.html">Documentation</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="index.html#licence">Licence: Apache-2.0</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="stats.html">Download statistics</a></li></ul></div>
-</div>
-<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<nav aria-label="Footer"><a href="docs/index.html">Docs</a><a href="quickstart.html">Quickstart</a><a href="download.html">Download</a><a href="changelog.html">Changelog</a><a href="docs/security.html">Security</a><a href="privacy.html">Privacy</a><a href="stats.html">Download statistics</a><a href="releases.xml">Releases feed</a><a href="llms.txt">llms.txt</a></nav>
+<p class="legal">Open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and TiroAgents runs on your own Claude Code install and plan. Installers are not code-signed. This site sets no cookies.</p>
 </div>
 </footer>
 <script src="assets/common.js" defer></script>

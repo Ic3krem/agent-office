@@ -11,13 +11,13 @@
     }
   },
   "privacy": {
-    "controller": "Ic3krem, the owner of the Agent Office repository",
+    "controller": "Ic3krem, the owner of the TiroAgents repository",
     "contact": "Open an issue or a private security advisory on the repository",
     "retention": "No personal data is stored by this site. Aggregate counters are kept as long as the statistics page exists."
   },
   "edge": {
-    "_comment": "Early-access worker (site/edge) is kept but NOT wired into the pages; the cap is dropped.",
-    "origin": "",
+    "_comment": "Download counter (site/edge). Empty: buttons link to the GitHub files and counts come from stats.json. Set to the worker origin (https://...): buttons use <origin>/dl/<asset>, the home map reads <origin>/stats, and connect-src allows that origin. Regenerate after changing it.",
+    "origin": "https://tiroagents.bmos.website",
     "closed": false,
     "cap": 500
   }

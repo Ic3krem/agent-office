@@ -1,11 +1,11 @@
-# Agent Office
+# TiroAgents
 
-> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v2.1.0); macOS and Linux are not published yet. Builds are not code-signed. Open source, Apache-2.0.
+> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Version 2.1.0 for Windows, macOS and Linux (named Agent Office before 2.0). Builds are not code-signed. Open source, Apache-2.0.
 
 ## Start
 
 - [Quickstart](https://ic3krem.github.io/agent-office/quickstart.html): install and finish a first task
-- [Download](https://ic3krem.github.io/agent-office/download.html): installer, SHA-256 and Windows warnings
+- [Download](https://ic3krem.github.io/agent-office/download.html): files for every system, SHA-256 and install warnings
 - [Changelog](https://ic3krem.github.io/agent-office/changelog.html): what changed in each version
 
 ## Docs (Markdown copies)
@@ -13,7 +13,7 @@
 ### Get started
 
 - [Requirements](https://ic3krem.github.io/agent-office/docs/requirements.md): What you need before installing.
-- [Install and verify](https://ic3krem.github.io/agent-office/docs/install.md): Install Agent Office on Windows and check the download.
+- [Install and verify](https://ic3krem.github.io/agent-office/docs/install.md): Install TiroAgents on Windows, macOS or Linux and check the download.
 - [First task with Tiro](https://ic3krem.github.io/agent-office/docs/first-task.md): Open the office and give Tiro its first goal.
 - [Update](https://ic3krem.github.io/agent-office/docs/update.md): Check for and install a new version from the island.
 - [Uninstall](https://ic3krem.github.io/agent-office/docs/uninstall.md): Remove the app and decide what to do with your data.
@@ -31,7 +31,7 @@
 
 ### Safety
 
-- [Permissions and Claude Code parity](https://ic3krem.github.io/agent-office/docs/permissions.md): Agent Office runs on your own Claude Code configuration. What is the same, what differs and what reaches you.
+- [Permissions and Claude Code parity](https://ic3krem.github.io/agent-office/docs/permissions.md): TiroAgents runs on your own Claude Code configuration. What is the same, what differs and what reaches you.
 - [Security model](https://ic3krem.github.io/agent-office/docs/security.md): How the local server, the windows, installs and approvals are protected.
 - [Security Guard](https://ic3krem.github.io/agent-office/docs/security-guard.md): An ask-only safety net for secrets, downloaded scripts and untrusted instructions.
 - [Breaker box and subscription guard](https://ic3krem.github.io/agent-office/docs/breaker-box.md): Hard switches, and the guard that stops at your plan limit.

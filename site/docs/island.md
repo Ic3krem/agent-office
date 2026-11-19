@@ -2,7 +2,7 @@
 
 The notch-style overlay, the desktop character, the tray menu and keyboard use.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 ## The island
 
@@ -59,7 +59,7 @@ Tiro lives as a small always-on-top character on your desktop. Click to chat, gi
 
 ## Tray
 
-The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit Agent Office.
+The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit TiroAgents.
 
 
 ## Keyboard and accessibility

@@ -1,31 +1,37 @@
-// Agent Office early-access download counter. Cloudflare Worker + D1, plain JS, no dependencies.
+// TiroAgents download counter. Cloudflare Worker + D1, plain JS, no dependencies.
 //
 // Routes
-//   GET  /dl            count, record country, enforce the cap, 302 to DL_TARGET (or the "full" page)
-//   GET  /status        {"claimed":N,"cap":500,"open":true|false}  (public, numbers only)
-//   GET  /admin/stats   totals and per-country counts          (Authorization: Bearer ADMIN_TOKEN)
-//   POST /admin/lock    {"locked":true|false}                  (Authorization: Bearer ADMIN_TOKEN)
+//   GET  /dl/<asset>   count one download, 302 to the GitHub release file for DL_VERSION
+//                      (asset: windows | mac-arm64 | mac-x64 | linux-appimage | linux-deb). HEAD redirects without counting.
+//   GET  /stats        {"total","byPlatform","byRegion","asOf"}  (public, counts only, continent level at most)
 //
 // Privacy: the client IP is used only as an input to a keyed hash (HMAC-SHA-256 with the secret HASH_SALT)
-// that is truncated to 128 bits and stored for de-duplication. The IP, the full user-agent string and any
-// header are never stored or logged. Stored per downloader: hash, country, continent, UTC day, app version,
-// browser family, hit count.
+// that is truncated to 128 bits and stored for de-duplication (same hash + asset + UTC day counts once).
+// The IP, the full user-agent string and any header are never stored or logged. Stored per row: hash, asset,
+// UTC day, country, continent, hit count. Per-country numbers are never served; the owner can query D1 directly.
 
-const DEFAULT_CAP = 500;
-const VERSION_RE = /^[0-9A-Za-z.+-]{1,32}$/;
+const VERSION_RE = /^[0-9][0-9A-Za-z.+-]{0,31}$/;
+const RELEASES = 'https://github.com/Ic3krem/agent-office/releases/download';
+
+export const ASSETS = {
+  windows: { platform: 'windows', file: v => `TiroAgents-Setup-${v}.exe` },
+  'mac-arm64': { platform: 'macos', file: v => `TiroAgents-${v}-arm64.dmg` },
+  'mac-x64': { platform: 'macos', file: v => `TiroAgents-${v}-x64.dmg` },
+  'linux-appimage': { platform: 'linux', file: v => `TiroAgents-${v}-x86_64.AppImage` },
+  'linux-deb': { platform: 'linux', file: v => `TiroAgents-${v}-amd64.deb` },
+};
+const REGIONS = ['NA', 'SA', 'EU', 'AF', 'AS', 'OC']; // Antarctica (AN) and unknown get no region
 
 export const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS downloaders (
-    hash TEXT PRIMARY KEY,
-    country TEXT NOT NULL,
-    region TEXT NOT NULL DEFAULT '',
-    continent TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS downloads (
+    hash TEXT NOT NULL,
+    asset TEXT NOT NULL,
     day TEXT NOT NULL,
-    version TEXT NOT NULL,
-    ua TEXT NOT NULL,
-    hits INTEGER NOT NULL DEFAULT 1
+    country TEXT NOT NULL,
+    continent TEXT NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (hash, asset, day)
   )`,
-  `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 ];
 
 // ---- helpers -------------------------------------------------------------------------------------------
@@ -42,9 +48,39 @@ export function uaFamily(ua) {
   return 'other';
 }
 
-export function capOf(env) {
-  const n = Number.parseInt(env.CAP, 10);
-  return Number.isInteger(n) && n > 0 ? n : DEFAULT_CAP;
+export const regionOf = c => (REGIONS.includes(String(c || '').toUpperCase()) ? String(c).toUpperCase() : '');
+
+// Continent of a country code, for requests that arrive through the trusted front proxy (no request.cf there).
+const CONTINENT_OF = {};
+for (const [c, list] of Object.entries({
+  NA: 'AG AI AW BB BL BM BQ BS BZ CA CR CU CW DM DO GD GL GP GT HN HT JM KN KY LC MF MQ MS MX NI PA PM PR SV SX TC TT US VC VG VI UM',
+  SA: 'AR BO BR CL CO EC FK GF GS GY PE PY SR UY VE',
+  EU: 'AD AL AT AX BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SJ SK SM UA VA XK',
+  AF: 'AO BF BI BJ BW CD CF CG CI CM CV DJ DZ EG EH ER ET GA GH GM GN GQ GW KE KM LR LS LY MA MG ML MR MU MW MZ NA NE NG RE RW SC SD SH SL SN SO SS ST SZ TD TG TN TZ UG YT ZA ZM ZW',
+  AS: 'AE AF AM AZ BD BH BN BT CC CN CX GE HK ID IL IN IO IQ IR JO JP KG KH KP KR KW KZ LA LB LK MM MN MO MV MY NP OM PH PK PS QA SA SG SY TH TJ TL TM TR TW UZ VN YE',
+  OC: 'AS AU CK FJ FM GU KI MH MP NC NF NR NU NZ PF PG PN PW SB TK TO TV VU WF WS',
+})) for (const k of list.split(' ')) CONTINENT_OF[k] = c;
+export const continentOfCountry = cc => CONTINENT_OF[String(cc || '').toUpperCase()] || '';
+
+// Equal-length constant-time string compare (the proxy key check must not leak timing).
+function sameSecret(a, b) {
+  a = String(a); b = String(b);
+  if (a.length !== b.length) return false;
+  let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
+// Who downloaded: from Cloudflare itself, or, for the custom domain, from the front proxy (Vercel) that passes the
+// visitor's IP and country it saw, signed with the shared PROXY_KEY. Without a valid key those headers are ignored.
+export function clientOf(request, env) {
+  const key = request.headers.get('x-proxy-key');
+  if (key && typeof env.PROXY_KEY === 'string' && env.PROXY_KEY.length >= 32 && sameSecret(key, env.PROXY_KEY)) {
+    const cc = (request.headers.get('x-client-country') || '').toUpperCase();
+    const country = /^[A-Z]{2}$/.test(cc) ? cc : 'XX';
+    return { ip: (request.headers.get('x-client-ip') || '').slice(0, 64), country, continent: continentOfCountry(country) };
+  }
+  const cf = request.cf || {};
+  return { ip: request.headers.get('cf-connecting-ip') || '', country: /^[A-Za-z]{2}$/.test(cf.country || '') ? cf.country.toUpperCase() : 'XX', continent: regionOf(cf.continent) };
 }
 
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -55,24 +91,11 @@ export async function hashClient(salt, ip) {
   return hex(await crypto.subtle.sign('HMAC', key, enc.encode(String(ip)))).slice(0, 32);
 }
 
-async function safeEqual(a, b) {
-  const [x, y] = await Promise.all([crypto.subtle.digest('SHA-256', enc.encode(a)), crypto.subtle.digest('SHA-256', enc.encode(b))]);
-  const A = new Uint8Array(x), B = new Uint8Array(y);
-  let d = 0;
-  for (let i = 0; i < A.length; i++) d |= A[i] ^ B[i];
-  return d === 0;
-}
-
-async function isAdmin(request, env) {
-  const tok = env.ADMIN_TOKEN;
-  if (typeof tok !== 'string' || tok.length < 24) return false; // unset or weak token: admin stays closed
-  const m = /^Bearer (.+)$/.exec(request.headers.get('authorization') || '');
-  return !!m && safeEqual(m[1], tok);
-}
+const legacy = v => { const n = Number.parseInt(v, 10); return Number.isInteger(n) && n > 0 ? n : 0; };
 
 function cors(env) {
   const o = env.SITE_ORIGIN;
-  return o ? { 'access-control-allow-origin': o, vary: 'Origin' } : {};
+  return typeof o === 'string' && /^https:\/\/[^\s/]+$/.test(o) ? { 'access-control-allow-origin': o, vary: 'Origin' } : {};
 }
 
 function json(env, body, status = 200, extra = {}) {
@@ -82,63 +105,34 @@ function json(env, body, status = 200, extra = {}) {
   });
 }
 
-const PAGE_HEADERS = {
-  'content-type': 'text/html; charset=utf-8',
-  'cache-control': 'no-store',
-  'x-content-type-options': 'nosniff',
-  'referrer-policy': 'no-referrer',
-  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
-};
-
-function closedPage(env, locked) {
-  const base = String(env.SITE_URL || env.SITE_ORIGIN || '').replace(/\/+$/, '');
-  const back = /^https:\/\/[^\s"<>]+$/.test(base) ? `${base}/download.html` : '';
-  const why = locked ? 'Downloads are closed for now.' : 'Early access is full: all of the early-access spots have been taken.';
-  const link = back ? `<p><a href="${back}">Back to the download page</a></p>` : '';
-  return new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Early access is full - Agent Office</title>` +
-    `<style>body{font:16px/1.5 system-ui,sans-serif;background:#16110e;color:#f3e9dc;max-width:34rem;margin:4rem auto;padding:0 1rem}a{color:#ffb454}</style></head>` +
-    `<body><h1>Early access is full</h1><p>${why}</p><p>Nothing was recorded about this visit.</p>${link}</body></html>`,
-    { status: 403, headers: PAGE_HEADERS });
-}
-
 // ---- storage (D1) --------------------------------------------------------------------------------------
 
 export function d1Store(db) {
-  const one = async (sql, ...p) => db.prepare(sql).bind(...p).first();
-  const all = async (sql, ...p) => (await db.prepare(sql).bind(...p).all()).results || [];
-  const changes = r => (r && r.meta && r.meta.changes) || 0;
   return {
     async init() { for (const s of SCHEMA) await db.prepare(s).run(); },
-    async isLocked() { const r = await one(`SELECT value FROM settings WHERE key='locked'`); return !!r && r.value === '1'; },
-    async setLocked(v) { await db.prepare(`INSERT INTO settings(key,value) VALUES('locked',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).bind(v ? '1' : '0').run(); },
-    async claimed() { const r = await one(`SELECT COUNT(*) AS n FROM downloaders`); return r ? r.n : 0; },
-    // Returns 'existing' | 'new' | 'full'. The cap check and insert are one SQL statement, so concurrent
-    // requests cannot push the count past the cap.
-    async register(rec, cap) {
-      const bump = () => db.prepare(`UPDATE downloaders SET hits = hits + 1 WHERE hash = ?`).bind(rec.hash).run();
-      if (changes(await bump())) return 'existing';
-      const ins = await db.prepare(
-        `INSERT OR IGNORE INTO downloaders (hash,country,region,continent,day,version,ua,hits)
-         SELECT ?,?,?,?,?,?,?,1 WHERE (SELECT COUNT(*) FROM downloaders) < ?`)
-        .bind(rec.hash, rec.country, rec.region, rec.continent, rec.day, rec.version, rec.ua, cap).run();
-      if (changes(ins)) return 'new';
-      return changes(await bump()) ? 'existing' : 'full'; // lost a race to the same hash, or genuinely full
+    // One statement: a repeat of the same hash + asset + day only bumps hits, so it is counted once.
+    async record(r) {
+      await db.prepare(
+        `INSERT INTO downloads (hash,asset,day,country,continent,hits) VALUES (?,?,?,?,?,1)
+         ON CONFLICT(hash,asset,day) DO UPDATE SET hits = hits + 1`)
+        .bind(r.hash, r.asset, r.day, r.country, r.continent).run();
     },
-    async stats() {
-      const tot = await one(`SELECT COUNT(*) AS unique_downloaders, COALESCE(SUM(hits),0) AS total_downloads FROM downloaders`);
-      return {
-        unique_downloaders: tot.unique_downloaders,
-        total_downloads: tot.total_downloads,
-        by_country: await all(`SELECT country, COUNT(*) AS downloaders FROM downloaders GROUP BY country ORDER BY downloaders DESC, country`),
-        by_continent: await all(`SELECT continent, COUNT(*) AS downloaders FROM downloaders GROUP BY continent ORDER BY downloaders DESC, continent`),
-        by_region: await all(`SELECT country, region, COUNT(*) AS downloaders FROM downloaders WHERE region <> '' GROUP BY country, region ORDER BY downloaders DESC, country, region`),
-        by_version: await all(`SELECT version, COUNT(*) AS downloaders FROM downloaders GROUP BY version ORDER BY version`),
-        by_browser: await all(`SELECT ua, COUNT(*) AS downloaders FROM downloaders GROUP BY ua ORDER BY downloaders DESC, ua`),
-        by_day: await all(`SELECT day, COUNT(*) AS new_downloaders FROM downloaders GROUP BY day ORDER BY day`),
-      };
+    async counts() {
+      return (await db.prepare(`SELECT asset, continent, COUNT(*) AS n FROM downloads GROUP BY asset, continent`).bind().all()).results || [];
     },
   };
+}
+
+export async function stats(env, store, now) {
+  const byPlatform = { windows: legacy(env.LEGACY_WINDOWS), macos: legacy(env.LEGACY_MACOS), linux: legacy(env.LEGACY_LINUX) };
+  const byRegion = Object.fromEntries(REGIONS.map(r => [r, 0]));
+  for (const { asset, continent, n } of await store.counts()) {
+    const a = Object.hasOwn(ASSETS, asset) ? ASSETS[asset] : null;
+    if (!a) continue;
+    byPlatform[a.platform] += n;
+    if (Object.hasOwn(byRegion, continent)) byRegion[continent] += n;
+  }
+  return { total: byPlatform.windows + byPlatform.macos + byPlatform.linux, byPlatform, byRegion, asOf: now.toISOString() };
 }
 
 // ---- request handling ----------------------------------------------------------------------------------
@@ -148,67 +142,37 @@ export async function handle(request, env, store, now = new Date()) {
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const method = request.method;
 
-  if (method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...cors(env), 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'authorization, content-type', 'access-control-max-age': '600' } });
+  if (method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...cors(env), 'access-control-allow-methods': 'GET, HEAD', 'access-control-max-age': '600' } });
+  if (method !== 'GET' && method !== 'HEAD') return json(env, { error: 'method not allowed' }, 405, { allow: 'GET, HEAD, OPTIONS' });
 
-  const cap = capOf(env);
-  const locked = async () => env.LOCKED === 'true' || (await store.isLocked());
+  if (path === '/stats') return json(env, await stats(env, store, now), 200, { 'cache-control': 'public, max-age=300' });
 
-  if (path === '/status' && method === 'GET') {
-    const claimed = await store.claimed();
-    const isLocked = await locked();
-    return json(env, { claimed: Math.min(claimed, cap), cap, open: !isLocked && claimed < cap }, 200, { 'cache-control': 'public, max-age=30' });
+  const m = /^\/dl\/([a-z0-9-]{1,32})$/.exec(path);
+  if (!m || !Object.hasOwn(ASSETS, m[1])) return json(env, { error: 'not found' }, 404);
+  const asset = m[1];
+  const version = env.DL_VERSION;
+  if (typeof version !== 'string' || !VERSION_RE.test(version) || typeof env.HASH_SALT !== 'string' || env.HASH_SALT.length < 16) {
+    return json(env, { error: 'download is not configured' }, 503);
   }
+  const redirect = new Response(null, {
+    status: 302,
+    headers: { location: `${RELEASES}/v${version}/${ASSETS[asset].file(version)}`, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' },
+  });
+  if (method === 'HEAD' || uaFamily(request.headers.get('user-agent')) === 'bot') return redirect; // never counted
 
-  if (path === '/dl') {
-    if (method !== 'GET') return new Response(null, { status: 405, headers: { allow: 'GET', 'cache-control': 'no-store' } }); // HEAD and link-preview fetchers never count
-    const target = env.DL_TARGET;
-    if (typeof target !== 'string' || !/^https:\/\//.test(target) || typeof env.HASH_SALT !== 'string' || env.HASH_SALT.length < 16) {
-      return new Response('Download is not configured.', { status: 503, headers: { 'cache-control': 'no-store' } });
-    }
-    const ua = uaFamily(request.headers.get('user-agent'));
-    if (ua === 'bot') return new Response('Not available to automated clients.', { status: 403, headers: { 'cache-control': 'no-store' } });
-    if (await locked()) return closedPage(env, true);
-
-    const cf = request.cf || {};
-    const country = /^[A-Za-z]{2}$/.test(cf.country || '') ? cf.country.toUpperCase() : 'XX';
-    const continent = /^[A-Za-z]{2}$/.test(cf.continent || '') ? cf.continent.toUpperCase() : 'XX';
-    const region = env.RECORD_SUBDIVISION === 'true' && /^[A-Za-z0-9-]{1,6}$/.test(cf.regionCode || '') ? cf.regionCode.toUpperCase() : '';
-    const version = VERSION_RE.test(env.DL_VERSION || '') ? env.DL_VERSION : 'unknown';
-    // The IP is read once, only to feed the keyed hash. It is not stored, logged or forwarded.
-    const ip = request.headers.get('cf-connecting-ip') || '';
-    if (!ip) return new Response('Download is not available from this network.', { status: 400, headers: { 'cache-control': 'no-store' } });
-    const hash = await hashClient(env.HASH_SALT, ip);
-
-    const res = await store.register({ hash, country, region, continent, day: now.toISOString().slice(0, 10), version, ua }, cap);
-    if (res === 'full') return closedPage(env, false);
-    return new Response(null, { status: 302, headers: { location: target, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
-  }
-
-  if (path === '/admin/stats' || path === '/admin/lock') {
-    if (!(await isAdmin(request, env))) return json(env, { error: 'unauthorized' }, 401, { 'www-authenticate': 'Bearer' });
-    if (path === '/admin/stats') {
-      if (method !== 'GET') return json(env, { error: 'method not allowed' }, 405);
-      const s = await store.stats();
-      return json(env, { cap, locked: await locked(), locked_by_env: env.LOCKED === 'true', ...s });
-    }
-    if (method !== 'POST') return json(env, { error: 'method not allowed' }, 405);
-    let body;
-    try { body = await request.json(); } catch { return json(env, { error: 'body must be JSON' }, 400); }
-    if (!body || typeof body.locked !== 'boolean') return json(env, { error: 'expected {"locked": true|false}' }, 400);
-    await store.setLocked(body.locked);
-    return json(env, { locked: await locked(), locked_by_env: env.LOCKED === 'true' });
-  }
-
-  return json(env, { error: 'not found' }, 404);
+  // The IP is read once, only to feed the keyed hash. It is not stored, logged or forwarded.
+  const { ip, country, continent } = clientOf(request, env);
+  if (!ip) return redirect; // cannot de-duplicate, so do not count
+  await store.record({ hash: await hashClient(env.HASH_SALT, ip), asset, day: now.toISOString().slice(0, 10), country, continent });
+  return redirect;
 }
 
 export default {
   async fetch(request, env) {
     try {
-      const store = d1Store(env.DB);
-      return await handle(request, env, store);
+      return await handle(request, env, d1Store(env.DB));
     } catch {
-      return new Response('Service error.', { status: 500, headers: { 'cache-control': 'no-store' } }); // no error detail, no logging of request data
+      return new Response('Service error.', { status: 500, headers: { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } }); // no error detail, no logging of request data
     }
   },
 };

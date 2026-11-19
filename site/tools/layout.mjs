@@ -22,8 +22,24 @@ export function analyticsHosts(cfg = config) {
   return { script: [], connect: [], img: [] };
 }
 
+// The download counter (site/edge). Only a bare https origin counts; anything else leaves the site on GitHub links and stats.json.
+export function edgeOrigin(cfg = config) {
+  const o = String((cfg.edge && cfg.edge.origin) || '').trim().replace(/\/+$/, '');
+  try { const u = new URL(o); return u.protocol === 'https:' && u.origin === o ? o : ''; } catch { return ''; }
+}
+
+// Release files by the counter's asset key. release.json `assets` names each file; it sits next to `url` on GitHub.
+export const PLATFORM_ASSETS = [['windows', 'windows', 'Windows', 'Installer (.exe), Windows 10 or later'], ['mac-arm64', 'macos', 'macOS', 'Apple silicon (.dmg)'], ['mac-x64', 'macos', 'macOS', 'Intel (.dmg)'], ['linux-appimage', 'linux', 'Linux', 'AppImage, x64'], ['linux-deb', 'linux', 'Linux', 'Debian and Ubuntu (.deb), x64']];
+export const assetFile = (key, r = release) => (r.assets && r.assets[key]) || (key === 'windows' ? r.asset : '');
+export const assetUrl = (key, r = release) => r.url.replace(/[^/]+$/, assetFile(key, r));
+export const dlHref = (key, cfg = config, r = release) => (edgeOrigin(cfg) ? `${edgeOrigin(cfg)}/dl/${key}` : assetUrl(key, r));
+// The main download per OS: Apple silicon for macOS (Intel is listed next to it), the AppImage for Linux.
+export const OS_MAIN = { windows: 'windows', macos: 'mac-arm64', linux: 'linux-appimage' };
+export const OS_NAME = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
+
 export function buildCsp(cfg = config) {
-  const h = analyticsHosts(cfg);
+  const h = analyticsHosts(cfg), edge = edgeOrigin(cfg);
+  if (edge) h.connect = [...h.connect, edge];
   return [
     "default-src 'none'",
     `script-src 'self'${h.script.map(x => ' ' + x).join('')}`,
@@ -50,8 +66,8 @@ export function picture(root, name, alt, { loading = 'lazy', priority = false, c
   return `<picture><source type="image/avif" srcset="${set('avif')}" sizes="${sizes}"><source type="image/webp" srcset="${set('webp')}" sizes="${sizes}">${img}</picture>`;
 }
 
-export function layout({ root, title, desc, nav, main, scripts = [], bodyClass = '' }) {
-  const link = (href, label, key) => `<a href="${root}${href}"${nav === key ? ' aria-current="page"' : ''}${key === 'download' ? ' class="nav-cta"' : ''}>${label}</a>`;
+export function layout({ root, title, desc, nav, main, scripts = [], modules = [], bodyClass = '' }) {
+  const link = (href, label, key, cls = '') => `<a href="${root}${href}"${nav === key ? ' aria-current="page"' : ''}${cls ? ` class="${cls}"` : ''}>${label}</a>`;
   const allScripts = ['common.js', ...scripts];
   return `<!doctype html>
 <html lang="en">
@@ -60,8 +76,9 @@ export function layout({ root, title, desc, nav, main, scripts = [], bodyClass =
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="${buildCsp()}">
 <meta name="referrer" content="no-referrer">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#16110e">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="icon" href="${root}assets/favicon.svg" type="image/svg+xml">
@@ -73,29 +90,25 @@ export function layout({ root, title, desc, nav, main, scripts = [], bodyClass =
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
 <div class="wrap">
-<a class="brand" href="${root}index.html"><img src="${root}assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<a class="brand" href="${root}index.html">${picture(root, 'tiro-idle', '', { plain: true, loading: 'eager' })}TiroAgents</a>
 <nav class="site-nav" aria-label="Main">
-${link('quickstart.html', 'Quickstart', 'quickstart')}
+${link('index.html#features', 'Features', 'features', 'wide-only')}
+${link('index.html#security', 'Security', 'security', 'wide-only')}
+${link('quickstart.html', 'Quickstart', 'quickstart', 'wide-only')}
 ${link('docs/index.html', 'Docs', 'docs')}
-${link('changelog.html', 'Changelog', 'changelog')}
-${link('stats.html', 'Stats', 'stats')}
-${link('download.html', 'Download', 'download')}
+${link('changelog.html', 'Changelog', 'changelog', 'wide-only')}
+${link('download.html', 'Download', 'download', 'btn primary small')}
 </nav>
 </div>
 </header>
 ${main}
 <footer class="site-footer">
 <div class="wrap">
-<div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
-<div><h2>Get it</h2><ul><li><a href="${root}download.html">Download for Windows</a></li><li><a href="${root}quickstart.html">Quickstart</a></li><li><a href="${root}changelog.html">Changelog</a></li><li><a href="${root}releases.xml">Releases feed (Atom)</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="${root}docs/index.html">Documentation</a></li><li><a href="${root}docs/security.html">Security</a></li><li><a href="${root}docs/troubleshooting.html">Troubleshooting</a></li><li><a href="${root}llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="${root}index.html#licence">Licence: Apache-2.0</a></li><li><a href="${root}privacy.html">Privacy</a></li><li><a href="${root}stats.html">Download statistics</a></li></ul></div>
-</div>
-<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<nav aria-label="Footer"><a href="${root}docs/index.html">Docs</a><a href="${root}quickstart.html">Quickstart</a><a href="${root}download.html">Download</a><a href="${root}changelog.html">Changelog</a><a href="${root}docs/security.html">Security</a><a href="${root}privacy.html">Privacy</a><a href="${root}stats.html">Download statistics</a><a href="${root}releases.xml">Releases feed</a><a href="${root}llms.txt">llms.txt</a></nav>
+<p class="legal">Open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and TiroAgents runs on your own Claude Code install and plan. Installers are not code-signed. This site sets no cookies.</p>
 </div>
 </footer>
-${allScripts.map(s => `<script src="${root}assets/${s}" defer></script>`).join('\n')}
+${allScripts.map(s => `<script src="${root}assets/${s}" defer></script>`).join('\n')}${modules.map(s => `\n<script type="module" src="${root}assets/${s}"></script>`).join('')}
 </body>
 </html>
 `;

@@ -2,7 +2,7 @@
 
 Every panel, the island, the tray, settings files and the API table.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 The current release is v2.0.0 (TiroAgents), for Windows, macOS and Linux.
 
@@ -12,11 +12,11 @@ Contents: What it is - Starting - The dashboard - Giving work - Approvals - The 
 
 ## What it is
 
-Agent Office is a pixel office for your own Claude Code agents. **Tiro** is the manager. You give Tiro a task, it plans, asks you to approve each specialist it wants to hire, files reports, and remembers things in an Obsidian-style vault of plain Markdown notes. The office itself uses no tokens; models only run while an agent works, through your own Claude Code install and plan.
+TiroAgents is a pixel office for your own Claude Code agents. **Tiro** is the manager. You give Tiro a task, it plans, asks you to approve each specialist it wants to hire, files reports, and remembers things in an Obsidian-style vault of plain Markdown notes. The office itself uses no tokens; models only run while an agent works, through your own Claude Code install and plan.
 
 ## Starting
 
-- **Installed app:** open Agent Office from the desktop shortcut or Start menu. It starts its local server and shows Tiro on your desktop. Double-click Tiro (or use the tray menu, Open office) to open the dashboard.
+- **Installed app:** open TiroAgents from the desktop shortcut or Start menu. It starts its local server and shows Tiro on your desktop. Double-click Tiro (or use the tray menu, Open office) to open the dashboard.
 - **From source:** `npm ci`, then `npm start` (see RESOURCES.md).
 - The server listens on `127.0.0.1` only. The desktop app signs its windows in with a private cookie; a standalone `node server.mjs` prints a one-time sign-in link (valid once, for 5 minutes) instead. There is no key in the URL. Pages opened without signing in can load but cannot read or change anything.
 
@@ -103,7 +103,7 @@ The Scheduler station is the garage and the mailbox. Click either to open a read
 
 
 
-The job, its feed file and its mailbox setting are in scheduler.md. Agent Office has no mail access built in.
+The job, its feed file and its mailbox setting are in scheduler.md. TiroAgents has no mail access built in.
 
 ## Agent history
 
@@ -113,7 +113,7 @@ The **Agent history** button (bottom left) opens a three-pane browser: agents on
 
 ## Power saver
 
-The animated parts of Agent Office (the office canvas, Tiro's window, the island) can use a surprising share of a GPU if they redraw at full speed all day. **Power saver** (on by default) keeps them calm: the office redraws about 30 times a second only while characters move or you interact with it, about 8 times a second for seated animations, about twice a second when nothing is happening, and not at all while the window is hidden or minimised. Tiro holds still after a few idle seconds and blinks now and then; the island stops its idle breathing while collapsed. Anything that changes (new data, a hover, a click) shows immediately.
+The animated parts of TiroAgents (the office canvas, Tiro's window, the island) can use a surprising share of a GPU if they redraw at full speed all day. **Power saver** (on by default) keeps them calm: the office redraws about 30 times a second only while characters move or you interact with it, about 8 times a second for seated animations, about twice a second when nothing is happening, and not at all while the window is hidden or minimised. Tiro holds still after a few idle seconds and blinks now and then; the island stops its idle breathing while collapsed. Anything that changes (new data, a hover, a click) shows immediately.
 
 Turn it off with the **Power saver** button next to Labels in the office, or in the island's Settings, to get the old constant motion. `prefers-reduced-motion` is always honoured. The setting is stored as `islandSettings.powerSaver` in `kiro.json` and mirrored in the browser as `ao.powerSaver`.
 
@@ -170,7 +170,7 @@ Notes, timers and counters are kept on this PC only, in `notch-store.json`.
 
 ## Tray
 
-The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit Agent Office.
+The tray menu has: Open office, Show notch (checkbox), Island (mode, chime on approval or done, display choice), Show Tiro, Start with Windows (packaged app only) and Quit TiroAgents.
 
 ## Settings files
 
@@ -232,7 +232,7 @@ Also: `GET /print/report`, `/print/daily`, `/export/report.xlsx` and `/export/da
 | Problem | What to try |
 |---|---|
 | Dashboard is blank | Reload. If it persists, check the app is up to date (older builds before 1.2.5 could not load their scripts under the security policy). |
-| "Connecting" banner stays | The server is not running. Restart Agent Office. If another copy holds the port, quit it first. |
+| "Connecting" banner stays | The server is not running. Restart TiroAgents. If another copy holds the port, quit it first. |
 | 401 "not signed in" from a script | The API needs the UI session cookie, which only the desktop app (or the one-time sign-in link of a standalone run) has. The bridge key in `bridge.json` opens `/bridge/*` only. |
 | Tiro does nothing | Check the Breaker box (Tiro on, plan guard not paused) and that Claude Code is installed and logged in. |
 | Far more (or fewer) prompts than before | Prompts now follow your Claude Code permission rules and mode; edit your allow, deny and ask rules or `permissions.defaultMode` (permissions.md). |
@@ -262,7 +262,7 @@ The server is local only, requires a random key, checks the `Host` header and se
 
 ### Background work and memory
 
-Agent Office keeps its background work small. Two settings in `kiro.json` tune it:
+TiroAgents keeps its background work small. Two settings in `kiro.json` tune it:
 
 - `tiroIdleMinutes` (default 15, `0` = never): Tiro's own `claude` process holds a few hundred MB while idle, so it is closed after this many idle minutes and resumed with the same session id when the next goal arrives. It is never closed while an approval is pending, a specialist is running, a goal is being worked on or Tiro is working.
 - `limitsProbeMinutes` (default 15, at least 5): how often the plan limits are checked. The check starts a `claude` process, so it only runs while a window is visible or Tiro is working.

@@ -2,7 +2,7 @@
 
 Windows warnings and common problems.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 ## SmartScreen and Smart App Control
 
@@ -17,7 +17,7 @@ The installer is not code-signed. Compare its SHA-256 with the one on the downlo
 | Problem | What to try |
 |---|---|
 | Dashboard is blank | Reload. If it persists, check the app is up to date (older builds before 1.2.5 could not load their scripts under the security policy). |
-| "Connecting" banner stays | The server is not running. Restart Agent Office. If another copy holds the port, quit it first. |
+| "Connecting" banner stays | The server is not running. Restart TiroAgents. If another copy holds the port, quit it first. |
 | 401 "not signed in" from a script | The API needs the UI session cookie, which only the desktop app (or the one-time sign-in link of a standalone run) has. The bridge key in `bridge.json` opens `/bridge/*` only. |
 | Tiro does nothing | Check the Breaker box (Tiro on, plan guard not paused) and that Claude Code is installed and logged in. |
 | Far more (or fewer) prompts than before | Prompts now follow your Claude Code permission rules and mode; edit your allow, deny and ask rules or `permissions.defaultMode` (permissions.md). |

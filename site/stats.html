@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#16110e">
-<title>Download statistics - Agent Office</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
+<title>Download statistics - TiroAgents</title>
 <meta name="description" content="Installer downloads per release and platform, from GitHub's own counts.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="releases.xml">
@@ -18,43 +19,38 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
 <div class="wrap">
-<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<a class="brand" href="index.html"><img src="assets/img/tiro-idle.png" width="167" height="139" alt="" decoding="async" loading="eager">TiroAgents</a>
 <nav class="site-nav" aria-label="Main">
-<a href="quickstart.html">Quickstart</a>
+<a href="index.html#features" class="wide-only">Features</a>
+<a href="index.html#security" class="wide-only">Security</a>
+<a href="quickstart.html" class="wide-only">Quickstart</a>
 <a href="docs/index.html">Docs</a>
-<a href="changelog.html">Changelog</a>
-<a href="stats.html" aria-current="page">Stats</a>
-<a href="download.html" class="nav-cta">Download</a>
+<a href="changelog.html" class="wide-only">Changelog</a>
+<a href="download.html" class="btn primary small">Download</a>
 </nav>
 </div>
 </header>
 <main id="main">
-<div class="wrap doc narrow">
-<h1>Download statistics</h1>
+<div class="wrap page narrow">
+<div class="page-head"><h1>Download statistics</h1><p class="lede">Installer downloads as of <strong>2026-11-19</strong>.</p></div>
 
-<p class="lead">Installer downloads as counted by GitHub, as of <strong>2026-11-05</strong>. Updated every six hours; no live calls are made from this page.</p>
-<ul class="stat-cards">
-<li class="card"><span class="big-num">29</span> downloads</li>
-<li class="card"><span class="big-num">10</span> Windows</li>
-<li class="card"><span class="big-num">9</span> macOS</li>
-<li class="card"><span class="big-num">10</span> Linux</li>
-</ul>
+<div class="dl-counts">
+<div class="total"><b>54</b><span>downloads</span></div>
+<div><b>18</b><span>Windows</span></div>
+<div><b>22</b><span>macOS</span></div>
+<div><b>14</b><span>Linux</span></div>
+</div>
 <h2>By release</h2>
-<ul class="tile-rows"><li><span class="tile-label">1.2.8 <span class="meta">2026-11-03</span></span><span class="tiles" aria-hidden="true"></span><span class="tile-n">0</span></li><li><span class="tile-label">1.2.5 <span class="meta">2026-11-02</span></span><span class="tiles" aria-hidden="true"><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span></span><span class="tile-n">1</span></li><li><span class="tile-label">1.1.4 <span class="meta">2026-10-18</span></span><span class="tiles" aria-hidden="true"><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span></span><span class="tile-n">6</span></li><li><span class="tile-label">1.1.3 <span class="meta">2026-10-18</span></span><span class="tiles" aria-hidden="true"><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span></span><span class="tile-n">6</span></li><li><span class="tile-label">1.1.2 <span class="meta">2026-10-18</span></span><span class="tiles" aria-hidden="true"><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span></span><span class="tile-n">6</span></li><li><span class="tile-label">1.1.1 <span class="meta">2026-10-18</span></span><span class="tiles" aria-hidden="true"><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span></span><span class="tile-n">6</span></li><li><span class="tile-label">1.1.0 <span class="meta">2026-10-18</span></span><span class="tiles" aria-hidden="true"><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span></span><span class="tile-n">4</span></li></ul>
+<ul class="tile-rows"><li><span class="tile-label">2.1.0 <span class="meta">2026-11-19</span></span><span class="tiles" aria-hidden="true"><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span></span><span class="tile-n">7</span></li><li><span class="tile-label">2.0.0 <span class="meta">2026-11-17</span></span><span class="tiles" aria-hidden="true"><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span><span class="tile-sq"></span></span><span class="tile-n">5</span></li></ul>
 <h2>Method</h2>
-<p>A scheduled job reads GitHub's own download count for each release file and rebuilds this page. Only installers count (<code>.exe</code>, <code>.dmg</code>, <code>.AppImage</code>, <code>.deb</code>); update metadata and block maps do not. The app's built-in updater downloads the same installer, so updates are included, and one person who downloads twice counts twice. GitHub publishes no location or visitor data, and this site collects none.</p>
+<p>A scheduled job reads GitHub's own download count for each release file and rebuilds this page every six hours. Only installers count (<code>.exe</code>, <code>.dmg</code>, <code>.AppImage</code>, <code>.deb</code>); update metadata and block maps do not. The app's built-in updater downloads the same installer, so updates are included, and one person who downloads twice counts twice. The totals include 42 downloads from the project's earlier repository, frozen when it closed. GitHub publishes no location or visitor data, and this page collects none. The map on the home page uses the site's own download counter, which keeps a count per region only; see the <a href="privacy.html#counter">privacy page</a>.</p>
 <p>Who is responsible for this page and how to reach them are on the <a href="privacy.html">privacy page</a>.</p>
 </div>
 </main>
 <footer class="site-footer">
 <div class="wrap">
-<div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
-<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="quickstart.html">Quickstart</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="releases.xml">Releases feed (Atom)</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="docs/index.html">Documentation</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="index.html#licence">Licence: Apache-2.0</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="stats.html">Download statistics</a></li></ul></div>
-</div>
-<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<nav aria-label="Footer"><a href="docs/index.html">Docs</a><a href="quickstart.html">Quickstart</a><a href="download.html">Download</a><a href="changelog.html">Changelog</a><a href="docs/security.html">Security</a><a href="privacy.html">Privacy</a><a href="stats.html">Download statistics</a><a href="releases.xml">Releases feed</a><a href="llms.txt">llms.txt</a></nav>
+<p class="legal">Open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and TiroAgents runs on your own Claude Code install and plan. Installers are not code-signed. This site sets no cookies.</p>
 </div>
 </footer>
 <script src="assets/common.js" defer></script>

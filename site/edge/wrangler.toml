@@ -1,6 +1,6 @@
 # Cloudflare Worker config. Placeholders only: no secrets belong in this file.
-# Secrets (set with `wrangler secret put`, never committed): ADMIN_TOKEN, HASH_SALT.
-name = "agent-office-dl"
+# Secret (set with `wrangler secret put`, never committed): HASH_SALT.
+name = "tiroagents-dl"
 main = "worker.js"
 compatibility_date = "2026-10-01"
 
@@ -10,18 +10,15 @@ enabled = false
 
 [[d1_databases]]
 binding = "DB"
-database_name = "agent-office-dl"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_name = "tiroagents-dl"
+database_id = "6d5924b6-867b-4a45-83d7-838155d0b616"
 
 [vars]
-CAP = "500"
-LOCKED = "false"
-# Origin of the Pages site, no trailing slash. Used for CORS and the back link.
-SITE_ORIGIN = "REPLACE_WITH_https://OWNER.github.io"
-# Full base URL of the site including any /repo-name path, for the back link on the full page.
-SITE_URL = "REPLACE_WITH_https://OWNER.github.io/REPO"
-# Installer download URL (https) and the version it is. Keep both in step with release.json.
-DL_TARGET = "REPLACE_WITH_https_INSTALLER_URL"
-DL_VERSION = "REPLACE_WITH_1.2.8"
-# "true" also records the state/province code (more precise, more personal). Leave "false".
-RECORD_SUBDIVISION = "false"
+# Origin of the Pages site, no trailing slash. The only origin allowed to read /stats from a browser.
+SITE_ORIGIN = "https://ic3krem.github.io"
+# Release the /dl/<asset> links redirect to. Bump on every release.
+DL_VERSION = "2.1.0"
+# Downloads counted before this worker existed. Added to total and byPlatform (they have no region).
+LEGACY_WINDOWS = "17"
+LEGACY_MACOS = "22"
+LEGACY_LINUX = "14"

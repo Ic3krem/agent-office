@@ -3,6 +3,13 @@
   "version": "2.1.0",
   "asset": "TiroAgents-Setup-2.1.0.exe",
   "url": "https://github.com/Ic3krem/agent-office/releases/download/v2.1.0/TiroAgents-Setup-2.1.0.exe",
+  "assets": {
+    "windows": "TiroAgents-Setup-2.1.0.exe",
+    "mac-arm64": "TiroAgents-2.1.0-arm64.dmg",
+    "mac-x64": "TiroAgents-2.1.0-x64.dmg",
+    "linux-appimage": "TiroAgents-2.1.0-x86_64.AppImage",
+    "linux-deb": "TiroAgents-2.1.0-amd64.deb"
+  },
   "sha256": "e6c5d75f769b22fa023009185633b2b395f7f95ea50711a2390b5a1a929eeb48",
   "size": 108907895,
   "date": "2026-11-20",

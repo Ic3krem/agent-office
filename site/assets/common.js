@@ -1,4 +1,4 @@
-// Runs on every page. Same-origin only. Copy buttons, stats strip, optional cookieless analytics (off until config.json enables it).
+// Runs on every page. Same-origin only. Copy buttons and optional cookieless analytics (off until config.json enables it).
 (function () {
   'use strict';
   var me = document.currentScript, base = me ? new URL('../', me.src) : new URL('./', location.href);
@@ -19,14 +19,6 @@
     var wrap = document.createElement('div'); wrap.className = 'pre-wrap';
     pre.parentNode.insertBefore(wrap, pre); wrap.appendChild(pre); wrap.appendChild(b);
   });
-
-  // Stats strip (static snapshot, no live call)
-  var strips = document.querySelectorAll('[data-stats]');
-  if (strips.length) getJson('stats.json').then(function (s) {
-    var txt = s.placeholder ? 'Public download statistics start after the first real snapshot.'
-      : Number(s.total).toLocaleString('en-US') + ' downloads · as of ' + s.asOf;
-    strips.forEach(function (e) { e.textContent = txt; });
-  }).catch(function () {});
 
   // Optional analytics: cookieless providers only, honours Do Not Track and Global Privacy Control.
   if (navigator.doNotTrack === '1' || window.globalPrivacyControl) return;

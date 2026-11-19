@@ -1,11 +1,11 @@
 # Install and verify
 
-Install Agent Office on Windows and check the download.
+Install TiroAgents on Windows, macOS or Linux and check the download.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 
-**Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later. macOS and Linux builds are not published yet.
+**Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). TiroAgents uses your own Claude Code install and plan. Windows 10 or later, macOS, or Linux.
 
 **Download.** Get `TiroAgents-Setup-<version>.exe` from the latest release and run it (a normal setup wizard where you can pick the folder; it adds a Start menu entry and a desktop shortcut). Or build it from source (below).
 
@@ -13,5 +13,5 @@ Install Agent Office on Windows and check the download.
 
 **Install scripts.** `install.ps1` and `install.sh` take the release tag from the script itself, download `latest.json` and `latest.json.sig` from that tag's release page, verify the signature and the SHA-256, and only then install. They stop with a plain message if the release page is not reachable (HTTP 401, 403 or 404) or if any check fails.
 
-The builds are **not code-signed**. Windows SmartScreen may ask you to confirm with "More info", then "Run anyway".
+The builds are **not code-signed**. Windows SmartScreen may ask you to confirm with "More info", then "Run anyway". The macOS script clears Gatekeeper's quarantine flag for you.
 

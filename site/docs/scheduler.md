@@ -2,9 +2,9 @@
 
 The scheduler station, the job and the inbox feed file.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
-Agent Office 1.2.8 has a Scheduler station in the office: a garage and a mail bench with a mailbox, east of the playroom. Clicking either opens one read-only panel. The panel shows what the scheduler job last wrote. Neither the panel nor the job has any mail access built in.
+TiroAgents 1.2.8 has a Scheduler station in the office: a garage and a mail bench with a mailbox, east of the playroom. Clicking either opens one read-only panel. The panel shows what the scheduler job last wrote. Neither the panel nor the job has any mail access built in.
 
 ## Pieces
 
@@ -40,7 +40,7 @@ The job reports on exactly one mailbox, which you name. It is never hardcoded. S
 
 ## The feed file
 
-Agent Office does not read mail. Something else, that you have approved and that has read-only access, must write `inbox-feed.json`:
+TiroAgents does not read mail. Something else, that you have approved and that has read-only access, must write `inbox-feed.json`:
 
 ```json
 {

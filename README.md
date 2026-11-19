@@ -84,7 +84,7 @@ Checking on start is on by default but only checks. Installing always needs your
 ## Uninstall
 
 - **Windows:** Settings, Apps, Installed apps, Agent Office, Uninstall.
-- **macOS:** delete `/Applications/Agent Office.app`.
+- **macOS:** delete `/Applications/TiroAgents.app` (or `/Applications/Agent Office.app` left from 1.x).
 - **Linux:** delete `~/.local/bin/agent-office.AppImage` and the `agent-office.desktop` entries; if you installed the `.deb`, remove it with your package manager.
 - Your data stays in place: `~/.claude/agent-office` (state and per-agent folders) and your vault notes. Delete them for a clean slate.
 

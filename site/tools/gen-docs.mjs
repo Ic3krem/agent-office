@@ -9,7 +9,11 @@ import { homePage } from './home.mjs';
 import { downloadPage, quickstartPage, statsPage, privacyPage } from './pages.mjs';
 
 const REPO = path.resolve(SITE, '..');
-const read = f => fs.readFileSync(path.join(REPO, f), 'utf8').replace(/\r\n/g, '\n').replace(/\bKiro\b/g, 'Tiro');
+const raw = f => fs.readFileSync(path.join(REPO, f), 'utf8').replace(/\r\n/g, '\n').replace(/\bKiro\b/g, 'Tiro');
+// The product is TiroAgents since 2.0: prose says so, while code spans (folder names such as `Agent Office Vault`) and
+// mentions of the old 1.x name stay. The changelog is history and is read raw.
+const rebrand = md => md.split(/(```[\s\S]*?```|`[^`\n]*`)/).map((p, i) => (i % 2 ? p : p.replace(/\bAgent Office\b(?! 1\.x| before 2)/g, 'TiroAgents'))).join('');
+const read = f => (f === 'CHANGELOG.md' ? raw(f) : rebrand(raw(f)));
 const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(SITE, rel)), { recursive: true }); fs.writeFileSync(path.join(SITE, rel), text); };
 
 // ---------- section slicing ----------
@@ -29,22 +33,19 @@ const README = read('README.md'), GUIDE = read('docs/GUIDE.md'), PERM = read('do
   AGENTS = read('docs/agents-and-memory.md'), PARTY = read('docs/party.md'), CHANGELOG = read('CHANGELOG.md');
 const GUARD = read('docs/security-guard.md').split(/\n## For maintainers/)[0];
 
-const installMd = edit(section(README, 'Install').md, [
-  ['Windows 10 or later, macOS, or Linux.', 'Windows 10 or later. macOS and Linux builds are not published yet.'],
-  [" The macOS script clears Gatekeeper's quarantine flag for you.", ''],
-]);
+const installMd = section(README, 'Install').md;
 const breakerLine = (GUIDE.match(/^- \*\*Breaker box switches:\*\*.*$/m) || [''])[0].replace(/^- /, '');
 if (!breakerLine) throw new Error('breaker box line not found in GUIDE.md');
 
-const requirementsMd = `Agent Office needs:
+const requirementsMd = `TiroAgents needs:
 
-- **Windows 10 or later.** macOS and Linux builds are not published yet.
-- **Claude Code** installed and logged in (run \`claude\` once). Agent Office uses your own Claude Code install and plan.
+- **Windows 10 or later, macOS (Apple silicon or Intel) or Linux (x64, AppImage or .deb).**
+- **Claude Code** installed and logged in (run \`claude\` once). TiroAgents uses your own Claude Code install and plan.
 - Disk space for the installer (about ${(release.size / 1048576).toFixed(0)} MB) and your notes and reports.
 
 Nothing else is required. The office uses no tokens. Models only run while an agent works, through your own Claude Code plan.
 
-The build is **not code-signed**, so Windows may show a SmartScreen warning, and Windows 11 Smart App Control may block it. See [Troubleshooting](troubleshooting.html#smartscreen-and-smart-app-control).`;
+The builds are **not code-signed**, so Windows may show a SmartScreen warning, Windows 11 Smart App Control may block the installer and macOS may refuse to open the app until you allow it. See [Troubleshooting](troubleshooting.html#smartscreen-and-smart-app-control).`;
 
 const smartAppMd = `## SmartScreen and Smart App Control
 
@@ -64,7 +65,7 @@ Switches are stored in \`~/.claude/agent-office/switches.json\`. See [Configurat
 const GROUPS = [
   { name: 'Get started', pages: [
     { slug: 'requirements', title: 'Requirements', lead: 'What you need before installing.', src: [hand(requirementsMd)] },
-    { slug: 'install', title: 'Install and verify', lead: 'Install Agent Office on Windows and check the download.', src: [{ md: installMd, shift: -1 }] },
+    { slug: 'install', title: 'Install and verify', lead: 'Install TiroAgents on Windows, macOS or Linux and check the download.', src: [{ md: installMd, shift: -1 }] },
     { slug: 'first-task', title: 'First task with Tiro', lead: 'Open the office and give Tiro its first goal.', src: [section(GUIDE, 'Starting', { keepHeading: true }), section(GUIDE, 'Giving work', { keepHeading: true })] },
     { slug: 'update', title: 'Update', lead: 'Check for and install a new version from the island.', src: [section(README, 'Update')] },
     { slug: 'uninstall', title: 'Uninstall', lead: 'Remove the app and decide what to do with your data.', src: [section(README, 'Uninstall')] },
@@ -80,7 +81,7 @@ const GROUPS = [
     { slug: 'scheduler', title: 'Scheduler', lead: 'The scheduler station, the job and the inbox feed file.', src: [body(SCHED)] },
   ] },
   { name: 'Safety', pages: [
-    { slug: 'permissions', title: 'Permissions and Claude Code parity', lead: 'Agent Office runs on your own Claude Code configuration. What is the same, what differs and what reaches you.', src: [body(PERM)] },
+    { slug: 'permissions', title: 'Permissions and Claude Code parity', lead: 'TiroAgents runs on your own Claude Code configuration. What is the same, what differs and what reaches you.', src: [body(PERM)] },
     { slug: 'security', title: 'Security model', lead: 'How the local server, the windows, installs and approvals are protected.', src: [section(README, 'Security model', { keepHeading: true }), section(GUIDE, 'Security notes', { keepHeading: true })] },
     { slug: 'security-guard', title: 'Security Guard', lead: 'An ask-only safety net for secrets, downloaded scripts and untrusted instructions.', src: [body(GUARD)] },
     { slug: 'breaker-box', title: 'Breaker box and subscription guard', lead: 'Hard switches, and the guard that stops at your plan limit.', src: [hand(breakerMd)] },
@@ -150,12 +151,12 @@ function docPage(slug, title, lead, htmlBody, tocItems, group) {
   const tocHtml = toc.length > 1 ? `<nav class="page-toc" aria-label="On this page"><h2>On this page</h2><ul>${toc.map(h => `<li><a href="#${h.id}">${esc(h.text)}</a></li>`).join('')}</ul></nav>` : '';
   const pn = `<nav class="prev-next" aria-label="Previous and next page">${prev ? `<a class="prev" href="${prev.href}"><span>Previous</span>${esc(prev.title)}</a>` : '<span></span>'}${next ? `<a class="next" href="${next.href}"><span>Next</span>${esc(next.title)}</a>` : '<span></span>'}</nav>`;
   return layout({
-    root: '../', title: (slug === 'index' ? 'Documentation' : title) + ' - Agent Office docs', desc: lead, nav: 'docs', scripts: ['search.js'],
+    root: '../', title: (slug === 'index' ? 'Documentation' : title) + ' - TiroAgents docs', desc: lead, nav: 'docs', scripts: ['search.js'],
     main: `<div class="wrap docs-layout">${sidebar(slug)}<main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a>${group ? ' / ' + esc(group) : ''}${slug === 'index' ? '' : ' / ' + esc(title)}</p><h1>${esc(title)}</h1><p class="lead">${esc(lead)}</p><p class="meta">${stamp}</p>${htmlBody}${slug === 'index' ? '' : pn}</main>${tocHtml}</div>`,
   });
 }
 
-const mdCopy = (p, srcs) => `# ${p.title}\n\n${p.lead}\n\n(Agent Office v${release.version}, ${release.date})\n\n` + srcs.map(s => s.md.replace(/!\[[^\]]*\]\([^)]*\)\n?/g, '').replace(/\[([^\]]+)\]\((?!https?:)[^)]*\)/g, '$1').replace(/\[([^\]]+)\]\(https:\/\/github\.com[^)]*\)/g, '$1')).join('\n\n') + '\n';
+const mdCopy = (p, srcs) => `# ${p.title}\n\n${p.lead}\n\n(TiroAgents v${release.version}, ${release.date})\n\n` + srcs.map(s => s.md.replace(/!\[[^\]]*\]\([^)]*\)\n?/g, '').replace(/\[([^\]]+)\]\((?!https?:)[^)]*\)/g, '$1').replace(/\[([^\]]+)\]\(https:\/\/github\.com[^)]*\)/g, '$1')).join('\n\n') + '\n';
 
 for (const p of PAGES) {
   const { html, ids } = build(p, anchorMap);
@@ -173,10 +174,10 @@ for (const p of PAGES) {
 
 // docs hub
 {
-  const start = [['quickstart', 'Quickstart', 'Install and finish your first task in ten minutes.', '../quickstart.html'], ['install', 'Install and verify', 'Installer, SHA-256 check and the Windows warnings.', 'install.html'], ['approvals', 'Hiring and approvals', 'How Tiro asks before it hires.', 'approvals.html'], ['troubleshooting', 'Troubleshooting', 'SmartScreen, Smart App Control and common fixes.', 'troubleshooting.html']];
+  const start = [['quickstart', 'Quickstart', 'Install and finish your first task in ten minutes.', '../quickstart.html'], ['install', 'Install and verify', 'Installers, the SHA-256 check and install warnings.', 'install.html'], ['approvals', 'Hiring and approvals', 'How Tiro asks before it hires.', 'approvals.html'], ['troubleshooting', 'Troubleshooting', 'SmartScreen, Smart App Control and common fixes.', 'troubleshooting.html']];
   const html = `<h2>Start here</h2><div class="doc-grid">${start.map(([, t, d, h]) => `<a class="card" href="${h}"><h3>${esc(t)}</h3><p>${esc(d)}</p></a>`).join('')}</div>${GROUPS.map(g => `<h2>${esc(g.name)}</h2><ul class="hub-list">${g.pages.map(p => `<li><a href="${p.slug}.html">${esc(p.title)}</a> <span class="meta">${esc(p.lead)}</span></li>`).join('')}${g.name === 'Reference' ? '<li><a href="../changelog.html">Changelog</a> <span class="meta">What changed, version by version.</span></li>' : ''}</ul>`).join('')}`;
-  write('docs/index.html', docPage('index', 'Documentation', 'Guides for Agent Office, generated from the project documentation.', html, [], ''));
-  searchIndex.push({ t: 'Documentation', u: 'docs/index.html', x: 'Guides for Agent Office: get started, using the office, safety and reference.' });
+  write('docs/index.html', docPage('index', 'Documentation', 'Guides for TiroAgents, generated from the project documentation.', html, [], ''));
+  searchIndex.push({ t: 'Documentation', u: 'docs/index.html', x: 'Guides for TiroAgents: get started, using the office, safety and reference.' });
 }
 
 // changelog
@@ -185,8 +186,8 @@ const clMd = CHANGELOG.replace(/^# .*\n+/, '').replace(/`docs\/permissions\.md`/
   const ctx = { picture: (h, a) => '', link: h => (h.startsWith('docs/') || /^https:\/\/claude\.com\//.test(h) ? h : null) };
   const { html, ids } = renderMd(clMd, ctx);
   write('changelog.html', layout({
-    root: '', title: 'Changelog - Agent Office', desc: 'What changed in each Agent Office version.', nav: 'changelog',
-    main: `<div class="wrap"><main id="main" class="doc changelog"><h1>Changelog</h1><p class="meta">Subscribe with the <a href="releases.xml">Atom feed</a>.</p>${html}</main></div>`,
+    root: '', title: 'Changelog - TiroAgents', desc: 'What changed in each version of TiroAgents (Agent Office before 2.0).', nav: 'changelog',
+    main: `<div class="wrap page"><main id="main" class="doc changelog"><h1>Changelog</h1><p class="meta">Subscribe with the <a href="releases.xml">Atom feed</a>.</p>${html}</main></div>`,
   }));
   searchIndex.push({ t: 'Changelog', u: 'changelog.html', x: plain(html).slice(0, 600) });
 }
@@ -203,14 +204,14 @@ write('search-index.json', JSON.stringify(searchIndex));
 // llms.txt
 {
   const b = config.baseUrl.replace(/\/?$/, '/');
-  write('llms.txt', `# Agent Office
+  write('llms.txt', `# TiroAgents
 
-> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v${release.version}); macOS and Linux are not published yet. Builds are not code-signed. Open source, Apache-2.0.
+> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Version ${release.version} for Windows, macOS and Linux (named Agent Office before 2.0). Builds are not code-signed. Open source, Apache-2.0.
 
 ## Start
 
 - [Quickstart](${b}quickstart.html): install and finish a first task
-- [Download](${b}download.html): installer, SHA-256 and Windows warnings
+- [Download](${b}download.html): files for every system, SHA-256 and install warnings
 - [Changelog](${b}changelog.html): what changed in each version
 
 ## Docs (Markdown copies)

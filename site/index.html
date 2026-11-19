@@ -3,140 +3,127 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self' https://tiroagents.bmos.website; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#16110e">
-<title>TiroAgents - a pixel office for your Claude Code agents</title>
-<meta name="description" content="Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows installer.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
+<title>TiroAgents - watch your Claude Code agents work</title>
+<meta name="description" content="Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows, macOS and Linux.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="releases.xml">
 <link rel="stylesheet" href="assets/fonts/fonts.css">
 <link rel="stylesheet" href="assets/site.css">
 </head>
-<body>
+<body class="home">
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
 <div class="wrap">
-<a class="brand" href="index.html"><img src="assets/favicon.svg" width="34" height="34" alt="">Agent Office</a>
+<a class="brand" href="index.html"><img src="assets/img/tiro-idle.png" width="167" height="139" alt="" decoding="async" loading="eager">TiroAgents</a>
 <nav class="site-nav" aria-label="Main">
-<a href="quickstart.html">Quickstart</a>
+<a href="index.html#features" class="wide-only">Features</a>
+<a href="index.html#security" class="wide-only">Security</a>
+<a href="quickstart.html" class="wide-only">Quickstart</a>
 <a href="docs/index.html">Docs</a>
-<a href="changelog.html">Changelog</a>
-<a href="stats.html">Stats</a>
-<a href="download.html" class="nav-cta">Download</a>
+<a href="changelog.html" class="wide-only">Changelog</a>
+<a href="download.html" class="btn primary small">Download</a>
 </nav>
 </div>
 </header>
 <main id="main">
 <section class="hero">
-<div class="wrap hero-grid">
+<canvas class="world" id="world" aria-hidden="true" hidden></canvas>
+<div class="wrap"><div class="copy">
+<h1>Watch your Claude Code agents work.</h1>
+<p class="lede">TiroAgents turns your Claude Code into a small pixel office. Tiro, an orange cube-crab, plans each task, asks before it hires a specialist and files what they find. You approve every hire. The office itself spends no tokens.</p>
+<div class="cta-row"><a id="dl-button" class="btn primary" href="https://tiroagents.bmos.website/dl/windows" data-dl-main data-href-windows="https://tiroagents.bmos.website/dl/windows" data-href-macos="https://tiroagents.bmos.website/dl/mac-arm64" data-href-linux="https://tiroagents.bmos.website/dl/linux-appimage"><span data-dl-label>Download for Windows</span></a><a class="btn quiet" href="download.html#platforms" data-dl-other data-label-windows="macOS and Linux" data-label-macos="Windows and Linux" data-label-linux="Windows and macOS">macOS and Linux</a></div>
+<p class="meta">Version <span data-fill="version">2.1.0</span>, free and open source. Needs Claude Code, signed in. <a href="download.html#verify">Check the download</a></p>
+</div></div>
+</section>
+
+<section class="showcase" aria-label="The office"><div class="wrap"><div class="stage">
+<div class="screen"><picture><source type="image/avif" srcset="assets/img/hero-640.avif 640w, assets/img/hero.avif 1480w" sizes="(min-width: 1000px) 960px, 100vw"><source type="image/webp" srcset="assets/img/hero-640.webp 640w, assets/img/hero.webp 1480w" sizes="(min-width: 1000px) 960px, 100vw"><img src="assets/img/hero.png" width="1480" height="920" alt="The TiroAgents office: specialists at their desks in an isometric office with a park, and today's goals on the left" decoding="async" fetchpriority="high"></picture></div>
+<div class="notch" aria-hidden="true"><span class="eyes"><i></i><i></i></span><span class="line" id="notch-line">Forge is running npm test</span><span class="count">1 approval</span></div>
+</div></div></section>
+
+<section class="facts" aria-label="Facts"><div class="wrap"><ul>
+<li><b>0 tokens</b><span>for the office itself</span></li>
+<li><b>1 hire</b><span>per approval you give</span></li>
+<li><b>127.0.0.1</b><span>the only address it listens on</span></li>
+<li><b>3 systems</b><span>Windows, macOS and Linux</span></li>
+</ul></div></section>
+
+<section class="block" id="how"><div class="wrap">
+<div class="head"><h2>How a task goes</h2><p class="lede">You stay in charge of the steps that cost money or touch your files.</p></div>
+<ol class="steps"><li><div class="pic"><img src="assets/img/tiro-planning.png" width="167" height="139" alt="" decoding="async" loading="lazy"></div><h3>Give Tiro a task</h3><p>Type it in the dispatch box. It lands on today's board as a goal.</p></li><li><div class="pic"><img src="assets/img/tiro-approval.png" width="185" height="159" alt="" decoding="async" loading="lazy"></div><h3>Approve the hire</h3><p>Tiro names the specialist and why. One approval buys one hire.</p></li><li><div class="pic"><img src="assets/img/tiro-working.png" width="167" height="146" alt="" decoding="async" loading="lazy"></div><h3>Watch them work</h3><p>Every prompt Claude Code would show you appears in the office and the notch.</p></li><li><div class="pic"><img src="assets/img/tiro-done.png" width="167" height="154" alt="" decoding="async" loading="lazy"></div><h3>Read the report</h3><p>Findings are filed as reports. Each agent keeps notes for next time.</p></li></ol>
+</div></section>
+
+<section class="block" id="features"><div class="wrap">
+<div class="head"><h2>Everything in the office</h2><p class="lede">It runs on the Claude Code you already have. Your settings, permissions, hooks and MCP servers apply unchanged.</p></div>
+<div class="bento">
+<article class="tile wide"><span class="new">New in 2.1</span><h3>The notch</h3><p>A notch at the top of your screen with approvals, agents, your calendar, timers, notes and plan trackers. Answer a prompt with Y or N without leaving your work. While you game it shows FPS, GPU and CPU load. <a href="docs/island.html">The notch</a></p>
+<div class="shot"><picture><source type="image/avif" srcset="assets/img/20-notch-home-640.avif 640w, assets/img/20-notch-home.avif 1100w" sizes="(min-width: 1000px) 700px, 100vw"><source type="image/webp" srcset="assets/img/20-notch-home-640.webp 640w, assets/img/20-notch-home.webp 1100w" sizes="(min-width: 1000px) 700px, 100vw"><img src="assets/img/20-notch-home.png" width="1100" height="382" alt="The open notch on its Home tab: a waiting approval with Allow and Deny, agents, the calendar, a running timer and notes" decoding="async" loading="lazy"></picture></div>
+<div class="shot slim"><picture><source type="image/avif" srcset="assets/img/21-notch-game.avif 360w" sizes="360px"><source type="image/webp" srcset="assets/img/21-notch-game.webp 360w" sizes="360px"><img src="assets/img/21-notch-game.png" width="360" height="40" alt="The closed notch while gaming: frames per second, GPU load and temperature, and CPU load" decoding="async" loading="lazy"></picture></div></article>
+<article class="tile narrow"><h3>You approve every hire</h3><p>A card shows the goal and the reason. It expires after 10 minutes. <a href="docs/approvals.html">Approvals</a></p><div class="shot"><picture><source type="image/avif" srcset="assets/img/08b-hire-card.avif 296w" sizes="(min-width: 1000px) 340px, 100vw"><source type="image/webp" srcset="assets/img/08b-hire-card.webp 296w" sizes="(min-width: 1000px) 340px, 100vw"><img src="assets/img/08b-hire-card.png" width="296" height="361" alt="Tiro asking to hire Warden, the security reviewer, with the goal, the reason and Approve hire and Deny buttons" decoding="async" loading="lazy"></picture></div></article>
+<article class="tile half"><span class="new">New in 2.1</span><h3>A town with a meeting room</h3><p>Invite up to three friends. Walk between your offices, play in the game hall and talk by voice in the meeting room. Voice goes app to app; the party server only connects you. <a href="docs/party.html">Party and meeting room</a></p>
+<div class="shot"><picture><source type="image/avif" srcset="assets/img/22-town-meeting-room-640.avif 640w, assets/img/22-town-meeting-room.avif 1400w" sizes="(min-width: 1000px) 520px, 100vw"><source type="image/webp" srcset="assets/img/22-town-meeting-room-640.webp 640w, assets/img/22-town-meeting-room.webp 1400w" sizes="(min-width: 1000px) 520px, 100vw"><img src="assets/img/22-town-meeting-room.png" width="1400" height="820" alt="The town: the meeting room house by the lawn, the karinderya, the plaza and the river, with Enter the meeting room shown" decoding="async" loading="lazy"></picture></div></article>
+<article class="tile half"><h3>Reports you can keep</h3><p>Colour-coded reports with PDF and Excel export. Notes, memory and SOPs are plain Markdown in your own vault. <a href="docs/goals-and-reports.html">Reports</a></p><div class="shot"><picture><source type="image/avif" srcset="assets/img/16-reports-panel-640.avif 640w, assets/img/16-reports-panel.avif 1480w" sizes="(min-width: 1000px) 520px, 100vw"><source type="image/webp" srcset="assets/img/16-reports-panel-640.webp 640w, assets/img/16-reports-panel.webp 1480w" sizes="(min-width: 1000px) 520px, 100vw"><img src="assets/img/16-reports-panel.png" width="1480" height="920" alt="The Reports bookshelf with a daily summary" decoding="async" loading="lazy"></picture></div></article>
+<article class="tile narrow"><h3>Build your office</h3><p>Drag furniture, paint zones, save templates.</p><div class="shot"><picture><source type="image/avif" srcset="assets/img/18-build-mode-640.avif 640w, assets/img/18-build-mode.avif 1480w" sizes="(min-width: 1000px) 340px, 100vw"><source type="image/webp" srcset="assets/img/18-build-mode-640.webp 640w, assets/img/18-build-mode.webp 1480w" sizes="(min-width: 1000px) 340px, 100vw"><img src="assets/img/18-build-mode.png" width="1480" height="960" alt="Build mode with the furniture palette" decoding="async" loading="lazy"></picture></div></article>
+<article class="tile wide"><h3>Security Guard and the breaker box</h3><p>Hard switches for Tiro, hiring and autopilot, and a plan-limit guard that stops before extra-usage credits. The Guard asks before:</p>
+<ul class="checks"><li>secrets leave this computer</li><li>a downloaded script runs or installs itself</li><li>an agent opens a credential store</li><li>an agent follows instructions found in web pages or email</li></ul><p><a href="docs/security-guard.html">Security Guard</a> · <a href="docs/breaker-box.html">Breaker box</a></p></article>
+</div>
+</div></section>
+
+<section class="block" id="team"><div class="wrap team">
+<div class="head"><h2>Tiro and the team</h2><p class="lede">Tiro runs on Sonnet and picks Haiku, Sonnet or Opus for each hire. At most eight specialists work at once. Tiro's mood follows the work.</p><div class="moods"><picture><source type="image/avif" srcset="assets/img/tiro-moods-640.avif 640w, assets/img/tiro-moods.avif 1000w" sizes="(min-width: 1000px) 440px, 100vw"><source type="image/webp" srcset="assets/img/tiro-moods-640.webp 640w, assets/img/tiro-moods.webp 1000w" sizes="(min-width: 1000px) 440px, 100vw"><img src="assets/img/tiro-moods.png" width="1000" height="500" alt="Tiro's eight moods: idle, all goals done, agents working, building, planning, needs your approval, goal done and paused at plan limit" decoding="async" loading="lazy"></picture></div></div>
 <div>
-<p class="eyebrow">Windows app for Claude Code users</p>
-<h1>A pixel office for your own Claude Code agents.</h1>
-<p class="lead">Tiro, a little orange cube-crab, is the office manager. Give Tiro a task. It plans the work, asks you before it hires a specialist and files reports into plain Markdown notes. The office itself spends no tokens.</p>
-<div class="cta-row"><a id="dl-button" class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v2.1.0/TiroAgents-Setup-2.1.0.exe" data-dl-link download="TiroAgents-Setup-2.1.0.exe"><span id="dl-label">Download for Windows</span></a><div class="mascot mascot-work" role="img" aria-label="Tiro with a headset, working"></div></div>
-<p class="meta dl-line">v<span data-fill="version">2.1.0</span> &middot; <span data-fill="size">103.9 MB</span> &middot; Windows 10/11</p>
-<p class="meta">SHA-256 <code data-fill="sha-short">e6c5d75f…929eeb48</code> &middot; <a href="download.html#verify">Verify</a> &middot; <a href="download.html#smartscreen">Windows warning?</a></p>
-<p id="os-note" class="notice compact" hidden></p>
-<div class="btn-row"><a class="btn secondary" href="docs/index.html">Read the docs</a><a class="btn secondary" href="quickstart.html">Quickstart</a></div>
-<p class="meta">macOS and Linux: coming, not published yet.</p>
+<h3 class="roster-head">The specialists</h3>
+<dl class="roster"><div><dt>Pixel</dt><dd>Frontend, Sonnet</dd></div><div><dt>Forge</dt><dd>Backend, Sonnet</dd></div><div><dt>Warden</dt><dd>Security review, Opus</dd></div><div><dt>Probe</dt><dd>QA and tests, Sonnet</dd></div><div><dt>Atlas</dt><dd>Deep research, Opus</dd></div><div><dt>Cabalan</dt><dd>Research, Haiku</dd></div><div><dt>Tally</dt><dd>Task checks, Haiku</dd></div><div><dt>Scribe</dt><dd>SOPs and docs, Sonnet</dd></div></dl>
+<h3 class="roster-head">Desks you can add</h3>
+<dl class="roster"><div><dt>Byte</dt><dd>IT desk</dd></div><div><dt>Ledger</dt><dd>Accounting desk</dd></div><div><dt>Spark</dt><dd>Marketing desk</dd></div><div><dt>Vera</dt><dd>Audit desk</dd></div><div><dt>Memo</dt><dd>Notetaker desk</dd></div><div><dt>Codex</dt><dd>External CLI desk</dd></div><div><dt>Gemini CLI</dt><dd>External CLI desk</dd></div><div><dt>OpenCode</dt><dd>External CLI desk</dd></div></dl>
+<p class="extras">Place department desks in Build mode to grow the team, or a desk that hands work to Codex, Gemini CLI or OpenCode after the same hire approval. <a href="docs/team.html">The team</a></p>
 </div>
-<div class="hero-shot"><picture><source type="image/avif" srcset="assets/img/hero-640.avif 640w, assets/img/hero.avif 1480w" sizes="(min-width: 900px) 54vw, 100vw"><source type="image/webp" srcset="assets/img/hero-640.webp 640w, assets/img/hero.webp 1480w" sizes="(min-width: 900px) 54vw, 100vw"><img src="assets/img/hero.png" width="1480" height="920" alt="The Agent Office dashboard: eight specialists at their desks in an isometric office, a hire approval card on the goal board and the status bar on top" decoding="async" fetchpriority="high"></picture></div>
-</div>
-</section>
+</div></section>
 
-<section class="trust" aria-label="Trust">
-<div class="wrap">
-<ul class="trust-list"><li>No tokens for the office itself</li><li>You approve every hire</li><li>Local only: 127.0.0.1</li><li>Signed updates</li><li>No cookies, no trackers</li></ul>
-<p class="meta"><span data-stats>Public download statistics start after the first real snapshot.</span> <a href="stats.html">Statistics</a></p>
-</div>
-</section>
+<section class="block" id="security"><div class="wrap sec">
+<div class="head"><h2>Built so an agent can't approve its own requests</h2><p class="lede">The full model is in the <a href="docs/security.html">docs</a>, with the <a href="docs/permissions.html">permissions page</a>.</p></div>
+<dl><div><dt>Local only</dt><dd>The server listens on 127.0.0.1 and rejects any other host. The UI key stays in the app.</dd></div><div><dt>Approvals stay yours</dt><dd>Nothing is approved automatically or timed out into an answer.</dd></div><div><dt>Signed updates</dt><dd>The app installs only a release whose manifest carries a valid Ed25519 signature, then checks the installer's SHA-256.</dd></div><div><dt>No CDN, no trackers</dt><dd>Scripts, styles and fonts ship inside the app. This site sets no cookies.</dd></div></dl>
+</div></section>
 
-<section class="block" id="how">
-<div class="wrap">
-<div class="section-head"><h2>How it works</h2><p>You stay in charge of every step that matters.</p></div>
-<ol class="steps">
-<li><strong>Give Tiro a task</strong>Type it in the dispatch box. It lands on today's board as a goal.</li>
-<li><strong>Approve the hire</strong>Tiro asks for the specialist it needs. One approval buys exactly one hire.</li>
-<li><strong>Agents work, you watch</strong>Prompts that Claude Code would show you appear in the dashboard and the island.</li>
-<li><strong>Read the report</strong>Findings are filed as reports, and each agent keeps notes for the next task.</li>
-</ol>
-</div>
-</section>
+<section class="block" id="faq"><div class="wrap">
+<div class="head"><h2>Questions</h2></div>
+<div class="faq"><details><summary>Does the office cost tokens?</summary><p>No. Drawing the office, the notch and the town costs nothing. Only the agents' own work uses your Claude plan.</p></details><details><summary>Do I need Claude Code?</summary><p>Yes. Install it and sign in once. TiroAgents finds it and uses your own plan. The Claude panel shows the steps.</p></details><details><summary>Can an agent hire without asking me?</summary><p>No. Every hire needs your approval, and one approval buys exactly one hire.</p></details><details><summary>Why does my computer warn me when I install it?</summary><p>The installers aren't code-signed yet. Updates are still verified by the signed release manifest. The <a href="download.html#smartscreen">download page</a> has the steps.</p></details><details><summary>Where is my data?</summary><p>On your computer, in your user folder and your own Markdown vault.</p></details><details><summary>Does this site track me?</summary><p>No cookies and no trackers. A download is counted by region only; see the <a href="privacy.html">privacy page</a>.</p></details></div>
+</div></section>
 
-<section class="block" id="features">
-<div class="wrap">
-<div class="section-head"><h2>A tour of the office</h2><p>Everything runs locally on top of the Claude Code you already have. Your settings, permissions, hooks and MCP servers apply unchanged.</p></div>
-<div class="panel"><div class="panel-text"><h3>You approve every hire</h3><p>Tiro cannot hire on its own. A card shows the goal and the reason. One approval buys exactly one hire, tied to the first prompt, and expires after 10 minutes.</p><p><a href="docs/approvals.html">How approvals work</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/08-hire-approval-card-640.avif 640w, assets/img/08-hire-approval-card.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/08-hire-approval-card-640.webp 640w, assets/img/08-hire-approval-card.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/08-hire-approval-card.png" width="1480" height="920" alt="Tiro asking to hire Warden, with the goal, the reason and Approve hire and Deny buttons" decoding="async" loading="lazy"></picture></div></div>
-<div class="panel flip"><div class="panel-text"><h3>The notch</h3><p>A glassy notch at the top of your screen: approvals, agents, calendar, timers, notes, trackers, now playing with synced lyrics, and FPS with GPU and CPU load while you game. Answer a prompt with Y or N without leaving your work.</p><p><a href="docs/island.html">The island and tray</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/13-island-chat.avif 640w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/13-island-chat.webp 640w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/13-island-chat.png" width="640" height="560" alt="The island chat box and quick actions" decoding="async" loading="lazy"></picture></div></div>
-<div class="panel"><div class="panel-text"><h3>Reports and a Markdown vault</h3><p>Findings are filed as color-coded reports with PDF and Excel export. Notes, memory and SOPs are plain Markdown in your own vault.</p><p><a href="docs/goals-and-reports.html">Goals, reports and the vault</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/16-reports-panel-640.avif 640w, assets/img/16-reports-panel.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/16-reports-panel-640.webp 640w, assets/img/16-reports-panel.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/16-reports-panel.png" width="1480" height="920" alt="The Reports bookshelf with a daily summary and demo reports" decoding="async" loading="lazy"></picture></div></div>
-<div class="panel flip"><div class="panel-text"><h3>Memory and history per agent</h3><p>Every task starts in a fresh context. Each agent keeps its own notes, and the Agent history overlay lets you browse past tasks and summaries.</p><p><a href="docs/agents-and-memory.html">Agents and memory</a></p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/09-agent-history-overlay-640.avif 640w, assets/img/09-agent-history-overlay.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/09-agent-history-overlay-640.webp 640w, assets/img/09-agent-history-overlay.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/09-agent-history-overlay.png" width="1480" height="920" alt="Agent history: every agent with task counts and past tasks" decoding="async" loading="lazy"></picture></div></div>
-<div class="panel"><div class="panel-text"><h3>Breaker box and Security Guard</h3><p>Hard switches for Tiro, autopilot, hiring and terminal approvals, plus a subscription guard that stops at your plan limit instead of spending extra-usage credits. The ask-only Security Guard asks before secrets leave your computer or a downloaded script runs.</p><p><a href="docs/breaker-box.html">Breaker box</a> &middot; <a href="docs/security-guard.html">Security Guard</a></p></div><div class="panel-shot"><div class="card"><h3>What the Guard asks about</h3><ul><li>Secrets leaving this computer</li><li>Downloaded scripts and persistence</li><li>Credential stores</li><li>Untrusted instructions in web or mail text</li></ul></div></div></div>
+<section class="block" id="downloads" aria-labelledby="downloads-h"><div class="wrap">
+<h2 id="downloads-h" class="visually-hidden">Downloads</h2>
+<div class="dl-counts">
+<div class="total"><b data-count="total">54</b><span>downloads</span></div>
+<div><b data-count="windows">18</b><span>Windows</span></div>
+<div><b data-count="macos">22</b><span>macOS</span></div>
+<div><b data-count="linux">14</b><span>Linux</span></div>
 </div>
-</section>
-
-<section class="block" id="next">
-<div class="wrap">
-<div class="section-head"><p><span class="badge">New in 2.1</span></p><h2>The notch, and a meeting room with voice</h2><p>Version 2.1 turns the island into a notch with tabs for approvals, calendar, timers, notes, trackers and game performance, and adds a meeting room where your party can talk by voice. Version 2.0 renamed Agent Office to TiroAgents and turned the office into a town; installing replaces Agent Office 1.x and keeps your settings. <a href="changelog.html">Read the changelog</a>.</p></div>
-<div class="panel"><div class="panel-text"><h3>Build mode</h3><p>A Gather.town-style editor: drag, add, duplicate and delete furniture, paint and resize zones, undo and redo, and workspace templates (Startup Loft, Agency Floor, Hotel Back-Office). Mouse and touch.</p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/18-build-mode-640.avif 640w, assets/img/18-build-mode.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/18-build-mode-640.webp 640w, assets/img/18-build-mode.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/18-build-mode.png" width="1480" height="960" alt="Build mode: the furniture palette on the left, the office floor with zones painted on it and the Undo, Redo, Delete, Duplicate, Templates and Save toolbar on top" decoding="async" loading="lazy"></picture></div></div>
-<div class="panel flip"><div class="panel-text"><h3>Walk the office as the CEO</h3><p>Keyboard, click-to-walk or an on-screen joystick. Walk up to Tiro for Chat, Prioritize, Boost (strongest model, with a cost confirmation and plan-limit checks) or Speed (fastest model). Walk up to a desk to see what a specialist is doing.</p></div><div class="panel-shot"><picture><source type="image/avif" srcset="assets/img/19-ceo-radial-menu-640.avif 640w, assets/img/19-ceo-radial-menu.avif 1480w" sizes="(min-width: 900px) 50vw, 100vw"><source type="image/webp" srcset="assets/img/19-ceo-radial-menu-640.webp 640w, assets/img/19-ceo-radial-menu.webp 1480w" sizes="(min-width: 900px) 50vw, 100vw"><img src="assets/img/19-ceo-radial-menu.png" width="1480" height="960" alt="The CEO standing next to Tiro, with the Chat, Prioritize, Boost and Speed menu around Tiro" decoding="async" loading="lazy"></picture></div></div>
-<div class="grid"><div class="card"><h3>Department desks</h3><p>Place desks to choose Tiro's team: IT (Byte), Accounting (Ledger), Marketing (Spark), Auditor (Vera) and Notetaker (Memo), plus the original eight. Removing a desk retires the role and keeps its memory.</p></div><div class="card"><h3>Security hardening for release</h3><p>Every write needs the session token, malformed transcripts, notes and layouts cannot break the office, secret redaction is better, and hire approvals show the full request.</p></div></div>
-<div class="btn-row"><a class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v2.1.0/TiroAgents-Setup-2.1.0.exe" data-dl-link download="TiroAgents-Setup-2.1.0.exe"><span>Get v2.1.0</span></a><a class="btn secondary" href="changelog.html">What's new</a></div>
-</div>
-</section>
-
-<section class="block" id="team">
-<div class="wrap">
-<div class="section-head"><h2>Meet Tiro and the team</h2><p>Tiro leads a fixed team of eight specialists, at most eight working at once. Tiro runs on Sonnet at medium effort and picks Haiku, Sonnet or Opus for each hire. Its mood follows the work.</p></div>
-<div class="moods"><picture><source type="image/avif" srcset="assets/img/tiro-moods-640.avif 640w, assets/img/tiro-moods.avif 1000w" sizes="(min-width: 1120px) 1080px, 100vw"><source type="image/webp" srcset="assets/img/tiro-moods-640.webp 640w, assets/img/tiro-moods.webp 1000w" sizes="(min-width: 1120px) 1080px, 100vw"><img src="assets/img/tiro-moods.png" width="1000" height="500" alt="Tiro in eight moods: idle, all goals done, agents working, building, planning, needs your approval, goal done and paused at plan limit" decoding="async" loading="lazy"></picture></div>
-<div class="grid team-grid"><div class="card team-card"><h3>Pixel</h3><p>Frontend engineer</p><p class="model">sonnet</p><p class="tools">read, web, Bash, Edit, Write</p></div><div class="card team-card"><h3>Forge</h3><p>Backend engineer</p><p class="model">sonnet</p><p class="tools">read, web, Bash, Edit, Write</p></div><div class="card team-card"><h3>Warden</h3><p>Security reviewer</p><p class="model">opus</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Probe</h3><p>QA and test engineer</p><p class="model">sonnet</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Atlas</h3><p>Deep researcher</p><p class="model">opus</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Cabalan</h3><p>Researcher</p><p class="model">haiku</p><p class="tools">read-only (+ web, Bash)</p></div><div class="card team-card"><h3>Tally</h3><p>Task checker and organizer</p><p class="model">haiku</p><p class="tools">Read, Grep, Glob, Edit, Write</p></div><div class="card team-card"><h3>Scribe</h3><p>SOP and document writer</p><p class="model">sonnet</p><p class="tools">read, web, Edit, Write</p></div></div>
-</div>
-</section>
-
-<section class="block" id="security">
-<div class="wrap">
-<div class="section-head"><h2>Security model</h2><p>Built so that an agent working for you cannot approve its own requests. <a href="docs/security.html">Read the full model</a> or the <a href="docs/permissions.html">permissions page</a>.</p></div>
-<div class="grid"><div class="card"><h3>Local only</h3><p>The server binds 127.0.0.1 and rejects any other Host header. The UI key stays in the app process and an HttpOnly cookie, so an agent cannot approve its own requests.</p></div><div class="card"><h3>Strict CSP</h3><p>Pages load scripts, styles and fonts only from the app itself. React, Babel and the fonts are vendored, so nothing loads from a CDN.</p></div><div class="card"><h3>Hardened windows</h3><p>Context isolation and sandbox on, no Node integration, navigation locked to the local server, webviews blocked.</p></div><div class="card"><h3>Verified updates</h3><p>The updater accepts only a release manifest with a valid Ed25519 signature from the key pinned in the app, and checks the installer SHA-256 twice before it runs.</p></div><div class="card"><h3>Approvals stay yours</h3><p>Tool permissions are Claude Code's own. What would ask you still asks you. Nothing is auto-approved or timed out into an answer.</p></div><div class="card"><h3>Security Guard</h3><p>An ask-only layer that watches for secrets leaving the machine, unwanted scripts and persistence, credential stores and untrusted instructions. A safety net, not a boundary. <a href="docs/security-guard.html">How it works</a>.</p></div></div>
-</div>
-</section>
-
-<section class="block" id="faq">
-<div class="wrap">
-<div class="section-head"><h2>FAQ</h2></div>
-<div class="faq"><details><summary>Does the office cost tokens?</summary><div><p>No. Only agents that are working cost tokens, and only on your Claude Code plan.</p></div></details><details><summary>Which systems does it run on?</summary><div><p>Windows 10 or later today. macOS and Linux builds are not published yet.</p></div></details><details><summary>Do I need Claude Code?</summary><div><p>Yes. Install Claude Code and log in once by running claude. Agent Office uses your own install and plan.</p></div></details><details><summary>Can an agent hire without asking me?</summary><div><p>No. Every hire needs your one-shot approval, which expires after 10 minutes and is cleared when Tiro's session ends or resets.</p></div></details><details><summary>Why does Windows warn me when I install it?</summary><div><p>The builds are not code-signed. SmartScreen may show a warning, and Windows 11 Smart App Control can block unsigned installers. Compare the installer's SHA-256 first. See the <a href="download.html#smartscreen">download page</a>.</p></div></details><details><summary>Where is my data?</summary><div><p>On your machine: ~/.claude/agent-office, your vault and Claude Code's own ~/.claude/projects. Model calls go to Anthropic through Claude Code, as in the terminal.</p></div></details><details><summary>Does it read my email?</summary><div><p>No. The scheduler reads a local feed file that you must produce yourself.</p></div></details><details><summary>Does this site track me?</summary><div><p>No cookies and no consent banner. See the <a href="privacy.html">privacy page</a>.</p></div></details></div>
-<p>More answers are on the <a href="docs/troubleshooting.html">troubleshooting page</a> and the <a href="docs/faq.html">FAQ</a>.</p>
-</div>
-</section>
-
-<section class="block closing" id="get">
-<div class="wrap">
-<h2>Put Tiro to work</h2>
-<p class="lead">Windows 10 or later and Claude Code, logged in. Takes a few minutes.</p>
-<div class="btn-row"><a class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v2.1.0/TiroAgents-Setup-2.1.0.exe" data-dl-link download="TiroAgents-Setup-2.1.0.exe"><span>Download for Windows</span></a><a class="btn secondary" href="quickstart.html">Quickstart</a></div>
-</div>
-</section>
-
-<section class="block" id="licence">
-<div class="wrap">
-<div class="section-head"><h2>Licence</h2></div>
-<p>Agent Office is open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Use it, change it and share it; pull requests are welcome (see the <a href="https://github.com/Ic3krem/agent-office/blob/main/CONTRIBUTING.md">contributing guide</a>). Versions 1.1.0 to 1.1.4 and 1.2.5 were released under MIT. Third-party components keep their own licences, listed in the notices that ship with the installer; the Claude Agent SDK is Anthropic's own software under Anthropic's terms.</p>
-<p>Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan.</p>
-</div>
-</section>
+<div class="dl-map" id="dl-map" data-edge="https://tiroagents.bmos.website" hidden><canvas id="mapc" aria-hidden="true"></canvas></div>
+</div></section>
 </main>
+
+<section class="closing" id="download" aria-labelledby="closing-h"><div class="wrap">
+<img src="assets/img/tiro-done.png" width="167" height="154" alt="" decoding="async" loading="lazy">
+<div>
+<h2 id="closing-h">Put Tiro to work</h2>
+<p>Free for Windows 10 or later, macOS and Linux. You need Claude Code, signed in.</p>
+<div class="cta-row" data-os-row><a class="btn primary" href="https://tiroagents.bmos.website/dl/windows" data-os-btn="windows">Download for Windows</a><a class="btn quiet" href="https://tiroagents.bmos.website/dl/mac-arm64" data-os-btn="macos">macOS</a><a class="btn quiet" href="https://tiroagents.bmos.website/dl/linux-appimage" data-os-btn="linux">Linux</a></div>
+<p class="small">Also: <a href="https://tiroagents.bmos.website/dl/mac-x64">macOS for Intel</a> · <a href="https://tiroagents.bmos.website/dl/linux-deb">Linux .deb</a> · <a href="download.html#verify">Check the download</a></p>
+</div>
+</div></section>
 <footer class="site-footer">
 <div class="wrap">
-<div class="cols">
-<div><h2>Agent Office</h2><p>A pixel office for your own Claude Code agents.</p><p class="meta">This site sets no cookies.</p></div>
-<div><h2>Get it</h2><ul><li><a href="download.html">Download for Windows</a></li><li><a href="quickstart.html">Quickstart</a></li><li><a href="changelog.html">Changelog</a></li><li><a href="releases.xml">Releases feed (Atom)</a></li></ul></div>
-<div><h2>Learn</h2><ul><li><a href="docs/index.html">Documentation</a></li><li><a href="docs/security.html">Security</a></li><li><a href="docs/troubleshooting.html">Troubleshooting</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
-<div><h2>Legal</h2><ul><li><a href="index.html#licence">Licence: Apache-2.0</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="stats.html">Download statistics</a></li></ul></div>
-</div>
-<small>Open source under the Apache License 2.0. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and Agent Office runs on your own Claude Code install and plan. Builds are not code-signed.</small>
+<nav aria-label="Footer"><a href="docs/index.html">Docs</a><a href="quickstart.html">Quickstart</a><a href="download.html">Download</a><a href="changelog.html">Changelog</a><a href="docs/security.html">Security</a><a href="privacy.html">Privacy</a><a href="stats.html">Download statistics</a><a href="releases.xml">Releases feed</a><a href="llms.txt">llms.txt</a></nav>
+<p class="legal">Open source under the <a href="https://github.com/Ic3krem/agent-office/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with Anthropic: Claude and Claude Code are Anthropic products, and TiroAgents runs on your own Claude Code install and plan. Installers are not code-signed. This site sets no cookies.</p>
 </div>
 </footer>
 <script src="assets/common.js" defer></script>
 <script src="assets/release.js" defer></script>
+<script type="module" src="assets/home.js"></script>
 </body>
 </html>

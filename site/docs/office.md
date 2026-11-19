@@ -2,7 +2,7 @@
 
 The panels, the world, the objects and the agent history.
 
-(Agent Office v2.1.0, 2026-11-20)
+(TiroAgents v2.1.0, 2026-11-20)
 
 ## The dashboard
 
