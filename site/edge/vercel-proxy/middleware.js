@@ -7,7 +7,11 @@ export const config = { matcher: '/:path*' };
 
 export default async function middleware(request) {
   const url = new URL(request.url);
-  if (!/^\/(stats|dl\/[a-z0-9-]{1,32})\/?$/.test(url.pathname)) return new Response('Not found', { status: 404 });
+  // Anything that is not the counter (the bare domain, a typo) goes to the website, keeping the page path.
+  if (!/^\/(stats|dl\/[a-z0-9-]{1,32})\/?$/.test(url.pathname)) {
+    const page = /^\/[A-Za-z0-9._\/-]{0,200}$/.test(url.pathname) ? url.pathname.replace(/^\//, '') : '';
+    return Response.redirect('https://ic3krem.github.io/agent-office/' + page, 308);
+  }
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, HEAD, OPTIONS' } });
   const headers = new Headers();
   for (const h of ['user-agent', 'origin', 'access-control-request-method']) { const v = request.headers.get(h); if (v) headers.set(h, v); }
