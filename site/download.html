@@ -34,19 +34,19 @@
 <p class="lead">The Windows installer. macOS and Linux builds are not published yet.</p>
 
 <div class="dl-card">
-<p><span class="badge">Latest</span> <span class="meta">v<span data-fill="version">2.0.0</span> &middot; <span data-fill="date">2026-11-17</span></span></p>
-<div class="cta-row"><a id="dl-button" class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v2.0.0/TiroAgents-Setup-2.0.0.exe" data-dl-link download="TiroAgents-Setup-2.0.0.exe"><span id="dl-label">Download for Windows</span></a><div class="mascot mascot-work" role="img" aria-label="Tiro with a headset, working"></div></div>
+<p><span class="badge">Latest</span> <span class="meta">v<span data-fill="version">2.1.0</span> &middot; <span data-fill="date">2026-11-20</span></span></p>
+<div class="cta-row"><a id="dl-button" class="btn big" href="https://github.com/Ic3krem/agent-office/releases/download/v2.1.0/TiroAgents-Setup-2.1.0.exe" data-dl-link download="TiroAgents-Setup-2.1.0.exe"><span id="dl-label">Download for Windows</span></a><div class="mascot mascot-work" role="img" aria-label="Tiro with a headset, working"></div></div>
 <p id="os-note" class="notice compact" hidden></p>
 <p><button type="button" class="btn-small" id="copy-page" hidden>Copy this page's link</button></p>
 <p id="dl-status" class="status" role="status" aria-live="polite"></p>
 <dl class="dl-meta">
-<dt>File</dt><dd><code data-fill="asset">TiroAgents-Setup-2.0.0.exe</code></dd>
-<dt>Size</dt><dd data-fill="size">103.5 MB</dd>
+<dt>File</dt><dd><code data-fill="asset">TiroAgents-Setup-2.1.0.exe</code></dd>
+<dt>Size</dt><dd data-fill="size">103.9 MB</dd>
 <dt>Requires</dt><dd>Windows 10 or later, and Claude Code installed and logged in</dd>
-<dt>SHA-256</dt><dd><div class="hash-row"><div class="hash" id="dl-sha" tabindex="0" data-fill="sha">5b01d1aa67719b93e44f85d0682455bc9de3bc41706a595702b692ddfebf2fc9</div><button type="button" class="btn-small" data-copy-sha>Copy</button></div></dd>
+<dt>SHA-256</dt><dd><div class="hash-row"><div class="hash" id="dl-sha" tabindex="0" data-fill="sha">7436450a25f7e372818fee70df43784bc319c23172d7b77d2f44fd4cf8ae4e1f</div><button type="button" class="btn-small" data-copy-sha>Copy</button></div></dd>
 </dl>
-<p class="meta" data-fill="notes">TiroAgents 2.0.0: the town, party, external specialists, music and manor themes. Replaces Agent Office 1.x. Installers are not code-signed.</p>
-<p class="meta"><a data-release-link href="https://github.com/Ic3krem/agent-office/releases/tag/v2.0.0">Release page on GitHub</a> &middot; <a href="changelog.html">Changelog</a></p>
+<p class="meta" data-fill="notes">TiroAgents 2.1.0: the island becomes a notch (calendar, timers, notes, trackers, game mode with FPS) and the party gets a meeting room with voice. Installers are not code-signed.</p>
+<p class="meta"><a data-release-link href="https://github.com/Ic3krem/agent-office/releases/tag/v2.1.0">Release page on GitHub</a> &middot; <a href="changelog.html">Changelog</a></p>
 </div>
 
 <div class="notice"><p><strong>Agent Office is now TiroAgents.</strong> Installing 2.0 replaces Agent Office 1.x and keeps your settings, team, memory and reports. <a href="changelog.html#200-tiroagents-2026-11-17">See what's new</a>.</p></div>
@@ -55,7 +55,7 @@
 
 <h2 id="verify">Verify the download</h2>
 <p>Open PowerShell in the folder where you saved the installer and run:</p>
-<pre tabindex="0"><code data-fill="verify">Get-FileHash .\TiroAgents-Setup-2.0.0.exe -Algorithm SHA256</code></pre>
+<pre tabindex="0"><code data-fill="verify">Get-FileHash .\TiroAgents-Setup-2.1.0.exe -Algorithm SHA256</code></pre>
 <p>The result must equal the SHA-256 above, letter for letter. If it does not, delete the file and do not run it.</p>
 
 <h2 id="smartscreen">Windows warnings</h2>
@@ -74,8 +74,8 @@
 
 <h2 id="platforms">Other platforms</h2>
 <div class="grid">
-<div class="card"><h3>macOS</h3><p>Apple Silicon and Intel <code>.dmg</code> on the <a href="https://github.com/Ic3krem/agent-office/releases/tag/v2.0.0">release page</a>, or the install script, which checks the signed manifest: <code>curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v2.0.0/install.sh | bash</code>. The app is not signed by Apple.</p></div>
-<div class="card"><h3>Linux</h3><p>x64 <code>.AppImage</code> and <code>.deb</code> on the <a href="https://github.com/Ic3krem/agent-office/releases/tag/v2.0.0">release page</a>, or the same install script.</p></div>
+<div class="card"><h3>macOS</h3><p>Apple Silicon and Intel <code>.dmg</code> on the <a href="https://github.com/Ic3krem/agent-office/releases/tag/v2.1.0">release page</a>, or the install script, which checks the signed manifest: <code>curl -fsSL https://raw.githubusercontent.com/Ic3krem/agent-office/v2.1.0/install.sh | bash</code>. The app is not signed by Apple.</p></div>
+<div class="card"><h3>Linux</h3><p>x64 <code>.AppImage</code> and <code>.deb</code> on the <a href="https://github.com/Ic3krem/agent-office/releases/tag/v2.1.0">release page</a>, or the same install script.</p></div>
 </div>
 <p>To hear about new releases, subscribe to the <a href="releases.xml">releases feed (Atom)</a> or use Watch, then Releases, on the GitHub repository.</p>
 <p>The updater and the install scripts verify an Ed25519 signature on the release manifest as well as the installer's SHA-256. See <a href="docs/install.html">Install and verify</a>, <a href="docs/update.html">Update</a> and <a href="docs/uninstall.html">Uninstall</a>.</p>

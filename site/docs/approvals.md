@@ -2,7 +2,7 @@
 
 The strict hiring gate and Claude Code tool approvals.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 
 There are two kinds, and both show on the dashboard and in the island.

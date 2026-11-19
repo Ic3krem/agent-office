@@ -14,6 +14,8 @@ Agent Office itself is licensed under the Apache License 2.0 (see LICENSE and NO
 
 - **PixiJS 8.22.0** is vendored unmodified as `public/vendor/pixi.min.js` (MIT; (c) 2013-2023 Mathew Groves, Chad Engler).
 
+- **PresentMon 2.6.0** (x64 console build, signed by Intel Corporation) is vendored unmodified as `vendor/presentmon/PresentMon-2.6.0-x64.exe` (MIT; (c) 2017-2024 Intel Corporation; the licence text is in `vendor/presentmon/LICENSE.txt`). Its SHA-256 is recorded in `vendor/presentmon/SHA256.txt` and checked by `desktop/presentmon.mjs` before each run. Windows only; used for the notch's game frame rate.
+
 - **Pixelify Sans, IBM Plex Mono, Instrument Sans** (latin and latin-ext subsets) are vendored in `public/fonts/` and served locally, so the pages make no request to Google Fonts. All three are licensed under the SIL Open Font License 1.1; the license texts are in `public/fonts/OFL-*.txt`.
 
 - **Dev-Labs** (MIT, github.com/jeffreycayao/Dev-Labs): the external-specialist provider table (each CLI's model and Auto-mode flags, install commands shown as text) and the approach for finding CLIs (the login shell's PATH plus the usual install folders) in `external-agents.mjs` follow Dev-Labs' `src/shared/agentProvider.ts` and `src/main/shellEnv.ts`. No Dev-Labs code is bundled verbatim.

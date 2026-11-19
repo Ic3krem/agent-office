@@ -2,7 +2,7 @@
 
 What you need before installing.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 Agent Office needs:
 

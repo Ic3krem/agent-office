@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, themeVars, pinnedActions, formatClock, monthGrid, weekdayNames, peekReady, DEFAULT_SETTINGS, ACTIONS, MAX_PINNED } from './desktop/island-logic.mjs';
+import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, themeVars, pinnedActions, formatClock, monthGrid, weekdayNames, peekReady, DEFAULT_SETTINGS, ACTIONS, MAX_PINNED, HOME_CARDS } from './desktop/island-logic.mjs';
 
 const A = { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
 const B = { id: 2, bounds: { x: 1920, y: 0, width: 2560, height: 1440 } };
@@ -97,4 +97,19 @@ test('power saver setting: default on, validated like the other booleans', async
   assert.equal(normalizeSettings({}).powerSaver, true);
   assert.equal(normalizeSettings({ powerSaver: false }).powerSaver, false);
   assert.equal(normalizeSettings({ powerSaver: 'no' }).powerSaver, true, 'junk falls back to the default');
+});
+
+test('home cards: default order, known ids only, no duplicates, at most 8', () => {
+  assert.deepEqual(DEFAULT_SETTINGS.homeCards, ['approvals', 'agents', 'calendar', 'timer', 'notes']);
+  assert.deepEqual(normalizeSettings({}).homeCards, DEFAULT_SETTINGS.homeCards);
+  assert.deepEqual(normalizeSettings({ homeCards: ['notes', 'bogus', 'notes', 'timer'] }).homeCards, ['notes', 'timer']);
+  assert.deepEqual(normalizeSettings({ homeCards: [] }).homeCards, [], 'every card hidden is allowed');
+  assert.deepEqual(normalizeSettings({ homeCards: 'notes' }).homeCards, DEFAULT_SETTINGS.homeCards);
+  assert.equal(normalizeSettings({ homeCards: [...HOME_CARDS, ...HOME_CARDS] }).homeCards.length, 8);
+});
+
+test('look setting: glass by default, solid kept, junk falls back to glass', () => {
+  assert.equal(DEFAULT_SETTINGS.look, 'glass');
+  assert.equal(normalizeSettings({ look: 'neon' }).look, 'glass');
+  assert.equal(normalizeSettings({ look: 'solid' }).look, 'solid');
 });

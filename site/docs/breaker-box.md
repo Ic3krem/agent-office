@@ -2,7 +2,7 @@
 
 Hard switches, and the guard that stops at your plan limit.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 The breaker box in the office holds hard switches. They are real: they gate what Tiro can do.
 

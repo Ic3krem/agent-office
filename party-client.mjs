@@ -3,7 +3,7 @@
 // (party/protocol.mjs feedOf: no task text, prompts, commands or paths) and the CEO avatar, and keeps what the others
 // share. Everything that arrives is re-cleaned with the same protocol cleaners; party data is never trusted.
 import crypto from 'node:crypto';
-import { cleanName, cleanChat, cleanOffice, cleanAvatar, cleanMusic, PRESENCE, LIMITS } from './party/protocol.mjs';
+import { cleanName, cleanChat, cleanOffice, cleanAvatar, cleanMusic, cleanRtc, cleanEmote, PRESENCE, LIMITS } from './party/protocol.mjs';
 
 const STREAM_MAX = 2_000_000; // one SSE event bigger than this ends the connection
 const GIVE_UP = 6; // reconnect attempts (backoff 1 s .. 30 s, about a minute) before telling the user the party is gone
@@ -18,7 +18,7 @@ export function partyUrl(v) {
   return u.origin + u.pathname.replace(/\/+$/, '');
 }
 
-export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firstByteMs = 5000 } = {}) {
+export function createPartyClient({ onChange = () => {}, onSignal = () => {}, fetchImpl = fetch, firstByteMs = 5000 } = {}) {
   let st = null; // { base, token, you, name, members: Map, chat: [], presence, ctrl, retry, lastOffice, avatar }
   let error = '';
   const salt = crypto.randomBytes(16).toString('hex');
@@ -30,13 +30,18 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
   };
   function drop(why) { if (st) { try { st.ctrl.abort(); } catch {} clearTimeout(st.retry); } st = null; error = why || ''; onChange(); }
 
+  const mid = v => typeof v === 'string' && /^[a-f0-9]{1,16}$/.test(v);
+  const vids = l => (Array.isArray(l) ? l : []).filter(mid).slice(0, LIMITS.members);
   function onEvent(ev) {
     if (!st || !ev || typeof ev !== 'object') return;
     const upsert = m => { if (!m || typeof m.id !== 'string' || !/^[a-f0-9]{1,16}$/.test(m.id) || m.id === st.you) return;
       if (!st.members.has(m.id) && st.members.size >= LIMITS.members) return;
       const cur = st.members.get(m.id) || {}; st.members.set(m.id, { id: m.id, host: m.host === true || (m.host === undefined && !!cur.host), seq: Number.isInteger(m.seq) ? m.seq : cur.seq || 0, name: cleanName(m.name) || cur.name || 'Guest', office: m.office !== undefined ? cleanOffice(m.office) : cur.office || null, avatar: m.avatar !== undefined ? cleanAvatar(m.avatar) : cur.avatar || null }); };
     if (ev.t === 'hello' || ev.t === 'music') onMusic(ev);
-    if (ev.t === 'hello') { if (typeof ev.host === 'boolean') st.host = ev.host; if (Number.isInteger(ev.seq)) st.seq = ev.seq; st.game = { race: null, quiz: null }; const gs = ev.game || {}; if (gs.race) onGame({ t: 'race', at: gs.at, ...gs.race }); if (gs.quiz) { onGame({ t: 'quiz', id: gs.quiz.id }); onGame({ t: 'quiz-q', at: gs.at, ...gs.quiz }); } st.members.clear(); (Array.isArray(ev.members) ? ev.members : []).slice(0, LIMITS.members).forEach(upsert); st.chat = []; (Array.isArray(ev.chat) ? ev.chat : []).forEach(addChat); }
+    if (ev.t === 'hello') { if (typeof ev.host === 'boolean') st.host = ev.host; if (Number.isInteger(ev.seq)) st.seq = ev.seq; st.game = { race: null, quiz: null }; const gs = ev.game || {}; if (gs.race) onGame({ t: 'race', at: gs.at, ...gs.race }); if (gs.quiz) { onGame({ t: 'quiz', id: gs.quiz.id }); onGame({ t: 'quiz-q', at: gs.at, ...gs.quiz }); } st.hostOld = !(Array.isArray(ev.caps) && ev.caps.includes('voice')); st.voice = vids(ev.voice); st.members.clear(); (Array.isArray(ev.members) ? ev.members : []).slice(0, LIMITS.members).forEach(upsert); st.chat = []; (Array.isArray(ev.chat) ? ev.chat : []).forEach(addChat); }
+    else if (ev.t === 'voice') st.voice = vids(ev.ids);
+    else if (ev.t === 'rtc') { const c = cleanRtc({ to: st.you, kind: ev.kind, data: ev.data }); if (c && mid(ev.from)) onSignal({ type: 'rtc', from: ev.from, kind: c.kind, data: c.data }); return; }
+    else if (ev.t === 'emote') { const e = cleanEmote(ev.emote); if (e !== null && mid(ev.id)) onSignal({ type: 'emote', id: ev.id, emote: e }); return; }
     else if (ev.t === 'member') upsert(ev.m);
     else if (ev.t === 'avatar') { const m = st.members.get(ev.id); if (m) m.avatar = cleanAvatar(ev.avatar); }
     else if (ev.t === 'leave') st.members.delete(ev.id);
@@ -127,6 +132,15 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
       let j = {}; try { j = await r.json(); } catch {}
       return { ok: !!j.ok, error: typeof j.error === 'string' ? cleanChat(j.error) : '' };
     },
+    // WebRTC setup message to one member -> the server's answer ({ok, error?}); a 404 means the host predates voice.
+    async rtc(b) {
+      const c = cleanRtc(b); if (!st || !c) return { ok: false, error: st ? 'bad signal' : 'not in a party' };
+      const r = await fetchImpl(st.base + '/rtc', { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + st.token }, body: JSON.stringify(c), signal: AbortSignal.timeout(10_000) });
+      if (r.status === 404 && st) { st.hostOld = true; onChange(); }
+      let j = {}; try { j = await r.json(); } catch {}
+      return { ok: !!j.ok, error: typeof j.error === 'string' ? cleanChat(j.error) : '' };
+    },
+    async emote(n) { const e = cleanEmote(n); if (!st || e === null) return false; return call('/emote', { emote: e }); },
     async say(text) { const t = cleanChat(text); if (!st || !t) return false; return call('/chat', { text: t }); },
     // Mini-games: action race | type | quiz | answer. Returns the server's answer ({ok, error?, wpm?}).
     async game(action, b = {}) {
@@ -160,7 +174,7 @@ export function createPartyClient({ onChange = () => {}, fetchImpl = fetch, firs
       return { connected: true, live: st.live, host: new URL(st.base).host, party: st.party, you: { id: st.you, name: st.name, presence: st.presence, host: st.host, seq: st.seq }, error,
         game: st.game, music: st.music || null, djAll: st.djAll !== false, canDj: st.host || st.djAll !== false,
         members: [...st.members.values()].sort((a, b) => a.seq - b.seq).map(m => ({ host: m.host, seq: m.seq, stats: m.office ? m.office.stats : null, id: m.id, name: m.name, presence: (m.avatar && m.avatar.presence) || 'available', room: (m.avatar && m.avatar.room) || 'home', agents: m.office ? m.office.agents.length : 0, working: m.office ? m.office.agents.filter(a => a.state === 'working').length : 0, manor: m.office ? m.office.manor : null, crew: m.office ? m.office.agents.map(({ id, name, key, state, bubble }) => ({ id, name, key, state, bubble })) : [], avatar: m.avatar })),
-        chat: st.chat.slice(-30) };
+        chat: st.chat.slice(-30), voice: { support: st.hostOld === false ? 'ok' : 'host-old', ids: st.voice || [], mine: (st.voice || []).includes(st.you) } };
     },
   };
 }

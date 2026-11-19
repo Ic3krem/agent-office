@@ -2,7 +2,7 @@
 
 Preferences, environment variables, settings files, the scheduler job and the terminal bridge.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 
 State lives in `~/.claude/agent-office/`. Preferences are in `kiro.json`; the tray menu and the island Settings tab write most of them, and you rarely need to edit it by hand.
@@ -54,7 +54,9 @@ All state is under `~/.claude/agent-office/` (your home folder). Nothing here ne
 | File or folder | What it holds |
 |---|---|
 | `bridge.json` | Server port and the terminal bridge key (opens `/bridge/*` only). The UI key is never stored. |
-| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled` and `notchShortcut`), `updateAuto`, `tiroIdleMinutes`, `limitsProbeMinutes`, `hidden`, optional `schedulerMailbox`. |
+| `kiro.json` | Desktop and island preferences: `agentNames`, `islandMode`, `islandMute`, `islandDisplay`, `islandSettings` (including `notchEnabled`, `notchShortcut`, `look`, `homeCards`, `gameMode` and `games`), `updateAuto`, `tiroIdleMinutes`, `limitsProbeMinutes`, `hidden`, optional `schedulerMailbox`. |
+| `notch-store.json` | The notch's notes, timers, counters and Pomodoro lengths. |
+| `calendar-link.bin` | The private calendar link, encrypted with the OS key storage (only when you added one). |
 | `switches.json` | Breaker box switches. |
 | `manager.json` | Tiro auto-approval on or off. |
 | `manager-session.json` | Id of Tiro's current session (one per day). |

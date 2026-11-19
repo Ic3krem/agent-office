@@ -26,7 +26,7 @@ const hand = md => ({ md, shift: 0 });
 const edit = (md, pairs) => pairs.reduce((s, [a, b]) => { if (typeof a === 'string' && !s.includes(a)) throw new Error('edit target missing: ' + a); return s.replace(a, b); }, md);
 
 const README = read('README.md'), GUIDE = read('docs/GUIDE.md'), PERM = read('docs/permissions.md'), SCHED = read('docs/scheduler.md'),
-  AGENTS = read('docs/agents-and-memory.md'), CHANGELOG = read('CHANGELOG.md');
+  AGENTS = read('docs/agents-and-memory.md'), PARTY = read('docs/party.md'), CHANGELOG = read('CHANGELOG.md');
 const GUARD = read('docs/security-guard.md').split(/\n## For maintainers/)[0];
 
 const installMd = edit(section(README, 'Install').md, [
@@ -76,6 +76,7 @@ const GROUPS = [
     { slug: 'agents-and-memory', title: 'Agents and memory', lead: 'The team, the hiring gate and per-agent memory and history.', src: [body(AGENTS)] },
     { slug: 'goals-and-reports', title: 'Goals, reports and the vault', lead: 'The Today board, reports with PDF and Excel export, and the memory corkboard.', src: [section(GUIDE, 'Goals, Today and Reports')] },
     { slug: 'island', title: 'The island, Tiro and the tray', lead: 'The notch-style overlay, the desktop character, the tray menu and keyboard use.', src: [section(GUIDE, 'The island', { keepHeading: true }), section(GUIDE, 'Tiro on your desktop', { keepHeading: true }), section(GUIDE, 'Tray', { keepHeading: true }), section(GUIDE, 'Keyboard and accessibility', { keepHeading: true })] },
+    { slug: 'party', title: 'Party and the meeting room', lead: 'Play together, and talk by voice in the meeting room: what others see and how listen only works.', src: [body(PARTY)] },
     { slug: 'scheduler', title: 'Scheduler', lead: 'The scheduler station, the job and the inbox feed file.', src: [body(SCHED)] },
   ] },
   { name: 'Safety', pages: [

@@ -43,7 +43,7 @@ export function createNowPlaying(onChange, { script = SCRIPT, spawnFn = spawn } 
     p.stdout.on('data', d => { retry = 0; buf += d; const lines = buf.split('\n'); buf = lines.pop(); for (const l of lines) if (l.trim()) emit(parseLine(l)); });
     p.stdin.on('error', () => {});
     p.on('error', () => {});
-    p.on('exit', () => { if (proc === p) proc = null; emit(null); if (!stopped) { timer = setTimeout(launch, Math.min(60000, 2000 * 2 ** retry++)); timer.unref?.(); } });
+    p.on('exit', () => { if (proc !== p) return; proc = null; emit(null); if (!stopped) { timer = setTimeout(launch, Math.min(60000, 2000 * 2 ** retry++)); timer.unref?.(); } });
   }
   return {
     start() { stopped = false; launch(); },

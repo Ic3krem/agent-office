@@ -36,6 +36,22 @@ test('createNowPlaying emits on change only, restarts nothing when stopped, cont
   np.stop(); assert.equal(got.at(-1), null);
 });
 
+test('createNowPlaying: a late exit from a stopped poller does not clear its replacement', async () => {
+  const { EventEmitter } = await import('node:events');
+  const { PassThrough } = await import('node:stream');
+  if (process.platform !== 'win32') return; // poller is Windows only
+  const made = [], got = [];
+  const spawnFn = () => { const p = new EventEmitter(); p.stdout = new PassThrough(); p.stdin = new PassThrough(); p.kill = () => { setTimeout(() => p.emit('exit'), 5); }; made.push(p); return p; };
+  const np = createNowPlaying(n => got.push(n), { spawnFn });
+  np.start(); np.stop(); np.start();
+  assert.equal(made.length, 2);
+  made[1].stdout.write('{"id":"Spotify.exe","status":"Playing","title":"A","artist":"B"}\n');
+  await new Promise(r => setTimeout(r, 40)); // the old poller's exit arrives in here
+  assert.equal(got.at(-1) && got.at(-1).title, 'A', "the new poller's track is not cleared");
+  assert.equal(np.control('next'), true, 'the new poller is still the current one');
+  np.stop();
+});
+
 test('island settings: new boolean prefs default on and reject non-booleans', () => {
   assert.equal(DEFAULT_SETTINGS.nowPlaying && DEFAULT_SETTINGS.kiroFace && DEFAULT_SETTINGS.animate, true);
   const s = normalizeSettings({ nowPlaying: false, kiroFace: 'no', animate: false });

@@ -52,6 +52,8 @@ export const ACTIONS = {
   settings: { icon: '⚙', label: 'Settings', kind: 'panel' },
 };
 export const MAX_PINNED = 8;
+// Home page cards of the notch (order = display order, absent = hidden). Same list as public/notch-core.js CARDS.
+export const HOME_CARDS = ['approvals', 'agents', 'calendar', 'timer', 'notes', 'music', 'trackers', 'performance'];
 export const DEFAULT_SETTINGS = {
   theme: 'ember', accent: '#ffcf6b', physics: 'default',
   pinned: ['today', 'reports', 'usage', 'chat', 'calendar', 'settings'],
@@ -60,7 +62,17 @@ export const DEFAULT_SETTINGS = {
   nowPlaying: true, kiroFace: true, animate: true, powerSaver: true, lyrics: false, // lyrics are opt-in: turning them on sends title, artist, album and duration to lrclib.net
   notchEnabled: true,   // the notch (island overlay) exists; off removes the window and everything that serves it
   notchShortcut: '',    // optional global shortcut that toggles the notch; empty = no shortcut (default)
+  look: 'glass',        // 'glass' (system blur where available, else CSS glass) or 'solid' (opaque)
+  homeCards: ['approvals', 'agents', 'calendar', 'timer', 'notes'],
+  gameMode: 'auto',     // game mode (Windows): 'auto' (a game in front), 'always' or 'never'
+  games: [],            // the user's own game process names (see gameName)
 };
+export const GAME_MODES = ['auto', 'always', 'never'];
+// A user-typed process name -> its lower-case base name ("Cyberpunk2077.exe" -> "cyberpunk2077"; spaces become '_', as perf.ps1 reports them), or '' if invalid.
+export function gameName(s) {
+  const n = typeof s === 'string' ? s.trim().toLowerCase().replace(/\.exe$/, '').replace(/\s+/g, '_') : '';
+  return /^[a-z0-9._-]{1,40}$/.test(n) ? n : '';
+}
 
 // Lyrics became opt-in. The old default (true) was written into kiro.json by every settings patch, so a stored true cannot be told apart from a
 // choice; it is switched off once (marker lyricsOptInV2), and any later explicit choice is kept. A stored false stays false.
@@ -143,6 +155,10 @@ export function normalizeSettings(raw) {
     lyrics: typeof r.lyrics === 'boolean' ? r.lyrics : d.lyrics,
     notchEnabled: typeof r.notchEnabled === 'boolean' ? r.notchEnabled : d.notchEnabled,
     notchShortcut: validAccelerator(r.notchShortcut) ? canonicalAccelerator(r.notchShortcut) : d.notchShortcut,
+    look: r.look === 'solid' ? 'solid' : d.look,
+    homeCards: Array.isArray(r.homeCards) ? [...new Set(r.homeCards.filter(k => HOME_CARDS.includes(k)))].slice(0, 8) : [...d.homeCards],
+    gameMode: GAME_MODES.includes(r.gameMode) ? r.gameMode : d.gameMode,
+    games: Array.isArray(r.games) ? [...new Set(r.games.map(gameName).filter(Boolean))].slice(0, 50) : [],
   };
 }
 // A patch changes only the keys it names (so the page can send one knob at a time).

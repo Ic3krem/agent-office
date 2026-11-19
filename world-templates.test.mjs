@@ -85,7 +85,7 @@ test('the page tplSlug matches the server slug (overwrite check)', async () => {
 // Town step 2: the karinderya and game hall interiors.
 const interior = (sc) => JSON.parse(fs.readFileSync(new URL('./public/world-templates/interior-' + sc + '.json', import.meta.url), 'utf8'));
 test('interior templates validate, keep their scene, and spawn by their door', () => {
-  for (const sc of ['kain', 'games']) {
+  for (const sc of ['kain', 'games', 'meet']) {
     const l = interior(sc), v = WM.validate(J(l));
     assert.deepEqual(J(v), { ok: true, errors: [] }, sc);
     assert.equal(l.scene, sc);
@@ -97,6 +97,9 @@ test('interior templates validate, keep their scene, and spawn by their door', (
   }
   assert.ok(interior('kain').objects.some((o) => o.type === 'karinderya'));
   const types = new Set(interior('games').objects.map((o) => o.type));
+  const meet = interior('meet'), seats = meet.objects.filter((o) => /^meet-chair/.test(o.type));
+  assert.ok(meet.objects.some((o) => o.type === 'meet-table'), 'meet has its table');
+  assert.ok(seats.length >= 8 && new Set(seats.map((o) => o.spot)).size === seats.length, 'meet has 8+ seats, each with its own spot');
   for (const t of ['arcade', 'arcade-race', 'jukebox', 'sofa3', 'snack-table', 'beanbag', 'dartboard', 'hoop', 'toy-bin']) assert.ok(types.has(t), 'games has ' + t);
 });
 

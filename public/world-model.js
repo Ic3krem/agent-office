@@ -9,6 +9,7 @@
   // to any copy drawn away from the type anchor).
   const PARAMS = {};
   for (const p of F.defaultInstances()) for (const k of Object.keys(p)) (PARAMS[p.type] = PARAMS[p.type] || new Set(['id', 'type', 'x', 'y', 'home'])).add(k);
+  for (const t of ['meet-chair', 'meet-chair-s']) PARAMS[t] = new Set(['id', 'type', 'x', 'y', 'home', 'spot']); // meet pieces are in no default layout
   PARAMS['dept-desk'].add('role'); // a desk added in build mode names its role; a built-in desk implies it
   const SPOT_FIELDS = new Set(['id', 'x', 'y', 'face', 'zone', 'seat', 'desk', 'game']);
 
@@ -82,10 +83,10 @@
     home: (v, l) => Array.isArray(v) && v.length === 2 && inside(v[0], v[1], l), col: v => typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v),
     spot: short, desk: short, role: short,
   };
-  // Interiors (town step 2) carry scene: 'kain' | 'games'; the office layout has no scene field.
-  const INTERIORS = ['kain', 'games'];
+  // Interiors (town step 2) carry scene: 'kain' | 'games' | 'meet'; the office layout has no scene field.
+  const INTERIORS = ['kain', 'games', 'meet'];
   function malformed(l) {
-    if ('scene' in l && !INTERIORS.includes(l.scene)) return 'scene must be kain or games (the office has none)';
+    if ('scene' in l && !INTERIORS.includes(l.scene)) return 'scene must be kain, games or meet (the office has none)';
     if (!obj(l.size) || !(l.size.w > 0 && l.size.w <= MAX) || !(l.size.h > 0 && l.size.h <= MAX)) return 'size needs w and h in 1..' + MAX;
     if (!obj(l.spawn) || !inside(l.spawn.x, l.spawn.y, l)) return 'spawn needs numeric x and y inside the world';
     for (const k of ['zones', 'objects', 'spots']) {

@@ -727,3 +727,13 @@ test('kain: friends eat on free stools; six own eaters take the stools back and 
   const o = travelWorld(null); o.at(late + 3600e3); o.OW.setSnapshot(s); o.OW.advance(0.1);
   assert.ok(!J(o.OW.debug().agents.map(a => a.id)).some(id => id.startsWith('friend:')));
 });
+
+test('animOn: decorative animation is off under reduced motion, Power saver and the Low preset (15 fps)', () => {
+  const on = { reduced: false, saver: false, fps: 30 };
+  assert.equal(M.animOn(on), true);
+  assert.equal(M.animOn({ ...on, fps: 0 }), true); // graphics not applied yet
+  assert.equal(M.animOn({ ...on, reduced: true }), false);
+  assert.equal(M.animOn({ ...on, saver: true }), false);
+  assert.equal(M.animOn({ ...on, fps: 15 }), false);
+  assert.equal(M.animOn({}), true);
+});

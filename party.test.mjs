@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { feedOf, cleanOffice, cleanAvatar, cleanName, cleanChat, bubbleOf, LIMITS } from './party/protocol.mjs';
+import { feedOf, cleanOffice, cleanAvatar, cleanName, cleanChat, bubbleOf, cleanRtc, cleanEmote, EMOTES, LIMITS } from './party/protocol.mjs';
 import { createParty, startParty, limiter } from './party/server.mjs';
 
 const SECRET = 'rm -rf C:\\Users\\me\\secret-plan.txt sk-ant-api03-XYZ';
@@ -344,4 +344,235 @@ test('party end: the host ends the party and every member hears it', () => {
   for (const n of ['Ana', 'Ben']) { const j = P.join({ code: 'END001', name: n }, n); P.attach(P.member(j.body.token), ev => ev && got.push(n + ':' + ev.t)); }
   got.length = 0; P.end();
   assert.deepEqual(got.sort(), ['Ana:ended', 'Ben:ended']);
+});
+test('cleanRtc: shape, caps, and no smuggling', () => {
+  const sdp = 'v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\n';
+  assert.deepEqual(cleanRtc({ to: 'abc123', kind: 'offer', data: sdp, extra: 1 }), { to: 'abc123', kind: 'offer', data: sdp });
+  assert.equal(cleanRtc({ to: 'abc123', kind: 'offer', data: 'hello there' }), null);
+  assert.equal(cleanRtc({ to: 'abc123', kind: 'offer', data: 'v=0\r\n' + 'a'.repeat(8192) }), null);
+  assert.ok(cleanRtc({ to: 'abc123', kind: 'ice', data: 'candidate:1 1 udp 2122260223 192.0.2.1 54321 typ host' }));
+  assert.deepEqual(cleanRtc({ to: 'abc123', kind: 'ice', data: '' }), { to: 'abc123', kind: 'ice', data: '' });
+  assert.equal(cleanRtc({ to: 'abc123', kind: 'ice', data: 'candidate:' + 'x'.repeat(512) }), null);
+  assert.equal(cleanRtc({ to: 'abc123', kind: 'ice', data: 'candidate:1 \u0000 evil' }), null);
+  assert.equal(cleanRtc({ to: '../x', kind: 'ice', data: '' }), null);
+  assert.equal(cleanRtc({ to: 'abc123', kind: 'chat', data: '' }), null);
+});
+test('cleanAvatar: meet room carries mic and hand, other rooms drop them', () => {
+  assert.deepEqual(cleanAvatar({ x: 1, y: 2, room: 'meet', mic: 'on', hand: true }), { x: 1, y: 2, room: 'meet', presence: 'available', mic: 'on', hand: true });
+  // final review F2: no mic means not in the call (still on the card); an invalid value is dropped like an absent one (was: defaulted to 'listen')
+  assert.equal('mic' in cleanAvatar({ room: 'meet', mic: 'shouting' }), false);
+  assert.equal('mic' in cleanAvatar({ room: 'meet' }), false);
+  assert.equal(cleanAvatar({ room: 'meet', mic: 'listen' }).mic, 'listen');
+  assert.equal('mic' in cleanAvatar({ room: 'town', mic: 'on', hand: true }), false);
+  assert.equal('hand' in cleanAvatar({ room: 'town', mic: 'on', hand: true }), false);
+});
+test('cleanEmote: index into the fixed list only', () => {
+  assert.equal(EMOTES.length, 6); assert.equal(cleanEmote(5), 5);
+  for (const bad of [6, -1, 1.5, '1', null, 'wave']) assert.equal(cleanEmote(bad), null);
+});
+test('cleanRtc: ice is one line, SDP lines are all type=value', () => {
+  assert.equal(cleanRtc({ to: 'abc123', kind: 'ice', data: 'candidate:1 1 udp 1 192.0.2.1 5 typ host\r\nsecret words' }), null);
+  assert.equal(cleanRtc({ to: 'abc123', kind: 'offer', data: 'v=0\r\nhello there\r\n' }), null);
+  const sdp = 'v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:0\r\n';
+  assert.deepEqual(cleanRtc({ to: 'abc123', kind: 'answer', data: sdp }), { to: 'abc123', kind: 'answer', data: sdp });
+});
+
+// voice meeting room: slots and relays (createParty directly, fake clock, per-member send spies)
+function voiceRoom(n, room = 'meet') {
+  let t = 1000; const P = createParty({ code: 'VOICE1', now: () => t }), ms = [], ev = [];
+  for (let i = 0; i < n; i++) {
+    const m = P.member(P.join({ code: 'VOICE1', name: 'M' + i }, '10.0.0.' + i).body.token), got = [];
+    P.attach(m, e => got.push(e)); ms.push(m); ev.push(got);
+    if (room) { t += 10; P.avatar(m, { x: 1, y: 1, room }); }
+  }
+  return { P, ms, ev, tick: ms_ => { t += ms_; } };
+}
+const lastVoice = got => got.filter(e => e.t === 'voice').at(-1)?.ids;
+
+test('voice: first 8 into the room hold slots; the ninth waits and is promoted when one leaves', () => {
+  const { P, ms, ev } = voiceRoom(9);
+  assert.deepEqual(lastVoice(ev[0]), ms.slice(0, 8).map(m => m.id));
+  assert.deepEqual(P.hello(ms[8]).voice, ms.slice(0, 8).map(m => m.id));
+  assert.deepEqual(P.hello(ms[8]).caps, ['voice']);
+  assert.equal(P.hello(ms[0]).members.find(x => x.id === ms[1].id).voice, true);
+  assert.equal(P.hello(ms[0]).members.find(x => x.id === ms[8].id).voice, false);
+  P.avatar(ms[0], { x: 1, y: 1, room: 'town' });
+  assert.deepEqual(lastVoice(ev[8]), ms.slice(1, 9).map(m => m.id));
+});
+
+test('voice: a slot holder is not displaced, and reap/kick/leave free the slot', () => {
+  const { P, ms, ev, tick } = voiceRoom(8);
+  const ids = ms.map(m => m.id), n0 = ev[0].filter(e => e.t === 'voice').length;
+  const nine = P.member(P.join({ code: 'VOICE1', name: 'Nine' }, '10.0.1.1').body.token); P.attach(nine, () => {});
+  P.avatar(nine, { x: 1, y: 1, room: 'meet' });
+  assert.deepEqual(lastVoice(ev[0]), ids, 'a newcomer never displaces a holder');
+  assert.equal(ev[0].filter(e => e.t === 'voice').length, n0, 'no change, no event');
+  assert.ok(P.kick(ids[1]));
+  assert.deepEqual(lastVoice(ev[0]), [ids[0], ...ids.slice(2), nine.id]);
+  P.leave(ms[2]);
+  assert.deepEqual(lastVoice(ev[0]), [ids[0], ...ids.slice(3), nine.id]);
+  P.detach(ms[3], ms[3].send); tick(91_000); P.reap();
+  assert.ok(!lastVoice(ev[0]).includes(ids[3]), 'a reaped holder frees the slot');
+});
+
+test('rtc: relayed to the addressed slot holder only, never stored', () => {
+  const { P, ms, ev } = voiceRoom(3, 'meet'); P.avatar(ms[2], { x: 1, y: 1, room: 'town' });
+  const [a, b, c] = ms, [ea, eb, ec] = ev;
+  // 3 members in meet would all hold slots; c walked to town and holds none
+  assert.deepEqual(P.rtc(a, { to: b.id, kind: 'ice', data: '' }), { ok: true });
+  assert.deepEqual(eb.at(-1), { t: 'rtc', from: a.id, kind: 'ice', data: '' });
+  assert.equal(ec.some(e => e.t === 'rtc'), false); assert.equal(ea.some(e => e.t === 'rtc'), false);
+  assert.equal(JSON.stringify(P.hello(b)).includes('"rtc"'), false, 'never stored');
+});
+
+test('rtc: refused when sender or target has no slot, or the body is not clean', () => {
+  const { P, ms, ev } = voiceRoom(3, 'meet'); P.avatar(ms[2], { x: 1, y: 1, room: 'town' });
+  const [a, b, c] = ms, n = () => ev.flat().filter(e => e.t === 'rtc').length;
+  for (const [from, body] of [[c, { to: b.id, kind: 'ice', data: '' }], [a, { to: c.id, kind: 'ice', data: '' }], [a, { to: b.id, kind: 'ice', data: 'hi' }], [a, { to: 'nobody', kind: 'ice', data: '' }]]) {
+    assert.equal(P.rtc(from, body).ok, false); assert.equal(n(), 0);
+  }
+});
+
+test('emote: reaches people in the room only, fixed list only', () => {
+  const { P, ms, ev } = voiceRoom(3, 'meet'); P.avatar(ms[2], { x: 1, y: 1, room: 'town' });
+  const [a, b, c] = ms;
+  assert.equal(P.emote(a, { emote: 2 }), true);
+  assert.deepEqual(ev[1].at(-1), { t: 'emote', id: a.id, emote: 2 });
+  assert.equal(ev[2].some(e => e.t === 'emote'), false);
+  assert.equal(ev[0].some(e => e.t === 'emote'), false, 'not echoed to the sender (its page drew it already)');
+  assert.equal(P.emote(a, { emote: 9 }), false);
+  assert.equal(P.emote(c, { emote: 1 }), false);
+  assert.equal(ev[2].some(e => e.t === 'emote'), false);
+});
+
+test('rtc/emote: a kicked holder, a self-addressed message, and a waiting ninth member are all refused', () => {
+  const { P, ms, ev } = voiceRoom(9);
+  const [a, b] = ms, nine = ms[8], ok = { kind: 'ice', data: '' }, n = () => ev.flat().filter(e => e && (e.t === 'rtc' || e.t === 'emote')).length;
+  assert.equal(P.rtc(a, { to: a.id, ...ok }).ok, false, 'not to yourself');
+  assert.equal(P.rtc(nine, { to: b.id, ...ok }).ok, false, 'a waiter cannot send');
+  assert.equal(P.rtc(a, { to: nine.id, ...ok }).ok, false, 'a waiter cannot be addressed');
+  assert.equal(n(), 0);
+  P.kick(a.id);
+  assert.equal(P.rtc(a, { to: b.id, ...ok }).ok, false, 'a kicked member holds nothing');
+  assert.equal(P.emote(a, { emote: 1 }), false);
+  assert.equal(n(), 0);
+});
+
+test('http: /rtc has its own limiter (burst 60), not the general one', async () => {
+  const { server, port } = await startParty({ port: 0, host: '127.0.0.1', code: 'RTCLIM', adminKey: 'r'.repeat(32) });
+  const U = p => 'http://127.0.0.1:' + port + p;
+  const post = (p, body, h) => fetch(U(p), { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(body) });
+  try {
+    const join = async n => { const j = await (await post('/join', { code: 'RTCLIM', name: n })).json(); const h = { authorization: 'Bearer ' + j.token }; await post('/avatar', { avatar: { x: 1, y: 1, room: 'meet' } }, h); return { id: j.id, h }; };
+    const a = await join('A'), b = await join('B');
+    const body = { to: b.id, kind: 'ice', data: '' }, codes = [];
+    for (let i = 0; i < 40; i++) codes.push((await post('/rtc', body, a.h)).status);
+    assert.deepEqual([...new Set(codes)], [200], '40 back to back are fine');
+    codes.push(...(await Promise.all(Array.from({ length: 120 }, () => post('/rtc', body, a.h)))).map(r => r.status));
+    assert.ok(codes.includes(429), 'a flood past the burst is limited');
+  } finally { server.close(); }
+});
+
+test('client voice: caps, voice ids, signals re-cleaned, host-old on a 404 /rtc', async () => {
+  const { createPartyClient } = await import('./party-client.mjs');
+  const json = (b, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } });
+  const SDP = 'v=0\r\ns=-\r\n';
+  const mk = ({ events, rtcStatus = 200 }) => {
+    const signals = [];
+    const fetchImpl = async (u, o) => {
+      const p = new URL(u).pathname;
+      if (p === '/join') return json({ token: 'a'.repeat(48), id: 'ab', name: 'Ana', party: 'P' });
+      if (p === '/leave') return json({});
+      if (p === '/rtc') return json({ ok: rtcStatus === 200 }, rtcStatus);
+      if (p === '/events') return new Response(new ReadableStream({ start: c => { for (const e of events) c.enqueue(new TextEncoder().encode('data: ' + JSON.stringify(e) + '\n\n')); o.signal.addEventListener('abort', () => c.error(o.signal.reason)); } }));
+      return json({});
+    };
+    return { signals, A: createPartyClient({ fetchImpl, onSignal: s => signals.push(s) }) };
+  };
+  const until = async (f, ms = 4000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise(r => setTimeout(r, 20)); } };
+  const hello = extra => ({ t: 'hello', you: 'ab', members: [], chat: [], ...extra });
+  // an older server: no caps in the hello
+  let c = mk({ events: [hello()] });
+  try { await c.A.join('http://party.test', 'X', 'Ana'); await until(() => c.A.view().live); assert.equal(c.A.view().voice.support, 'host-old'); } finally { await c.A.leave(); }
+  // a voice server: ids and mine follow hello and voice events; signals pass only when clean
+  c = mk({ events: [hello({ caps: ['voice'], voice: ['cd'] }), { t: 'voice', ids: ['ab', 'cd'] },
+    { t: 'rtc', from: 'cd', kind: 'offer', data: 'not an sdp' }, { t: 'rtc', from: 'bad id!', kind: 'offer', data: SDP },
+    { t: 'rtc', from: 'cd', kind: 'offer', data: SDP }, { t: 'emote', id: 'cd', emote: 2 }, { t: 'emote', id: 'cd', emote: 99 }] });
+  try {
+    await c.A.join('http://party.test', 'X', 'Ana');
+    await until(() => c.signals.length >= 2);
+    assert.deepEqual(c.signals, [{ type: 'rtc', from: 'cd', kind: 'offer', data: SDP }, { type: 'emote', id: 'cd', emote: 2 }]);
+    assert.deepEqual(c.A.view().voice, { support: 'ok', ids: ['ab', 'cd'], mine: true });
+    assert.equal((await c.A.rtc({ to: 'cd', kind: 'answer', data: SDP })).ok, true);
+  } finally { await c.A.leave(); }
+  // /rtc 404: the host predates voice
+  c = mk({ events: [hello({ caps: ['voice'] })], rtcStatus: 404 });
+  try {
+    await c.A.join('http://party.test', 'X', 'Ana'); await until(() => c.A.view().live);
+    assert.equal((await c.A.rtc({ to: 'cd', kind: 'answer', data: SDP })).ok, false);
+    assert.equal(c.A.view().voice.support, 'host-old');
+  } finally { await c.A.leave(); }
+});
+
+test('F3: the app stops holding a voice slot when its last meeting-room page closes; a reload takes it back', async () => {
+  const [fs, os, path, http, crypto, { spawn }, { fileURLToPath }] = await Promise.all(['node:fs', 'node:os', 'node:path', 'node:http', 'node:crypto', 'node:child_process', 'node:url'].map(m => import(m)));
+  const { server: ps, party, port: pport } = await startParty({ port: 0, host: '127.0.0.1', code: 'GHOST1', adminKey: 'g'.repeat(32) });
+  const eve = party.member(party.join({ code: 'GHOST1', name: 'Eve' }, '9.9.9.9').body.token), evs = []; party.attach(eve, e => e && evs.push(e));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-ghost-')), uiKey = crypto.randomBytes(24).toString('hex'), port = 47400 + Math.floor(Math.random() * 400);
+  const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], { env: { ...process.env, USERPROFILE: tmp, HOME: tmp, APPDATA: tmp, LOCALAPPDATA: tmp, AGENT_OFFICE_PORT: String(port), AGENT_OFFICE_UI_KEY: uiKey, AGENT_OFFICE_NO_TUNNEL: '1', CLAUDE_CODE_PATH: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  let out = ''; child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
+  const until = async (f, ms = 15000, what = '') => { const t = Date.now(); while (!(await f())) { if (Date.now() - t > ms) throw new Error('timed out ' + what + ': ' + out.slice(-300)); await new Promise(r => setTimeout(r, 50)); } };
+  const streams = [];
+  try {
+    await until(() => /running on http:\/\/localhost:\d+/.test(out), 20000);
+    const p = +/running on http:\/\/localhost:(\d+)/.exec(out)[1], cookie = 'ao_ui=' + uiKey;
+    const page = await fetch('http://127.0.0.1:' + p + '/', { headers: { cookie } });
+    const nonce = /ao_nonce=([0-9a-f]+)/.exec(page.headers.get('set-cookie'))[1]; await page.text();
+    const post = (u, b) => fetch('http://127.0.0.1:' + p + u, { method: 'POST', headers: { cookie, 'x-nonce': nonce, 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json());
+    const open = q => new Promise(ok => { const req = http.get({ host: '127.0.0.1', port: p, path: '/api/stream' + q, headers: { cookie } }, res => { res.resume(); ok(req); }); streams.push(req); });
+    const avatar = () => evs.filter(e => e.t === 'avatar').at(-1)?.avatar, holders = () => evs.filter(e => e.t === 'voice').at(-1)?.ids || [];
+    assert.ok((await post('/api/party/join', { url: 'http://127.0.0.1:' + pport, code: 'GHOST1', name: 'Ann' })).party);
+    const island = await open(''); // another page on the stream (the island) does not keep the room alive
+    let meet = await open('?meet=1');
+    await until(async () => { await post('/api/party/avatar', { x: 5, y: 5, room: 'meet', mic: 'on' }); return holders().length === 1; });
+    assert.deepEqual(avatar(), { x: 5, y: 5, room: 'meet', presence: 'available', mic: 'on' });
+    meet.destroy(); // the office window closes (or crashes)
+    await until(() => holders().length === 0, 15000, 'waiting for the slot to be freed');
+    assert.equal(avatar().room, 'home'); assert.equal('mic' in avatar(), false);
+    await post('/api/party/avatar', { x: 6, y: 6, room: 'meet', mic: 'on' }); // R2: a late post from the closing window, processed after its stream closed
+    await until(() => avatar().x === 6, 15000, 'waiting for the late avatar');
+    assert.equal(avatar().room, 'home', 'no room page open: not in the room'); assert.equal(holders().length, 0);
+    meet = await open('?meet=1'); // a reload: the page opens its stream again, then posts its avatar
+    await post('/api/party/avatar', { x: 5, y: 5, room: 'meet', mic: 'muted' });
+    await until(() => holders().length === 1);
+    assert.equal(avatar().mic, 'muted'); island.destroy();
+  } finally { streams.forEach(s => s.destroy()); child.kill(); ps.close(); ps.closeAllConnections(); try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }
+});
+
+test('F5: polls answered early by queued events are not rate limited (trickle ICE over long poll); empty re-polls still are', async () => {
+  const { server, port } = await startParty({ port: 0, host: '127.0.0.1', code: 'POLL06', adminKey: 'p'.repeat(32), pollMs: 3000 });
+  const U = p => 'http://127.0.0.1:' + port + p, post = (p, b, h = {}) => fetch(U(p), { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(b) });
+  try {
+    const join = async n => { const j = await (await post('/join', { code: 'POLL06', name: n })).json(); const h = { authorization: 'Bearer ' + j.token }; await post('/avatar', { avatar: { x: 1, y: 1, room: 'meet', mic: 'listen' } }, h); return { id: j.id, h }; };
+    const a = await join('A'), b = await join('B'), poll = () => fetch(U('/poll'), { headers: a.h });
+    await (await poll()).json(); // the hello
+    const codes = [], got = [];
+    for (let i = 0; i < 40; i++) { // one setup message per poll, as trickle ICE does: each one ends the held poll at once
+      const p = poll(); await new Promise(r => setTimeout(r, 10));
+      await post('/rtc', { to: a.id, kind: 'ice', data: 'candidate:' + i }, b.h);
+      const r = await p; codes.push(r.status); if (r.ok) got.push(...(await r.json()).filter(e => e.t === 'rtc').map(e => e.data));
+    }
+    assert.deepEqual([...new Set(codes)], [200], 'no 429');
+    assert.equal(got.length, 40, 'every setup message arrived');
+    const st = await Promise.all(Array.from({ length: 14 }, () => poll().then(r => r.status))); // empty re-polls (each replaces the last): limited
+    assert.ok(st.includes(429), st.join());
+    await new Promise(r => setTimeout(r, 2500)); // refill the bucket
+    const rs = []; for (let i = 0; i < 14; i++) { const r = await fetch(U('/poll?resync=1'), { headers: a.h }); rs.push(r.status); await r.text(); } // R1: a resync answers with a full hello at once
+    assert.ok(rs.includes(429), 'resync polls are always limited: ' + rs.join());
+  } finally { server.close(); server.closeAllConnections(); }
+});
+
+test('R3: the office page re-posts its avatar on every stream (re)connect, so a dropped meet stream does not leave it out of the room', async () => {
+  const fs = await import('node:fs'), html = fs.readFileSync(new URL('./public/Agent Office.html', import.meta.url), 'utf8');
+  assert.match(html, /this\.es\.onopen=\(\)=>\{this\.avKey='';/); // source check: the page is not loadable under node
 });

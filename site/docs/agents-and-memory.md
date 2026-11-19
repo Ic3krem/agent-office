@@ -2,7 +2,7 @@
 
 The team, the hiring gate and per-agent memory and history.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 Everything here describes Agent Office 1.2.8. Source files are named so each claim can be checked.
 

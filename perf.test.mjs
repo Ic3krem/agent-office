@@ -95,6 +95,17 @@ test('snapshot gate: identical snapshots are skipped, hidden windows are coalesc
   g.reset(); assert.equal(g.decide('d', true), 'send', 'a new client gets the current state');
 });
 
+test('snapshot gate: a new approval or hire is pushed at once even while every window is hidden', () => {
+  let t = 0; const g = createSnapshotGate({ hiddenMs: 3000, now: () => t });
+  assert.equal(g.decide('a', false, ''), 'send');
+  t = 500; assert.equal(g.due(false, ''), false); assert.equal(g.decide('b', false, ''), 'wait', 'ordinary changes still coalesce');
+  t = 600; assert.equal(g.due(false, 'ask-1'), true); assert.equal(g.decide('c', false, 'ask-1'), 'send', 'a new ask skips the wait');
+  t = 700; assert.equal(g.decide('d', false, 'ask-1'), 'wait', 'the same ask set does not keep flushing');
+  t = 800; assert.equal(g.decide('e', false, ''), 'send', 'an answered ask also flushes, so the notch can close');
+  const s = fs.readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  assert.match(s, /gate\.due\(uiState\.visible, urgent\)/); assert.match(s, /gate\.decide\(data, uiState\.visible, urgent\)/);
+});
+
 test('snapshot size budget at 8 agents: logs only in full for the selected agent and Tiro', () => {
   const mk = (id, isManager = false) => ({ id, isManager, name: id, status: 'working', logs: Array.from({ length: 60 }, (_, i) => ({ t: '12:00:00', k: 'tool', text: 'Bash: some command number ' + i + ' '.repeat(80) })) });
   const agents = [mk('boss', true), ...Array.from({ length: 8 }, (_, i) => mk('a' + i))];
@@ -225,8 +236,8 @@ test('wiring: server, desktop shell and dashboard use the new pieces', () => {
   assert.match(s, /pruneIdle\(/);
   assert.ok(!/\/api\/(visibility|select)/.test((s.match(/const DECISIONS = new Set\(\[[^\]]*\]\)/) || [''])[0]), 'harmless endpoints need no nonce but do need the UI cookie');
   assert.match(m, /reportVisibility/); assert.match(m, /\/api\/visibility/); assert.match(m, /ao_ui=/);
-  assert.match(m, /isleMode\(\) === 'smart' \? 200 : 1000/); assert.doesNotMatch(m, /setInterval\(\(\) => applyMgrName\(\), 3000\)/); assert.match(m, /fs\.watch\(CFG_DIR/);
-  assert.match(m, /np\.start\(\)[^\n]*island\.isVisible\(\)|island\.isVisible\(\) && !isle\.fs\) np\.start\(\)/);
+  assert.match(m, /alive\(\) && \(island\.isVisible\(\) \|\| isle\.away\) \? 150 : 1000/); assert.doesNotMatch(m, /setInterval\(\(\) => applyMgrName\(\), 3000\)/); assert.match(m, /fs\.watch\(CFG_DIR/);
+  assert.match(m, /np\.start\(\)[^\n]*island\.isVisible\(\)|\(island\.isVisible\(\) \|\| isle\.away\) && !isle\.fs\) np\.start\(\)/);
   assert.match(m, /watchFullscreen\(on && m === 'smart'\)/);
   assert.match(h, /api\('\/api\/select'/);
 });

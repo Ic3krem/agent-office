@@ -49,7 +49,7 @@ test('CodeQL and dependency review are skipped, not failed, on a private reposit
 });
 
 test('lyrics are opt-in end to end: default off in the logic, the page and the docs; migration runs at start; now playing sends nothing', () => {
-  const main = read('./desktop/main.mjs'), page = read('./public/island.html');
+  const main = read('./desktop/main.mjs'), page = ['island.html', 'notch-core.js', 'notch-views.js', 'notch-page.js'].map(f => read('./public/' + f)).join('\n');
   assert.match(main, /migrateLyricsPrefs\(migrateNotchPrefs\(readForWrite\(KIRO_FILE/);
   assert.match(page, /animate: true, powerSaver: true, lyrics: false, notchEnabled/); assert.match(page, /S\.lyrics === true/);
   assert.match(page, /Lyrics are off until you turn them on/);

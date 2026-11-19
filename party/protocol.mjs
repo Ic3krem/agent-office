@@ -1,11 +1,13 @@
 // Party wire format (phase 7), shared by the party server and the app. Both sides run every message through these
 // cleaners: the app before anything leaves the machine, the server before anything is stored or relayed. Only what is
 // listed here can ever cross: office layout, looks, avatar position, presence, and per agent a display name, a role key,
-// a state and one generic bubble from a fixed list. Never task text, prompts, tool input, file paths or reports.
+// a state and one generic bubble from a fixed list; also connection setup data (SDP and ICE candidates, which contain IP
+// addresses), to the addressed member only, and one reaction from a fixed list. Never task text, prompts, tool input, file paths or reports.
 export const BUBBLES = ['Coding…', 'Researching…', 'Running a command', 'Writing a report', 'Reviewing', 'Thinking…', 'Waiting for approval', 'On break', 'Idle'];
 export const STATES = ['working', 'idle', 'blocked', 'limited', 'error'];
 export const PRESENCE = ['available', 'busy', 'working', 'away'];
-export const LIMITS = { name: 20, chat: 200, agents: 16, members: 16, layoutBytes: 300_000, body: 400_000, chatKeep: 50 };
+export const LIMITS = { name: 20, chat: 200, agents: 16, members: 16, layoutBytes: 300_000, body: 400_000, chatKeep: 50, sdp: 8192, ice: 512, voice: 8 };
+export const EMOTES = ['wave', 'clap', 'laugh', 'heart', 'thumbs', 'party'];
 
 const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const KEY = /^[a-z][a-z0-9-]{1,15}$/;
@@ -77,9 +79,22 @@ export function cleanMusic(m) {
 const coord = v => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(4000, Math.round(v))) : 0;
 export function cleanAvatar(a) {
   if (!plain(a)) return null;
-  const room = ['lounge', 'town', 'kain', 'games'].includes(a.room) || (typeof a.room === 'string' && /^office:[a-z0-9]{1,16}$/.test(a.room)) ? a.room : 'home';
-  return { x: coord(a.x), y: coord(a.y), room, presence: PRESENCE.includes(a.presence) ? a.presence : 'available' };
+  const room = ['lounge', 'town', 'kain', 'games', 'meet'].includes(a.room) || (typeof a.room === 'string' && /^office:[a-z0-9]{1,16}$/.test(a.room)) ? a.room : 'home';
+  const out = { x: coord(a.x), y: coord(a.y), room, presence: PRESENCE.includes(a.presence) ? a.presence : 'available' };
+  // in the meet room: mic only once joined to voice (absent = still on the card, not in the call); hand only if raised
+  if (room === 'meet') { if (['on', 'muted', 'listen'].includes(a.mic)) out.mic = a.mic; if (a.hand === true) out.hand = true; }
+  return out;
 }
+// Meeting-room voice setup (WebRTC): an offer/answer SDP or one ICE candidate for one member, printable ASCII only, capped. Relayed, never stored.
+const PRINTABLE = /^[\x20-\x7e\r\n]*$/;
+export function cleanRtc(v) {
+  if (!plain(v) || typeof v.to !== 'string' || !/^[A-Za-z0-9_-]{1,16}$/.test(v.to) || typeof v.data !== 'string') return null;
+  const { kind, data } = v, ice = kind === 'ice';
+  if (!ice && kind !== 'offer' && kind !== 'answer') return null;
+  if (data.length > (ice ? LIMITS.ice : LIMITS.sdp) || !PRINTABLE.test(data) || (ice ? data !== '' && (!data.startsWith('candidate:') || /[\r\n]/.test(data)) : !data.startsWith('v=0') || data.split(/\r?\n/).some(l => l && !/^[a-z]=/.test(l)))) return null;
+  return { to: v.to, kind, data };
+}
+export const cleanEmote = v => Number.isInteger(v) && v >= 0 && v < EMOTES.length ? v : null;
 
 // What the app shares about its own office, built from its snapshot: the generic bubble comes from the agent's status and
 // the kind of its latest activity, never from its text. ids are hashed so session ids never leave the machine.

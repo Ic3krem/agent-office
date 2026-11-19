@@ -209,3 +209,13 @@ test('zone labels: GARDEN, PARK and PLAYROOM only when a zone of that type exist
   assert.deepEqual(labels(J(w.WorldModel.officeLayout().zones)), ['GARAGE']);
   assert.deepEqual(labels(null), ['GARAGE'], 'no zones yet: the office as it now is, never the old playroom and garden');
 });
+
+test('meet is an interior: its template validates, and its chairs give 10 unique seat spots by the table', () => {
+  const l = JSON.parse(fs.readFileSync(new URL('./public/world-templates/interior-meet.json', import.meta.url), 'utf8'));
+  assert.deepEqual(J(WM.validate(J(l))), { ok: true, errors: [] });
+  assert.match(errs((x) => { x.scene = 'nope'; }), /scene must be kain, games or meet/);
+  M.useLayout(J(l));
+  const seats = Object.values(J(WM.spotsOf(l))).filter((s) => s.seat);
+  assert.equal(seats.length, 10);
+  assert.ok(seats.every((s) => /^meet:\d+$/.test(s.id) && s.zone === 'meet' && Math.abs(s.x - 300) <= 100));
+});

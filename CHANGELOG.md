@@ -3,6 +3,38 @@
 Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 to 1.2.3 were internal installer builds with no git tag; their changes first reached git in the 1.2.4 branch, so they are grouped below. Where an entry names a version it comes from the project's own specs; otherwise the exact build is not recorded.
 
 
+## 2.1.0 — The notch, and a meeting room with voice (2026-11-20)
+
+**What's new**
+
+- **The island is now a notch.** A small panel fixed to the top centre of the screen, flat against the top edge with rounded bottom corners. Closed, it shows Tiro's eyes and the time, or one line for what is next (a meeting within 15 minutes, a timer, the song) with the approvals count. Open, it is a wide panel with tabs: **Home** (cards you choose and order), **Approvals**, **Agents**, **Calendar**, **Timer**, **Notes**, **Music**, **Trackers** and **Performance**. Settings moved behind the gear on the tab row. See the user guide, "The island".
+- **Glass or Solid.** Glass uses the system's real blur on Windows 11 (22H2 or later) and macOS, and a drawn glass look elsewhere; Solid is opaque. Switching recreates the notch window; your settings stay.
+- **Calendar from a private link.** Paste your calendar's private ICS link (Outlook: publish a calendar; Google Calendar: "Secret address in iCal format"). Today's and tomorrow's events show on the Calendar tab and the Home card, with **Join** for Teams, Zoom, Google Meet and Webex links. Read only, refreshed every 15 minutes. **The link is a secret:** it is stored encrypted with the OS key storage, never logged or shown again, and sent only to its own host.
+- **Timers and notes.** Named countdowns, a stopwatch and a Pomodoro cycle; a finished timer chimes once and shows in the closed notch. A plain list of notes. Both stay on this PC (`notch-store.json`) and survive a restart.
+- **Trackers.** Plan use (5-hour session and weekly), API value of today's and the week's tokens, output tokens today, and your own daily counters. A plan gauge that cannot be read says **Not available**, never 0%.
+- **Game mode (Windows).** With a borderless game in front, the closed notch shows frame rate, GPU load, GPU temperature and CPU load, and opens on Performance. An approval then shows only as a count on that line instead of opening the notch over the game. Auto, Always or Never in Settings, plus your own list of games.
+- **Frame rate** comes from Intel's PresentMon 2.6.0 (MIT), shipped with the app and checked by its SHA-256 before every start. It needs your account in the Windows **Performance Log Users** group: **Settings, Turn on FPS** adds you after one administrator prompt, then sign out and back in. Optional; without it Performance shows load and temperature.
+
+**Upgrade notes**
+
+- **Settings carry over.** A 2.0 `kiro.json` keeps its theme, pinned actions, shortcut and every other island setting; the new settings (`look`, `homeCards`, `gameMode`, `games`) start at their defaults (Glass, the five default Home cards, Auto, none).
+- **Y and N answer only the approval card you have focused**, never while you type in a field.
+- **Not in this version:** calendar sign-in, editing events, syncing notes or timers, an overlay inside exclusive-fullscreen games, and frame rate on macOS or Linux.
+
+**Meeting room with voice**
+
+- **A meeting room with voice.** In a party, the town has a **Meeting room** lot. Inside, people talk by voice: a card asks **Join with microphone**, **Listen only** or **Leave**. The room lists who is there (speaking, on, muted, listen only, or not joined while still on the card), **M** mutes and unmutes, keys **1** to **6** send a reaction and **H** raises your hand; others see them over your avatar for about 3 seconds. Avatars sit down on the seats, and a door and a soft chime mark someone coming in or leaving. Up to 8 people have voice; the next one sees "Voice is full". Background music pauses and party music is turned down while you are in the room, and both come back when you leave. See `docs/party.md`.
+- **Voice is direct between apps.** The audio goes straight from app to app (WebRTC, encrypted); the party server only passes the short connection setup messages between people in the room and never receives the audio. Nothing is recorded. **The people in the room and the public STUN servers (`stun.l.google.com`, `stun.cloudflare.com`) can see your IP address.** When a network blocks direct calls, the room says "Can't connect to …"; an optional **relay server** (TURN) can be set in the Party panel and stays on your PC.
+- **Listen only** never opens your microphone; press M later to talk. Coming back into the room in the same session you are muted, and the microphone is not opened until you press M.
+- **Reaction and hand icons use your system's emoji font**, so they look different on Windows, macOS and Linux.
+- **Animations in the room** (reactions popping and rising, the speaking bob, the door swinging, the smooth sit-down) are **off under Power saver (which is on by default), reduced motion and the Low graphics preset**; reactions and hands still show, without motion, and avatars sit at once.
+- **The entrance chime follows the music setting:** with background music off or at volume 0 it is silent (and with reduced motion).
+
+**Upgrade notes (meeting room)**
+
+- **Microphone and other permissions are now an explicit allow-list.** The desktop app used to grant web permissions by default. It now refuses every permission except: the microphone, only for audio-only requests from the app's own page in the main window (camera is never allowed); clipboard writing for the app's own page (Copy invite link); and protected-media playback for Spotify. macOS asks for microphone access the first time you join with your microphone.
+- **Voice needs a 2.1 host.** With a host on TiroAgents 2.0 (or a Docker party server built before 2.1), the room says "The host needs TiroAgents 2.1 for voice"; everything else in the party works as before. Rebuild the Docker party image from `party/` to update it.
+
 ## 2.0.0 — TiroAgents (2026-11-17)
 
 Agent Office is now **TiroAgents**, named after Tiro, the manager agent. This is the first stable v2 release, for Windows, macOS and Linux; it follows the 2.0.0 beta pre-releases. The installers are still unsigned (Windows SmartScreen and macOS Gatekeeper warn); the release manifest is signed as before, so updates are verified.

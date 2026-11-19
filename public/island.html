@@ -1,82 +1,128 @@
 <!doctype html>
-<html>
+<html data-form="transparent" data-look="glass" data-view="closed">
 <head>
 <meta charset="utf-8">
 <title>Tiro Island</title>
 <style>
-  :root { --bg: #0b0807; --card: #17110e; --line: #261d17; --tile: #2a211b; --ink: #f0e4d4; --dim: #a8998a; --accent: #ffcf6b; --ok: #5fd38d; --warn: #ffb547; --bad: #ff7a6b; --mute: #8f8174; }
-  *:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 6px; }
-  #isle:focus-visible, #pill:focus-visible { outline-offset: -2px; }
+  :root { --bg: #0b0807; --card: #17110e; --line: #261d17; --tile: #2a211b; --ink: #f0e4d4; --dim: #a8998a; --accent: #ffcf6b; --ok: #5fd38d; --warn: #ffb547; --bad: #ff7a6b; --mute: #8f8174; --top: 0px;
+    --tint: rgba(14,16,20,.55); --glass: color-mix(in srgb, var(--bg) 84%, transparent); --cardbg: color-mix(in srgb, var(--card) 72%, transparent); }
+  html[data-light] { --tint: rgba(246,241,234,.85); --mute: #7d6f62; }
+  html[data-form=material] { --top: 12px; } /* the material window hangs 12 px above the screen: keep content out of it */
+  *:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 8px; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font: 13px/1.35 'Instrument Sans', 'Segoe UI', sans-serif; color: var(--ink); user-select: none; }
-  /* The island hangs from the top edge of the screen, centred. Width/height are driven by a spring in JS. */
-  #isle { position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: var(--bg); border-radius: 0 0 22px 22px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 -1px 0 rgba(255,255,255,.06); outline: none; }
-  #isle { transition: opacity .25s, transform .25s; }
-  #isle.away { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(-14px); } /* Smart mode: idle, fullscreen app, or not peeked */
-  #isle::after { content: ''; position: absolute; inset: 0; box-sizing: border-box; border: 1px solid var(--glow, transparent); border-top-color: transparent; border-radius: inherit; pointer-events: none; transition: border-color .3s; }
-  #isle[data-tone=work] { --glow: var(--accent); }
-  #isle[data-tone=ask] { --glow: rgba(255,181,71,.9); }
-  #isle[data-tone=done] { --glow: rgba(95,211,141,.85); }
-  #isle[data-tone=off] { --glow: rgba(255,255,255,.12); }
-  #in { max-height: 430px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; position: absolute; top: 0; left: 50%; transform: translateX(-50%); box-sizing: border-box; padding: 0; }
-  .pill { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; white-space: nowrap; cursor: pointer; }
+  /* The notch hangs from the top edge, centred. Transparent form: this div is the shape (spring-sized in JS, bottom corners rounded).
+     Material form: the window is the shape (the OS rounds its corners); the div fills it and only darkens the system blur. */
+  #notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); overflow: hidden; outline: none; box-sizing: border-box; }
+  html[data-form=transparent][data-look=glass] #notch { background: linear-gradient(180deg, rgba(255,255,255,.03), transparent 40%), var(--glass); box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
+  html[data-form=transparent][data-look=solid] #notch { background: var(--bg); box-shadow: inset 0 -1px 0 rgba(255,255,255,.06); }
+  html[data-form=material] #notch { inset: 0; left: 0; transform: none; width: 100% !important; height: 100% !important; border-radius: 0 !important; background: var(--tint); }
+  #notch::after { content: ''; position: absolute; inset: 0; box-sizing: border-box; border: 1px solid var(--glow, transparent); border-top-color: transparent; border-radius: inherit; pointer-events: none; transition: border-color .3s; }
+  html[data-form=material] #notch::after { inset: auto 22px 0; height: 2px; border: 0; border-radius: 2px; background: var(--glow, transparent); } /* no outer border on the OS shape: a glow line along the bottom */
+  #notch[data-tone=work] { --glow: var(--accent); } #notch[data-tone=ask] { --glow: rgba(255,181,71,.9); } #notch[data-tone=done] { --glow: rgba(95,211,141,.85); }
+  #closed, #open { position: absolute; left: 0; right: 0; bottom: 0; top: var(--top); }
+  html[data-view=open] #closed, html:not([data-view=open]) #open { display: none; }
+  #open { display: flex; flex-direction: column; }
+  #open.enter { animation: openin .22s ease-out; } @keyframes openin { from { opacity: 0; transform: translateY(-8px); } }
+  .ic { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  /* closed: eyes and the time; line: what is next on the left, the approvals count on the right */
+  .pill { display: flex; align-items: center; justify-content: center; gap: 10px; height: 100%; padding: 0 14px; white-space: nowrap; cursor: pointer; box-sizing: border-box; }
+  .pill.line, .pill.game { justify-content: flex-start; }
+  .pill .tm { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .pill .lt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+  .pill .rt { font-size: 12px; font-weight: 600; color: var(--warn); }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #6b5a48; flex: none; }
   [data-tone=work] .dot { background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
   [data-tone=ask] .dot { background: var(--warn); animation: pulse .6s ease-in-out infinite; }
   [data-tone=done] .dot { background: var(--ok); }
   @keyframes pulse { 50% { transform: scale(1.5); opacity: .6; } }
-  .pill .txt { flex: 1; max-width: 380px; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
-  .pill .cnt { font-size: 11px; color: var(--dim); }
-  .pill .cnt b { color: var(--warn); }
-  .body { padding: 4px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+  /* open: the bar (eyes, tabs, notice, date/time, pin, settings) and the page below it */
+  .bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px 4px; flex: none; }
+  [role=tablist] { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+  [role=tab] { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 11px; border: 0; border-radius: 12px; background: transparent; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; flex: none; }
+  [role=tab]:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  [role=tab][aria-selected=true] { color: var(--ink); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  [role=tab][aria-selected=true] .ic { color: var(--accent); }
+  .badge { min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--warn); color: #241505; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; box-sizing: border-box; }
+  .note-s { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--dim); }
+  .now { text-align: right; font-size: 12px; line-height: 1.2; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; } .now b { display: block; font-size: 14px; color: var(--ink); font-weight: 600; }
+  .round { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--cardbg); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; flex: none; }
+  .round:hover { border-color: var(--dim); } .round[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  #page { flex: 1; min-height: 0; overflow: auto; padding: 4px 14px 12px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; user-select: text; }
+  /* Home: cards side by side; they scroll sideways rather than shrink below 200 px */
+  .cards { display: flex; gap: 10px; height: 100%; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .card { flex: 1 1 200px; min-width: 200px; max-width: 360px; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--cardbg); border: 1px solid var(--line); box-sizing: border-box; overflow: hidden; }
+  .card > header { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .card > header span { flex: 1; } .card > header .ic { color: var(--accent); }
+  .link { border: 0; background: transparent; color: var(--dim); font: inherit; font-size: 11px; letter-spacing: 0; text-transform: none; cursor: pointer; min-height: 40px; padding: 0 6px; border-radius: 8px; } .link:hover { color: var(--ink); }
+  .big { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 18px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); margin-top: 4px; }
   .label small { font-weight: 400; letter-spacing: 0; text-transform: none; margin-left: 6px; }
-  .ses, .goal { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 9px; background: var(--card); border: 1px solid var(--line); min-width: 0; }
+  .ses, .goal { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 9px; background: var(--cardbg); border: 1px solid var(--line); min-width: 0; }
+  .card .ses, .card .goal { padding: 4px 0; background: none; border: 0; }
   .ses .nm { font-weight: 600; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ses .tk { flex: 1; min-width: 0; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-  .ses .st { font-size: 11px; color: var(--dim); }
-  .ses .st.working { color: var(--accent); } .ses .st.blocked, .ses .st.error { color: var(--bad); }
-  .goal { color: var(--ink); font-size: 12px; } .goal span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ask { padding: 9px; border-radius: 10px; background: #2a1d0c; border: 1px solid #8a5a1c; display: flex; flex-direction: column; gap: 6px; }
+  .ses .st { font-size: 11px; color: var(--dim); } .ses .st.working { color: var(--accent); } .ses .st.blocked, .ses .st.error { color: var(--bad); }
+  .goal { font-size: 12px; } .goal span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ask { padding: 9px; border-radius: 10px; background: #2a1d0c; border: 1px solid #8a5a1c; display: flex; flex-direction: column; gap: 6px; color: #f6e7d2; }
   .ask .who { font-size: 12px; color: var(--warn); }
   .ask code { display: block; padding: 6px 8px; border-radius: 6px; background: #120c05; color: #ffd28a; font: 12px/1.4 Consolas, 'IBM Plex Mono', monospace; word-break: break-all; max-height: 64px; overflow: hidden; }
-  .row { display: flex; gap: 6px; align-items: center; }
-  .btn { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; transition: transform .12s cubic-bezier(.3,1.6,.5,1), background .15s; }
-  .btn:hover { background: var(--tile); transform: translateY(-1px); } .btn:active { transform: scale(.95); }
-  .btn.yes { background: var(--ok); border-color: var(--ok); color: #0c2416; font-weight: 600; }
-  .btn.yes:hover { background: #7be3a6; }
-  .btn.no { border-color: var(--bad); color: #ff9a8d; }
+  .card .ask code { max-height: 38px; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .btn { min-height: 40px; min-width: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: transform .12s cubic-bezier(.3,1.6,.5,1), background .15s; }
+  .ask .btn { color: #f6e7d2; border-color: #5a3d17; }
+  .btn:hover { background: var(--tile); transform: translateY(-1px); } .btn:active { transform: scale(.95); } .btn:disabled { opacity: .35; pointer-events: none; }
+  .btn.yes, .ask .btn.yes { background: var(--ok); border-color: var(--ok); color: #0c2416; font-weight: 600; } .btn.yes:hover { background: #7be3a6; }
+  .btn.no, .ask .btn.no { border-color: var(--bad); color: #ff9a8d; }
+  .ask input.why { min-height: 40px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: 1px solid #5a3d17; background: #120c05; color: #f6e7d2; font: inherit; font-size: 12px; }
   kbd { font: 10px Consolas, monospace; opacity: .65; margin-left: 4px; }
   .empty { color: var(--mute); font-size: 12px; padding: 2px 0; }
-  .dock { display: flex; gap: 6px; justify-content: center; padding-top: 4px; border-top: 1px solid var(--line); margin-top: 2px; }
-  .dock .btn { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 70px; padding: 7px 10px; border-radius: 12px; background: var(--card); }
-  .dock .ic { font-size: 17px; line-height: 1; } .dock .lb { font-size: 11px; color: var(--dim); }
-  .dock .btn:hover { transform: translateY(-4px) scale(1.08); }
+  .trow, .nrow { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 0; }
+  .trow .tn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; } .trow .tn small { color: var(--mute); }
+  .tl { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; } .trow.done .tl { color: var(--accent); }
+  .gauge, .crow { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; align-items: center; gap: 2px 8px; padding: 3px 0; }
+  .gauge .gl { font-size: 12px; } .gv { font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; } .gv small { font-weight: 400; color: var(--accent); }
+  .gauge .gn { grid-column: 1 / -1; color: var(--mute); font-size: 11px; }
+  .gbar { height: 6px; border-radius: 3px; background: var(--tile); overflow: hidden; } .gbar i { display: block; height: 100%; background: var(--accent); }
+  .ftstrip { display: block; width: 100%; height: 30px; margin: 2px 0 4px; background: var(--tile); border-radius: 4px; } .ftstrip rect { fill: var(--accent); } /* static: redrawn with new values, never animated */
+  .crow { grid-template-columns: minmax(0, 1fr) 70px auto auto auto auto; } .crow .tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .ntxt { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 0; }
+  .col input[type=text], .col input[type=password], .col input[type=number], .card input[type=text] { min-height: 40px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--cardbg); color: var(--ink); font: inherit; font-size: 12px; outline: none; }
+  .col input[type=text]:focus, .col input[type=password]:focus, .col input[type=number]:focus, .card input[type=text]:focus { border-color: var(--accent); }
+  .nrow input[type=text] { flex: 1; min-width: 0; } input[type=number] { width: 64px; }
+  .num { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--dim); } .num input { width: 80px; }
+  .dock { display: flex; gap: 6px; flex-wrap: wrap; }
+  .dock .btn { flex-direction: column; gap: 2px; min-width: 70px; padding: 6px 10px; border-radius: 12px; background: var(--cardbg); }
+  .dock .lb { font-size: 11px; color: var(--dim); }
   form.chat { display: none; gap: 6px; } form.chat.on { display: flex; }
-  form.chat input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; outline: none; }
-  form.chat input:focus { border-color: #6b5a48; }
-  .tabs { display: flex; gap: 4px; } .tabs .btn { padding: 3px 10px; font-size: 12px; } .tabs .btn.on { background: var(--tile); border-color: var(--accent); }
-  .clock { display: flex; gap: 22px; align-items: baseline; justify-content: center; }
+  form.chat input, .set input[type=text] { min-height: 40px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--cardbg); color: var(--ink); font: inherit; font-size: 12px; outline: none; }
+  form.chat input { flex: 1; min-width: 0; } form.chat input:focus, .set input[type=text]:focus { border-color: var(--accent); }
+  .clock { display: flex; gap: 22px; align-items: baseline; }
   .clock b { font-size: 34px; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; } .clock small { font-size: 11px; color: var(--dim); margin-left: 5px; }
   .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-size: 12px; }
-  .cal .h { color: var(--dim); font-size: 11px; } .cal .d { padding: 4px 0; border-radius: 7px; font-variant-numeric: tabular-nums; } .cal .d.today { background: var(--accent); color: var(--bg); font-weight: 700; }
+  .cal .h { color: var(--dim); font-size: 11px; } .cal .d { padding: 3px 0; border-radius: 7px; font-variant-numeric: tabular-nums; } .cal .d.today { background: var(--accent); color: var(--bg); font-weight: 700; }
   .calhead { display: flex; align-items: center; justify-content: space-between; } .calhead b { font-size: 13px; }
-  .set { display: flex; align-items: center; justify-content: space-between; gap: 10px; } .set > span:first-child { color: var(--dim); font-size: 12px; min-width: 110px; flex: none; } .set > span:last-child:not(:first-child) { text-align: right; min-width: 0; overflow-wrap: anywhere; user-select: text; }
-  .chips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; align-items: center; } .chips .btn { padding: 3px 9px; font-size: 12px; } .chips .btn.on { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
-  .chips .btn.sw { width: 18px; height: 18px; padding: 0; border-radius: 50%; }
-  .set input[type=color] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--line); background: transparent; border-radius: 6px; }
-  .set input[type=text] { width: 200px; max-width: 100%; box-sizing: border-box; padding: 4px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 12px; outline: none; }
-  .hint { font-size: 11px; color: var(--mute); text-align: center; }
-  .note { padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4; user-select: text; }
-  .note.warn { background: #2a1d0c; border: 1px solid #8a5a1c; color: #ffd28a; }
+  .settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px 22px; align-items: start; }
+  .sect { display: flex; flex-direction: column; gap: 6px; }
+  .set { display: flex; align-items: center; justify-content: space-between; gap: 10px; } .set > span:first-child { color: var(--dim); font-size: 12px; flex: 1 1 90px; } .set > span:last-child:not(:first-child) { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: center; } .chips .btn { padding: 0 10px; } .chips .btn.on, .hc .btn.on { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+  .btn.sw { padding: 0; border-color: transparent; } .btn.sw::before { content: ''; width: 18px; height: 18px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--ring, transparent); }
+  .btn.sw[aria-pressed=true] { --ring: var(--ink); }
+  .set input[type=color] { width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); background: transparent; border-radius: 10px; }
+  .set input[type=text] { width: 190px; max-width: 100%; }
+  .hc { display: flex; align-items: center; gap: 6px; } .hc > span { flex: 1; font-size: 12px; } .hc.off > span { color: var(--mute); }
+  .hint { font-size: 11px; color: var(--mute); }
+  .note { padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4; }
   .note.bad { background: #2a1210; border: 1px solid #7a2e26; color: #ffb1a6; }
-  .sect { display: flex; flex-direction: column; gap: 8px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   /* Tiro face: two eyes on a small tile. JS sets --lx/--ly (look) and toggles .blink; data-mood drives the CSS animations. */
   .face { position: relative; display: none; font-size: 4px; gap: 1em; align-items: center; justify-content: center; width: 6em; height: 4.5em; border-radius: 1.75em; background: var(--tile); flex: none; --lx: 0px; --ly: 0px; --bl: 1; --eh: 1.75em; --ew: 1em; }
-  .face.big { font-size: 5.5px; } /* compact notch: the eyes are the whole display, so they are bigger */
+  .face.big { font-size: 5px; } /* closed notch: the eyes are most of the display, so they are bigger */
   html[data-face=on] .face { display: inline-flex; } html[data-face=on] .dot { display: none; }
   .face .eye { width: var(--ew); height: var(--eh); border-radius: .75em; background: var(--accent); transform: translate(var(--lx), var(--ly)) scaleY(var(--bl)); transition: transform .18s ease-out, height .2s, width .2s, background .2s, border-radius .2s; }
   .face.blink { --bl: .12; } .face.blink .eye { transition-duration: .06s; }
-  .face[data-mood=idle] { animation: breathe 4.2s ease-in-out infinite; } /* data-anim goes off while idle and collapsed (power saver), which stops this */
+  .face[data-mood=idle] { animation: breathe 4.2s ease-in-out infinite; } /* data-anim goes off while idle and closed (power saver), which stops this */
   .face[data-mood=work] .eye { animation: scan .9s ease-in-out infinite alternate; }
   .face[data-mood=ask] { animation: nudge .6s ease-in-out infinite; --eh: 2.25em; } .face[data-mood=ask] .eye { background: var(--warn); }
   .face[data-mood=done] { --eh: .75em; --ew: 1.25em; } .face[data-mood=done] .eye { border-radius: 1.25em 1.25em 0 0; background: var(--ok); }
@@ -87,408 +133,38 @@
   @keyframes nudge { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-1.5px); } 75% { transform: translateX(1.5px); } }
   @keyframes bob { from { transform: translateY(1px) rotate(-4deg); } to { transform: translateY(-2px) rotate(4deg); } }
   @keyframes sway { from { translate: -.4em 0; } to { translate: .4em 0; } }
-  /* Idle breathing of the notch edge glow, and the entrance animations (classes are added by JS only on a state change, never on a plain re-render). */
-  .body.enter { animation: bodyin .24s ease-out; } @keyframes bodyin { from { opacity: 0; transform: translateY(-6px); } }
-  .np { display: inline-flex; align-items: center; gap: 6px; max-width: 190px; padding: 2px 8px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font-size: 12px; color: var(--dim); overflow: hidden; flex: none; }
-  .np.enter { animation: chipin .35s cubic-bezier(.3,1.4,.5,1); } @keyframes chipin { from { opacity: 0; max-width: 0; padding: 2px 0; transform: translateX(14px); } }
-  .np .npt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .media { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .media .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; } .media .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .media .a { font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .media.large .t { font-size: 22px; } .media.large .a { font-size: 13px; } .media.large .lyr { font-size: 18px; margin-top: 10px; white-space: normal; }
   .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; flex: none; } .eq i { width: 2px; height: 3px; background: var(--accent); border-radius: 1px; animation: eq .8s ease-in-out infinite alternate; }
   .eq i:nth-child(2) { animation-delay: -.3s; } .eq i:nth-child(3) { animation-delay: -.6s; } @keyframes eq { to { height: 11px; } }
-  .pill.hasnp .txt { max-width: 230px; }
-  /* Compact notch: the Tiro eyes only. While music plays, title + artist (subtle) and the synced lyric line sit beside them in a fixed-width block, so the notch never wobbles as lines change. */
-  .pill.compact { justify-content: center; min-width: 80px; box-sizing: border-box; gap: 10px; }
-  .pill.compact.hasmus { width: 440px; justify-content: flex-start; height: auto; min-height: 36px; padding: 6px 16px; }
-  .pill.compact.haslyr { min-height: 48px; }
-  .mus { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-  .mus .mt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; line-height: 1.3; }
-  .mus .mt i { font-style: normal; font-weight: 400; font-size: 11px; color: var(--dim); }
-  .lyr { display: block; min-height: 1.3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 1.3; color: var(--ink); opacity: 1; transition: opacity .18s ease; }
+  .eq.still i { animation: none; }
+  .lyr { display: block; min-height: 1.3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.3; color: var(--accent); opacity: 1; transition: opacity .18s ease; }
+  .pill .lyr { color: var(--ink); min-height: 0; flex: 1; min-width: 0; }
   .lyr.out { opacity: 0; }
-  .media .lyr { font-size: 12px; color: var(--accent); min-height: 0; }
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .media { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); min-width: 0; }
-  .media .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; } .media .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .media .a { font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .media .btn { padding: 3px 9px; min-width: 30px; } .media .btn:disabled { opacity: .35; pointer-events: none; }
   html[data-anim=off] *, html[data-anim=off] *::after { animation: none !important; transition: none !important; }
-  @media (prefers-reduced-motion: reduce) { .dot, .btn, .face, .face .eye, .eq i, .np, .body, .lyr, #isle::after { animation: none !important; transition: none !important; } }
+  html[data-still] #open, html[data-still] .btn, html[data-still] #notch::after { animation: none !important; transition: none !important; }
+  @media (prefers-reduced-motion: reduce) { .dot, .btn, .face, .face .eye, .eq i, .lyr, #open, #notch::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
-<div id="isle" data-hit tabindex="-1" data-tone="off" aria-live="polite">
-  <div id="in"></div>
+<div id="notch" tabindex="-1" data-tone="off">
+  <div id="closed"></div>
+  <div id="open">
+    <div class="bar">
+      <span id="faceOpen"></span>
+      <div role="tablist" id="tabs" aria-label="Notch"></div>
+      <span class="note-s" id="notice"></span>
+      <span class="now" id="now"></span>
+      <button class="round" id="pinBtn" aria-label="Keep the notch open" aria-pressed="false"></button>
+      <button class="round" id="setBtn" aria-label="Settings" aria-pressed="false" aria-controls="page"></button>
+    </div>
+    <div id="page" role="tabpanel"></div>
+  </div>
+  <div id="status" class="sr" role="status" aria-live="polite"></div>
 </div>
-<script>
-const nonce = () => (document.cookie.match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
-const desk = window.islandDesk || { guard: { get: async () => null, set: async () => null, remember: async () => null, forget: async () => null }, interactive() {}, office() {}, focus() {}, settings() {}, mute() {}, media() {}, onNowPlaying() {}, onLyrics() {}, update: { get: async () => null, check: async () => null, install: async () => null, set: async () => null, on() {} }, onToggle() {}, onState() {} };
-const $ = id => document.getElementById(id);
-const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const api = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: JSON.stringify(body || {}) })
-  .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
-
-// ---------- spring: a damped oscillator per property, so size changes overshoot slightly and settle ----------
-const spring = (v, k = 230, c = 21) => ({ v, t: v, s: 0, k, c });
-const W = spring(150), H = spring(36), R = spring(18);
-let raf = 0, last = 0, hit = false;
-const reduceMQ = matchMedia('(prefers-reduced-motion: reduce)');
-const still = () => reduceMQ.matches || S.animate === false; // OS reduced-motion or the Animations pref
-function step(now) {
-  const dt = Math.min(0.032, (now - last) / 1000 || 0.016); last = now;
-  let moving = false;
-  for (const p of [W, H, R]) {
-    if (still()) { p.v = p.t; p.s = 0; continue; }
-    p.s += (-p.k * (p.v - p.t) - p.c * p.s) * dt; p.v += p.s * dt;
-    if (Math.abs(p.v - p.t) > .2 || Math.abs(p.s) > .5) moving = true; else { p.v = p.t; p.s = 0; }
-  }
-  const el = $('isle');
-  el.style.width = Math.max(60, W.v) + 'px'; el.style.height = Math.max(24, H.v) + 'px'; el.style.borderRadius = `0 0 ${Math.max(8, R.v)}px ${Math.max(8, R.v)}px`;
-  raf = moving ? requestAnimationFrame(step) : 0;
-  if (!moving && hit && !expanded()) { hit = false; desk.interactive(false); } // collapsed: stop swallowing clicks until the mouse moves again
-}
-function aim(w, h, r) { W.t = w; H.t = h; R.t = r; if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); } }
-
-// ---------- state ----------
-let snap = null, prev = null, online = false;
-let pinned = false, hovered = false, chatOn = false, toast = null, toastTimer = 0, leaveTimer = 0;
-let mode = 'always', mute = false, fsApp = false, peek = false;
-let panel = 'home', calOff = 0; // home | calendar | settings; calOff = months away from the current one
-const DEF = { theme: 'ember', accent: '#ffcf6b', physics: 'default', pinned: ['today', 'reports', 'usage', 'chat'], hour12: false, clockInPill: true, zone2: '', zone2Label: '', weekStart: 1, edgeDelay: 0, leaveDelay: 900, nowPlaying: true, kiroFace: true, animate: true, powerSaver: true, lyrics: false, notchEnabled: true, notchShortcut: '' };
-let S = { ...DEF };
-let lyr = null, lyrIdx = -2, lyrTimer = 0; // synced lyrics {key, lines:[{t,text}]} pushed from the desktop, last shown line index, fade timer
-let np = null, npEnter = false, wasEx = false; // now-playing session (from SMTC), chip entrance flag, previous expanded state
-// Display copy of desktop/island-logic.mjs (the tested, authoritative one); main.mjs validates every patch before it is saved.
-const THEMES = {
-  ember: { bg: '#0b0807', card: '#17110e', line: '#261d17', ink: '#f0e4d4', dim: '#a8998a', accent: '#ffcf6b', tile: '#2a211b' },
-  midnight: { bg: '#080b12', card: '#10151f', line: '#1c2433', ink: '#e4ebf7', dim: '#8d9ab0', accent: '#6bb2ff', tile: '#2a211b' },
-  forest: { bg: '#08100b', card: '#101a14', line: '#1b2a21', ink: '#e1f0e6', dim: '#8aa394', accent: '#6bdb94', tile: '#2a211b' },
-  light: { bg: '#f6f1ea', card: '#ebe3d8', line: '#d9cfc0', ink: '#2a211b', dim: '#6f6256', accent: '#b8620a', tile: '#e0d6c8' },
-};
-const PHYS = { soft: [140, 22], default: [230, 21], snappy: [380, 34], bouncy: [260, 13] };
-const ACT = { today: ['☰', 'Today'], reports: ['▤', 'Reports'], usage: ['◔', 'Usage'], office: ['⌂', 'Office'], chat: ['✎', 'Chat'], calendar: ['▦', 'Calendar'], mute: ['♪', 'Chime'], settings: ['⚙', 'Settings'] };
-const guardText = g => [g.title, 'Rules: ' + (g.rules || []).join(', '), (g.files && g.files.length) ? 'Files: ' + g.files.map(f => f.path + ' (' + f.why + ((f.preview && f.preview.length) ? '; ' + f.preview.slice(0, 3).join(', ') : '') + ')').join('; ') : '', g.host ? 'Destination: ' + g.host : '', g.exact === false ? 'Payload: estimated' : 'Payload: exact', g.source ? 'Source: ' + g.source : '', g.rememberable ? '' : 'This kind of request cannot be remembered.'].filter(Boolean).join('\n');
-let GV = null; // Security Guard settings as the desktop shell reports them (loaded when the Settings tab opens)
-let shortcutOk = true; // false when the desktop could not register the chosen notch shortcut (another program owns it)
-const saver = () => S.powerSaver !== false;
-let curMood = 'idle';
-// Power saver: animations run only while expanded or something is happening (working, asking, music, a toast); an idle collapsed notch holds still.
-function animOn() { return S.animate && !(saver() && !expanded() && (curMood === 'idle' || curMood === 'off' || curMood === 'done')); }
-function syncAnim() { const v = animOn() ? 'on' : 'off'; if (document.documentElement.dataset.anim !== v) document.documentElement.dataset.anim = v; }
-function applySettings(s) {
-  S = { ...DEF, ...s }; try { localStorage.setItem('ao.powerSaver', saver() ? '1' : '0'); } catch (e) { } // shared with the office page and Tiro
-  const t = S.theme === 'custom' ? { ...THEMES.ember, accent: S.accent } : THEMES[S.theme] || THEMES.ember, st = document.documentElement.style;
-  document.documentElement.dataset.face = S.kiroFace ? 'on' : 'off'; syncAnim();
-  for (const k of ['bg', 'card', 'line', 'ink', 'dim', 'accent', 'tile']) st.setProperty('--' + k, t[k]);
-  const [k, c] = PHYS[S.physics] || PHYS.default; for (const p of [W, H, R]) { p.k = k; p.c = c; }
-}
-const clockStr = (zone, d = new Date()) => { try { return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: !!S.hour12, ...(zone ? { timeZone: zone } : {}) }).format(d).replace(/\s?([ap])m$/i, (_m, x) => ' ' + x.toUpperCase() + 'M'); } catch { return ''; } };
-const setPref = patch => desk.settings(patch);
-const dismissed = new Set(); // approvals the user waved away with Esc
-const asksOf = s => (s?.agents || []).filter(a => a.perm);
-const hiresOf = s => s?.hires || [];   // pending hire approvals asked by the manager
-const mgrName = () => snap?.names?.tiro || 'Tiro';
-const working = s => (s?.agents || []).filter(a => a.status === 'working' || a.isManager && s.boss?.running);
-
-
-// ---------- chime: two short synthesized notes (WebAudio, no asset files); ask = rising pair, done = falling pair ----------
-let actx = null;
-function chime(kind) {
-  if (mute || mode === 'off') return;
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === 'suspended') actx.resume();
-    const notes = kind === 'ask' ? [660, 880] : [880, 659], t0 = actx.currentTime + 0.02;
-    notes.forEach((f, i) => {
-      const o = actx.createOscillator(), g = actx.createGain(), t = t0 + i * 0.13;
-      o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.3);
-    });
-  } catch {}
-}
-const askIds = s => new Set(asksOf(s).map(a => a.perm.askId));
-
-function showToast(html, ms = 5500) { toast = html; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast = null; render(); }, ms); render(); }
-function notice(next) {
-  if (!prev) return;
-  const seen = askIds(prev);
-  if ([...askIds(next)].some(id => !seen.has(id))) chime('ask');
-  const before = Object.fromEntries((prev.goals || []).map(g => [g.id, g.status]));
-  for (const g of next.goals || []) {
-    if (!before[g.id]) continue;
-    if (g.status === 'done' && before[g.id] !== 'done') { showToast('<b>Done.</b> ' + esc(g.text.slice(0, 80))); chime('done'); }
-    if (g.status === 'blocked' && before[g.id] !== 'blocked') showToast('<b>Blocked.</b> ' + esc((g.note || g.text).slice(0, 80)), 8000);
-  }
-  if ((next.reportsN || 0) > (prev.reportsN || 0)) showToast('New report ready on the shelf.');
-  if (next.boss?.paused && next.boss.paused !== prev.boss?.paused) showToast('<b>Paused:</b> ' + esc(next.boss.paused), 9000);
-}
-
-// Smart mode shows the island only while something is going on (or hovered / peeked) and never over a fullscreen app.
-const busy = () => !!toast || hiresOf(snap).length > 0 || asksOf(snap).some(a => !dismissed.has(a.perm.askId)) || working(snap).length > 0 || !online;
-const away = () => mode === 'smart' && !(pinned || hovered || chatOn || peek || (!fsApp && busy()));
-function expanded() {
-  const asks = asksOf(snap).filter(a => !dismissed.has(a.perm.askId));
-  return pinned || hovered || chatOn || asks.length > 0 || hiresOf(snap).length > 0;
-}
-
-// Display copy of desktop/lyrics.mjs (lineAt, positionNow); the tested, authoritative one lives there.
-const lineAt = (lines, pos) => { let lo = 0, hi = lines.length - 1, ans = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (lines[m].t <= pos) { ans = m; lo = m + 1; } else hi = m - 1; } return ans; };
-const positionNow = n => { if (!n || !Number.isFinite(n.pos) || !Number.isFinite(n.ts)) return null; const p = n.pos + (n.playing ? Math.max(0, Date.now() - n.ts) : 0); return Number.isFinite(n.dur) && n.dur > 0 ? Math.min(p, n.dur) : p; };
-const lyricsOn = () => !!(S.lyrics === true && S.nowPlaying && np?.playing && lyr && np.key && lyr.key === np.key && lyr.lines.length && positionNow(np) != null);
-function pillHTML(ex) {
-  const asks = asksOf(snap), w = working(snap), open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
-  let txt, tone = 'off', mood = 'idle';
-  const music = S.nowPlaying && np?.playing ? np : null;
-  if (!online) txt = 'Offline';
-  else if (asks.length) { tone = 'ask'; mood = 'ask'; txt = `<b>${esc(asks[0].name)}</b> needs approval`; }
-  else if (hiresOf(snap).length) { tone = 'ask'; mood = 'ask'; txt = `<b>${esc(mgrName())}</b> wants to hire ${esc(hiresOf(snap)[0].name)}`; }
-  else if (toast) { tone = 'done'; mood = 'done'; txt = toast; }
-  else if (w.length) { tone = 'work'; mood = 'work'; const a = w.find(x => !x.isManager) || w[0]; txt = `<b>${esc(a.name)}</b> ${esc((a.task || 'working').slice(0, 60))}`; }
-  else { tone = 'idle'; mood = music ? 'music' : 'idle'; txt = esc(mgrName()) + ' is idle'; }
-  if (!online) mood = 'off';
-  if (!ex) { // compact notch: eyes only (+ music block while a track plays); the status text stays available to screen readers
-    const ly = music && lyricsOn();
-    const mus = music ? `<span class="mus" title="${esc(music.app)}"><span class="mt">${esc(music.title || music.artist)}${music.title && music.artist ? `<i> · ${esc(music.artist)}</i>` : ''}</span>${ly ? '<span class="lyr"></span>' : ''}</span>` : '';
-    return { tone, mood, html: `<div class="pill compact${music ? ' hasmus' : ''}${ly ? ' haslyr' : ''}" id="pill" role="button" aria-label="Tiro island"><span id="faceSlot"></span><span class="dot"></span>${mus}<span class="sr">${txt.replace(/<[^>]+>/g, '')}</span></div>` };
-  }
-  const clk = S.clockInPill ? clockStr('') : '';
-  const live = online && (w.length || open.length || asks.length);
-  const cnt = (online ? `${w.length ? w.length + ' live' : ''}${w.length && open.length ? ' · ' : ''}${open.length ? open.length + ' open' : ''}` + (asks.length ? ` · <b>${asks.length} ask</b>` : '') : '') + (clk ? `${live ? ' · ' : ''}${clk}` : '');
-  const chip = music ? `<span class="np" id="npchip" title="${esc(music.app)}"><span class="eq"><i></i><i></i><i></i></span><span class="npt">${esc(music.title || music.artist)}${music.title && music.artist ? ' · ' + esc(music.artist) : ''}</span></span>` : '';
-  return { tone, mood, html: `<div class="pill${music ? ' hasnp' : ''}" id="pill" role="button" aria-label="Tiro island"><span id="faceSlot"></span><span class="dot"></span><span class="txt">${txt}</span>${chip}<span class="cnt">${cnt}</span></div>` };
-}
-// Lyric line under the title: follows the SMTC position, fades between lines (jumps when motion is reduced). Text is set outside render() so a re-render never restarts the fade.
-function tickLyric(instant) {
-  const els = document.querySelectorAll('.lyr'); if (!els.length || !lyricsOn()) { lyrIdx = -2; return; }
-  const i = lineAt(lyr.lines, positionNow(np)), setAll = () => { const t = lyrIdx >= 0 ? lyr.lines[lyrIdx]?.text || '' : ''; document.querySelectorAll('.lyr').forEach(e => { e.textContent = t; e.title = t; e.classList.remove('out'); }); };
-  if (i === lyrIdx && !instant) return;
-  const first = lyrIdx === -2; lyrIdx = i; clearTimeout(lyrTimer);
-  if (instant || first || still()) return setAll();
-  els.forEach(e => e.classList.add('out')); lyrTimer = setTimeout(setAll, 180);
-}
-(function lyricLoop() { if (lyr && !document.hidden) tickLyric(false); setTimeout(lyricLoop, lyr ? 200 : 1000); })();
-function calendarHTML() {
-  const now = new Date(), d = new Date(now.getFullYear(), now.getMonth() + calOff, 1), y = d.getFullYear(), m = d.getMonth();
-  const lead = (new Date(y, m, 1).getDay() - S.weekStart + 7) % 7, n = new Date(y, m + 1, 0).getDate();
-  const cells = [...Array(lead).fill(0), ...Array.from({ length: n }, (_, i) => i + 1)];
-  const names = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((_, i, a) => a[(i + S.weekStart) % 7]);
-  const isNow = x => x && calOff === 0 && x === now.getDate();
-  const two = S.zone2 ? `<span><b>${esc(clockStr(S.zone2))}</b><small>${esc(S.zone2Label || S.zone2)}</small></span>` : '';
-  return `<div class="clock"><span><b>${esc(clockStr(''))}</b><small>${esc(now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }))}</small></span>${two}</div>
-    <div class="calhead"><button class="btn" data-cal="-1">‹</button><b>${esc(d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }))}</b><button class="btn" data-cal="1">›</button></div>
-    <div class="cal">${names.map(x => `<span class="h">${x}</span>`).join('')}${cells.map(x => `<span class="d ${isNow(x) ? 'today' : ''}">${x || ''}</span>`).join('')}</div>`;
-}
-let upd = null; // update status pushed from the desktop
-function updatesHTML() {
-  if (!upd) return '';
-  const msg = { idle: 'Not checked yet.', current: 'You are up to date.', available: `Version ${esc(upd.available)} is available.`, error: esc(upd.error || 'Check failed.') }[upd.state] || '';
-  const busy = { check: 'Checking...', confirm: 'Waiting for your confirmation...', download: 'Downloading...', install: 'Installing, restarting...' }[upd.busy] || '';
-  const act = upd.state === 'available' && !upd.busy ? `<button class="btn yes" data-upd="install">Update now</button>` : '';
-  const err = upd.error && upd.state !== 'error' ? `<div class="note bad" role="alert">${esc(upd.error)}</div>` : '';
-  return `<div class="sect"><span class="label">Updates</span>
-    <div class="set"><span>Version</span><span>${esc(upd.current)}${upd.available ? ' &rarr; ' + esc(upd.available) : ''}</span></div>
-    <div class="set"><span>Status</span><span>${busy || msg}</span></div>
-    ${err}
-    <div class="set"><span>Check on start</span><div class="chips"><button class="btn ${upd.auto ? 'on' : ''}" data-upd-auto="true">On</button><button class="btn ${upd.auto ? '' : 'on'}" data-upd-auto="false">Off</button></div></div>
-    <div class="set"><span>Source</span><span>GitHub releases of Ic3krem/agent-office (signed)</span></div>
-    <div class="row"><button class="btn" data-upd="check" ${upd.busy ? 'disabled' : ''}>Check now</button>${act}</div></div>`;
-}
-function settingsHTML() {
-  const chips = (key, opts) => `<div class="chips">${opts.map(([v, l]) => `<button class="btn ${S[key] === v ? 'on' : ''}" data-set="${key}" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
-  const sw = Object.keys(THEMES).map(k => `<button class="btn sw" data-set="theme" data-v="${k}" title="${k}" style="background:${THEMES[k].accent};border-color:${S.theme === k ? 'var(--ink)' : THEMES[k].line}"></button>`).join('');
-  const pins = Object.keys(ACT).map(k => `<button class="btn ${S.pinned.includes(k) ? 'on' : ''}" data-pin="${k}">${ACT[k][0]} ${ACT[k][1]}</button>`).join('');
-  const gcat = (c, name) => `<div class="set"><span>${esc(c + ' ' + name)}</span><div class="chips">${['ask', 'log', 'off'].map(m => `<button class="btn ${GV && GV.config[c] === m ? 'on' : ''}" data-guard="${c}" data-v="${m}">${m}</button>`).join('')}</div></div>`;
-  const guardSect = GV ? `<div class="sect"><span class="label">Security Guard</span>${['S', 'Y', 'I', 'U', 'C', 'H', 'X', 'P'].map(c => gcat(c, GV.names[c] || c)).join('')}<div class="hint" style="text-align:left">It only ever asks first (never allows or blocks). Turning a category down shows a confirmation window that only the app can open. ${GV.notices && GV.notices.length ? '<b>A setting was changed outside the app and was kept as ' + esc(GV.notices.map(n => n.what + ':' + n.kept).join(', ')) + '.</b>' : ''}${GV.weakStorage ? '<br><b>Weaker protection on this system (no OS keyring): turn protection down from the Breaker box in Agent Office, where a typed confirmation is required.</b>' : ''}${GV.nodeOnPath === false ? '<br><b>Guard inactive in terminals: Node.js was not found on PATH.</b>' : ''}</div></div>` : '';
-  return `${guardSect}<div class="sect"><span class="label">Notch</span>
-    <div class="set"><span>Notch</span>${chips('notchEnabled', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="set"><span>Toggle shortcut</span><span class="row"><input type="text" data-nshort value="${esc(S.notchShortcut || '')}" placeholder="Ctrl+Alt+N (optional)" aria-label="Global shortcut that turns the notch on or off"></span></div>
-    <div class="hint" style="text-align:left">${shortcutOk ? '' : '<b>That shortcut could not be registered (another program uses it).</b> '}Off closes this window. Turn it back on from the tray menu (Show notch), the dashboard's Breaker box, or the shortcut. The shortcut needs 2 or 3 of Ctrl, Alt, Shift and a letter, digit or F-key; it is empty by default. Ctrl+Alt+K only expands or pins the notch.</div>
-    </div><div class="sect"><span class="label">Appearance</span>
-    <div class="set"><span>Theme</span><div class="chips">${sw}<button class="btn ${S.theme === 'custom' ? 'on' : ''}" data-set="theme" data-v="custom">Custom</button><input type="color" data-color value="${esc(S.accent)}" title="Accent colour"></div></div>
-    <div class="set"><span>Motion</span>${chips('physics', [['soft', 'Soft'], ['default', 'Default'], ['snappy', 'Snappy'], ['bouncy', 'Bouncy']])}</div>
-    <div class="set"><span>Tiro character</span>${chips('kiroFace', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="set"><span>Animations</span>${chips('animate', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="set"><span>Power saver</span>${chips('powerSaver', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="set"><span>Now playing</span>${chips('nowPlaying', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="set"><span>Lyrics</span>${chips('lyrics', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="hint" style="text-align:left">Lyrics are off until you turn them on. When on, the song title, artist, album and length of the playing track are sent to lrclib.net to look up synced lyrics (results are cached on this PC). Nothing else is sent.</div>
-    </div><div class="sect"><span class="label">Clock</span>
-    <div class="set"><span>Format</span>${chips('hour12', [[false, '24h'], [true, '12h']])}</div>
-    <div class="set"><span>Clock in pill</span>${chips('clockInPill', [[true, 'On'], [false, 'Off']])}</div>
-    <div class="set"><span>Second clock</span><span class="row"><input type="text" data-zone value="${esc(S.zone2)}" placeholder="Asia/Tokyo" aria-label="Time zone"><input type="text" data-zlabel value="${esc(S.zone2Label)}" placeholder="Label" style="width:70px" aria-label="Label"></span></div>
-    <div class="set"><span>Week starts</span>${chips('weekStart', [[1, 'Mon'], [0, 'Sun']])}</div>
-    </div><div class="sect"><span class="label">Behaviour</span>
-    <div class="set"><span>Edge delay</span>${chips('edgeDelay', [[0, 'None'], [200, '200ms'], [500, '500ms']])}</div>
-    <div class="set"><span>Close after leave</span>${chips('leaveDelay', [[400, '0.4s'], [900, '0.9s'], [2000, '2s']])}</div>
-    </div><div class="sect"><span class="label">Quick actions<small>click to pin, shown in pinned order</small></span><div class="chips" style="justify-content:flex-start">${pins}</div></div>
-    ${updatesHTML()}
-    <div class="row"><button class="btn" data-reset>Reset to defaults</button></div>`;
-}
-function bodyHTML() {
-  const asks = asksOf(snap);
-  const qstate = (window.__qsel = window.__qsel || {});
-  const qHTML = a => { const st = (qstate[a.perm.askId] = qstate[a.perm.askId] || {}); return a.perm.questions.map((q, qi) => `<div class="q"><span class="who">${esc(q.header ? q.header + ': ' : '')}${esc(q.question)}</span><div class="row">${q.options.map(o => `<button class="btn${(st[qi] || []).includes(o.label) ? ' yes' : ''}" data-qopt="${esc(a.perm.askId)}|${qi}|${esc(o.label)}|${q.multiSelect ? 1 : 0}" title="${esc(o.description)}">${esc(o.label)}</button>`).join('')}</div></div>`).join('') + `<div class="row"><button class="btn yes" data-qsend="${esc(a.perm.askId)}">Send answers</button><button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">Skip</button></div>`; };
-  const askH = asks.map(a => a.perm.questions ? `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} asks you</span>${qHTML(a)}</div>` : `<div class="ask" tabindex="0"><span class="who">${esc(a.name)} wants to run ${esc(a.perm.short)}</span><code>${esc(a.perm.cmd)}</code>${a.perm.preview ? `<pre class="empty" style="max-height:120px;overflow:auto;white-space:pre-wrap;margin:4px 0">${esc(a.perm.preview.slice(0, 1500))}</pre>` : ''}
-    ${a.perm.guard ? `<pre class="empty" style="white-space:pre-wrap;margin:4px 0;color:#ffd28a">${esc(guardText(a.perm.guard))}</pre>` : ''}
-    ${a.perm.why && !a.perm.guard ? `<span class="empty">${esc(a.perm.why.slice(0, 140))}</span>` : ''}
-    <div class="row"><button class="btn yes" data-ask="${esc(a.perm.askId)}" data-d="allow">Yes${a.perm.defaultToNo ? '' : '<kbd>Y</kbd>'}</button>${a.perm.guard?.rememberable ? `<button class="btn" data-ask="${esc(a.perm.askId)}" data-d="allow" data-remember="${esc(a.perm.guard.rememberKey)}" title="Allow this exact action again for 24 hours">Yes, remember this exact action</button>` : ''}${a.perm.canAlways && !a.perm.guard ? `<button class="btn" data-ask="${esc(a.perm.askId)}" data-d="allow" data-always="1" title="Writes the permission rule Claude Code suggests">Yes, and don\'t ask again</button>` : ''}<button class="btn no" data-ask="${esc(a.perm.askId)}" data-d="deny">No<kbd>N</kbd></button><input class="why" data-deny-msg="${esc(a.perm.askId)}" placeholder="No, and tell Claude what to do instead" style="flex:1;min-width:120px"><button class="btn" data-ask="${esc(a.perm.askId)}" data-d="terminal" title="Let the terminal ask instead">Terminal</button></div></div>`).join('');
-  const hireH = hiresOf(snap).map(h => `<div class="ask"><span class="who">${esc(mgrName())} wants to hire ${esc(h.name)} (${esc(h.role)})</span><code>${esc((h.goalText || '').slice(0, 100))}</code><span class="empty">${esc(h.why)}</span>${h.prompt ? `<span class="empty">Full request: ${h.prompt.length} characters</span><pre class="empty" tabindex="0" style="max-height:120px;overflow:auto;white-space:pre-wrap;margin:4px 0">Prompt: ${esc(h.prompt)}</pre>` : ''}
-    <div class="row"><button class="btn yes" data-hire="${esc(h.id)}" data-ok="1">Approve hire</button><button class="btn no" data-hire="${esc(h.id)}" data-ok="0">Deny</button></div></div>`).join('');
-  const ses = (snap?.agents || []).slice(0, 6).map(a => `<div class="ses"><span class="nm">${esc(a.name)}</span><span class="tk">${esc(a.task || a.role || '')}</span><span class="st ${esc(a.status)}">${esc(a.status)}</span></div>`).join('');
-  const open = (snap?.goals || []).filter(g => ['todo', 'doing', 'blocked'].includes(g.status));
-  const goals = open.slice(0, 4).map(g => `<div class="goal"><span>${g.status === 'blocked' ? '⚠ ' : '• '}${esc(g.text.slice(0, 90))}</span></div>`).join('');
-  const dock = S.pinned.filter(k => ACT[k]).map(k => { const l = k === 'reports' && snap?.reportsN ? 'Reports ' + snap.reportsN : k === 'mute' && mute ? 'Muted' : ACT[k][1];
-    return `<button class="btn" data-dock="${k}" title="${esc(l)}"><span class="ic">${ACT[k][0]}</span><span class="lb">${esc(l)}</span></button>`; }).join('');
-  const tabs = `<div class="tabs">${[['home', 'Home'], ['calendar', 'Calendar'], ['settings', 'Settings']].map(([k, l]) => `<button class="btn ${panel === k ? 'on' : ''}" data-panel="${k}">${l}</button>`).join('')}</div>`;
-  const still0 = ' style="animation:none"';
-  const media = S.nowPlaying && np ? `<div class="media"><span class="eq">${np.playing ? '<i></i><i></i><i></i>' : `<i${still0}></i><i${still0}></i><i${still0}></i>`}</span><span class="meta"><span class="t">${esc(np.title || np.artist)}</span><span class="a">${esc([np.artist, np.app].filter(Boolean).join(' · '))}</span>${lyricsOn() ? '<span class="lyr"></span>' : ''}</span>
-    <button class="btn" data-media="prev" title="Previous" ${np.canPrev ? '' : 'disabled'}>⏮</button><button class="btn" data-media="playpause" title="${np.playing ? 'Pause' : 'Play'}" ${np.canPlayPause ? '' : 'disabled'}>${np.playing ? '⏸' : '▶'}</button><button class="btn" data-media="next" title="Next" ${np.canNext ? '' : 'disabled'}>⏭</button></div>` : '';
-  const main = panel === 'calendar' ? calendarHTML() : panel === 'settings' ? settingsHTML() : `${media ? '<span class="label">Now playing</span>' + media : ''}<span class="label">Sessions · ${(snap?.agents || []).length}</span>${ses || '<span class="empty">No live sessions.</span>'}
-    <span class="label">Today · ${open.length} open</span>${goals || '<span class="empty">Nothing open.</span>'}`;
-  return `<div class="body">${tabs}${askH || hireH ? `<span class="label">Waiting for you</span>${askH}${hireH}` : ''}
-    ${main}
-    <form class="chat ${chatOn ? 'on' : ''}" id="chat"><input id="chatIn" placeholder="Tell ${esc(mgrName())} what to do…" autocomplete="off" aria-label="Message ${esc(mgrName())}"><button class="btn yes" type="submit">Send</button></form>
-    <div class="dock">${dock}</div><div class="hint">Ctrl+Alt+K toggles · Esc closes · Y / N answer the focused approval</div></div>`;
-}
-
-let lastKey = '';
-function render() {
-  const ex = expanded(), p = pillHTML(ex);
-  const html = p.html + (ex ? bodyHTML() : '');
-  const el = $('isle'); el.classList.toggle('away', away()); el.dataset.tone = p.tone === 'idle' ? 'off' : p.tone;
-  if (html !== lastKey) {
-    const keep = document.activeElement?.id === 'chatIn' ? $('chatIn').value : null;
-    $('in').innerHTML = html; lastKey = html;
-    if (keep != null) { $('chatIn').value = keep; $('chatIn').focus(); }
-  }
-  // Size targets: compact pill grows to fit its text; expanded measures its content.
-  const slot = $('faceSlot'); if (slot) slot.replaceWith(faceEl);
-  faceEl.dataset.mood = p.mood; faceEl.classList.toggle('big', !ex); curMood = p.mood; syncAnim(); tickLyric(true);
-  if (ex && !wasEx && !still()) $('in').querySelector('.body')?.classList.add('enter');
-  wasEx = ex;
-  if (npEnter) { npEnter = false; if (!still()) $('npchip')?.classList.add('enter'); }
-  const inner = $('in');
-  inner.style.width = ex ? '560px' : 'max-content';
-  const w = ex ? 560 : Math.min(600, Math.max(84, inner.offsetWidth + 4));
-  const h = Math.min(430, Math.max(36, inner.scrollHeight));
-  aim(w, h, ex ? 26 : 18);
-}
-new ResizeObserver(() => { if (expanded()) aim(560, Math.min(430, $('in').scrollHeight), 26); }).observe($('in'));
-
-// ---------- interaction ----------
-const isle = $('isle');
-isle.addEventListener('mouseenter', () => { clearTimeout(leaveTimer); if (!hovered) { hovered = true; render(); } });
-isle.addEventListener('mouseleave', () => { clearTimeout(leaveTimer); leaveTimer = setTimeout(() => { hovered = false; render(); }, S.leaveDelay || 900); hit = false; desk.interactive(false); });
-isle.addEventListener('click', e => {
-  const hb = e.target.closest('[data-hire]');
-  if (hb) { api('/api/hire/decide', { id: hb.dataset.hire, approve: hb.dataset.ok === '1' }).catch(err => showToast(esc(err.message), 4000)); return; }
-  const qo = e.target.closest('[data-qopt]');
-  if (qo) { const [id, qi, label, multi] = qo.dataset.qopt.split('|'); const st = (window.__qsel[id] = window.__qsel[id] || {}); st[qi] = multi === '1' ? ((st[qi] || []).includes(label) ? st[qi].filter(x => x !== label) : [...(st[qi] || []), label]) : [label]; render(); return; }
-  const qs = e.target.closest('[data-qsend]');
-  if (qs) { const id = qs.dataset.qsend, a = asksOf(snap).find(x => x.perm.askId === id), st = window.__qsel[id] || {}; if (!a) return; const answers = {}; a.perm.questions.forEach((q, qi) => { if ((st[qi] || []).length) answers[q.question] = st[qi].join(', '); }); if (!Object.keys(answers).length) { showToast('Pick an answer first.', 2500); return; } api('/api/decide', { askId: id, decision: 'allow', answers }).catch(err => showToast(esc(err.message), 4000)); return; }
-  const ask = e.target.closest('[data-ask]');
-  if (ask) {
-    ask.disabled = true;
-    if (ask.dataset.remember) desk.guard.remember(ask.dataset.remember, 'from the island').catch(() => {});
-    const msg = ask.dataset.d === 'deny' ? (document.querySelector('[data-deny-msg="' + ask.dataset.ask + '"]') || {}).value : undefined;
-    api('/api/decide', { askId: ask.dataset.ask, decision: ask.dataset.d, always: ask.dataset.always === '1', message: msg ? msg.trim() : undefined }).catch(err => showToast(esc(err.message), 4000));
-    return;
-  }
-  const md = e.target.closest('[data-media]');
-  if (md) { desk.media(md.dataset.media); return; }
-  const ub = e.target.closest('[data-upd]');
-  if (ub) { desk.update[ub.dataset.upd === 'install' ? 'install' : 'check']().then(u => { if (u) { upd = u; render(); } }); return; }
-  const ua = e.target.closest('[data-upd-auto]');
-  if (ua) { desk.update.set({ auto: ua.dataset.updAuto === 'true' }).then(u => { if (u) { upd = u; render(); } }); return; }
-  const pn = e.target.closest('[data-panel]');
-  if (pn) { panel = pn.dataset.panel; render(); return; }
-  const cal = e.target.closest('[data-cal]');
-  if (cal) { calOff += +cal.dataset.cal; render(); return; }
-  const gb = e.target.closest('[data-guard]');
-  if (gb) { const patch = { [gb.dataset.guard]: gb.dataset.v }; desk.guard.set(patch).then(v => { if (v) GV = v; render(); }).catch(() => {}); return; }
-  const st = e.target.closest('[data-set]');
-  if (st) { const v = st.dataset.v; setPref({ [st.dataset.set]: v === 'true' ? true : v === 'false' ? false : /^-?\d+$/.test(v) ? +v : v }); return; }
-  const pin = e.target.closest('[data-pin]');
-  if (pin) { const k = pin.dataset.pin; setPref({ pinned: S.pinned.includes(k) ? S.pinned.filter(x => x !== k) : [...S.pinned, k] }); return; }
-  if (e.target.closest('[data-reset]')) { setPref({ ...DEF, pinned: ['today', 'reports', 'usage', 'chat', 'calendar', 'settings'] }); return; }
-  const dk = e.target.closest('[data-dock]');
-  if (dk) {
-    const k = dk.dataset.dock;
-    if (k === 'chat') { chatOn = !chatOn; panel = 'home'; render(); desk.focus(); setTimeout(() => $('chatIn')?.focus(), 40); }
-    else if (k === 'calendar' || k === 'settings') { panel = panel === k ? 'home' : k; render(); }
-    else if (k === 'mute') desk.mute(!mute);
-    else desk.office(k);
-    return;
-  }
-  if (e.target.closest('#pill')) { pinned = !pinned; if (pinned) desk.focus(); render(); }
-});
-isle.addEventListener('change', e => {
-  const t = e.target;
-  if (t.matches('[data-color]')) setPref({ theme: 'custom', accent: t.value });
-  else if (t.matches('[data-nshort]')) setPref({ notchShortcut: t.value.trim() });
-  else if (t.matches('[data-zone]')) setPref({ zone2: t.value.trim() });
-  else if (t.matches('[data-zlabel]')) setPref({ zone2Label: t.value.trim() });
-});
-isle.addEventListener('submit', e => {
-  e.preventDefault();
-  const input = $('chatIn'), text = input.value.trim(); if (!text) return;
-  input.value = '';
-  const boss = (snap?.agents || []).find(x => x.isManager);
-  (boss && snap.boss?.active ? api('/api/send', { id: boss.id, text }) : api('/api/task', { text }))
-    .then(() => showToast('Sent to ' + esc(mgrName()) + '.', 2500)).catch(err => showToast(esc(err.message), 4000));
-});
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { pinned = chatOn = hovered = false; asksOf(snap).forEach(a => dismissed.add(a.perm.askId)); render(); return; }
-  if (e.target.tagName === 'INPUT') return;
-  // Y and N answer only the approval card you have focused (click it or Tab to it), never a card you have not looked at.
-  const card = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.ask') : null;
-  const btn = card && card.querySelector('[data-ask]'); if (!btn) return;
-  const a = asksOf(snap).find(x => x.perm.askId === btn.dataset.ask && !dismissed.has(x.perm.askId)); if (!a) return;
-  if (a.perm.questions) return; // a question is answered with its option buttons, never with a key
-  const k = e.key.toLowerCase();
-  if ((k === 'y' && !a.perm.defaultToNo) || k === 'n') api('/api/decide', { askId: a.perm.askId, decision: k === 'y' ? 'allow' : 'deny' }).catch(err => showToast(esc(err.message), 4000));
-});
-desk.update.on(u => { upd = u; render(); });
-desk.update.get().then(u => { if (u) { upd = u; render(); } });
-desk.guard.get().then(v => { if (v) { GV = v; render(); } }).catch(() => {});
-desk.onState(st => { shortcutOk = st.notchShortcutOk !== false; if (st.settings) applySettings(st.settings); mode = st.mode; mute = !!st.mute; fsApp = !!st.fs; peek = !!st.peek; render(); });
-desk.onNowPlaying(n => { const was = !!(np && np.playing); np = n && typeof n === 'object' ? n : null; if (!was && np?.playing) npEnter = true; render(); });
-desk.onLyrics(l => { lyr = l && Array.isArray(l.lines) ? { key: String(l.key || ''), lines: l.lines.filter(x => Array.isArray(x)).map(([t, text]) => ({ t: +t || 0, text: String(text ?? '') })) } : null; lyrIdx = -2; render(); });
-desk.onToggle(() => { pinned = !pinned; if (!pinned) { chatOn = false; hovered = false; } else desk.focus(); render(); });
-
-// ---------- Tiro face: random blink + look-around (idle), and eyes that follow the cursor while it is near ----------
-const faceEl = document.createElement('span'); faceEl.id = 'face'; faceEl.className = 'face'; faceEl.setAttribute('aria-hidden', 'true'); faceEl.innerHTML = '<i class="eye"></i><i class="eye"></i>';
-let lastPointer = 0;
-const look = (x, y) => { faceEl.style.setProperty('--lx', x + 'px'); faceEl.style.setProperty('--ly', y + 'px'); };
-const rnd = (a, b) => a + Math.random() * (b - a);
-const blinkOnce = ms => { faceEl.classList.add('blink'); setTimeout(() => faceEl.classList.remove('blink'), ms); };
-function blinkLoop() { if (!still() && S.kiroFace && faceEl.dataset.mood !== 'done') { blinkOnce(130); if (Math.random() < .2) setTimeout(() => blinkOnce(110), 260); } setTimeout(blinkLoop, rnd(2200, 6000)); }
-function lookLoop() {
-  if (still() || faceEl.dataset.mood !== 'idle') look(0, 0);
-  else if (Date.now() - lastPointer > 1800) { if (Math.random() < .35) look(0, 0); else look(Math.round(rnd(-2, 2)), Math.round(rnd(-1, 1))); }
-  setTimeout(lookLoop, rnd(1600, 4200));
-}
-blinkLoop(); lookLoop();
-function followPointer(e) {
-  if (still() || !S.kiroFace || faceEl.dataset.mood !== 'idle' || !faceEl.isConnected) return;
-  const b = faceEl.getBoundingClientRect(), dx = e.clientX - (b.left + b.width / 2), dy = e.clientY - (b.top + b.height / 2), d = Math.hypot(dx, dy) || 1;
-  if (d > 260) return; lastPointer = Date.now(); look(+(dx / d * 2).toFixed(1), +(dy / d * 1.2).toFixed(1));
-}
-
-// Clicks pass through the transparent window except over the island itself.
-document.addEventListener('mousemove', e => {
-  followPointer(e);
-  const on = !!e.target.closest('[data-hit]');
-  if (on !== hit) { hit = on; desk.interactive(on); }
-});
-
-// ---------- live data: the same stream the office uses ----------
-function connect() {
-  const es = new EventSource('/api/stream');
-  es.onopen = () => { online = true; render(); };
-  es.onmessage = ev => { const next = JSON.parse(ev.data); notice(next); prev = snap = next; online = true; render(); };
-  es.onerror = () => { online = false; render(); };
-}
-setInterval(() => { if (S.clockInPill || (expanded() && panel === 'calendar')) render(); }, 15000); // keep the clock fresh; render() is a no-op when nothing changed
-render(); connect();
-</script>
+<script src="./notch-core.js"></script>
+<script src="./notch-views.js"></script>
+<script src="./notch-page.js"></script>
 </body>
 </html>

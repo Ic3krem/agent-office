@@ -1,15 +1,17 @@
 {
   "name": "agent-office",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A pixel office for your Claude Code agents: Tiro the manager, specialists, approvals, reports and memory.",
   "main": "desktop/main.mjs",
   "scripts": {
     "start": "electron .",
     "perf:town": "electron perf/town-perf.cjs",
     "art": "node art/build.mjs",
-    "test": "node --test --test-concurrency=4 office-nav.test.mjs company.test.mjs role-catalog.test.mjs roster-live.test.mjs agent-home.test.mjs transcript.test.mjs usage.test.mjs reports.test.mjs island.test.mjs office-motion.test.mjs perf-sources.test.mjs scheduler.test.mjs scheduler-job.test.mjs repo.test.mjs perf.test.mjs ports.test.mjs security.test.mjs parity.test.mjs hardening.test.mjs bridge-register.test.mjs notch.test.mjs share-ready.test.mjs guard.test.mjs guard-wiring.test.mjs guard-review.test.mjs nowplaying.test.mjs lyrics.test.mjs updater.test.mjs desktop-port.test.mjs updater-signed.test.mjs world-parity.test.mjs world-path.test.mjs world-model.test.mjs world-store.test.mjs world-edit.test.mjs world-player.test.mjs world-templates.test.mjs goal-pace.test.mjs wardrobe.test.mjs karinderya.test.mjs party.test.mjs release-hardening.test.mjs town-static.test.mjs town-map.test.mjs agent-travel.test.mjs art-output.test.mjs town-render.test.mjs office-sprites-path.test.mjs graphics.test.mjs town-ambient.test.mjs town-render-2d.test.mjs office-graphics.test.mjs tmp-sweep.test.mjs party-host.test.mjs town-animals.test.mjs town-scenery.test.mjs external-agents.test.mjs external-run.test.mjs external-delegate.test.mjs external-settings.test.mjs cli-auth.test.mjs claude-key.test.mjs party-music.test.mjs music.test.mjs manor.test.mjs bg-music.test.mjs hud.test.mjs",
+    "test": "node --test --test-concurrency=4 desktop-permissions.test.mjs office-nav.test.mjs company.test.mjs role-catalog.test.mjs roster-live.test.mjs agent-home.test.mjs transcript.test.mjs usage.test.mjs reports.test.mjs island.test.mjs notch-core.test.mjs notch-window.test.mjs notch-hover.test.mjs notch-store.test.mjs game-detect.test.mjs presentmon.test.mjs ics.test.mjs calendar-link.test.mjs office-motion.test.mjs perf-sources.test.mjs scheduler.test.mjs scheduler-job.test.mjs repo.test.mjs perf.test.mjs ports.test.mjs security.test.mjs parity.test.mjs hardening.test.mjs bridge-register.test.mjs notch.test.mjs share-ready.test.mjs guard.test.mjs guard-wiring.test.mjs guard-review.test.mjs nowplaying.test.mjs lyrics.test.mjs updater.test.mjs desktop-port.test.mjs updater-signed.test.mjs world-parity.test.mjs world-path.test.mjs world-model.test.mjs world-store.test.mjs world-edit.test.mjs world-player.test.mjs world-templates.test.mjs goal-pace.test.mjs wardrobe.test.mjs karinderya.test.mjs party.test.mjs release-hardening.test.mjs town-static.test.mjs town-map.test.mjs agent-travel.test.mjs art-output.test.mjs town-render.test.mjs office-sprites-path.test.mjs graphics.test.mjs town-ambient.test.mjs town-render-2d.test.mjs office-graphics.test.mjs tmp-sweep.test.mjs party-host.test.mjs town-animals.test.mjs town-scenery.test.mjs external-agents.test.mjs external-run.test.mjs external-delegate.test.mjs external-settings.test.mjs cli-auth.test.mjs claude-key.test.mjs party-music.test.mjs meet-voice.test.mjs meet-room.test.mjs voice-config.test.mjs music.test.mjs manor.test.mjs bg-music.test.mjs hud.test.mjs",
     "dist": "electron-builder",
-    "check:hud": "electron perf/hud-check.cjs"
+    "check:hud": "electron perf/hud-check.cjs",
+    "check:meet": "electron perf/meet-check.cjs",
+    "check:notch": "electron perf/notch-check.cjs"
   },
   "author": {
     "name": "Ic3krem",
@@ -67,8 +69,10 @@
       "party/server.mjs",
       "party/games.mjs",
       "party-host.mjs",
+      "voice-config.mjs",
       "public/**",
       "desktop/**",
+      "vendor/presentmon/**",
       "package.json",
       "LICENSE",
       "NOTICE",
@@ -108,6 +112,9 @@
       ],
       "icon": "desktop/icon.png",
       "category": "public.app-category.developer-tools",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "TiroAgents uses the microphone only while you are in a meeting room and have chosen to join with your microphone."
+      },
       "artifactName": "TiroAgents-${version}-${arch}.${ext}"
     },
     "linux": {
@@ -121,7 +128,9 @@
       "maintainer": "Ic3krem <Ic3krem@users.noreply.github.com>"
     },
     "asarUnpack": [
-      "desktop/nowplaying.ps1"
+      "desktop/nowplaying.ps1",
+      "desktop/perf.ps1",
+      "vendor/presentmon/**"
     ],
     "electronFuses": {
       "runAsNode": true,

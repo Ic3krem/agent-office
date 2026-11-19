@@ -129,7 +129,7 @@ test('M1: every non-GET /api call needs the nonce, a JSON content type and a sam
 });
 
 test('M1: every client POST to /api sends the nonce and JSON', () => {
-  const files = ['public/Agent Office.html', 'public/island.html', 'public/kiro.html', 'public/office-objects.js', 'public/agent-history.js', 'public/world-edit.js', 'public/office-world.js', 'desktop/main.mjs', 'desktop/preload.cjs', 'desktop/office-preload.cjs', 'desktop/island-preload.cjs'];
+  const files = ['public/Agent Office.html', 'public/island.html', 'public/notch-page.js', 'public/kiro.html', 'public/office-objects.js', 'public/agent-history.js', 'public/world-edit.js', 'public/office-world.js', 'desktop/main.mjs', 'desktop/preload.cjs', 'desktop/office-preload.cjs', 'desktop/island-preload.cjs'];
   let seen = 0;
   for (const f of files) {
     if (!fs.existsSync(path.join(ROOT, f))) continue;
@@ -202,7 +202,7 @@ test('M4: the hire card carries the full prompt the hash covers (up to 20 000 ch
   assert.match(page, /full request: \{\{ h\.promptN \}\} characters/);
   assert.match(page, /promptN:String\(\(h\.prompt\|\|''\)\.length\)/);
   assert.match(page, /max-height:180px; overflow:auto;[^>]*>\{\{ h\.prompt \}\}<\/div>/, 'scrollable box with the whole text');
-  const island = fs.readFileSync(path.join(ROOT, 'public', 'island.html'), 'utf8');
+  const island = ['island.html', 'notch-core.js', 'notch-views.js', 'notch-page.js'].map(f => fs.readFileSync(path.join(ROOT, 'public', f), 'utf8')).join('\n');
   assert.match(island, /Full request: \$\{h\.prompt\.length\} characters/);
   assert.match(island, /Prompt: \$\{esc\(h\.prompt\)\}/, 'island shows it all too');
 });

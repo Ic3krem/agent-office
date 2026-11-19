@@ -13,7 +13,7 @@
   const drift = (actual, m, now) => Math.abs(actual - posOf(m, now)) > 2;
 
   // ---- browser only ----
-  let box = null, el = null, cur = null, key = '', ytTime = null;
+  let box = null, el = null, cur = null, key = '', ytTime = null, ducked = false;
   const YT = 'https://www.youtube-nocookie.com', SPOT = 'https://open.spotify.com';
   const send = (origin, msg) => { try { el.contentWindow.postMessage(typeof msg === 'string' ? msg : JSON.stringify(msg), origin); } catch (e) {} };
   const yt = (func, args) => send(YT, { event: 'command', func, args: args || [] });
@@ -29,6 +29,15 @@
     });
     return box;
   }
+  // The meeting room: YouTube and streams drop to 25% volume; Spotify's embed has no volume, so it is paused and re-synced on leaving.
+  function applyDuck() {
+    if (!el || !cur) return;
+    if (cur.src === 'youtube') yt('setVolume', [ducked ? 25 : 100]);
+    else if (cur.src === 'stream') el.volume = ducked ? 0.25 : 1;
+    else if (ducked) send(SPOT, { command: 'pause' });
+    else if (!cur.paused) { send(SPOT, { command: 'seek', timestamp: Math.round(posOf(cur, Date.now()) * 1000) }); send(SPOT, { command: 'resume' }); }
+  }
+  function duck(on) { if (ducked === !!on) return; ducked = !!on; applyDuck(); }
   function check() {
     if (!cur || cur.paused) return;
     const now = Date.now();
@@ -52,20 +61,20 @@
         el = root.document.createElement('iframe'); el.src = e.url; el.title = 'Party music';
         el.allow = 'autoplay; encrypted-media'; el.style.cssText = 'display:block;border:0;width:' + (m.src === 'spotify' ? 300 : 240) + 'px;height:' + (m.src === 'spotify' ? 80 : 135) + 'px';
         el.addEventListener('load', () => {
-          if (m.src === 'youtube') { send(YT, { event: 'listening', id: 1 }); if (cur.paused) yt('pauseVideo'); }
-          else if (!cur.paused) { send(SPOT, { command: 'seek', timestamp: Math.round(posOf(cur, Date.now()) * 1000) }); send(SPOT, { command: 'resume' }); }
+          if (m.src === 'youtube') { send(YT, { event: 'listening', id: 1 }); if (cur.paused) yt('pauseVideo'); if (ducked) applyDuck(); }
+          else if (!cur.paused && !ducked) { send(SPOT, { command: 'seek', timestamp: Math.round(posOf(cur, Date.now()) * 1000) }); send(SPOT, { command: 'resume' }); }
         });
       }
       b.appendChild(el);
-      if (e.kind === 'audio') el.load();
+      if (e.kind === 'audio') { if (ducked) el.volume = 0.25; el.load(); }
       return;
     }
     const was = cur; cur = m;
     if (!el || was.paused === m.paused) return check();
     if (m.src === 'stream') { if (m.paused) el.pause(); else { if (isFinite(el.duration)) el.currentTime = posOf(m, Date.now()); el.play().catch(() => {}); } }
     else if (m.src === 'youtube') { if (m.paused) yt('pauseVideo'); else { yt('seekTo', [posOf(m, Date.now()), true]); yt('playVideo'); } }
-    else send(SPOT, { command: m.paused ? 'pause' : 'resume' });
+    else if (!(ducked && !m.paused)) send(SPOT, { command: m.paused ? 'pause' : 'resume' }); // in the room Spotify stays paused
   }
   if (root.setInterval && root.document) root.setInterval(check, 3000);
-  root.PartyMusic = { posOf, embed, drift, sync, element: () => el, current: () => cur };
+  root.PartyMusic = { posOf, embed, drift, sync, duck, element: () => el, current: () => cur };
 })(globalThis);

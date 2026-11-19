@@ -88,6 +88,22 @@
    }
   },
   {
+   "id": "meet",
+   "kind": "meet",
+   "rect": [1800, 545, 2100, 805],
+   "building": {
+    "type": "gamehall",
+    "x": 1945,
+    "y": 675,
+    "footprint": [1880, 625, 2010, 725]
+   },
+   "door": {
+    "x": 1865,
+    "y": 675,
+    "face": "w"
+   }
+  },
+  {
    "id": "friend-1",
    "kind": "friend",
    "rect": [390, 1090, 630, 1290],
@@ -246,6 +262,11 @@
    "type": "sign",
    "x": 1495,
    "y": 725
+  },
+  {
+   "type": "sign",
+   "x": 1865,
+   "y": 625
   },
   {
    "type": "tree-pine",
@@ -836,11 +857,6 @@
    "type": "tree-round",
    "x": 2065,
    "y": 45
-  },
-  {
-   "type": "tree-round",
-   "x": 1905,
-   "y": 705
   },
   {
    "type": "tree-pine",

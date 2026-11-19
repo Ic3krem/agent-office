@@ -520,7 +520,9 @@
 
   // ms to wait before drawing, given the time since the last draw; never faster than MIN_GAP; -1 = paused
   const frameWait = (st, since) => { const d = nextFrameDelay(st); return d < 0 ? -1 : Math.max(Math.max(FRAME.MIN_GAP, capMs(st)) - since, d - since, 0); };
-  const api = { clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, deskAt, TIRO_DESK, OBSTACLES, SPOTS, SPAWN, GARDEN, PLAY, COOLER, HOT, OVER, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
+  // Decorative animation (meeting-room pops, bob, door): off under reduced motion, Power saver and the Low preset (15 fps cap).
+  const animOn = ({ reduced, saver, fps } = {}) => !reduced && !saver && !(fps > 0 && fps <= 15);
+  const api = { animOn, clampView, nextFrameDelay, frameWait, FRAME, zoomAt, ZMIN, ZMAX, WX, WY, TEAM, TIRO, DESKS, deskAt, TIRO_DESK, OBSTACLES, SPOTS, SPAWN, GARDEN, PLAY, COOLER, HOT, OVER, CX, S, THINK_AFTER, MIN_DWELL, IDLE_DELAY, REPORT_MS, PLAY_ROTATE, TOOL_GRACE,
     boardOf, nextState, createBrain, useLayout, EXIT, exitId, spotOf, travelFlags, grid: () => GRID, pathTo, pathLen, createWalker, setTarget, stepWalker, arrivedAt, faceOf, lane, demoSnapshot, DEMO_SCENES, dist };
   root.OfficeMotion = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

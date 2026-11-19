@@ -40,7 +40,7 @@ test('desktop shell: weakening needs a native dialog, confirmed settings are HMA
   for (const p of [pre, isl]) { assert.match(p, /guard:get/); assert.match(p, /guard:set/); assert.match(p, /guard:remember/); assert.match(p, /guard:forget/); }
 });
 test('dashboard and island: card shows the matched rules, masked files and destination; remember only where allowed; banner; Breaker box and island settings', () => {
-  const dash = read('public/Agent Office.html'), oo = read('public/office-objects.js'), isl = read('public/island.html');
+  const dash = read('public/Agent Office.html'), oo = read('public/office-objects.js'), isl = ['island.html', 'notch-core.js', 'notch-views.js', 'notch-page.js'].map(f => read('public/' + f)).join('\n'); // the notch page and its scripts
   assert.match(dash, /guardText=g=>/); assert.match(dash, /rememberDisp:/); assert.match(dash, /guardBannerOn:/); assert.match(dash, /Guard setting changed outside the app; kept/);
   assert.match(dash, /alwaysDisp:a&&a\.perm&&a\.perm\.canAlways&&!a\.perm\.guard/, 'Claude Code\'s "don\'t ask again" is not offered on a Guard ask (the hook asks again anyway)');
   assert.match(oo, /guardApi = \(\) =>/); assert.match(oo, /case 'guard-set':/); assert.match(oo, /case 'guard-log':/); assert.match(oo, /\/api\/guard\/log/); assert.match(oo, /Turning a category down needs a confirmation/);

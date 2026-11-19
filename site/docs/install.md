@@ -2,7 +2,7 @@
 
 Install Agent Office on Windows and check the download.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 
 **Requirements:** [Claude Code](https://claude.com/claude-code) installed and logged in (run `claude` once). Agent Office uses your own Claude Code install and plan. Windows 10 or later. macOS and Linux builds are not published yet.

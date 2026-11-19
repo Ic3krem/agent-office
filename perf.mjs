@@ -102,14 +102,16 @@ export function createScanner({ projects, fs, onFile, isKnown = () => false, sub
 // Decides whether a snapshot string is pushed. Unchanged content is never pushed; while no window is visible pushes are
 // coalesced to hiddenMs. A window becoming visible flushes at once (visible() === true again).
 export function createSnapshotGate({ hiddenMs = 3000, now = Date.now } = {}) {
-  let lastHash = '', lastAt = -Infinity;
+  let lastHash = '', lastAt = -Infinity, lastUrgent = '';
   const hash = s => crypto.createHash('sha1').update(s).digest('base64');
   const gate = {
-    // true when a push is allowed at all right now (cheap check before building the snapshot string)
-    due: (visible = true) => visible || now() - lastAt >= hiddenMs,
+    // true when a push is allowed at all right now (cheap check before building the snapshot string).
+    // urgent: a key of the pending approvals and hires; when it changes the push is not coalesced (a hidden notch must show an ask at once).
+    due: (visible = true, urgent = '') => visible || urgent !== lastUrgent || now() - lastAt >= hiddenMs,
     // 'send' | 'same' (identical to the last push: skip and mark as done) | 'wait' (coalescing while hidden: try again later)
-    decide(data, visible = true) {
-      if (!gate.due(visible)) return 'wait';
+    decide(data, visible = true, urgent = '') {
+      if (!gate.due(visible, urgent)) return 'wait';
+      lastUrgent = urgent;
       const h = hash(data);
       if (h === lastHash) return 'same';
       lastHash = h; lastAt = now(); return 'send';

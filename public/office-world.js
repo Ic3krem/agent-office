@@ -16,7 +16,7 @@
   let clock = Date.now(), last = 0, running = false, raf = 0, timer = 0, dirty = true, lastInput = -1e9, lastDraw = 0, drawn = 0, renderMs = 0, saver = readSaver(), lastDemoSig = '', hourOverride = null, legend = false, born = 0, nudged = {}, printerPrev = false;
   let hits = [], scaleCss = 1, moved = false;
   let G = null; // graphics settings (Graphics.resolve); null until the page applies them = today's drawing
-  // Town step 2: 'office', or an interior ('kain' | 'games'). Town step 3: each scene shows the agents whose trip
+  // Town step 2: 'office', or an interior ('kain' | 'games' | 'meet'). Town step 3: each scene shows the agents whose trip
   // (AgentTravel.where) puts them there; party guest avatars stay office-only.
   let scene = 'office', freshCeo = false; // freshCeo: the scene's first layout puts the CEO at its spawn
   const inOffice = () => scene === 'office';
@@ -60,6 +60,42 @@
   function readSaver() { try { return localStorage.getItem('ao.powerSaver') !== '0'; } catch (e) { return true; } }
   const reducedMQ = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   const reduced = () => !!(reducedMQ && reducedMQ.matches) || (typeof document !== 'undefined' && document.documentElement.dataset.anim === 'off');
+
+  // ---------- meeting room fx (2.1): reactions, raised hands, speaking bob, door. Ids: 'you' or a party member id ----------
+  const animOn = () => M.animOn({ reduced: reduced(), saver, fps: G ? G.fps : 0 });
+  let fx = { emotes: [], hands: [], levels: {}, door: 0 }, fxSig = '', glyphs = null;
+  const EMOTE_MS = 3000, DOOR_MS = 700, LOUD = 0.08;
+  const fxId = a => (a.id === 'ceo' ? 'you' : String(a.id).startsWith('guest-') ? String(a.id).slice(6) : null);
+  let meetSeats = null; // the meet scene's seats, listed once per layout (applyLayout clears it), not per avatar per frame
+  const seatAt = w => scene === 'meet' && (meetSeats = meetSeats || Object.values(M.SPOTS).filter(s => s.seat && s.id.startsWith('meet:'))).some(s => Math.hypot(s.x - w.x, s.y - w.y) < 14);
+  // One shared glyph sheet, drawn once (no image files, no per-frame allocation): 6 reactions then the raised hand.
+  function glyphSheet() {
+    if (glyphs || typeof document === 'undefined') return glyphs;
+    const N = 28, c = document.createElement('canvas'); c.width = N * 7; c.height = N; const x = c.getContext('2d');
+    x.font = '19px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    ['👋', '👏', '😂', '❤️', '👍', '🎉', '✋'].forEach((e, i) => {
+      x.fillStyle = 'rgba(255,255,255,.93)'; x.beginPath(); x.arc(N * i + N / 2, N / 2, N / 2 - 1, 0, 6.2832); x.fill(); x.fillStyle = '#000'; x.fillText(e, N * i + N / 2, N / 2 + 1);
+    });
+    return (glyphs = { cv: c, N });
+  }
+  function drawGlyph(i, sx, y, age) {
+    const gs = glyphSheet(); if (!gs) return;
+    let k = 1, rise = 0;
+    if (animOn()) { const u = Math.min(1, age / 250); k = 0.4 + 0.6 * u + 0.25 * Math.sin(u * Math.PI); rise = Math.min(age, EMOTE_MS) / EMOTE_MS * -10; }
+    const d = gs.N * k; g.drawImage(gs.cv, gs.N * i, 0, gs.N, gs.N, Math.round(sx - d / 2), Math.round(y + rise - d / 2), d, d);
+  }
+  function drawFx(a, pos) {
+    const id = fxId(a); if (!id || !pos) return;
+    const now = Date.now(), e = fx.emotes.find(q => q.id === id && now - q.at < EMOTE_MS), hand = fx.hands.includes(id), y = pos.top - 44;
+    if (hand) drawGlyph(6, e ? pos.sx - 16 : pos.sx, y, 1e9);
+    if (e) drawGlyph(e.emote, hand ? pos.sx + 16 : pos.sx, y, now - e.at);
+  }
+  function drawDoor() {
+    const age = Date.now() - fx.door; if (!fx.door || age >= DOOR_MS || !animOn()) return;
+    const d = M.SPOTS.door || M.SPAWN, [sx, sy] = P(d.x, d.y, 0), u = Math.sin(age / DOOR_MS * Math.PI); // swings open, then shut
+    g.save(); g.fillStyle = 'rgba(255,233,176,' + (.55 * u) + ')'; g.fillRect(sx - 14, sy - 50, 28, 50);
+    g.fillStyle = '#6b4a2f'; g.fillRect(sx - 14, sy - 50, Math.round(28 * (1 - .8 * u)), 50); g.restore();
+  }
 
   // ---------- bounding boxes of interactive things (stage px) ----------
   function bboxOf(b) {
@@ -223,6 +259,7 @@
   }
   function tick(dt) {
     clock += dt * 1000;
+    if (fx.door && Date.now() - fx.door >= DOOR_MS) { fx.door = 0; dirty = true; }
     const ST = F.state;
     ST.T = reduced() ? 0 : clock / 1000;
     const s = currentSnap();
@@ -279,6 +316,7 @@
     const nu = nudged[a.id];
     if (moving) return { p: 'walk', f: reduced() ? 0 : 1 + (Math.floor(T * 6) % 2) };
     if (nu) return { p: 'celebrate', f: Math.floor(T * 4) % 2 };
+    if (fxId(a) && seatAt(w)) return { p: 'sit-idle', f: 0 }; // standing on a meeting-room seat: sit
     const p = a.pose;
     const f = p === 'type' ? Math.floor(T * 5) % 2 : p === 'sit-idle' ? (((T + hashId(a.id) % 9) % 9) < 1.4 ? 1 : 0) : p === 'hand' ? Math.floor(T * 3) % 2 : p === 'play' || p === 'sit-play' ? Math.floor(T * 4) % 2 : 0;
     return { p, f: reduced() ? 0 : f };
@@ -349,13 +387,15 @@
     }
     const front = face === 'e' || face === 's', dir = front ? (face === 's' ? -1 : 1) : 0;
     const look = w.look || SP.lookOf(a);
-    let p = ps.p; if (front && p === 'type') p = 'sit-front';
+    const fid = fxId(a); if (fid) w.hip = animOn() ? w.hip + ((ps.p === 'sit-idle' ? 20 : 18) - w.hip) * .35 : ps.p === 'sit-idle' ? 20 : 18;
+    let p = ps.p; if (front && p === 'type') p = 'sit-front'; else if (fid && front && p === 'sit-idle') p = 'sit-front';
     const spr = SP.get(look, front ? 'f' : 'b', p, ps.f, dir);
     // position, with a sideways lane while walking so opposing walkers pass
     let x = w.x + px0, y = w.y + py0;
     if (w.moving) { const ln = M.lane(a.id); if (face === 'e' || face === 'w') y += ln; else x += ln; }
     const sc = 3, bob = ((w.moving || ps.p === 'walk') && !reduced()) ? Math.abs(Math.sin(T * 12)) * -1.6 : 0;
-    const jump = nudged[a.id] && !reduced() ? -Math.abs(Math.sin(T * 7)) * 12 : 0;
+    const lv = fid && fx.levels[fid], talk = lv > LOUD && animOn() ? -Math.abs(Math.sin(T * 14)) * Math.min(1.6, lv * 6) : 0;
+    const jump = talk + (nudged[a.id] && !reduced() ? -Math.abs(Math.sin(T * 7)) * 12 : 0);
     const [sx, sy0] = P(x, y, 0), hip = w.hip, [, sy] = P(x, y, hip);
     const alpha = (w.alpha == null ? 1 : w.alpha) * (w.fadeDir || w.fade < 1 ? Math.max(0, w.fade) : 1);
     g.save(); g.globalAlpha = alpha;
@@ -466,6 +506,7 @@
       const p = drawPerson(it.a, it.w); posOf.set(it.a.id, p);
       hits.push({ id: it.a.id, l: p.hit.l, r: p.hit.r, t: p.hit.t, b: p.hit.b });
     }
+    drawDoor();
     if (inOffice()) F.overlay(g); // pendants, sunbeams and party lights are placed for the office
     // ambient tint by time of day, and dim lights when the board is empty
     g.globalCompositeOperation = 'source-atop';
@@ -485,7 +526,8 @@
     for (const a of frame.agents) { const p = posOf.get(a.id); if (!p) continue; const w = walkers.get(a.id); g.save(); g.globalAlpha = Math.max(0, Math.min(1, (w.alpha == null ? 1 : w.alpha)) * (w.fadeDir || w.fade < 1 ? w.fade : 1)); const r = drawTag(a, p, hover && hover.kind === 'agent' && hover.id === a.id); g.restore(); if (r.nudge) nudgeBoxes[a.id] = r.nudge; }
     if (npcPos) { g.save(); g.font = '11px ' + FONT; bubble(npcPos.sx, Math.round(npcPos.top - 6), schedLine(), '#f4efe4', '#2a2420', '#4a86c9'); g.restore(); }
     for (const n of Object.values(npcs)) if (n.pos && n.line && n.lineUntil > clock) { g.save(); g.font = '11px ' + FONT; bubble(n.pos.sx, Math.round(n.pos.top - 6), n.line, '#f4efe4', '#2a2420', n.kind === 'cook' ? '#c0392b' : n.kind === 'guest' ? '#5fd38d' : '#e8c53a'); g.restore(); }
-    if (ceoPos) { ceoPos.tagY = Math.round(ceoPos.top - 17); drawTag(CEO_AGENT, ceoPos, false); }
+    if (ceoPos) { ceoPos.tagY = Math.round(ceoPos.top - 17); drawTag(CEO_AGENT, ceoPos, false); drawFx(CEO_AGENT, ceoPos); }
+    for (const n of Object.values(npcs)) if (n.kind === 'guest') drawFx(n.a, n.pos);
     drawPrompt(posOf);
     hits.nudge = nudgeBoxes;
   }
@@ -508,6 +550,7 @@
   }
   function isActive() {
     if (!frame || build) return false;
+    if (animOn() && (Date.now() - fx.door < DOOR_MS || fx.emotes.length || Object.values(fx.levels).some(v => v > LOUD))) return true;
     if (chatter || npcs.sweep || eaters().length || extras.music || extras.pending || frame.reportIcon || demo) return true;
     const A = ['play', 'sit-play', 'think', 'sit-think', 'hand', 'report', 'cup', 'type', 'celebrate'];
     return frame.agents.some(a => a.working || a.state === M.S.WINDOW || A.includes(a.pose));
@@ -827,7 +870,7 @@
   }
   // Swap in a layout (WorldModel format): motion spots and grid, furniture, click objects, then repaint the baked floor.
   function applyLayout(layout) {
-    M.useLayout(layout); F.place(layout.objects); rebuildObjects(); F.setZones(layout.zones, layout.scene ? { size: layout.size, door: layout.spots.find(q => q.id === 'door') } : null);
+    M.useLayout(layout); meetSeats = null; F.place(layout.objects); rebuildObjects(); F.setZones(layout.zones, layout.scene ? { size: layout.size, door: layout.spots.find(q => q.id === 'door') } : null);
     if (freshCeo) { freshCeo = false; ceoP = null; } // a snapshot may have placed the CEO before the scene's layout arrived
     if (ceoP) { ceoP.path = []; ceoP.pi = 0; WPL().unstick(ceoP, M.grid()); } // the old route may cross the new furniture
     // seated characters snap to their spot's new place; walking ones re-route on the new grid
@@ -840,7 +883,7 @@
       npcInfo: () => Object.values(npcs).map(n => ({ kind: n.kind, x: Math.round(n.w.x), y: Math.round(n.w.y), moving: !!n.w.moving, line: n.lineUntil > clock ? n.line : null })), // read-only, for checks
     mount, setScale, advance, hotspots, activate, applyLayout,
     // Enter a scene before applying its layout: the brain, walkers and the CEO start afresh (the CEO at the layout's spawn).
-    setScene(name) { scene = name === 'kain' || name === 'games' ? name : 'office'; reset(); ceoP = null; freshCeo = true; NPC.w = null; npcs = {}; clearNear(); wake(); },
+    setScene(name) { scene = name === 'kain' || name === 'games' || name === 'meet' ? name : 'office'; reset(); ceoP = null; freshCeo = true; NPC.w = null; npcs = {}; fx = { emotes: [], hands: [], levels: {}, door: 0 }; fxSig = ''; clearNear(); wake(); },
     scene: () => scene,
     nearKind: () => (near && ceoOn() ? near.kind : null), // read-only, for checks
     setBuild, setTool, dropAt, buildOp, STW, STH,
@@ -877,6 +920,13 @@
     demoScene: () => demo && demo.scene,
     // A party visit: a ready snapshot of a friend's office (generic bubbles only), drawn like a preview scene.
     setGuests,
+    // The meeting room (public/meet-room.js): { emotes: [{id, emote, at}], hands: [id], levels: {id: 0..1} }; redraws only on change.
+    setFx(n) {
+      const nx = { emotes: (n && n.emotes) || [], hands: (n && n.hands) || [], levels: (n && n.levels) || {}, door: fx.door };
+      const sig = JSON.stringify([nx.emotes.map(e => e.id + ':' + e.emote + ':' + e.at), nx.hands, Object.keys(nx.levels).map(k => nx.levels[k] > LOUD ? k : '')]);
+      fx = nx; if (sig !== fxSig) { fxSig = sig; wake(); }
+    },
+    doorEvent() { fx.door = Date.now(); wake(); },
     guestIds: () => Object.keys(npcs).filter(k => k.startsWith('guest:')).map(k => k.slice(6)), // live checks
     setVisit(snap) { wake(); if (!snap) { demo = null; reset(); lastDemoSig = ''; return; } if (!demo) reset(); demo = { scene: 'visit', snap, t0: clock }; lastDemoSig = ''; brain.cfg.idleDelay = 3000; },
     debug() { return frame && { agents: frame.agents.map(a => { const w = walkers.get(a.id) || {}; return { id: a.id, name: a.name, state: a.state, spot: a.spot, pose: a.pose, badge: a.badge, x: Math.round(w.x), y: Math.round(w.y), moving: !!w.moving, face: w.face }; }), board: frame.board, reporter: frame.reporter, reps: frame.reps, reportIcon: frame.reportIcon, clock }; },

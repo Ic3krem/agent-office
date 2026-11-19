@@ -105,3 +105,26 @@ test('drift: resync only past 2 seconds', () => {
   assert.equal(PM.drift(6.9, m, 9000), true);
   assert.equal(PM.drift(11.5, m, 9000), true);
 });
+
+// ---- the meeting room ducks the party music ----
+function playerRig(m) {
+  const sent = [];
+  const el = { style: {}, addEventListener() {}, load() {}, contentWindow: { postMessage: (msg, origin) => sent.push([typeof msg === 'string' ? JSON.parse(msg) : msg, origin]) } };
+  const mk = () => ({ style: {}, appendChild() {}, addEventListener() {}, set innerHTML(v) {} });
+  const P = loadWorld({ extra: ['party-music.js'], globals: { addEventListener() {}, document: { body: { appendChild() {} }, createElement: t => (t === 'iframe' ? el : mk()) } } }).PartyMusic;
+  P.sync(m); sent.length = 0;
+  return { P, sent, el };
+}
+test('duck: Spotify is paused, then re-synced to the party position and resumed', () => {
+  const now = Date.now(), { P, sent } = playerRig({ src: 'spotify', ref: 'track:' + SP, startedAt: now - 30000, pos: 10, paused: false });
+  P.duck(true); assert.deepEqual(sent.map(x => x[0]), [{ command: 'pause' }]); P.duck(true); assert.equal(sent.length, 1, 'idempotent');
+  P.duck(false);
+  assert.deepEqual(sent.slice(1).map(x => x[0].command), ['seek', 'resume']);
+  const ms = sent[1][0].timestamp; assert.ok(ms >= 40000 && ms < 42000, 'about 10 s + 30 s into the track: ' + ms);
+  assert.ok(sent.every(x => x[1] === 'https://open.spotify.com'));
+});
+test('duck: YouTube drops to volume 25 and comes back to 100', () => {
+  const { P, sent } = playerRig({ src: 'youtube', ref: YT, startedAt: Date.now(), pos: 0, paused: false });
+  P.duck(true); P.duck(false);
+  assert.deepEqual(sent.map(x => [x[0].func, x[0].args]), [['setVolume', [25]], ['setVolume', [100]]]);
+});

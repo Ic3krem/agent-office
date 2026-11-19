@@ -42,6 +42,7 @@
     + '.hud-btn{padding:6px 12px;border-radius:9px;border:1.5px solid #4a3a2c;background:#1a1512;color:#f0e4d4;font:600 13px system-ui,sans-serif;cursor:pointer}'
     + '.hud-btn[aria-pressed=true],.hud-btn[aria-expanded=true]{border-color:#ffcf6b;color:#ffdca0}.hud-btn:focus-visible{outline:2px solid #ffcf6b;outline-offset:2px}.hud-btn:disabled{opacity:.5;cursor:default}'
     + '.hud-panel{position:fixed;top:68px;right:12px;z-index:5200;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 90px);overflow-y:auto;box-sizing:border-box;padding:12px 14px;border-radius:12px;background:#1a1512;border:1px solid #4a3a2c;box-shadow:0 14px 40px rgba(0,0,0,.5);color:#f0e4d4;font:13px/1.4 system-ui,sans-serif;display:flex;flex-direction:column;gap:8px}'
+    + '.hud-panel[hidden],.hud-row[hidden]{display:none}' // their display:flex would beat the hidden attribute (the meeting-room card)
     + '.hud-panel h2{margin:0;font:600 16px system-ui,sans-serif;color:#ffdca0}.hud-sect{color:#a8998a;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;margin-top:4px}'
     + '.hud-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.hud-item{padding:6px 8px;border-radius:7px;background:#120e0c;border:1px solid #2a211b}.hud-dim{color:#a8998a;font-size:12px}'
     + '.hud-panel input[type=text],.hud-panel input:not([type]){flex:1;min-width:0;padding:7px 8px;border-radius:7px;border:1px solid #3a2e25;background:#0e0b09;color:#f0e4d4;font:inherit}'
@@ -112,6 +113,20 @@
     };
     return box;
   }
+  // Meeting-room relay (optional TURN server), kept on this PC only; people behind strict networks can reach each other through it.
+  function relaySection() {
+    const f = (label, ph, type) => h('input', { 'aria-label': label, placeholder: ph, type: type || 'text', maxlength: '200', autocomplete: 'off' });
+    const url = f('Relay server address', 'turn:relay.example.com:3478'), user = f('Relay user name', 'User name'), pass = f('Relay password', 'Password', 'password');
+    const status = h('div', { class: 'hud-dim' });
+    const load = () => root.fetch('/api/party/voice-config', { headers: { 'x-nonce': nonce() } }).then(r => r.json()).then(j => {
+      const t = (j.iceServers || []).find(x => x.username); status.textContent = t ? 'Relay in use: ' + t.urls : 'No relay set. Voice goes directly between apps.';
+    }).catch(() => { status.textContent = ''; });
+    const save = turn => api('/api/party/voice-config', { turn }).then(() => { pass.value = ''; if (!turn) { url.value = ''; user.value = ''; } say(turn ? 'Relay saved' : 'Relay removed'); return load(); }).catch(fail);
+    load();
+    return h('details', { 'data-relay': 1 }, h('summary', { class: 'hud-sect' }, 'Relay server (optional)'),
+      h('div', { style: 'display:flex;flex-direction:column;gap:6px;margin-top:6px' }, h('div', { class: 'hud-dim' }, 'For the meeting room. Only needed if a network blocks direct calls. Kept on this PC, never sent to the party.'),
+        status, url, h('div', { class: 'hud-row' }, user, pass), h('div', { class: 'hud-row' }, btn('Save relay', () => save({ url: url.value.trim(), user: user.value, pass: pass.value })), btn('Remove', () => save(null)))));
+  }
   P.party = { title: 'Party', build(el) {
     const off = h('div', { 'data-off': 1, style: 'display:flex;flex-direction:column;gap:6px' }), on = h('div', { 'data-on': 1, style: 'display:flex;flex-direction:column;gap:6px' });
     const url = h('input', { 'aria-label': 'Party link', placeholder: 'Party link (https://…)' }), code = h('input', { 'aria-label': 'Invite code', placeholder: 'Code' }), name = h('input', { 'aria-label': 'Your name', placeholder: 'Your name', maxlength: '20' });
@@ -120,7 +135,7 @@
     const chatIn = h('input', { 'aria-label': 'Chat message', placeholder: 'Say something', maxlength: '200' });
     const send = () => { const t = chatIn.value.trim(); if (!t) return; api('/api/party/chat', { text: t }).then(() => { chatIn.value = ''; }).catch(() => say('Not sent')); };
     chatIn.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
-    on.append(h('div', { 'data-title': 1, class: 'hud-dim' }), h('div', { 'data-members': 1, style: 'display:flex;flex-direction:column;gap:4px' }), sect('Chat'), h('div', { class: 'hud-chat', 'data-chat': 1 }), h('div', { class: 'hud-row' }, chatIn, btn('Send', send)), musicSection(), btn('Leave the party', () => api('/api/party/leave').catch(fail)));
+    on.append(h('div', { 'data-title': 1, class: 'hud-dim' }), h('div', { 'data-members': 1, style: 'display:flex;flex-direction:column;gap:4px' }), sect('Chat'), h('div', { class: 'hud-chat', 'data-chat': 1 }), h('div', { class: 'hud-row' }, chatIn, btn('Send', send)), musicSection(), relaySection(), btn('Leave the party', () => api('/api/party/leave').catch(fail)));
     el.append(off, on);
   }, update(el) {
     const P = (snap && snap.party) || {}, c = !!P.connected;
@@ -214,5 +229,5 @@
     for (const b of sections) if (!b.isConnected) sections.delete(b); else if (!panel || !panel.contains(b)) b.update();
   }
   const musicSectionNow = () => { const b = musicSection(); if (snap) b.update(); return b; };
-  root.Hud = { tasksOf, bubbleText, init, toggle, close, setSnapshot, toast: say, isOpen: () => open, musicSection: musicSectionNow };
+  root.Hud = { tasksOf, bubbleText, init, toggle, close, setSnapshot, toast: say, isOpen: () => open, musicSection: musicSectionNow, relaySection };
 })(globalThis);

@@ -898,6 +898,11 @@
   [98, 290].forEach((x, i) => put('hot-desk-' + (i + 1), 'hot-desk', x, 600));
   def('hot-chair', [118, 654], (p, x) => add(x + 645, spriteOr('hot-chair', g => chair(g, x, 654, { h: 16 }), { under: contact(x, 654, 15) })));
   [118, 152, 306, 346].forEach((x, i) => put('hot-chair-' + (i + 1), 'hot-chair', x, 654));
+  // Meeting room (voice meetings): a long table and its chairs, placed only in the meet interior template (not addable). Each chair
+  // carries its seat spot in its spot param ('meet:1'..): meet-chair is on the table's north side (faces s), meet-chair-s on the south (faces n).
+  def('meet-table', [300, 200], (p, x, y) => add(x + y, g => { box(g, x - 100, y - 15, 0, 200, 30, 24, '#8a5a32'); box(g, x - 96, y - 11, 24, 192, 22, 2, '#a8693a'); }));
+  def('meet-chair', [300, 172], (p, x, y) => add(x + y, g => chair(g, x, y, { noBack: true }), { nofp: true }), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 's', zone: 'meet', seat: true }] });
+  def('meet-chair-s', [300, 228], (p, x, y) => add(x + y, g => chair(g, x, y, { h: 18 }), { nofp: true }), { spots: [{ id: p => p.spot, dx: 0, dy: 0, face: 'n', zone: 'meet', seat: true }] });
   walls.push(g => { Fg(g, 0.3, () => { if (ST.labels > 0.02) { g.globalAlpha = ST.labels; g.fillStyle = 'rgba(255,255,255,.55)'; g.font = "700 15px 'Pixelify Sans',monospace"; g.textAlign = 'center';
       const L = (s, x, y, c) => { g.fillStyle = c || 'rgba(255,255,255,.55)'; g.fillText(s, x, y); };
       const has = t => !!ZONES && ZONES.some(q => q.type === t); // only a layout with a garden / play zone labels it (none before setZones)

@@ -1,17 +1,23 @@
 {
   "schema": 1,
-  "version": "2.0.0",
-  "asset": "TiroAgents-Setup-2.0.0.exe",
-  "url": "https://github.com/Ic3krem/agent-office/releases/download/v2.0.0/TiroAgents-Setup-2.0.0.exe",
-  "sha256": "5b01d1aa67719b93e44f85d0682455bc9de3bc41706a595702b692ddfebf2fc9",
-  "size": 108528133,
-  "date": "2026-11-17",
-  "notes": "TiroAgents 2.0.0: the town, party, external specialists, music and manor themes. Replaces Agent Office 1.x. Installers are not code-signed.",
-  "releaseUrl": "https://github.com/Ic3krem/agent-office/releases/tag/v2.0.0",
+  "version": "2.1.0",
+  "asset": "TiroAgents-Setup-2.1.0.exe",
+  "url": "https://github.com/Ic3krem/agent-office/releases/download/v2.1.0/TiroAgents-Setup-2.1.0.exe",
+  "sha256": "7436450a25f7e372818fee70df43784bc319c23172d7b77d2f44fd4cf8ae4e1f",
+  "size": 108906126,
+  "date": "2026-11-20",
+  "notes": "TiroAgents 2.1.0: the island becomes a notch (calendar, timers, notes, trackers, game mode with FPS) and the party gets a meeting room with voice. Installers are not code-signed.",
+  "releaseUrl": "https://github.com/Ic3krem/agent-office/releases/tag/v2.1.0",
   "platforms": {
     "windows": "available",
     "macos": "available",
     "linux": "available"
   },
-  "previous": []
+  "previous": [
+    {
+      "version": "2.0.0",
+      "date": "2026-11-17",
+      "url": "https://github.com/Ic3krem/agent-office/releases/tag/v2.0.0"
+    }
+  ]
 }

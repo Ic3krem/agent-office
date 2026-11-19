@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
   const W = root.WorldPath;
-  const LOT_IDS = ['home', 'kain', 'games', 'friend-1', 'friend-2', 'friend-3'];
-  const KINDS = ['home', 'kain', 'games', 'friend'];
+  const LOT_IDS = ['home', 'kain', 'games', 'meet', 'friend-1', 'friend-2', 'friend-3'];
+  const KINDS = ['home', 'kain', 'games', 'meet', 'friend'];
   const BUILDINGS = ['office-country', 'office-japanese', 'office-modern', 'karinderya', 'gamehall', 'lot-empty'];
   const DECOR = ['tree-round', 'tree-pine', 'bush', 'bench', 'lamp', 'well', 'fountain', 'barrel', 'crate', 'flowers', 'sign'];
   const FACES = ['n', 'e', 's', 'w'];
@@ -219,10 +219,10 @@
   }
 
   // Doors (town step 2): where each lot's door leads, and the lot a scene's exit comes back to.
-  const ENTER = { home: ['/#scene=office', 'Enter the office'], kain: ['/#scene=kain', 'Enter the karinderya'], games: ['/#scene=games', 'Enter the game hall'] };
+  const ENTER = { home: ['/#scene=office', 'Enter the office'], kain: ['/#scene=kain', 'Enter the karinderya'], games: ['/#scene=games', 'Enter the game hall'], meet: ['/#scene=meet', 'Enter the meeting room'] };
   const enterTarget = lot => { const e = lot && Object.prototype.hasOwnProperty.call(ENTER, lot.kind) ? ENTER[lot.kind] : null; return e ? { url: e[0], label: e[1] } : { url: null, label: 'Friend lots open in party mode' }; };
   // Spot trips ('spot:<id>:<n>') never reach here: their 'there' leg is in the town scene, so no interior page shows them.
-  const lotOfScene = scene => scene === 'kain' || scene === 'games' ? scene : 'home';
+  const lotOfScene = scene => scene === 'kain' || scene === 'games' || scene === 'meet' ? scene : 'home';
   // A spot trip's destination 'spot:<id>:<n>' -> its activity point {spot, point: n mod count, x, y, act, face, k: the crowd
   // ring floor(n / count)}, or null for an unknown spot or a malformed id (a stored trip outliving a town.json edit).
   function spotPoint(map, dest) {

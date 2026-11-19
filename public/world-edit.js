@@ -20,7 +20,7 @@
   // Locked pieces: fixtures, and the ponds (each owns a water zone that would not follow a move or copy).
   const isFixture = type => /^fixture-|^pond(-|$)/.test(type);
   // One-of-a-kind pieces: they register fixed click keys (or, the pond, a water zone that would not follow a copy).
-  const NOT_ADDABLE = new Set(['arcade', 'jukebox', 'server-plant', 'pond', 'pond-east']);
+  const NOT_ADDABLE = new Set(['arcade', 'jukebox', 'server-plant', 'pond', 'pond-east', 'meet-table', 'meet-chair', 'meet-chair-s']);
   // What the drawer and messages call each piece.
   const LABELS = {
     'dept-desk': 'Department desk', 'tiro-desk': "Manager's desk", inbox: 'Inbox tray', 'tiro-chair': "Manager's chair", 'guest-chair': 'Guest chair',
@@ -30,7 +30,7 @@
     beanbag: 'Beanbag', 'ball-pit': 'Ball pit', hoop: 'Basketball hoop', dartboard: 'Dartboard', 'toy-bin': 'Toy bin', 'filing-cabinet': 'Filing cabinet',
     'server-rack': 'Server rack', bookshelf: 'Bookshelf', 'water-cooler': 'Water cooler', 'coffee-counter': 'Coffee bar', printer: 'Printer',
     'recycling-bin': 'Recycling bin', 'hot-desk': 'Hot desk', 'hot-chair': 'Hot-desk chair', fence: 'Fence', gate: 'Gate', 'pond-east': 'Pond',
-    'picnic-table': 'Picnic table', karinderya: 'Karinderya (eat at the plan limit)', 'kain-table': 'Karinderya table (six more seats)', 'broom-corner': 'Broom corner (adds a sweeper)', 'lamp-post': 'Lamp post', garage: 'Garage shed', 'mail-bench': 'Mail sorting bench', mailbox: 'Mailbox', tires: 'Tyre stack',
+    'picnic-table': 'Picnic table', karinderya: 'Karinderya (eat at the plan limit)', 'kain-table': 'Karinderya table (six more seats)', 'meet-table': 'Meeting table', 'meet-chair': 'Meeting chair', 'meet-chair-s': 'Meeting chair (south side)', 'broom-corner': 'Broom corner (adds a sweeper)', 'lamp-post': 'Lamp post', garage: 'Garage shed', 'mail-bench': 'Mail sorting bench', mailbox: 'Mailbox', tires: 'Tyre stack',
   };
   const labelOf = type => LABELS[type] || (F.CATALOG[type] && F.CATALOG[type].label) || type;
   const catalog = () => Object.keys(F.CATALOG).filter(t => !isFixture(t)).map(type => ({

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadWorld } from './world-vm.mjs';
 
-const B = loadWorld({ extra: ['bg-music.js'] }).BgMusic;
+const B = loadWorld({ extra: ['bg-music.js'], globals: { clearInterval() {} } }).BgMusic;
 const J = v => JSON.parse(JSON.stringify(v));
 
 test('plan: the same tune for a place every time, another for each place', () => {
@@ -24,4 +24,10 @@ test('ducking is -12 dB', () => {
 test('shuffle is a permutation', () => {
   const s = J(B.shuffle(10, () => 0.3));
   assert.deepEqual([...s].sort((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+});
+
+test('hold keeps the tune off (meeting room) even if start is called', async () => {
+  B.hold(true);
+  assert.equal((await B.start('meet')).on, false);
+  assert.equal(B.state().on, false);
 });

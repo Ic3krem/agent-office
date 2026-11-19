@@ -2,7 +2,7 @@
 
 The scheduler station, the job and the inbox feed file.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 Agent Office 1.2.8 has a Scheduler station in the office: a garage and a mail bench with a mailbox, east of the playroom. Clicking either opens one read-only panel. The panel shows what the scheduler job last wrote. Neither the panel nor the job has any mail access built in.
 

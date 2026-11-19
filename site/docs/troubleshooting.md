@@ -2,7 +2,7 @@
 
 Windows warnings and common problems.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 ## SmartScreen and Smart App Control
 

@@ -4,7 +4,7 @@
 // then back to idle), hidden frames (0), frame time while agents walk (preview 'work' scene) and renderer private memory. Then 20 enter/leave cycles
 // town <-> office (High), 40 cycles: the JS heap after gc() stays within +-10% of the first cycle and renderer private bytes
 // rise no faster than 0.3 MB per cycle (least-squares slope over all 40; the user's call, 2026-11-08, replacing the
-// "cycles 11-20 rise <= 3%" plateau). 20 town <-> karinderya + game hall cycles are reported beside it.
+// "cycles 11-20 rise <= 3%" plateau). 20 town <-> karinderya + game hall + meeting room cycles are reported beside it.
 const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
@@ -129,7 +129,7 @@ app.whenReady().then(async () => {
     const xm = (n - 1) / 2, ym = out.reduce((x, y) => x + y, 0) / n, slope = out.reduce((t, y, i) => t + (i - xm) * (y - ym), 0) / out.reduce((t, _, i) => t + (i - xm) ** 2, 0);
     return { mb: out, drift: (out[n - 1] - out[0]) / out[0] * 100, slope, heapMB: heap, heapDrift, rawMB: raw, rawDrift: (raw[n - 1] - raw[0]) / raw[0] * 100 };
   };
-  const office = await run(['office'], 40), rooms = await run(['kain', 'games'], 20);
+  const office = await run(['office'], 40), rooms = await run(['kain', 'games', 'meet'], 20);
   const cEnd = office.mb[39];
   const gpuInfo = await app.getGPUInfo('basic').catch(() => ({})), cpu0 = os.cpus()[0];
   const R = {
@@ -164,7 +164,7 @@ app.whenReady().then(async () => {
   console.log(JSON.stringify(R.machine));
   for (const [n, ok, v] of budgets) console.log((ok ? 'PASS ' : 'FAIL ') + n + '  (' + (+v).toFixed(3) + ')');
   for (const [p, r] of Object.entries(presets)) console.log(p + ' extra: idle max ' + r.idle.cpuMax.toFixed(2) + '%, power saver ' + r.idle.powerSaver + ', mouse ' + JSON.stringify(r.mouse) + ', draw p50 ' + r.work.drawP50.toFixed(2) + ' ms max ' + r.work.drawMax.toFixed(2) + ' ms, loop p50/p95 ' + r.work.loopP50.toFixed(2) + '/' + r.work.loopP95.toFixed(2) + ' ms over ' + r.work.samples + ' frames (' + r.work.movingAtEnd + ' moving at the end)');
-  for (const [n, c] of [['office', office], ['kain+games', rooms]]) console.log(n + ' cycles: heap MB ' + c.heapMB.map(v => v.toFixed(2)).join(' ') + ' (worst ' + c.heapDrift.toFixed(1) + '%); private MB, cache cleared ' + c.mb.map(v => v.toFixed(0)).join(' ') + ' (' + c.drift.toFixed(1) + '% end to end, slope ' + c.slope.toFixed(3) + ' MB per cycle); with the cache ' + c.rawMB.map(v => v.toFixed(0)).join(' ') + ' (' + c.rawDrift.toFixed(1) + '%)');
+  for (const [n, c] of [['office', office], ['kain+games+meet', rooms]]) console.log(n + ' cycles: heap MB ' + c.heapMB.map(v => v.toFixed(2)).join(' ') + ' (worst ' + c.heapDrift.toFixed(1) + '%); private MB, cache cleared ' + c.mb.map(v => v.toFixed(0)).join(' ') + ' (' + c.drift.toFixed(1) + '% end to end, slope ' + c.slope.toFixed(3) + ' MB per cycle); with the cache ' + c.rawMB.map(v => v.toFixed(0)).join(' ') + ' (' + c.rawDrift.toFixed(1) + '%)');
   const bad = budgets.filter(b => !b[1]);
   console.log(bad.length ? 'BUDGET BROKEN: ' + bad.map(b => b[0]).join('; ') : 'ALL PASSED');
   done(bad.length ? 1 : 0);

@@ -7,6 +7,7 @@
 //   GET  /poll    Authorization: Bearer <token>   long poll: JSON array of the same events (tunnels that buffer SSE);
 //                 ?resync=1 restarts the queue with a hello (the client asks after a failed poll: delivery is at most once)
 //   POST /office {office}  /avatar {avatar}  /chat {text}  /leave        (Bearer token)
+//   POST /rtc {to,kind,data}  /emote {emote}                                (Bearer token; voice setup between slot holders; reactions in the meeting room)
 //   POST /music {music|null} or {djAll}                                    (Bearer token; the shared player)
 //   POST /admin/kick {id}  x-admin-key: <key>                              (host only; also bans that address)
 //   POST /admin/end         x-admin-key: <key>                              (host only; tells everyone the party ended)
@@ -15,23 +16,25 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import dns from 'node:dns/promises';
-import { LIMITS, cleanName, cleanChat, cleanOffice, cleanAvatar, cleanMusic } from './protocol.mjs';
+import { LIMITS, cleanName, cleanChat, cleanOffice, cleanAvatar, cleanMusic, cleanRtc, cleanEmote } from './protocol.mjs';
 import { createGames } from './games.mjs';
 
 const sha = s => crypto.createHash('sha256').update(String(s ?? ''), 'utf8').digest();
 const safeEqual = (a, b) => crypto.timingSafeEqual(sha(a), sha(b));
 const rand = n => crypto.randomBytes(n).toString('hex');
 
-// Token bucket per key: `rate` per second, bursts up to `burst`.
+// Token bucket per key: `rate` per second, bursts up to `burst`. limit.refund(key) gives one token back.
 export function limiter(rate, burst, now = () => Date.now()) {
   const b = new Map();
-  return key => {
+  const limit = key => {
     const t = now(), s = b.get(key) || { n: burst, t };
     s.n = Math.min(burst, s.n + (t - s.t) / 1000 * rate); s.t = t;
     if (b.size > 5000) b.clear(); // bounded memory under a flood of addresses
     if (s.n < 1) { b.set(key, s); return false; }
     s.n -= 1; b.set(key, s); return true;
   };
+  limit.refund = key => { const s = b.get(key); if (s) s.n = Math.min(burst, s.n + 1); };
+  return limit;
 }
 
 const POLL = { events: 200, bytes: 1_000_000 }; // a poller's queue; past either cap it gets a fresh hello instead
@@ -41,9 +44,16 @@ export function createParty({ code, name = 'TiroAgents party', adminKey = '', no
   let seq = 0; // join order: every app lays the friend lots out the same way
   let music = null, djAll = true; // the shared player: what plays (server-stamped start) and whether guests may change it
   // members as relayed: the office without its layout (that can be 300 KB); a visit asks for it with /office-of
-  const pub = m => ({ id: m.id, name: m.name, host: m.host, seq: m.seq, office: m.office && { ...m.office, layout: undefined }, avatar: m.avatar });
+  const pub = m => ({ id: m.id, name: m.name, host: m.host, seq: m.seq, office: m.office && { ...m.office, layout: undefined }, avatar: m.avatar, voice: m.voice });
   const others = (m, ev) => { for (const o of byToken.values()) if (o !== m) o.send && o.send(ev); };
   const all = ev => { for (const o of byToken.values()) o.send && o.send(ev); };
+  // Voice slots: the LIMITS.voice members longest in room 'meet' (ties by join order); a newcomer never displaces a holder. Everyone hears when the set changes.
+  let holders = [];
+  const slots = () => {
+    const h = [...byToken.values()].filter(m => m.meetAt).sort((a, b) => a.meetAt - b.meetAt || a.seq - b.seq).slice(0, LIMITS.voice);
+    for (const m of byToken.values()) m.voice = h.includes(m);
+    const ids = h.map(m => m.id); if (ids.join() !== holders.join()) { holders = ids; all({ t: 'voice', ids }); }
+  };
   const games = createGames({ broadcast: all, now, ...gameOpts });
   const api = {
     name, banned,
@@ -56,14 +66,14 @@ export function createParty({ code, name = 'TiroAgents party', adminKey = '', no
       for (let i = 2; taken.has(nm.toLowerCase()); i++) nm = cleanName(nm.slice(0, 16)) + ' ' + i;
       // The host (whoever holds the host key, e.g. the app that started the party) owns the town: their office is the main house.
       const host = !!adminKey && typeof body.hostKey === 'string' && safeEqual(body.hostKey, adminKey) && ![...byToken.values()].some(o => o.host);
-      const m = { token: rand(24), id: rand(6), name: nm, host, seq: ++seq, addr, office: null, avatar: null, last: now(), send: null };
+      const m = { token: rand(24), id: rand(6), name: nm, host, seq: ++seq, addr, office: null, avatar: null, meetAt: 0, voice: false, last: now(), send: null };
       byToken.set(m.token, m);
       others(m, { t: 'member', m: pub(m) });
       return { status: 200, body: { token: m.token, id: m.id, name: m.name, party: name, host: m.host, seq: m.seq } };
     },
     member: token => (typeof token === 'string' && byToken.get(token)) || null,
     officeOf: id => { const m = [...byToken.values()].find(x => x.id === id); return m ? m.office : null; },
-    hello: m => ({ t: 'hello', you: m.id, host: m.host, seq: m.seq, party: name, members: [...byToken.values()].filter(o => o !== m).map(pub), chat, game: games.state(), music, djAll, at: now() }),
+    hello: m => ({ t: 'hello', you: m.id, host: m.host, seq: m.seq, party: name, members: [...byToken.values()].filter(o => o !== m).map(pub), chat, game: games.state(), music, djAll, voice: holders, caps: ['voice'], at: now() }),
     attach(m, send) { if (m.send && m.send !== send) m.send(null); m.send = send; m.last = now(); send(api.hello(m)); },
     // Long poll: reply(jsonArray) is called once, when events are queued (or with [] when a newer poll replaces it).
     // The member's send becomes a capped queue (first poll gets the hello); returns a cancel for timeout or close.
@@ -88,7 +98,18 @@ export function createParty({ code, name = 'TiroAgents party', adminKey = '', no
     stop: () => games.stop(),
     detach(m, send) { if (m.send === send) m.send = null; m.last = now(); },
     office(m, o) { const c = cleanOffice(o); if (!c) return false; m.office = c; m.last = now(); others(m, { t: 'member', m: pub(m) }); return true; },
-    avatar(m, a) { const c = cleanAvatar(a); if (!c) return false; m.avatar = c; m.last = now(); others(m, { t: 'avatar', id: m.id, avatar: c }); return true; },
+    avatar(m, a) { const c = cleanAvatar(a); if (!c) return false; const was = m.meetAt; m.meetAt = c.room === 'meet' ? was || now() : 0; m.avatar = c; m.last = now(); others(m, { t: 'avatar', id: m.id, avatar: c }); if (!!was !== !!m.meetAt) slots(); return true; },
+    // Voice setup messages (offer/answer/ice) pass between two slot holders; never stored, the audio itself never touches the server.
+    rtc(m, b) {
+      const c = cleanRtc(b); if (!c) return { ok: false, error: 'bad request' };
+      const to = [...byToken.values()].find(x => x.id === c.to);
+      if (!m.voice || !to || to === m || !to.voice) return { ok: false, error: 'no voice slot' };
+      m.last = now(); to.send && to.send({ t: 'rtc', from: m.id, kind: c.kind, data: c.data }); return { ok: true };
+    },
+    emote(m, b) {
+      const e = cleanEmote(b && b.emote); if (e === null || !m.meetAt) return false;
+      m.last = now(); for (const o of byToken.values()) if (o !== m && o.meetAt && o.send) o.send({ t: 'emote', id: m.id, emote: e }); return true; // the sender's page drew it already
+    },
     // Shared player: {music: {...} | null} plays or stops (the host, or anyone while djAll); {djAll} is the host's switch.
     music(m, b) {
       m.last = now();
@@ -103,7 +124,7 @@ export function createParty({ code, name = 'TiroAgents party', adminKey = '', no
       all({ t: 'music', music, djAll, at: now() }); return { ok: true };
     },
     say(m, text) { const t = cleanChat(text); if (!t) return false; const line = { id: m.id, name: m.name, text: t, at: now() }; chat.push(line); if (chat.length > LIMITS.chatKeep) chat.shift(); m.last = now(); all({ t: 'chat', line }); return true; },
-    leave(m, why = 'left') { if (!byToken.delete(m.token)) return; if (why === 'kicked' && m.send) m.send({ t: 'kicked' }); m.send && m.send(null); others(m, { t: 'leave', id: m.id }); },
+    leave(m, why = 'left') { if (!byToken.delete(m.token)) return; m.meetAt = 0; m.voice = false; if (why === 'kicked' && m.send) m.send({ t: 'kicked' }); m.send && m.send(null); others(m, { t: 'leave', id: m.id }); slots(); },
     // The host ends the party: everyone hears it before the server goes away (their apps leave instead of retrying).
     end() { all({ t: 'ended' }); },
     kick(id) { const m = [...byToken.values()].find(x => x.id === id); if (!m) return false; banned.add(m.addr); api.leave(m, 'kicked'); return true; },
@@ -133,7 +154,7 @@ const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referr
 // that really come from that container's address, so a direct IP:port visitor cannot fake an address to dodge a ban.
 export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name, trustProxy = '', pollMs = 20_000, maxStreams = LIMITS.members * 2 } = {}) {
   const party = createParty({ code, name, adminKey });
-  const musicLimit = limiter(1, 3), joinLimit = limiter(0.2, 5), badJoins = limiter(0.5, 20), msgLimit = limiter(10, 20), chatLimit = limiter(1, 3), officeLimit = limiter(1, 3), kickLimit = limiter(0.5, 5), pollLimit = limiter(5, 10);
+  const musicLimit = limiter(1, 3), joinLimit = limiter(0.2, 5), badJoins = limiter(0.5, 20), msgLimit = limiter(10, 20), chatLimit = limiter(1, 3), rtcLimit = limiter(20, 60), emoteLimit = limiter(1, 5), officeLimit = limiter(1, 3), kickLimit = limiter(0.5, 5), pollLimit = limiter(5, 10);
   const ipKey = a => a.includes(':') ? a.split(':').slice(0, 4).join(':') : a; // IPv6 by /64
   let proxyIps = new Set();
   const resolveProxy = () => trustProxy && dns.lookup(trustProxy, { all: true }).then(r => { proxyIps = new Set(r.map(x => x.address)); }).catch(() => {});
@@ -170,11 +191,14 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
         if (!pollLimit(m.token)) return json(res, 429, { error: 'slow down' });
         if (streams >= maxStreams) return json(res, 503, { error: 'busy' });
         streams++;
-        let done = false, cancel = null;
-        const finish = body => { if (done) return; done = true; streams--; clearTimeout(t); if (cancel) cancel(); if (body !== null) { res.writeHead(200, { ...SEC, 'content-type': 'application/json' }); res.end(body); } };
+        let done = false, cancel = null; const resync = url.searchParams.get('resync') === '1';
+        // a poll answered with events is free: queued events end it at once (trickle ICE, a busy town), and their senders have their own
+        // limits. Only polls that end empty (timeout, or replaced by a newer poll) count, so a client hammering /poll is still limited.
+        // A resync always counts: it answers at once with a full hello the client asked for.
+        const finish = body => { if (done) return; done = true; streams--; clearTimeout(t); if (cancel) cancel(); if (body !== null) { if (body !== '[]' && !resync) pollLimit.refund(m.token); res.writeHead(200, { ...SEC, 'content-type': 'application/json' }); res.end(body); } };
         const t = setTimeout(() => finish('[]'), pollMs);
         res.on('close', () => finish(null));
-        cancel = party.poll(m, finish, url.searchParams.get('resync') === '1');
+        cancel = party.poll(m, finish, resync);
         return;
       }
       if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
@@ -192,11 +216,13 @@ export function startParty({ port = 4880, host = '0.0.0.0', code, adminKey, name
         const b = await readBody(req, 4096); return json(res, party.kick(String(b.id || '')) ? 200 : 404, {});
       }
       const m = party.member(token); if (!m) return json(res, 401, { error: 'join first' });
-      if (!msgLimit(m.token)) return json(res, 429, { error: 'slow down' });
+      if (url.pathname !== '/rtc' && url.pathname !== '/emote' && !msgLimit(m.token)) return json(res, 429, { error: 'slow down' }); // those two have their own limiters
       if (url.pathname === '/office') { if (!officeLimit(m.token)) return json(res, 429, { error: 'slow down' }); return json(res, party.office(m, (await readBody(req, LIMITS.body)).office) ? 200 : 400, {}); }
       if (url.pathname === '/office-of') { const o = party.officeOf(String((await readBody(req, 4096)).id || '')); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'no such member' }); }
       if (url.pathname === '/avatar') return json(res, party.avatar(m, (await readBody(req, 4096)).avatar) ? 200 : 400, {});
       if (url.pathname === '/chat') { const b = await readBody(req, 4096); if (!chatLimit(m.token)) return json(res, 429, { error: 'slow down' }); return json(res, party.say(m, b.text) ? 200 : 400, {}); }
+      if (url.pathname === '/rtc') { const b = await readBody(req, 16384); if (!rtcLimit(m.token)) return json(res, 429, { error: 'slow down' }); const r = party.rtc(m, b); return json(res, r.ok ? 200 : 400, r); }
+      if (url.pathname === '/emote') { const b = await readBody(req, 4096); if (!emoteLimit(m.token)) return json(res, 429, { error: 'slow down' }); return json(res, party.emote(m, b) ? 200 : 400, {}); }
       if (url.pathname === '/music') { const b = await readBody(req, 4096); if (!musicLimit(m.token)) return json(res, 429, { error: 'slow down' }); const r = party.music(m, b); return json(res, r.ok ? 200 : 400, r); }
       if (url.pathname === '/game') { const r = party.game(m, await readBody(req, 4096)); return json(res, r.ok ? 200 : 400, r); }
       if (url.pathname === '/leave') { party.leave(m); return json(res, 200, {}); }

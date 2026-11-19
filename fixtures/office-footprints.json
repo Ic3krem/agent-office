@@ -133,5 +133,8 @@
   {"id":"kain-table","type":"kain-table","part":2,"fp":null,"d":-21,"floor":false,"nofp":true},
   {"id":"kain-table","type":"kain-table","part":3,"fp":null,"d":19,"floor":false,"nofp":true},
   {"id":"kain-table","type":"kain-table","part":4,"fp":[-54,17,54,26],"d":21,"floor":false,"nofp":true},
-  {"id":"broom-corner","type":"broom-corner","part":0,"fp":[-3,-3,11,11],"d":8,"floor":false,"nofp":false}
+  {"id":"broom-corner","type":"broom-corner","part":0,"fp":[-3,-3,11,11],"d":8,"floor":false,"nofp":false},
+  {"id":"meet-table","type":"meet-table","part":0,"fp":[-100,-15,100,15],"d":0,"floor":false,"nofp":false},
+  {"id":"meet-chair","type":"meet-chair","part":0,"fp":[-2.2,-2.2,2.2,2.2],"d":0,"floor":false,"nofp":true},
+  {"id":"meet-chair-s","type":"meet-chair-s","part":0,"fp":[-2.2,-2.2,2.2,2.2],"d":0,"floor":false,"nofp":true}
 ]

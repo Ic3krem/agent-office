@@ -1,6 +1,6 @@
 // Live check of town step 2 doors in Electron (not in npm test): temp-profile server on :4797, offscreen window, real keys.
 // town -> office door -> office; office "Back to town" -> town at the home door; town -> kain -> Leave -> town; town -> games ->
-// Leave -> town; a friend lot only explains itself; back/forward and direct #scene= loads. Each switch fades; no console errors.
+// Leave -> town; town -> meet -> Leave -> town; a friend lot only explains itself; back/forward and direct #scene= loads. Each switch fades; no console errors.
 // usage: node_modules/.bin/electron perf/scene-check.cjs [shot dir]   (prints ALL PASSED)
 const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('child_process');
@@ -71,16 +71,16 @@ app.whenReady().then(async () => {
   // 2. office Back to town -> town at the home door
   await fadesAndGoes(() => js(`[...document.querySelectorAll('button')].find(b => b.textContent === 'Back to town').click()`), '/town#from=home', 'office -> town');
   check('town boots at the home door', await townReady() && (await atDoor('home')) < 1, await atDoor('home'));
-  // 3. kain and games: in by the door, out by walking onto the exit and pressing E
-  for (const lot of ['kain', 'games']) {
+  // 3. kain, games and meet: in by the door, out by walking onto the exit and pressing E
+  for (const lot of ['kain', 'games', 'meet']) {
     const d = await toDoor(lot);
     check(lot + ' door prompt', d.near === lot && d.shown && /Enter the/.test(d.text), d);
     await fadesAndGoes(() => press('E'), '/#scene=' + lot, 'town -> ' + lot);
     check(lot + ' scene boots', await officeReady(lot));
     // as in the office, the lights dim to the board and the zone labels fade once (about 16 s): wait that out before idle is measured
     await until(() => js('OfficeFurniture.state.labels <= 0.02 && Math.abs(OfficeFurniture.state.dim - (OfficeWorld.debug().board.empty ? 1 : 0)) <= 0.01'), 25000); await wait(600);
-    const st = await js(`({ agents: (t => OfficeWorld.debug().agents.filter(a => !a.id.startsWith('friend:') && !(t[a.id] && t[a.id].dest === ${JSON.stringify(lot)})).length)(JSON.parse(localStorage.getItem('ao.trips') || '{}')), kain: !!OfficeMotion.SPOTS['kain:1'], arcade: !!OfficeMotion.SPOTS['play:arcade1'], ceo: OfficeWorld.ceo(), spawn: OfficeMotion.SPAWN, label: [...document.querySelectorAll('span')].some(s => s.textContent === ${JSON.stringify(lot === 'kain' ? 'Karinderya' : 'Game hall')}) })`);
-    check(lot + ': only the CEO (and travellers), the interior pieces, the scene name', st.agents === 0 && Math.hypot(st.ceo.x - st.spawn.x, st.ceo.y - st.spawn.y) < 1 && (lot === 'kain' ? st.kain : st.arcade) && st.label, st);
+    const st = await js(`({ agents: (t => OfficeWorld.debug().agents.filter(a => !a.id.startsWith('friend:') && !(t[a.id] && t[a.id].dest === ${JSON.stringify(lot)})).length)(JSON.parse(localStorage.getItem('ao.trips') || '{}')), kain: !!OfficeMotion.SPOTS['kain:1'], arcade: !!OfficeMotion.SPOTS['play:arcade1'], meet: !!OfficeMotion.SPOTS['meet:1'], ceo: OfficeWorld.ceo(), spawn: OfficeMotion.SPAWN, label: [...document.querySelectorAll('span')].some(s => s.textContent === ${JSON.stringify({ kain: 'Karinderya', games: 'Game hall', meet: 'Meeting room' }[lot])}) })`);
+    check(lot + ': only the CEO (and travellers), the interior pieces, the scene name', st.agents === 0 && Math.hypot(st.ceo.x - st.spawn.x, st.ceo.y - st.spawn.y) < 1 && st[{ kain: 'kain', games: 'arcade', meet: 'meet' }[lot]] && st.label, st);
     const f = await fits();
     check(lot + ': Fit frames the interior, centred', f.inside && f.door && Math.abs(f.off[0]) < 60 && Math.abs(f.off[1]) < 80 && f.span > 0.5, f);
     const f0 = await js('OfficeWorld.framesDrawn()'); await wait(1500); const idle = (await js('OfficeWorld.framesDrawn()')) - f0;
@@ -129,15 +129,15 @@ app.whenReady().then(async () => {
   check('friend lot prompt', fr.near === 'friend-2' && fr.shown && fr.text === 'Friend lots open in party mode', fr);
   await shot('friend');
   await press('E'); await wait(500);
-  check('friend lot: E does nothing', url() === '/town#from=games' && !(await js(`document.documentElement.classList.contains('ao-fade')`)), url());
+  check('friend lot: E does nothing', url() === '/town#from=meet' && !(await js(`document.documentElement.classList.contains('ao-fade')`)), url());
   // idle is pinned to Low (ambient off), as perf/town-check.cjs does: the default preset animates water and trees at its cap
   await js(`__town.api.setGraphics(Graphics.resolve({ preset: 'low' }, Graphics.env()))`); await wait(300);
   const tf = await js('__town.api.frameCount()'); await wait(500);
   check('town idle renders nothing', (await js('__town.api.frameCount()')) === tf);
   // 5. back / forward, direct loads and a bad scene
   const nav = w.webContents.navigationHistory || w.webContents;
-  nav.goBack(); check('back: the game hall again', await until(() => url() === '/#scene=games') && await officeReady('games'), url());
-  nav.goForward(); check('forward: the town at the games door', await until(() => url() === '/town#from=games') && await townReady() && (await atDoor('games')) < 1, url());
+  nav.goBack(); check('back: the meeting room again', await until(() => url() === '/#scene=meet') && await officeReady('meet'), url());
+  nav.goForward(); check('forward: the town at the meeting room door', await until(() => url() === '/town#from=meet') && await townReady() && (await atDoor('meet')) < 1, url());
   await w.loadURL(base + '/#scene=kain'); check('direct load of /#scene=kain', await officeReady('kain'));
   await w.loadURL(base + '/#scene=../x'); check('a bad #scene= falls back to the office', await officeReady('office'));
   await wait(500);

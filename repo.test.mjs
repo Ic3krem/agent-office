@@ -198,3 +198,22 @@ test('sign-release builds, signs and verifies a manifest; the signing key is nev
   assert.ok(read('./.gitignore').split(/\r?\n/).some(l => l === '*.key' || l === '*.pem'), '.gitignore keeps key files out');
   for (const f of ['scripts/sign-release.mjs', 'desktop/update-key.mjs', 'desktop/updater.mjs']) assert.doesNotMatch(read('./' + f), /BEGIN (PRIVATE|[A-Z ]*PRIVATE) KEY/);
 });
+
+test('every local module the app imports ships in the installer (build.files)', () => {
+  // A module missing from build.files packs fine but crashes the packaged server on start (ERR_MODULE_NOT_FOUND).
+  const path = { dir: f => f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '.', norm: p => { const out = []; for (const s of p.split('/')) { if (s === '..') out.pop(); else if (s && s !== '.') out.push(s); } return out.join('/'); } };
+  const toRe = g => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0001').replace(/\*/g, '[^/]*').replace(/\u0001/g, '.*') + '$');
+  const pats = pkg.build.files.filter(f => !f.startsWith('!')).map(toRe);
+  const IMP = /(?:import|export)[^"']*?from\s*["'](\.{1,2}\/[^"']+)["']|import\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)|require\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g;
+  const seen = new Set(), missing = [];
+  const walk = f => {
+    if (seen.has(f)) return; seen.add(f);
+    let s; try { s = read('./' + f); } catch { missing.push(f + ' (not on disk)'); return; }
+    if (!pats.some(p => p.test(f))) missing.push(f);
+    for (const m of s.matchAll(IMP)) walk(path.norm(path.dir(f) + '/' + (m[1] || m[2] || m[3])));
+  };
+  const desktop = fs.readdirSync(new URL('./desktop/', import.meta.url)).filter(x => /\.(mjs|cjs|js)$/.test(x)).map(x => 'desktop/' + x);
+  for (const e of ['server.mjs', 'party/server.mjs', ...desktop]) walk(e);
+  assert.ok(seen.has('voice-config.mjs'), 'the walk reaches modules imported by server.mjs');
+  assert.deepEqual(missing, []);
+});

@@ -1,5 +1,5 @@
 // Agent Office desktop app: runs the office server, keeps Tiro on the desktop, and lives in the tray.
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog, session, safeStorage } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, shell, globalShortcut, dialog, session, safeStorage, systemPreferences, nativeTheme } from 'electron';
 import crypto from 'node:crypto';
 import { normalizeGuardConfig, effectiveConfig, weakenings, signConfig, signRemember, verifyRemember } from '../guard/config.mjs';
 import { CAT_NAMES } from '../guard/rules.mjs';
@@ -9,6 +9,7 @@ import { LOGIN, terminalPlan } from '../cli-auth.mjs';
 import { keyShape, keyHint, saveKey, loadKey, removeKey } from '../claude-key.mjs';
 import { runExternal } from '../external-run.mjs';
 import { findClaude } from '../office.mjs';
+import { decidePermission, originOf } from './media-permissions.mjs';
 import { unsafeSwitches, unsafeEnv, unsafeMessage } from './startup-guard.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -16,13 +17,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createNowPlaying } from './nowplaying.mjs';
+import { createPerfMonitor } from './perf-monitor.mjs';
+import { isGame } from './game-detect.mjs';
+import { createFps } from './presentmon.mjs';
 import { createLyrics, trackKey } from './lyrics.mjs';
 import { checkForUpdate, downloadUpdate, makeUpdateDir, makeAssetPolicy, verifyBeforeLaunch, applyUpdatePatch, resolveFeed } from './updater.mjs';
 import { officeNav } from './office-nav.mjs';
 import { createRestartPolicy, restartLogLine } from './restart-policy.mjs';
 import { candidatePorts, publishedPort, isAgentOffice } from '../ports.mjs';
 import { readForWrite } from '../prefs-file.mjs';
-import { resolveMode, pickDisplay, isleBoundsFor, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
+import { resolveMode, pickDisplay, inPeekZone, isFullscreenState, normalizeSettings, applyPatch, peekReady, notchEnabledOf, migrateNotchPrefs, migrateLyricsPrefs, notchStep } from './island-logic.mjs';
+import { windowForm, windowOptions, rectFor, resizePlan, topOverhang } from './notch-window.mjs';
+import { hoverStep, shrinkDelay, smartAway } from './notch-hover.mjs';
+import { readStore, writeStore, acceptStore } from './notch-store.mjs';
+import { createCalendarSync, saveLink, loadLink } from './calendar-link.mjs';
+import { joinLink } from './ics.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CFG_DIR = path.join(os.homedir(), '.claude', 'agent-office');
@@ -35,6 +44,8 @@ const followPort = () => { if (PINNED) return false; const p = publishedPort(BRI
 const KIRO_FILE = path.join(CFG_DIR, 'kiro.json');
 const ICON = nativeImage.createFromPath(path.join(ROOT, 'desktop', 'icon.png'));
 const KIRO_W = 380, KIRO_H = 600;
+// AGENT_OFFICE_NO_GLOBALS=1 (test runs beside the installed app): no tray icon and no global shortcuts.
+const NO_GLOBALS = process.env.AGENT_OFFICE_NO_GLOBALS === '1';
 
 // A debugging port or inspector would let any local program drive the app's signed-in windows: refuse to start with one.
 { const bad = [...unsafeSwitches(process.argv), ...unsafeEnv().map(k => k + '=' + process.env[k])]; if (bad.length) { dialog.showErrorBox('TiroAgents', unsafeMessage(bad)); process.exit(2); } }
@@ -137,8 +148,9 @@ function relocateWindows() {
 const url = p => `${BASE}${p}`;
 const signInWindows = () => session.defaultSession.cookies.set({ url: BASE, name: 'ao_ui', value: UI_KEY, httpOnly: true, sameSite: 'strict', path: '/' });
 // Every window: external links open in the browser, the page itself can never navigate away from the local server, no popups.
+const openOut = u => { if (/^https?:/.test(u)) shell.openExternal(u); }; // the one way a page's link reaches the default browser
 const external = wc => {
-  wc.setWindowOpenHandler(({ url: u }) => { if (/^https?:/.test(u)) shell.openExternal(u); return { action: 'deny' }; });
+  wc.setWindowOpenHandler(({ url: u }) => { openOut(u); return { action: 'deny' }; });
   wc.on('will-navigate', (e, u) => { try { if (new URL(u).origin === new URL(BASE).origin) return; } catch {} e.preventDefault(); });
   wc.on('will-attach-webview', e => e.preventDefault());
 };
@@ -210,12 +222,14 @@ ipcMain.on('kiro:moved', e => { if (!fromKiro(e)) return; [prefs.x, prefs.y] = k
 ipcMain.on('kiro:office', e => { if (fromKiro(e)) openOffice(); });
 
 
-// ---------- Tiro island: a click-through notch at the top centre of a display ----------
+// ---------- Tiro island: the notch at the top centre of a display; its window is exactly the notch's current rectangle ----------
 // Prefs in kiro.json: islandMode always|smart|off, islandMute, islandDisplay cursor|primary|<display id>.
 const isleMode = () => resolveMode(prefs);
 const notchOn = () => notchEnabledOf(prefs);   // kiro.json islandSettings.notchEnabled (default on)
 const isleDisplay = () => pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, screen.getCursorScreenPoint(), prefs.islandDisplay);
-const isle = { fs: false, peek: false, edgeSince: null };
+// view: the view the page shows (closed|line|game|open); winView: the view the window is sized for (lags view during a shrink); closedKind: what the page says the closed view is; hold: the page's pin / forced-open;
+// hover: hoverStep state; away: Smart mode has hidden the window; materialOk turns false if the material window cannot be created; game: game mode is on.
+const isle = { fs: false, game: false, peek: false, edgeSince: null, view: 'closed', winView: 'closed', closedKind: 'closed', hold: { pinned: false, forced: false }, hover: { open: false, enterAt: null, leaveAt: null }, away: false, dismiss: false, shrinkT: 0, materialOk: true, form: 'transparent' };
 const isleSettings = () => normalizeSettings(prefs.islandSettings);
 const alive = () => island && !island.isDestroyed();
 let nowPlaying = null; // latest SMTC session (or null), pushed to the island on change and on page load
@@ -235,32 +249,75 @@ function refreshLyrics() {
 const np = createNowPlaying(n => { nowPlaying = n; pushNowPlaying(); refreshLyrics(); });
 // The SMTC poller is a resident PowerShell: it runs only while the island window is visible (not hidden, not behind a fullscreen app)
 // and the now-playing setting is on, and is stopped otherwise.
-const syncNowPlaying = () => { if (notchOn() && isleSettings().nowPlaying && isleMode() !== 'off' && alive() && island.isVisible() && !isle.fs) np.start(); else np.stop(); };
-const pushIsland = () => { if (alive()) island.webContents.send('island:state', { mode: isleMode(), mute: !!prefs.islandMute, fs: isle.fs, peek: isle.peek, settings: isleSettings(), notchShortcutOk: notchKeyOk }); };
-function placeIsland(force) {
+const syncNowPlaying = () => { if (notchOn() && isleSettings().nowPlaying && isleMode() !== 'off' && alive() && (island.isVisible() || isle.away) && !isle.fs) np.start(); else np.stop(); };
+// Game mode, load and temperature: perf.ps1 (perf-monitor.mjs) runs while the notch is on and shown (or Smart-hidden: a game must be able to bring it back),
+// and game mode is not Never or the Performance tab is open. The process name goes to the page only in game mode and is never logged.
+let perfOpen = false, perfSample = null;
+function updateGame() {
+  const s = isleSettings(), game = s.gameMode === 'always' || (s.gameMode === 'auto' && isGame(perfSample, { games: s.games }));
+  if (game !== isle.game) { isle.game = game; safeTick(); }
+  syncFps(); sendPerf();
+}
+function sendPerf() {
+  const p = perfSample || {}, f = fpsStat || {};
+  if (alive()) island.webContents.send('island:perf', { game: isle.game, proc: isle.game ? p.proc ?? null : null, cpu: p.cpu ?? null, mem: p.mem ?? null, gpu: p.gpu ?? null, gpuTemp: p.gpuTemp ?? null,
+    fps: f.now ?? null, fpsLow: f.low1 ?? null, fpsAvg: f.avg ?? null, frames: f.frames || [], fpsState: f.state || 'off', fpsSeen, fpsSetup: process.platform === 'win32' });
+}
+const perfMon = createPerfMonitor(s => { perfSample = s; updateGame(); });
+// Frame rate: PresentMon (presentmon.mjs) for the foreground pid, only in game mode while the notch is shown; restarted when the pid changes.
+let fpsStat = null, fpsSeen = false; // fpsSeen: frames arrived at least once since the app started (Settings shows On)
+const fpsMon = createFps(s => { fpsStat = s; if (s && s.state === 'on') fpsSeen = true; sendPerf(); });
+const syncFps = () => { const pid = perfSample?.pid; if (isle.game && notchOn() && isleMode() !== 'off' && alive() && island.isVisible() && Number.isInteger(pid)) fpsMon.start(pid); else fpsMon.stop(); };
+const syncPerf = () => { const s = isleSettings(); if (notchOn() && isleMode() !== 'off' && alive() && (island.isVisible() || isle.away) && (s.gameMode !== 'never' || perfOpen)) perfMon.start(); else perfMon.stop(); };
+const pushIsland = () => { if (alive()) island.webContents.send('island:state', { mode: isleMode(), mute: !!prefs.islandMute, fs: isle.fs, peek: isle.peek, view: isle.view, form: isle.form, settings: isleSettings(), notchShortcutOk: notchKeyOk }); };
+const isleForm = () => windowForm({ platform: process.platform, release: os.release(), look: isleSettings().look, materialOk: isle.materialOk });
+// material: the OS-rounded top corners sit off-screen, unless a display above would show them (topOverhang)
+const isleRect = (view, d = isleDisplay()) => rectFor(d.bounds, view, { overhang: isle.form === 'material' ? topOverhang(d.bounds, screen.getAllDisplays().map(x => x.bounds)) : 0 });
+function placeIsland(force, d = isleDisplay()) {
   if (!alive()) return;
-  const b = isleBoundsFor(isleDisplay().bounds), c = island.getBounds();
-  if (!force && c.x === b.x && c.y === b.y && c.width === b.width && c.height === b.height) return;
+  const b = isleRect(isle.winView, d), c = island.getBounds();
+  if (!force && c.x === b.x && c.y === b.y && c.width === b.width && (c.height === b.height || isle.shapeH === b.height)) return;
   island.setBounds(b); island.setBounds(b); // twice: Windows mis-sizes the first call when the target display has another DPI scale
+  // Windows keeps a transparent (thick-frame-less) window at least 39 px tall: the shape cuts it to the visible rect, so the strip below takes no clicks
+  if (process.platform === 'win32' && isle.form !== 'material') { try { island.setShape([{ x: 0, y: 0, width: b.width, height: b.height }]); } catch {} isle.shapeH = b.height; }
+}
+// Grow: resize, then tell the page (it animates inside the new rect). Shrink: tell the page, let it animate for 220 ms, then resize.
+// The window is sized to winView, so a non-forced placeIsland (cursor loop) cannot cut a pending shrink short.
+function setView(v, d) {
+  if (v === isle.view) return;
+  isle.view = v; clearTimeout(isle.shrinkT);
+  const s = isleSettings(), delay = shrinkDelay({ animate: s.animate, powerSaver: s.powerSaver, reducedMotion: !!systemPreferences.getAnimationSettings?.().prefersReducedMotion });
+  const plan = resizePlan(isle.winView, v, delay), resize = () => { isle.winView = isle.view; placeIsland(true, d); };
+  if (plan === 'grow') { resize(); pushIsland(); return; }
+  pushIsland();
+  if (plan === 'now') resize(); else if (plan === 'later') isle.shrinkT = setTimeout(resize, delay);
 }
 // Notch off: the window is destroyed, not just hidden, so nothing renders, polls or listens for it.
-function destroyIsland() { if (alive()) { const w = island; island = null; try { w.destroy(); } catch {} } isle.peek = false; isle.edgeSince = null; }
+function destroyIsland() { if (alive()) { const w = island; island = null; try { w.destroy(); } catch {} } nativeTheme.themeSource = 'system'; clearTimeout(isle.shrinkT); Object.assign(isle, { peek: false, edgeSince: null, view: 'closed', winView: 'closed', closedKind: 'closed', hold: { pinned: false, forced: false }, hover: { open: false, enterAt: null, leaveAt: null }, away: false, dismiss: false, game: false, shapeH: null }); calSync.stop(); perfOpen = false; perfMon.stop(); fpsMon.stop(); }
 function showIsland() {
-  if (alive()) { placeIsland(); return island.showInactive(); }
-  island = new BrowserWindow({
-    ...isleBoundsFor(isleDisplay().bounds), transparent: true, frame: false, resizable: false, movable: false, skipTaskbar: true, alwaysOnTop: true,
-    hasShadow: false, focusable: true, show: false, title: `${mgrName} Island`,
-    webPreferences: { preload: path.join(ROOT, 'desktop', 'island-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, autoplayPolicy: 'no-user-gesture-required' }, // the chime plays with nobody clicking
-  });
-  keepTitle(island);
+  isle.away = false;
+  if (alive()) { placeIsland(); calSync.start().catch(() => {}); return island.showInactive(); }
+  isle.form = isleForm(); isle.shapeH = null;
+  nativeTheme.themeSource = isle.form === 'material' ? 'dark' : 'system'; // the system material takes the app's theme: dark glass, not Windows' light tint (no page reads prefers-color-scheme)
+  try {
+    island = new BrowserWindow({
+      ...windowOptions(isle.form, process.platform), ...isleRect(isle.winView = isle.view), title: `${mgrName} Island`,
+      webPreferences: { preload: path.join(ROOT, 'desktop', 'island-preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, autoplayPolicy: 'no-user-gesture-required', backgroundThrottling: false }, // the chime plays with nobody clicking, on time while hidden
+    });
+  } catch (e) {
+    if (isle.form !== 'material') throw e;
+    logText('notch: material window failed, using the transparent form: ' + e.message);
+    isle.materialOk = false; island = null; return showIsland();
+  }
+  keepTitle(island); placeIsland(true);
   island.setAlwaysOnTop(true, 'screen-saver');
   island.setVisibleOnAllWorkspaces(true);
-  island.setIgnoreMouseEvents(true, { forward: true });
   island.loadURL(url('/island'));
   external(island.webContents);
-  island.webContents.on('did-finish-load', () => { pushIsland(); pushNowPlaying(); pushLyrics(); pushUpdate(); });
-  island.once('ready-to-show', () => island.showInactive());
-  island.on('show', () => syncNowPlaying()); island.on('hide', () => syncNowPlaying()); // the SMTC helper follows the window
+  island.webContents.on('did-finish-load', () => { perfOpen = false; syncPerf(); pushIsland(); /* a reload starts with no Performance tab open; the page says so again if it is */ pushNowPlaying(); pushLyrics(); pushUpdate(); calSync.resend(); updateGame(); });
+  calSync.start().catch(() => {}); // the calendar refreshes only while the notch exists
+  island.once('ready-to-show', () => { if (!isle.away) island.showInactive(); });
+  island.on('show', () => { syncNowPlaying(); syncPerf(); syncFps(); }); island.on('hide', () => { syncNowPlaying(); syncPerf(); syncFps(); }); // the SMTC, perf and FPS helpers follow the window
   const me = island; island.on('closed', () => { if (island === me) island = null; }); // a destroyed window must not clear a newer one
 }
 const fromIsland = e => island && e.sender === island.webContents;
@@ -428,16 +485,40 @@ ipcMain.handle('spotify:signIn', e => {
 });
 ipcMain.handle('notch:get', e => (fromOffice(e) ? notchOn() : null));
 ipcMain.handle('notch:set', (e, on) => { if (!fromOffice(e) || typeof on !== 'boolean') return null; setNotch(on); return notchOn(); });
-ipcMain.on('island:interactive', (e, on) => { if (fromIsland(e)) island.setIgnoreMouseEvents(!on, { forward: true }); });
+// The page says what its closed view is and whether it is pinned or held open (approvals, chat); main decides the window's view.
+ipcMain.on('island:closedView', (e, kind) => { if (fromIsland(e) && ['closed', 'line', 'game'].includes(kind)) { isle.closedKind = kind; safeTick(); } });
+// Esc: close at once (pin and hover cleared); hover stays ignored until the cursor leaves the open rect.
+ipcMain.on('island:dismiss', e => { if (fromIsland(e)) { isle.hold = { ...isle.hold, pinned: false }; isle.dismiss = true; safeTick(); } });
+ipcMain.on('island:hold', (e, h) => { if (fromIsland(e) && h && typeof h === 'object') { isle.hold = { pinned: h.pinned === true, forced: h.forced === true }; isle.busy = h.busy === true; safeTick(); } });
 ipcMain.on('island:focus', e => { if (fromIsland(e)) island.focus(); });
 // Settings panel in the island: the page sends a patch, main validates + persists, then echoes the result back.
 ipcMain.on('island:settings', (e, patch) => {
   if (!fromIsland(e) || !patch || typeof patch !== 'object' || Array.isArray(patch)) return;
-  const was = notchOn(), key = isleSettings().notchShortcut;
+  const was = notchOn(), key = isleSettings().notchShortcut, form = isleForm();
   prefs.islandSettings = applyPatch(prefs.islandSettings, patch); savePrefs();
   if (notchOn() !== was) { if (notchOn() && resolveMode(prefs) === 'off') { prefs.islandMode = 'always'; savePrefs(); } setImmediate(applyIsland); } // the island may be closing itself: let this handler return first
+  else if (alive() && isleForm() !== form) setImmediate(() => { destroyIsland(); applyIsland(); }); // Glass/Solid: transparency is fixed at creation, so a new window
   if (isleSettings().notchShortcut !== key) registerNotchShortcut();
-  syncNowPlaying(); pushIsland(); pushNowPlaying(); refreshLyrics();
+  syncNowPlaying(); syncPerf(); updateGame(); pushIsland(); pushNowPlaying(); refreshLyrics();
+});
+// The Performance tab (or its Home card) is shown: load is sampled even with game mode Never.
+ipcMain.on('island:perfOpen', (e, on) => { if (fromIsland(e)) { perfOpen = on === true; syncPerf(); } });
+// "Turn on FPS" (Windows): adds this user to Performance Log Users (by SID S-1-5-32-559, so it works on any Windows language) through an elevated PowerShell; the UAC prompt is the user's consent.
+// Only the page's button calls it. Exit 0: added (or already a member), 2: the prompt was declined. A sign-out is needed afterwards.
+// The member is this user's SID, read unelevated (the prompt may run as another admin): it works on Entra-joined PCs and needs no quoting.
+let fpsSetupBusy = false; // one UAC prompt at a time
+ipcMain.handle('island:fpsSetup', async (e) => { if (!fromIsland(e) || process.platform !== 'win32') return { ok: false };
+  if (fpsSetupBusy) return { ok: false, busy: true };
+  fpsSetupBusy = true;
+  try {
+    const sid = await new Promise(r => { try { let o = ''; const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }); p.stdout.on('data', d => { o += d; }); p.on('error', () => r('')); p.on('close', () => r(o.trim())); } catch { r(''); } });
+    if (!/^S-1-[0-9-]+$/.test(sid)) return { ok: false };
+    const inner = `try { Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '${sid}' -ErrorAction Stop; exit 0 } catch { if ($_.FullyQualifiedErrorId -like 'MemberExists*') { exit 0 }; exit 1 }`;
+    const enc = Buffer.from(inner, 'utf16le').toString('base64');
+    const outer = `try { $p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','${enc}'; exit $p.ExitCode } catch { exit 2 }`;
+    const code = await new Promise(r => { try { const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', outer], { windowsHide: true, stdio: 'ignore' }); p.on('error', () => r(3)); p.on('exit', c => r(c)); } catch { r(3); } });
+    return { ok: code === 0, declined: code === 2 };
+  } finally { fpsSetupBusy = false; }
 });
 ipcMain.on('island:media', (e, verb) => { if (fromIsland(e) && isleSettings().nowPlaying) np.control(verb); });
 ipcMain.on('island:mute', (e, on) => { if (fromIsland(e)) { prefs.islandMute = !!on; savePrefs(); pushIsland(); } });
@@ -478,6 +559,29 @@ async function runInstall() {
     setTimeout(() => app.quit(), 800);
   } catch (e) { upd = { ...upd, busy: '', error: String(e.message || e).slice(0, 200) }; pushUpdate(); }
 }
+// Notch notes/timers/counters (notch-store.json beside kiro.json). The page is untrusted: oversized or malformed payloads leave the stored data as is.
+ipcMain.handle('notch:store:get', e => (fromIsland(e) ? readStore(CFG_DIR) : null));
+ipcMain.handle('notch:store:set', (e, store) => {
+  if (!fromIsland(e)) return null;
+  const next = acceptStore(store);
+  if (!next) return readStore(CFG_DIR);
+  try { writeStore(CFG_DIR, next); } catch {}
+  return next;
+});
+// The calendar link is a secret: kept in calendar-link.bin, OS-encrypted like the Claude API key, and refused when the OS cannot encrypt.
+// It reaches main once (calendar:set) and leaves only to its own host; the page gets { available, linked, host, error, fetchedAt, events }.
+const CAL_FILE = path.join(CFG_DIR, 'calendar-link.bin');
+const calSync = createCalendarSync({
+  available: () => keyAvailable(),
+  load: () => loadLink(CAL_FILE, b => safeStorage.decryptString(b)),
+  save: link => saveLink(CAL_FILE, link, s => safeStorage.encryptString(s)),
+  remove: () => removeKey(CAL_FILE),
+  push: v => { if (alive()) island.webContents.send('island:calendar', v); },
+});
+ipcMain.handle('calendar:set', (e, link) => (fromIsland(e) && typeof link === 'string' && link.length <= 4096 ? calSync.set(link) : null));
+ipcMain.handle('calendar:refresh', e => (fromIsland(e) ? calSync.refresh() : null));
+// Join: the page names an event of the latest view; main opens only the meeting link it found itself, re-checked (https, known host).
+ipcMain.on('calendar:join', (e, id) => { if (!fromIsland(e)) return; const u = calSync.joinUrl(id); if (u && joinLink(u) === u) openOut(u); });
 ipcMain.handle('update:get', e => fromIsland(e) ? updView() : null);
 ipcMain.handle('update:check', async e => { if (fromIsland(e)) await runCheck(); return updView(); });
 ipcMain.handle('update:install', e => { if (fromIsland(e)) runInstall(); return updView(); });
@@ -503,30 +607,36 @@ function watchFullscreen(on) {
   const me = fsProc; fsProc.on('exit', () => { if (fsProc === me) fsProc = null; });
 }
 
-// Follow the cursor's display, and (smart mode) peek when the cursor touches the top edge.
+// Follow the cursor's display, open/close on hover, and (smart mode) peek at the top edge or hide while idle.
 function cursorTick() {
-  if (!alive() || !island.isVisible()) return;
-  if (prefs.islandDisplay == null || prefs.islandDisplay === 'cursor') placeIsland();
-  const inZone = isleMode() === 'smart' && inPeekZone(isleDisplay().bounds, screen.getCursorScreenPoint(), isle.peek);
-  const now = Date.now();
+  if (!alive() || (!island.isVisible() && !isle.away)) return; // hidden for mode off: nothing to do; hidden by Smart: keep watching for a peek
+  const d = isleDisplay(); // once per tick: the loop runs every 150 ms while the notch is shown
+  if (prefs.islandDisplay == null || prefs.islandDisplay === 'cursor') placeIsland(false, d);
+  const smart = isleMode() === 'smart', cur = screen.getCursorScreenPoint(), now = Date.now(), s = isleSettings(), ck = isle.game ? 'game' : isle.closedKind; // game mode: the game view, never hidden for fullscreen
+  const inZone = smart && inPeekZone(d.bounds, cur, isle.peek);
   if (!inZone) isle.edgeSince = null; else if (isle.edgeSince == null) isle.edgeSince = now;
-  const peek = inZone && (isle.peek || peekReady(isle.edgeSince, now, isleSettings().edgeDelay)); // edge delay only gates the first peek
+  const peek = inZone && (isle.peek || peekReady(isle.edgeSince, now, s.edgeDelay)); // edge delay only gates the first peek
   if (peek !== isle.peek) { isle.peek = peek; pushIsland(); }
+  isle.hover = hoverStep(isle.hover, { now, cursor: isle.away ? null : cur, closedRect: isleRect(ck, d), openRect: isleRect('open', d), edgeDelay: s.edgeDelay, leaveDelay: s.leaveDelay, ...isle.hold, dismiss: isle.dismiss });
+  isle.dismiss = false;
+  setView(isle.hover.open ? 'open' : ck, d);
+  const away = smartAway({ mode: smart ? 'smart' : '', fs: isle.fs, peek: isle.peek, open: isle.hover.open, closedKind: ck, busy: isle.busy, ...isle.hold });
+  if (away !== isle.away) { isle.away = away; if (away) island.hide(); else island.showInactive(); }
 }
-// Event-light: 200 ms only in smart mode (the edge peek needs it), once a second otherwise (display following only).
-const cursorLoop = () => { try { cursorTick(); } catch {} setTimeout(cursorLoop, isleMode() === 'smart' ? 200 : 1000).unref(); };
+// 150 ms while the notch is shown or Smart-hidden (hover and peek have to feel immediate), once a second otherwise.
+const safeTick = () => { try { cursorTick(); } catch {} }; // a throw here must not escape an IPC or perf handler
+const cursorLoop = () => { safeTick(); setTimeout(cursorLoop, alive() && (island.isVisible() || isle.away) ? 150 : 1000).unref(); };
 cursorLoop();
-
 
 function applyIsland() {
   const on = notchOn(), m = isleMode();
   prefs.islandOff = !on || m === 'off'; savePrefs();
   const step = notchStep({ enabled: on, alive: alive() }, on ? 'enable' : 'disable');
   if (step.effect === 'destroy') destroyIsland();
-  else if (on && m === 'off') { if (alive()) island.hide(); }
+  else if (on && m === 'off') { isle.away = false; calSync.stop(); if (alive()) island.hide(); }
   else if (on) showIsland();
   watchFullscreen(on && m === 'smart');
-  syncNowPlaying();
+  syncNowPlaying(); syncPerf();
   pushIsland();
   if (office && !office.isDestroyed()) office.webContents.send('notch:state', on);
 }
@@ -602,15 +712,25 @@ app.on('second-instance', () => openOffice());
 app.on('window-all-closed', () => {}); // keep running in the tray
 // Windows: kill the server's whole tree, so an external specialist's CLI (a child of the server) never outlives the app.
 const killServer = () => { if (process.platform === 'win32' && server?.pid) { try { spawnSync(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe'), ['/pid', String(server.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 }); } catch {} } server?.kill(); };
-app.on('before-quit', () => { quitting = true; clearTimeout(restartTimer); killServer(); fsProc?.kill(); np.stop(); });
+app.on('before-quit', () => { quitting = true; clearTimeout(restartTimer); killServer(); fsProc?.kill(); np.stop(); perfMon.stop(); fpsMon.stop(); });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.whenReady().then(async () => {
+  // Deny-by-default permissions. Request: the asking frame's own URL (an embedded iframe has its own origin). Check: webContents may be
+  // null (-> not the main window, so mic is refused); a media check carries one mediaType, mapped to the request's list form.
+  const appOrigin = () => originOf(BASE), isMain = wc => { try { return !!wc && !!office && !office.isDestroyed() && wc === office.webContents; } catch { return false; } };
+  session.defaultSession.setPermissionRequestHandler((wc, permission, cb, d) => {
+    let ok = false; try { ok = decidePermission({ permission, origin: originOf(d.requestingUrl), isMainWindow: isMain(wc), mediaTypes: d.mediaTypes, appOrigin: appOrigin() }); } catch {}
+    cb(ok); // always answered; a throw above means deny
+  });
+  session.defaultSession.setPermissionCheckHandler((wc, permission, origin, d) => {
+    try { return decidePermission({ permission, origin: originOf(origin), isMainWindow: isMain(wc), mediaTypes: d.mediaType === 'audio' || d.mediaType === 'video' ? [d.mediaType] : [], appOrigin: appOrigin() }); } catch { return false; }
+  });
   GUARD_KEY = loadGuardKey();
   { const eff = guardEffective(); if (JSON.stringify(eff.config) !== JSON.stringify(normalizeGuardConfig(prefs.guard))) { prefs.guard = eff.config; savePrefs(); } }   // a Guard setting weakened outside the app is repaired
   syncLogin();
   mgrName = readMgrName();
-  buildTray();
+  if (!NO_GLOBALS) buildTray();
   // The name lives in kiro.json: react to changes of that file (debounced) and re-check every 10 s as a fallback.
   let nameTimer;
   try { fs.mkdirSync(CFG_DIR, { recursive: true }); fs.watch(CFG_DIR, { persistent: false }, (ev, f) => { if (!f || f === 'kiro.json') { clearTimeout(nameTimer); nameTimer = setTimeout(() => applyMgrName(), 300); } }).on('error', () => {}); } catch {}
@@ -629,7 +749,6 @@ app.whenReady().then(async () => {
   watchDisplays();
   applyIsland();
   if (prefs.updateAuto !== false) setTimeout(runCheck, 8000); // check only; installing always needs a click
-  globalShortcut.register('Control+Alt+K', toggleIsland);
-  registerNotchShortcut();
+  if (!NO_GLOBALS) { globalShortcut.register('Control+Alt+K', toggleIsland); registerNotchShortcut(); }
   if (!process.argv.includes('--hidden')) openOffice();
 });

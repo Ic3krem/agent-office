@@ -5,8 +5,8 @@ import { loadWorld } from './world-vm.mjs';
 
 // Scenes (town step 2): the office is layout.json; each interior has its own file beside it. The scene name comes from
 // the request, so it is checked against this list before any path is built: null = not a scene (the server answers 400).
-export const SCENES = ['office', 'kain', 'games'];
-const FILES = { office: 'layout.json', kain: 'kain.json', games: 'games.json' };
+export const SCENES = ['office', 'kain', 'games', 'meet'];
+const FILES = { office: 'layout.json', kain: 'kain.json', games: 'games.json', meet: 'meet.json' };
 export const parseScene = (v) => v == null ? 'office' : SCENES.includes(v) ? v : null;
 
 // The office layout on disk. Validation is the page's own WorldModel, loaded once per store.

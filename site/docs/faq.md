@@ -2,7 +2,7 @@
 
 Short answers.
 
-(Agent Office v2.0.0, 2026-11-17)
+(Agent Office v2.1.0, 2026-11-20)
 
 
 **Does the office cost tokens?** No. Only agents working cost tokens, and only on your Claude Code plan.

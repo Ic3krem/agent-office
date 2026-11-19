@@ -18,7 +18,7 @@ const trust = ['No tokens for the office itself', 'You approve every hire', 'Loc
 
 const panels = [
   ['08-hire-approval-card', 'You approve every hire', 'Tiro cannot hire on its own. A card shows the goal and the reason. One approval buys exactly one hire, tied to the first prompt, and expires after 10 minutes.', 'docs/approvals.html', 'How approvals work', 'Tiro asking to hire Warden, with the goal, the reason and Approve hire and Deny buttons'],
-  ['13-island-chat', 'The dynamic island', 'A notch-style overlay with live agent status, approvals, quick actions, now playing with synced lyrics and themes. Answer a prompt with Y or N without leaving your work.', 'docs/island.html', 'The island and tray', 'The island chat box and quick actions'],
+  ['13-island-chat', 'The notch', 'A glassy notch at the top of your screen: approvals, agents, calendar, timers, notes, trackers, now playing with synced lyrics, and FPS with GPU and CPU load while you game. Answer a prompt with Y or N without leaving your work.', 'docs/island.html', 'The island and tray', 'The island chat box and quick actions'],
   ['16-reports-panel', 'Reports and a Markdown vault', 'Findings are filed as color-coded reports with PDF and Excel export. Notes, memory and SOPs are plain Markdown in your own vault.', 'docs/goals-and-reports.html', 'Goals, reports and the vault', 'The Reports bookshelf with a daily summary and demo reports'],
   ['09-agent-history-overlay', 'Memory and history per agent', 'Every task starts in a fresh context. Each agent keeps its own notes, and the Agent history overlay lets you browse past tasks and summaries.', 'docs/agents-and-memory.html', 'Agents and memory', 'Agent history: every agent with task counts and past tasks'],
 ];
@@ -103,11 +103,11 @@ ${panels.map(([img, t, d, href, linkText, alt], i) => `<div class="panel${i % 2 
 
 <section class="block" id="next">
 <div class="wrap">
-<div class="section-head"><p><span class="badge">New in 2.0</span></p><h2>Agent Office is now TiroAgents</h2><p>Version 2.0 renames Agent Office to TiroAgents, after Tiro, the manager agent, and turns the office into a town. Installing it replaces Agent Office 1.x and keeps your settings. <a href="changelog.html#200-tiroagents-2026-11-17">Read the changelog</a>.</p></div>
+<div class="section-head"><p><span class="badge">New in 2.1</span></p><h2>The notch, and a meeting room with voice</h2><p>Version 2.1 turns the island into a notch with tabs for approvals, calendar, timers, notes, trackers and game performance, and adds a meeting room where your party can talk by voice. Version 2.0 renamed Agent Office to TiroAgents and turned the office into a town; installing replaces Agent Office 1.x and keeps your settings. <a href="changelog.html">Read the changelog</a>.</p></div>
 <div class="panel"><div class="panel-text"><h3>${esc(v2[0][0])}</h3><p>${esc(v2[0][1])}</p></div><div class="panel-shot">${picture('', '18-build-mode', 'Build mode: the furniture palette on the left, the office floor with zones painted on it and the Undo, Redo, Delete, Duplicate, Templates and Save toolbar on top', { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>
 <div class="panel flip"><div class="panel-text"><h3>${esc(v2[2][0])}</h3><p>${esc(v2[2][1])}</p></div><div class="panel-shot">${picture('', '19-ceo-radial-menu', 'The CEO standing next to Tiro, with the Chat, Prioritize, Boost and Speed menu around Tiro', { sizes: '(min-width: 900px) 50vw, 100vw' })}</div></div>
 <div class="grid">${[v2[1], v2[3]].map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>
-<div class="btn-row">${dlButton({ id: '', label: `Get v${release.version}` })}<a class="btn secondary" href="changelog.html#200-tiroagents-2026-11-17">What's new</a></div>
+<div class="btn-row">${dlButton({ id: '', label: `Get v${release.version}` })}<a class="btn secondary" href="changelog.html">What's new</a></div>
 </div>
 </section>
 
@@ -150,5 +150,5 @@ ${panels.map(([img, t, d, href, linkText, alt], i) => `<div class="panel${i % 2 
 </div>
 </section>
 </main>`;
-  return layout({ root: '', title: 'Agent Office - a pixel office for your Claude Code agents', desc: 'Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows installer.', nav: 'home', main, scripts: ['release.js'] });
+  return layout({ root: '', title: 'TiroAgents - a pixel office for your Claude Code agents', desc: 'Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows installer.', nav: 'home', main, scripts: ['release.js'] });
 }

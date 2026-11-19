@@ -8,10 +8,10 @@ const { TownMap, WorldPath } = ctx;
 const real = () => JSON.parse(fs.readFileSync(new URL('./public/town/town.json', import.meta.url), 'utf8'));
 const ov = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 
-test('real town.json validates and has exactly the six lots', () => {
+test('real town.json validates and has exactly the seven lots', () => {
   const d = real(), v = TownMap.validate(d);
   assert.deepEqual(JSON.parse(JSON.stringify(v)), { ok: true, errors: [] });
-  assert.deepEqual(d.lots.map(l => l.id).sort(), ['friend-1', 'friend-2', 'friend-3', 'games', 'home', 'kain']);
+  assert.deepEqual(d.lots.map(l => l.id).sort(), ['friend-1', 'friend-2', 'friend-3', 'games', 'home', 'kain', 'meet']);
 });
 
 test('every door is reachable from spawn; plaza centre is free', () => {
@@ -42,15 +42,16 @@ test('validate rejects bad maps with readable errors', () => {
   bad(d => d.lots.push({ ...JSON.parse(JSON.stringify(d.lots[3])), id: 'friend-4' }), /unexpected lot friend-4/);
 });
 
-test('every lot door has an enter target: home/kain/games open their scene, friend lots wait for party mode', () => {
-  const want = { home: '/#scene=office', kain: '/#scene=kain', games: '/#scene=games' };
+test('every lot door has an enter target: home/kain/games/meet open their scene, friend lots wait for party mode', () => {
+  const want = { home: '/#scene=office', kain: '/#scene=kain', games: '/#scene=games', meet: '/#scene=meet' };
   for (const l of real().lots) {
     const t = TownMap.enterTarget(l);
     assert.ok(t && typeof t.label === 'string' && t.label.length, l.id);
     if (l.kind === 'friend') { assert.equal(t.url, null, l.id); assert.equal(t.label, 'Friend lots open in party mode'); }
     else assert.equal(t.url, want[l.id], l.id);
   }
-  assert.deepEqual(['home', 'kain', 'games'].map(id => TownMap.lotOfScene(id === 'home' ? 'office' : id)), ['home', 'kain', 'games']);
+  assert.deepEqual(['home', 'kain', 'games', 'meet'].map(id => TownMap.lotOfScene(id === 'home' ? 'office' : id)), ['home', 'kain', 'games', 'meet']);
+  assert.equal(TownMap.enterTarget(real().lots.find(l => l.id === 'meet')).label, 'Enter the meeting room');
   assert.equal(TownMap.lotOfScene('nope'), 'home');
 });
 

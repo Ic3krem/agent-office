@@ -1,6 +1,6 @@
 # Agent Office
 
-> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v2.0.0); macOS and Linux are not published yet. Builds are not code-signed. Open source, Apache-2.0.
+> A pixel office for your own Claude Code agents. Tiro, an orange cube-crab office manager, plans work and asks before it hires specialist agents. The office itself spends no tokens. Windows installer (v2.1.0); macOS and Linux are not published yet. Builds are not code-signed. Open source, Apache-2.0.
 
 ## Start
 
@@ -26,6 +26,7 @@
 - [Agents and memory](https://ic3krem.github.io/agent-office/docs/agents-and-memory.md): The team, the hiring gate and per-agent memory and history.
 - [Goals, reports and the vault](https://ic3krem.github.io/agent-office/docs/goals-and-reports.md): The Today board, reports with PDF and Excel export, and the memory corkboard.
 - [The island, Tiro and the tray](https://ic3krem.github.io/agent-office/docs/island.md): The notch-style overlay, the desktop character, the tray menu and keyboard use.
+- [Party and the meeting room](https://ic3krem.github.io/agent-office/docs/party.md): Play together, and talk by voice in the meeting room: what others see and how listen only works.
 - [Scheduler](https://ic3krem.github.io/agent-office/docs/scheduler.md): The scheduler station, the job and the inbox feed file.
 
 ### Safety

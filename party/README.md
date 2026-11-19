@@ -31,3 +31,11 @@ A share link cannot carry the live update stream, so after about 5 seconds the a
 ## What others can see
 
 Your office layout, costumes, avatar, your agents' names and states (working, idle, blocked and so on), and generic bubbles such as "Coding…". Never your tasks, prompts, commands, file paths or reports. The app strips everything else before anything leaves your machine, and the server drops any field it does not know.
+
+## Meeting room voice (2.1)
+
+People in the town's **Meeting room** talk by voice. Voice goes **directly between the apps** in the room (WebRTC, encrypted); this server only passes the short connection setup messages between members who are in the room, keeps nothing and never receives the audio. **Nothing is recorded.** The apps ask public STUN servers (`stun.l.google.com`, `stun.cloudflare.com`) for their public address, so **the people in the room and those STUN servers can see your IP address**. Up to 8 people have voice at a time.
+
+- **Listen only:** the entry card offers **Join with microphone**, **Listen only** or **Leave**. Listen only never opens your microphone; press **M** later to start talking (that is when the app first asks for it). Coming back into the room in the same session, you are muted until you press M.
+- **Optional relay:** when a network blocks direct calls the room says "Can't connect to …". Each player can set a TURN relay under **Relay server (optional)** in the Party panel; it stays on that PC.
+- A party server older than 2.1 (and an app-hosted party on TiroAgents 2.0) has no voice; the room then says "The host needs TiroAgents 2.1 for voice". Rebuild the Docker image from this folder to update it.

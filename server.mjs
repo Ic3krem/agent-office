@@ -16,6 +16,7 @@ import { effectiveConfig, verifyRemember } from './guard/config.mjs';
 import { usageLedger, planLimits, creditLog } from './usage.mjs';
 import { createScanner, createSnapshotGate, trimLogs, pruneIdle, shouldProbe, shouldEndIdleSession, every } from './perf.mjs';
 import { createPartyClient } from './party-client.mjs';
+import { readVoiceConfig, writeVoiceConfig, iceServers } from './voice-config.mjs';
 import { createPartyHost } from './party-host.mjs';
 import { feedOf, cleanAvatar, cleanName, parseMusicLink, cleanManor } from './party/protocol.mjs';
 import { managerModel, goalStore, MANAGER_PROMPT, LEGACY_MANAGER_PROMPT, teamNote, managerPrompt, liveRoster, hireKey, seedRoleSops, roleBusy, MAX_SPECIALISTS, teamFromSops, withAliases, profileOf, assignHelpers, MANAGER, ROSTER, nameStore, displayNames, hireGate, ALIASES, migrateBrief, lookStore, graphicsStore, promptHash, paceFor, paceError, priorityError, hirePace, RoleCatalog } from './company.mjs';
@@ -53,9 +54,9 @@ const RECENT_MS = 45 * 60e3, TAIL_BYTES = 512 * 1024;
 const BRIDGE_WAIT_MS = 90e3;
 
 // Two separate credentials (see auth.mjs). The bridge key in bridge.json opens /bridge/* only; the UI key is never written to disk.
-lockDown(CFG_DIR, [CFG_FILE, ...['kiro.json', 'goals.json', 'switches.json', 'manager.json', 'credits.json', 'manager-session.json', 'scheduler.json'].map(f => path.join(CFG_DIR, f))]);
+lockDown(CFG_DIR, [CFG_FILE, ...['kiro.json', 'goals.json', 'switches.json', 'manager.json', 'credits.json', 'manager-session.json', 'scheduler.json', 'voice.json'].map(f => path.join(CFG_DIR, f))]);
 const WORLD_DIR = path.join(CFG_DIR, 'world');
-lockDown(WORLD_DIR, ['layout.json', 'kain.json', 'games.json'].map(f => path.join(WORLD_DIR, f)));
+lockDown(WORLD_DIR, ['layout.json', 'kain.json', 'games.json', 'meet.json'].map(f => path.join(WORLD_DIR, f)));
 const worldStore = createWorldStore(WORLD_DIR);
 let worldNow = worldStore.load();   // cached for GET /api/world; validated only on load and save
 // The team follows the department desks in the saved layout: Tiro hires only roles that have a desk.
@@ -101,11 +102,17 @@ const dnames = () => displayNames(nameBox.get());
 const lookBox = lookStore(path.join(CFG_DIR, 'kiro.json')); // wardrobe costumes (kiro.json looks)
 const graphicsBox = graphicsStore(path.join(CFG_DIR, 'kiro.json')); // graphics preset (kiro.json graphics)
 // Party (phase 7): one optional connection to a party server. What leaves this machine is feedOf() only (party/protocol.mjs).
-const partyClient = createPartyClient({ onChange: () => bump() });
+// Voice signalling and reactions are pushed to pages as their own SSE event (`event: signal`), so pages that only use
+// onmessage (the snapshot) never see them; a voice page subscribes with es.addEventListener('signal', ...).
+const partyClient = createPartyClient({ onChange: () => bump(), onSignal: s => { const d = 'event: signal\ndata: ' + JSON.stringify(s) + '\n\n'; for (const c of clients) c.write(d); } });
 // Host a party from the app: its own party server + share link; you join as the host (the main house of the town).
 const partyHost = createPartyHost({ dir: CFG_DIR, join: (u, c, n, k) => partyClient.join(u, c, n, k), leave: () => partyClient.leave(), onChange: () => bump(), log: m => console.error(m) });
 const partyView = () => ({ ...partyClient.view(), hosting: partyHost.status() });
 let partyAvatar = null; // the CEO's position, from the page
+// Pages showing the meeting room (/api/stream?meet=1). When the last one closes (window closed, crashed, or reloading) the app
+// leaves the room at once, so the tray app never holds a voice slot as a ghost; a reloaded page's next avatar post takes it back.
+let meetStreams = 0;
+const leftMeet = () => { if (partyAvatar && partyAvatar.room === 'meet') { partyAvatar = cleanAvatar({ ...partyAvatar, room: 'home' }); publishParty(); } };
 // Optional retention ("retentionDays" in kiro.json, 7 or more): old finished goals, history summaries and reports are deleted at start.
 let RETENTION_DAYS = 0; try { RETENTION_DAYS = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')).retentionDays; } catch {}
 prune({ retentionDays: RETENTION_DAYS, goalsFile: path.join(CFG_DIR, 'goals.json') });
@@ -668,18 +675,24 @@ function snapshot() {
 
 // What goes over the wire: the selected agent (set by the dashboard) and Tiro keep their full log tail, other desks a short one.
 // Identical snapshots are never pushed again, and while no window is visible pushes are coalesced to one per 3 s.
-setInterval(() => { // publish this office to the party (only sent when it changed)
+let pubBusy = false, pubAgain = false; // one publish at a time, so an older avatar can never land after a newer one
+const publishParty = () => { // publish this office to the party (only sent when it changed)
+  if (pubBusy) { pubAgain = true; return; }
   if (!partyClient.view().connected) return;
   let feed; try { feed = feedOf(snapshot(), worldNow.layout, lookBox.get(), partyClient.hashId); } catch { return; }
-  partyClient.publish(feed, partyAvatar).catch(() => {});
-}, 2000).unref();
+  pubBusy = true;
+  partyClient.publish(feed, partyAvatar).catch(() => {}).finally(() => { pubBusy = false; if (pubAgain) { pubAgain = false; publishParty(); } });
+};
+setInterval(publishParty, 2000).unref();
 const snapshotOut = () => { const sn = snapshot(); return { ...sn, agents: trimLogs(sn.agents, uiState.sel) }; };
 const gate = createSnapshotGate({ hiddenMs: 3000 });
 let sent = -1;
 setInterval(() => {
   scan();
-  if (sent === version || !clients.size || !gate.due(uiState.visible)) return;
-  const data = 'data: ' + JSON.stringify(snapshotOut()) + '\n\n', d = gate.decide(data, uiState.visible);
+  if (sent === version || !clients.size) return;
+  const urgent = [...agents.values()].flatMap(a => (a.perms || []).map(p => p.askId)).join() + '|' + hires.pending().map(h => h.id).join(); // asks and hires skip the hidden-window coalescing
+  if (!gate.due(uiState.visible, urgent)) return;
+  const data = 'data: ' + JSON.stringify(snapshotOut()) + '\n\n', d = gate.decide(data, uiState.visible, urgent);
   if (d === 'wait') return;
   sent = version;
   if (d === 'same') return;
@@ -721,7 +734,7 @@ const readBody = req => new Promise((ok, bad) => {
 });
 // Error text may carry file paths: only plain messages go to the client, the rest is logged here.
 const publicMessage = e => { const m = String(e?.message || 'error'); return /[\\/]|ENOENT|EACCES|EPERM|\bat \w+/.test(m) ? 'internal error' : m.slice(0, 160); };
-const STATIC = { '/': ['Agent Office.html', 'text/html'], '/office-objects.js': ['office-objects.js', 'text/javascript'], '/office-motion.js': ['office-motion.js', 'text/javascript'], '/office-sprites.js': ['office-sprites.js', 'text/javascript'], '/office-furniture.js': ['office-furniture.js', 'text/javascript'], '/role-catalog.js': ['role-catalog.js', 'text/javascript'], '/world-path.js': ['world-path.js', 'text/javascript'], '/world-model.js': ['world-model.js', 'text/javascript'], '/world-edit.js': ['world-edit.js', 'text/javascript'], '/world-player.js': ['world-player.js', 'text/javascript'], '/graphics.js': ['graphics.js', 'text/javascript'], '/office-world.js': ['office-world.js', 'text/javascript'], '/chismis-tl.js': ['chismis-tl.js', 'text/javascript'], '/support.js': ['support.js', 'text/javascript'], '/agent-history.js': ['agent-history.js', 'text/javascript'], '/vendor/react.production.min.js': ['vendor/react.production.min.js', 'text/javascript'], '/vendor/react-dom.production.min.js': ['vendor/react-dom.production.min.js', 'text/javascript'], '/vendor/babel.min.js': ['vendor/babel.min.js', 'text/javascript'], '/kiro': ['kiro.html', 'text/html'], '/kiro-art.js': ['kiro-art.js', 'text/javascript'], '/island': ['island.html', 'text/html'], '/town': ['town.html', 'text/html'], '/vendor/pixi.min.js': ['vendor/pixi.min.js', 'text/javascript'], '/town-map.js': ['town-map.js', 'text/javascript'], '/town-render.js': ['town-render.js', 'text/javascript'], '/town-render-2d.js': ['town-render-2d.js', 'text/javascript'], '/town-ambient.js': ['town-ambient.js', 'text/javascript'], '/town-animals.js': ['town-animals.js', 'text/javascript'], '/town-scenery.js': ['town-scenery.js', 'text/javascript'], '/agent-travel.js': ['agent-travel.js', 'text/javascript'], '/manor.js': ['manor.js', 'text/javascript'], '/bg-music.js': ['bg-music.js', 'text/javascript'], '/party-music.js': ['party-music.js', 'text/javascript'], '/hud.js': ['hud.js', 'text/javascript'] };
+const STATIC = { '/': ['Agent Office.html', 'text/html'], '/office-objects.js': ['office-objects.js', 'text/javascript'], '/office-motion.js': ['office-motion.js', 'text/javascript'], '/office-sprites.js': ['office-sprites.js', 'text/javascript'], '/office-furniture.js': ['office-furniture.js', 'text/javascript'], '/role-catalog.js': ['role-catalog.js', 'text/javascript'], '/world-path.js': ['world-path.js', 'text/javascript'], '/world-model.js': ['world-model.js', 'text/javascript'], '/world-edit.js': ['world-edit.js', 'text/javascript'], '/world-player.js': ['world-player.js', 'text/javascript'], '/graphics.js': ['graphics.js', 'text/javascript'], '/office-world.js': ['office-world.js', 'text/javascript'], '/chismis-tl.js': ['chismis-tl.js', 'text/javascript'], '/support.js': ['support.js', 'text/javascript'], '/agent-history.js': ['agent-history.js', 'text/javascript'], '/vendor/react.production.min.js': ['vendor/react.production.min.js', 'text/javascript'], '/vendor/react-dom.production.min.js': ['vendor/react-dom.production.min.js', 'text/javascript'], '/vendor/babel.min.js': ['vendor/babel.min.js', 'text/javascript'], '/kiro': ['kiro.html', 'text/html'], '/kiro-art.js': ['kiro-art.js', 'text/javascript'], '/island': ['island.html', 'text/html'], '/notch-core.js': ['notch-core.js', 'text/javascript'], '/notch-views.js': ['notch-views.js', 'text/javascript'], '/notch-page.js': ['notch-page.js', 'text/javascript'], '/town': ['town.html', 'text/html'], '/vendor/pixi.min.js': ['vendor/pixi.min.js', 'text/javascript'], '/town-map.js': ['town-map.js', 'text/javascript'], '/town-render.js': ['town-render.js', 'text/javascript'], '/town-render-2d.js': ['town-render-2d.js', 'text/javascript'], '/town-ambient.js': ['town-ambient.js', 'text/javascript'], '/town-animals.js': ['town-animals.js', 'text/javascript'], '/town-scenery.js': ['town-scenery.js', 'text/javascript'], '/agent-travel.js': ['agent-travel.js', 'text/javascript'], '/manor.js': ['manor.js', 'text/javascript'], '/bg-music.js': ['bg-music.js', 'text/javascript'], '/party-music.js': ['party-music.js', 'text/javascript'], '/meet-voice.js': ['meet-voice.js', 'text/javascript'], '/meet-room.js': ['meet-room.js', 'text/javascript'], '/hud.js': ['hud.js', 'text/javascript'] };
 const TOWN_GATED = new Set(['/town', '/vendor/pixi.min.js', '/town-map.js', '/town-render.js', '/town-render-2d.js', '/town-ambient.js', '/town-animals.js', '/town-scenery.js', '/agent-travel.js']); // town assets need the UI cookie, unlike the older pages
 
 // Pages load only local scripts, styles and fonts (fonts are vendored in public/fonts). No remote script at all, no framing of
@@ -776,7 +789,8 @@ async function handle(req, res) {
     if (url.pathname === '/api/stream') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       res.write('data: ' + JSON.stringify(snapshotOut()) + '\n\n');
-      clients.add(res); gate.reset(); res.on('close', () => clients.delete(res));
+      const meet = url.searchParams.get('meet') === '1'; if (meet) meetStreams++;
+      clients.add(res); gate.reset(); res.on('close', () => { clients.delete(res); if (meet && !--meetStreams) leftMeet(); });
       return;
     }
     if (req.method === 'GET' && /^\/(print|export)\//.test(url.pathname)) {
@@ -797,7 +811,7 @@ async function handle(req, res) {
     }
     // ?scene= picks an interior (town step 2); parseScene whitelists it before the store builds any path.
     const scene = url.pathname === '/api/world' ? parseScene(url.searchParams.get('scene')) : 'office';
-    if (!scene) return json(res, 400, { error: 'scene must be office, kain or games' });
+    if (!scene) return json(res, 400, { error: 'scene must be office, kain, games or meet' });
     if (req.method === 'GET' && url.pathname === '/api/world') return json(res, 200, scene === 'office' ? worldNow : worldStore.load(scene));
     if (req.method === 'GET' && url.pathname === '/api/music/file') { // one track of the music folder, by index, with range requests (seeking)
       const f = fileAt(musicPrefs().folder, trackList(), Number(url.searchParams.get('i')));
@@ -807,6 +821,7 @@ async function handle(req, res) {
       res.writeHead(r ? 206 : 200, { 'content-type': type, 'accept-ranges': 'bytes', 'content-length': r ? r.end - r.start + 1 : size, ...(r && { 'content-range': `bytes ${r.start}-${r.end}/${size}` }) });
       return fs.createReadStream(f, r ? { start: r.start, end: r.end } : {}).pipe(res);
     }
+    if (req.method === 'GET' && url.pathname === '/api/party/voice-config') return json(res, 200, { iceServers: iceServers(readVoiceConfig(CFG_DIR)) }); // holds the TURN password: only ever sent to the app's own page
     if (req.method === 'GET' && url.pathname === '/api/claude') return json(res, 200, await claudeView(url.searchParams.get('refresh') === '1'));
     if (req.method === 'GET' && url.pathname === '/api/external') return json(res, 200, await extView(url.searchParams.get('refresh') === '1'));
     if (req.method === 'GET' && url.pathname === '/api/world/templates') return json(res, 200, worldStore.listTemplates());
@@ -938,9 +953,16 @@ async function handle(req, res) {
         else return json(res, 400, { error: 'bad request' });
         try { const r = await partyClient.music(body); return json(res, r.ok ? 200 : 400, r.ok ? { party: partyView() } : { error: r.error || 'refused' }); } catch { return json(res, 502, { error: 'party server unreachable' }); }
       }
+      case '/api/party/rtc': try { const r = await partyClient.rtc(b); return json(res, r.ok ? 200 : 400, r); } catch { return json(res, 502, { error: 'party server unreachable' }); }
+      case '/api/party/emote': try { return json(res, (await partyClient.emote(b.emote)) ? 200 : 400, {}); } catch { return json(res, 502, { error: 'party server unreachable' }); }
+      case '/api/party/voice-config': { try { writeVoiceConfig(CFG_DIR, { turn: b.turn ?? null }); } catch (e) { return json(res, 400, { error: String(e.message).slice(0, 200) }); } return json(res, 200, { ok: true }); }
       case '/api/party/chat': return json(res, (await partyClient.say(b.text)) ? 200 : 400, {});
       case '/api/party/presence': return json(res, (await partyClient.setPresence(b.presence)) ? 200 : 400, { party: partyView() });
-      case '/api/party/avatar': { partyAvatar = cleanAvatar(b); return json(res, 200, {}); }
+      case '/api/party/avatar': { // a room, mic or hand change goes out now (voice slot, raised hand); walking waits for the 2 s tick
+        // no meeting-room page open (a late post from a window that just closed): not in the room
+        const was = partyAvatar; partyAvatar = cleanAvatar(b && b.room === 'meet' && !meetStreams ? { ...b, room: 'home' } : b);
+        if (partyAvatar && (!was || ['room', 'mic', 'hand'].some(k => was[k] !== partyAvatar[k]))) publishParty();
+        return json(res, 200, {}); }
       case '/api/party/office': { const o = await partyClient.office(String(b.id || '')).catch(() => null); return o ? json(res, 200, { office: o }) : json(res, 404, { error: 'not in the party' }); }
       case '/api/manor/set': { // {theme, colors}: a preset and optional #rrggbb overrides (party friends see these, nothing else)
         const m = cleanManor(b); if (!m) return json(res, 400, { error: 'Unknown manor theme' });

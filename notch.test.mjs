@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import { normalizeSettings, applyPatch, DEFAULT_SETTINGS, validAccelerator, canonicalAccelerator, notchEnabledOf, migrateNotchPrefs, notchStep, resolveMode } from './desktop/island-logic.mjs';
 
 const read = f => fs.readFileSync(new URL(f, import.meta.url), 'utf8');
+const NOTCH_FILES = ['notch-views.js', 'notch-page.js'];
+const islandPage = () => [read('./public/island.html'), ...['notch-core.js', ...NOTCH_FILES].map(f => read('./public/' + f))].join('\n'); // the page and its classic scripts
 
 test('notchEnabled defaults to on and is validated like every other island setting', () => {
   assert.equal(DEFAULT_SETTINGS.notchEnabled, true, 'default behaviour as before: the notch is on');
@@ -98,8 +100,63 @@ test('desktop wiring: one setter, sender-checked IPC with a validated payload, t
   assert.doesNotMatch(server, /api\/notch/);
 });
 
+test('notch window: never click-through, island IPC sender-checked, view pushed, globals can be skipped for test runs', () => {
+  const main = read('./desktop/main.mjs'), isl = read('./desktop/island-preload.cjs');
+  assert.doesNotMatch(main, /island\.setIgnoreMouseEvents/, 'the island is never click-through (only Tiro\'s own window still is)');
+  assert.doesNotMatch(main, /'island:interactive'/);
+  const handlers = [...main.matchAll(/ipcMain\.on\('island:[a-zA-Z]+', (?:\([^)]*\)|e) => \{?\s*([^\n]*)/g)];
+  assert.equal(handlers.length, (main.match(/ipcMain\.on\('island:/g) || []).length, 'every island handler was found');
+  assert.ok(handlers.length >= 7, 'found the island handlers');
+  for (const [all, body] of handlers) assert.match(body, /^(if \()?!?fromIsland\(e\)/, 'sender-checked: ' + all.slice(0, 40));
+  for (const ch of ['notch:store:get', 'notch:store:set']) { const at = main.indexOf("ipcMain.handle('" + ch + "'"); assert.ok(at > 0, ch); assert.match(main.slice(at, at + 160), /fromIsland\(e\)/, ch + ' is sender-checked'); }
+  assert.match(main, /acceptStore\(store\)/); assert.match(isl, /ipcRenderer\.invoke\('notch:store:get'\)/); assert.match(isl, /ipcRenderer\.invoke\('notch:store:set', store\)/);
+  assert.match(main, /ipcMain\.on\('island:closedView'/); assert.match(main, /ipcMain\.on\('island:hold'/);
+  assert.match(isl, /closedView: kind => ipcRenderer\.send\('island:closedView'/); assert.match(isl, /hold: h => ipcRenderer\.send\('island:hold'/);
+  assert.match(main, /'island:state', \{[^}]*view: isle\.view/);
+  // Esc: the page asks main to close at once; hoverStep gets the one-shot dismiss
+  assert.match(isl, /dismiss: \(\) => ipcRenderer\.send\('island:dismiss'\)/);
+  assert.match(main, /ipcMain\.on\('island:dismiss', e => \{ if \(fromIsland\(e\)\)/); assert.match(main, /\.\.\.isle\.hold, dismiss: isle\.dismiss \}\)/);
+  // the system material follows the app theme: dark, set before the material window is created
+  // the system material follows the app theme: dark only while the window is in the material form, 'system' otherwise and after destroy
+  assert.match(main, /nativeTheme\.themeSource = isle\.form === 'material' \? 'dark' : 'system';[^\n]*\n\s*try \{\s*island = new BrowserWindow/);
+  assert.match(main, /function destroyIsland\(\) \{[^\n]*nativeTheme\.themeSource = 'system'/);
+  // the window is sized to the view it shows (winView), which a pending shrink changes only when its timer fires
+  assert.match(main, /function placeIsland\(force, d = isleDisplay\(\)\) \{\s*if \(!alive\(\)\) return;\s*const b = isleRect\(isle\.winView, d\)/);
+  assert.match(main, /, resize = \(\) => \{ isle\.winView = isle\.view; placeIsland\(true, d\); \}/);
+  assert.match(main, /plan === 'later'\) isle\.shrinkT = setTimeout\(resize, delay\)/);
+  // one display lookup per cursor tick
+  const tick = main.slice(main.indexOf('function cursorTick()'), main.indexOf('const cursorLoop'));
+  assert.equal((tick.match(/isleDisplay\(\)/g) || []).length, 1, 'cursorTick computes the display once');
+  for (const call of ['placeIsland(false, d)', 'inPeekZone(d.bounds,', 'isleRect(ck, d)', "isleRect('open', d)", "ck, d);"]) assert.ok(tick.includes(call), 'the tick passes its display down: ' + call);
+  assert.match(tick, /ck = isle\.game \? 'game' : isle\.closedKind/, 'game mode: the closed view is the game view and Smart does not hide it for fullscreen');
+  assert.match(tick, /smartAway\(\{[^}]*closedKind: ck,/);
+  assert.match(islandPage(), /e\.key === 'Escape'[^\n]*desk\.dismiss\(\)/);
+  // AGENT_OFFICE_NO_GLOBALS=1: no tray, no global shortcuts (test runs next to the installed app)
+  assert.match(main, /const NO_GLOBALS = process\.env\.AGENT_OFFICE_NO_GLOBALS === '1'/);
+  assert.match(main, /if \(!NO_GLOBALS\) buildTray\(\)/);
+  assert.match(main, /if \(!NO_GLOBALS\) \{ globalShortcut\.register\('Control\+Alt\+K', toggleIsland\); registerNotchShortcut\(\); \}/);
+});
+
+test('notch page: tabs, form from main, no click-through bridge, scripts served, Y/N not taken from text fields', () => {
+  const html = read('./public/island.html'), page = islandPage(), isl = read('./desktop/island-preload.cjs'), main = read('./desktop/main.mjs'), server = read('./server.mjs');
+  assert.doesNotMatch(isl + page, /interactive/, 'the window is never click-through: the no-op bridge and its calls are gone');
+  assert.match(main, /'island:state', \{[^}]*form: isle\.form/, 'main tells the page which window form it is in');
+  // Smart mode: the page's busy signal reaches main's pure rule
+  assert.match(isl, /busy: !!\(h && h\.busy\)/); assert.match(main, /isle\.busy = h\.busy === true/);
+  assert.match(main, /const away = smartAway\(\{[^\n]*busy: isle\.busy, \.\.\.isle\.hold \}\)/);
+  assert.match(page, /desk\.hold\(\{ pinned: pn, forced: fo, busy: bz \}\)/);
+  for (const f of ['notch-core.js', ...NOTCH_FILES]) {
+    assert.match(html, new RegExp(`<script src="\\./${f.replace('.', '\\.')}"></script>`), f + ' is loaded by the page');
+    assert.match(server, new RegExp(`'/${f.replace('.', '\\.')}': \\['${f.replace('.', '\\.')}', 'text/javascript'\\]`), f + ' is in STATIC');
+  }
+  assert.match(page, /role="tablist"/); assert.match(page, /role="tab"/); assert.match(page, /ArrowRight/);
+  assert.match(page, /closest\('input, textarea'\)/); assert.match(page, /isContentEditable/);
+  assert.doesNotMatch(page, /\son[a-z]+="/, 'no inline event handlers');
+  assert.doesNotMatch(page, /https?:\/\/(?!www\.w3\.org)/, 'no remote resources');
+});
+
 test('controls: dashboard Breaker box row (desktop only) and the island settings toggle and shortcut field', () => {
-  const oo = read('./public/office-objects.js'), isl = read('./public/island.html');
+  const oo = read('./public/office-objects.js'), isl = islandPage();
   assert.match(oo, /window\.agentOfficeDesktop && window\.agentOfficeDesktop\.notch/);
   assert.match(oo, /data-act = 'notch'|dataset\.act = 'notch'/); assert.match(oo, /case 'notch':/);
   assert.match(oo, /queueMicrotask\(\(\) => notchRow\(body\)\)/);

@@ -18,7 +18,7 @@
   const shuffle = (n, rand = Math.random) => { const a = [...Array(n).keys()]; for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   // ---- browser only ----
-  let ctx = null, master = null, timer = 0, audio = null, st = { on: false, place: '', mode: 'off', volume: 0.4, ducked: false, order: [], at: 0, tracks: [] };
+  let ctx = null, master = null, timer = 0, audio = null, st = { on: false, place: '', mode: 'off', volume: 0.4, ducked: false, held: false, order: [], at: 0, tracks: [] };
   const nonce = () => (String(root.document.cookie).match(/(?:^|; )ao_nonce=([^;]*)/) || [])[1] || '';
   const level = () => st.volume * (st.ducked ? DUCK : 1);
   const hz = m => 440 * Math.pow(2, (m - 69) / 12);
@@ -67,11 +67,12 @@
   function apply() { if (master && ctx) master.gain.setTargetAtTime(level(), ctx.currentTime, 0.3); if (audio) audio.volume = level(); }
   async function start(place) {
     st.place = place || st.place || 'office';
+    if (st.held) return state(); // the meeting room: voice matters more than lo-fi
     let m = { bg: 'builtin', volume: 0.4, tracks: [] };
     try { const r = await root.fetch('/api/music', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nonce': nonce() }, body: '{}' }); if (r.ok) m = await r.json(); } catch (e) {}
     stop();
     st.mode = m.bg; st.volume = m.volume; st.tracks = m.tracks || []; st.folderName = m.folderName || '';
-    if (root.document.hidden || m.bg === 'off') return state();
+    if (st.held || root.document.hidden || m.bg === 'off') return state();
     st.on = true;
     if (m.bg === 'folder' && st.tracks.length) folder(); else generative(st.place);
     return state();
@@ -83,6 +84,7 @@
   if (root.addEventListener) root.addEventListener('pagehide', () => stop()); // release the AudioContext on every page change (town <-> office)
   root.BgMusic = { DUCK, plan, shuffle, start, stop, state,
     setVolume(v) { st.volume = Math.max(0, Math.min(1, +v || 0)); apply(); },
+    hold(on) { st.held = !!on; if (st.held) stop(); else start(); }, // pauses the tune for the meeting room, restarts it on leaving
     duck(on) { if (st.ducked === !!on) return; st.ducked = !!on; apply(); },
     next() { if (audio && st.mode === 'folder') { st.at++; playTrack(); } },
     prev() { if (audio && st.mode === 'folder') { st.at = Math.max(0, st.at - 1); playTrack(); } } };

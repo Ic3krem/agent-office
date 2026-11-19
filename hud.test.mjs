@@ -22,3 +22,7 @@ test('bubbleText: plain, one line, at most 140 characters', () => {
   const long = H.bubbleText('x'.repeat(200));
   assert.equal(long.length, 140); assert.ok(long.endsWith('…'));
 });
+test('the hidden attribute hides a panel or row (their display:flex would otherwise win: the meeting-room card showed outside a party)', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('./public/hud.js', import.meta.url), 'utf8');
+  assert.match(src, /\.hud-panel\[hidden\],\.hud-row\[hidden\]\{display:none\}/);
+});
