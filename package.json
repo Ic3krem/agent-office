@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "electron": "43.8.7",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.18.0"
   },
   "productName": "TiroAgents",
   "build": {
