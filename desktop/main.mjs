@@ -404,7 +404,7 @@ ipcMain.handle('external:confirm', async (e, key, vals) => {
 // ---------- sign-ins: each CLI's own login in a visible terminal, and Claude's API-key alternative ----------
 // The terminal runs a resolved executable with the fixed LOGIN args (cli-auth.mjs): no user text, no shell option.
 const launchOf = cli => {
-  if (cli === 'claude' || cli === 'claude-console') { const c = findClaude(); return c ? { cmd: c, pre: [] } : null; }
+  if (cli === 'claude' || cli === 'claude-console') return findClaude(); // {cmd, pre} (native, or node + npm's cli.js) or null
   const f = PROVIDERS[cli] && which(PROVIDERS[cli].bin, shellPath()); return f ? resolveLaunch(f, process.platform, undefined, shellPath()) : null;
 };
 ipcMain.handle('auth:login', (e, cli) => {
@@ -414,7 +414,7 @@ ipcMain.handle('auth:login', (e, cli) => {
   if (plan.copy !== undefined) return { copy: plan.copy };
   try {
     if (plan.file) fs.writeFileSync(plan.file, plan.text, { mode: 0o700 });
-    spawn(plan.cmd, plan.args, { detached: true, stdio: 'ignore' }).unref();
+    spawn(plan.cmd, plan.args, { detached: true, stdio: 'ignore', windowsVerbatimArguments: !!plan.verbatim }).unref(); // verbatim: cmd's own quoting (cli-auth.mjs)
     return { ok: true };
   } catch { return { copy }; }
 });
@@ -423,7 +423,7 @@ ipcMain.handle('auth:logout', async e => {
   const r = await dialog.showMessageBox(office, { type: 'question', title: 'Claude', message: 'Sign out of Claude Code?', detail: 'Claude Code signs out on this PC (terminals too). Tiro stops until you sign in again.', buttons: ['Cancel', 'Sign out'], defaultId: 0, cancelId: 0, noLink: true });
   if (r.response !== 1) return { ok: false };
   const c = findClaude(); if (!c) return { ok: false, error: 'Claude Code was not found.' };
-  try { return { ok: (await runExternal({ cmd: c, args: ['auth', 'logout'], timeoutMs: 15000, env: process.env })).code === 0 }; } catch { return { ok: false }; }
+  try { return { ok: (await runExternal({ cmd: c.cmd, args: [...c.pre, 'auth', 'logout'], timeoutMs: 15000, env: process.env })).code === 0 }; } catch { return { ok: false }; }
 });
 const KEY_FILE = path.join(CFG_DIR, 'claude-key.enc');
 const keyAvailable = () => { try { return safeStorage.isEncryptionAvailable(); } catch { return false; } };

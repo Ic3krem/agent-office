@@ -24,7 +24,7 @@ import { reportStore, dailyMarkdown, mdToHtml, printPage, reportXlsx, dailyXlsx 
 import { findVault, agentVault, seedMemory } from './vault.mjs';
 import { agentHome, KEYS as AGENT_KEYS } from './agent-home.mjs';
 import { readScheduler, fenceSubjects } from './scheduler.mjs';
-import { switchBox, rack, findClaude } from './office.mjs';
+import { switchBox, rack, findClaude, claudeSdkOptions } from './office.mjs';
 import { candidatePorts, listenFirstFree, MARKER } from './ports.mjs';
 import { createAuth, loadBridgeKey, lockDown, rand, safeLocal, writePrivate, safeEqual } from './auth.mjs';
 import { redact, hasSecret, redactDeep } from './redact.mjs';
@@ -192,7 +192,7 @@ const ledger = usageLedger(PROJECTS, { stateFile: path.join(CFG_DIR, 'usage-ledg
 let limits = null;
 const credits = creditLog(path.join(CFG_DIR, 'credits.json'));
 const overLimit = () => !!limits && !limits.error && [limits.session, limits.weekly].some(w => w && w.pct >= 100);
-const refreshLimits = () => planLimits(query, LIMITS_OPTS).then(l => { limits = l; credits.observe(l.extra?.used, overLimit()); guard(); bump(); }).catch(e => { limits = { error: e.message, at: Date.now() }; bump(); });
+const refreshLimits = () => planLimits(query, limitsOpts()).then(l => { limits = l; credits.observe(l.extra?.used, overLimit()); guard(); bump(); }).catch(e => { limits = { error: e.message, at: Date.now() }; bump(); });
 // The ledger reads only what was appended, in small time slices, about every 90 s.
 every(90e3, () => ledger.refreshAsync().then(bump));
 // The limits probe starts a whole claude process, so it only runs while a window is visible or Tiro is working, and not more
@@ -418,10 +418,10 @@ const officeTools = () => createSdkMcpServer({
     }),
   ],
 });
-const CLAUDE = findClaude();
+let CLAUDE = findClaude(); // {cmd, pre, sdk} or null; found again when the Claude panel refreshes
 if (!CLAUDE) console.error('Claude Code was not found. Install it (https://claude.com/claude-code) and log in, or set CLAUDE_CODE_PATH.');
 // The plan-limit probe is an internal utility, not an agent: it runs isolated so it never fires your hooks or loads your servers.
-const LIMITS_OPTS = { settingSources: [], strictMcpConfig: true, env: { ...process.env }, ...(CLAUDE && { pathToClaudeCodeExecutable: CLAUDE }) };
+const limitsOpts = () => ({ settingSources: [], strictMcpConfig: true, env: { ...process.env }, ...claudeSdkOptions(CLAUDE) });
 // Same project resolution as `claude` run from a folder: the folder is HOME unless "workDir" in kiro.json names another existing one.
 const workDir = () => { try { const w = JSON.parse(fs.readFileSync(path.join(CFG_DIR, 'kiro.json'), 'utf8')).workDir; if (typeof w === 'string' && path.isAbsolute(w) && fs.statSync(w).isDirectory()) return w; } catch {} return HOME; };
 // The user may rename the team; types and ids stay the same, so tell the manager what each one is called now.
@@ -499,7 +499,7 @@ const bossOptions = () => {
   let saved = {}; try { saved = JSON.parse(fs.readFileSync(BOSS_FILE, 'utf8')); } catch {}
   boss.keys = currentKeys(); // the agents map below is fixed for the session's life; hires check against these
   return {
-    ...claudeSessionOptions({ cwd: workDir(), home: HOME, claudeExe: CLAUDE }),
+    ...claudeSessionOptions({ cwd: workDir(), home: HOME, extra: claudeSdkOptions(CLAUDE) }),
     // No model, effort, tools or settings overrides: Tiro uses your Claude Code defaults, like a plain `claude` in this folder.
     resume: saved.date === today() ? saved.id : undefined, // the same manager all day, a fresh one each morning
     systemPrompt: { type: 'preset', preset: 'claude_code', append: briefText() + nameNote() + AH.note('tiro') + `\nEach hire starts a fresh context: put what the specialist must know in the Agent prompt. Specialist memory folders are under ${AH.dir('tiro')}.\n\nThe vault's agent folder is ${V.base} (Memory/, Reports/, Daily/).` },
@@ -576,11 +576,16 @@ const extSignin = async (d, fresh) => {
 };
 // Claude Code's own sign-in (`claude auth status`), cached 60 s. using: what TiroAgents' sessions use (the desktop app sets the key mode).
 let claudeCache = { at: 0, v: null };
+// Shown as text to copy (never fetched by the page), so they live here and the page's CSP host check stays strict.
+const CLAUDE_INSTALLERS = { windows: 'irm https://claude.ai/install.ps1 | iex', unix: 'curl -fsSL https://claude.ai/install.sh | bash' };
 const claudeView = async fresh => {
   if (fresh || !claudeCache.v || Date.now() - claudeCache.at > 60e3) {
-    let status = { loggedIn: false, method: '', email: '', expires: '' };
-    if (CLAUDE) try { status = parseClaudeStatus((await runExternal({ cmd: CLAUDE, args: ['auth', 'status'], timeoutMs: 5000, env: process.env })).stdoutTail); } catch {}
-    claudeCache = { at: Date.now(), v: { found: !!CLAUDE, install: 'npm install -g @anthropic-ai/claude-code', status, using: KEY_HINT ? 'key' : 'account', keyHint: KEY_HINT } };
+    // Installed while the app runs: picked up without a restart (new sessions use it). Not found but the old path is still
+    // there (mid-update): keep it rather than flip to missing.
+    if (fresh) CLAUDE = findClaude() || (CLAUDE && fs.existsSync(CLAUDE.cmd) ? CLAUDE : null);
+    let status = { loggedIn: false, method: '', email: '', expires: '', unknown: !!CLAUDE };
+    if (CLAUDE) try { status = parseClaudeStatus((await runExternal({ cmd: CLAUDE.cmd, args: [...CLAUDE.pre, 'auth', 'status'], timeoutMs: 5000, env: process.env })).stdoutTail); } catch {}
+    claudeCache = { at: Date.now(), v: { found: !!CLAUDE, install: 'npm install -g @anthropic-ai/claude-code', installers: CLAUDE_INSTALLERS, status, using: KEY_HINT ? 'key' : 'account', keyHint: KEY_HINT } };
   }
   return claudeCache.v;
 };

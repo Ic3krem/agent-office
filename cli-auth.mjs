@@ -28,7 +28,7 @@ export async function probeSignin(cli, { run, env = process.env, home, launch } 
 
 // `claude auth status` JSON -> only what the panel shows.
 export function parseClaudeStatus(text) {
-  let j; try { j = JSON.parse(String(text)); } catch { return { loggedIn: false, method: '', email: '', expires: '' }; }
+  let j; try { j = JSON.parse(String(text)); } catch { return { loggedIn: false, method: '', email: '', expires: '', unknown: true }; } // not JSON: an old Claude Code without `auth`
   if (!j || j.loggedIn !== true) return { loggedIn: false, method: '', email: '', expires: '' };
   const m = String(j.authMethod || '');
   return { loggedIn: true, method: m === 'claude.ai' ? 'subscription' : /console|api/i.test(m) ? 'console' : 'other', email: typeof j.email === 'string' ? j.email.slice(0, 120) : '', expires: typeof j.loginExpiresAt === 'string' ? j.loginExpiresAt.slice(0, 40) : '' };
@@ -40,7 +40,14 @@ const sq = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
 export function terminalPlan(platform, launch, args, { exists = f => fs.existsSync(f), comspec = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe', tmpdir = '/tmp', copyAs } = {}) {
   if (!launch) return { copy: copyAs || '' };
   const words = [launch.cmd, ...launch.pre, ...args];
-  if (platform === 'win32') return { cmd: comspec, args: ['/d', '/c', 'start', '', ...words] }; // start "" = no window title
+  if (platform === 'win32') {
+    // A titled console that runs the login, then waits for a key, so its messages and URL stay readable. The outer cmd sees the
+    // paths outside quotes and cmd expands %VAR% even inside them, so a path with a cmd metacharacter (a user named R&D) gets
+    // the command to copy instead. verbatim: spawn with windowsVerbatimArguments.
+    if (words.some(w => /[%"\r\n&|<>^!]/.test(w))) return { copy: copyAs || '' };
+    const line = '"' + words.map(w => '"' + w + '"').join(' ') + ' & pause"'; // the inner cmd /c strips the outer quote pair
+    return { cmd: comspec, verbatim: true, args: ['/d /c start "TiroAgents sign-in" "' + comspec + '" /d /c ' + line] };
+  }
   if (platform === 'darwin') {
     const file = path.posix.join(tmpdir, 'tiroagents-login-' + crypto.randomBytes(6).toString('hex') + '.command');
     return { file, text: '#!/bin/sh\n' + words.map(sq).join(' ') + '\n', cmd: '/usr/bin/open', args: ['-a', 'Terminal', file] };

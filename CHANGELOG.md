@@ -15,6 +15,10 @@ Versions 1.1.0 to 1.1.4 are tagged in git (`v1.1.0` to `v1.1.4`). Builds 1.1.5 t
 - **Game mode (Windows).** With a borderless game in front, the closed notch shows frame rate, GPU load, GPU temperature and CPU load, and opens on Performance. An approval then shows only as a count on that line instead of opening the notch over the game. Auto, Always or Never in Settings, plus your own list of games.
 - **Frame rate** comes from Intel's PresentMon 2.6.0 (MIT), shipped with the app and checked by its SHA-256 before every start. It needs your account in the Windows **Performance Log Users** group: **Settings, Turn on FPS** adds you after one administrator prompt, then sign out and back in. Optional; without it Performance shows load and temperature.
 
+**Fixed**
+
+- **Claude sign-in.** TiroAgents now finds Claude Code installed with npm (`claude.cmd`) and other common install folders, so an existing sign-in is used without signing in again. The Claude panel shows the steps to install Claude Code or to sign in (with `claude auth login` to copy), a Refresh button, and updates by itself after you sign in. On Windows the sign-in window stays open until you press a key, so its link and any error stay readable.
+
 **Upgrade notes**
 
 - **Settings carry over.** A 2.0 `kiro.json` keeps its theme, pinned actions, shortcut and every other island setting; the new settings (`look`, `homeCards`, `gameMode`, `games`) start at their defaults (Glass, the five default Home cards, Auto, none).

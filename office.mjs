@@ -6,6 +6,7 @@ import os from 'node:os';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { shouldCheckDocker } from './perf.mjs';
+import { shellPath, which, resolveLaunch } from './external-agents.mjs';
 
 // Breaker box. kiro: Tiro may run at all. autopilot: Tiro keeps itself going between turns. hiring: specialists allowed.
 // bridge: terminals send approvals to the office. guard: stop at plan limits (subscription only, no extra-usage credits).
@@ -54,9 +55,24 @@ export function rack() {
 }
 
 // The user's own Claude Code install runs the agents (the app ships no copy of it). CLAUDE_CODE_PATH overrides.
-export function findClaude(home = os.homedir(), env = process.env) {
-  if (env.CLAUDE_CODE_PATH && fs.existsSync(env.CLAUDE_CODE_PATH)) return env.CLAUDE_CODE_PATH;
-  const name = process.platform === 'win32' ? 'claude.exe' : 'claude';
+// -> {cmd, pre} to run the CLI (status/login/logout) + sdk (pathToClaudeCodeExecutable), or null.
+// Native binary first; then `claude` on the shell PATH (npm's claude.cmd, a bin symlink to cli.js) as node + its entry script.
+export function findClaude(home = os.homedir(), env = process.env, platform = process.platform, pathStr) {
+  const native = p => ({ cmd: p, pre: [], sdk: p });
+  if (env.CLAUDE_CODE_PATH && fs.existsSync(env.CLAUDE_CODE_PATH)) return native(env.CLAUDE_CODE_PATH);
+  const name = platform === 'win32' ? 'claude.exe' : 'claude';
   const dirs = [path.join(home, '.local', 'bin'), ...(env.PATH || '').split(path.delimiter), '/opt/homebrew/bin', '/usr/local/bin'];
-  return dirs.map(d => path.join(d, name)).find(p => { try { return fs.statSync(p).isFile(); } catch { return false; } });
+  const exe = dirs.map(d => path.join(d, name)).find(p => { try { return fs.statSync(p).isFile() && !/\.m?js$/.test(fs.realpathSync(p)); } catch { return false; } });
+  if (exe) return native(exe);
+  pathStr ??= shellPath(env, platform); // only now: on macOS/Linux the first call spawns a login shell (up to 3 s)
+  const f = which('claude', pathStr, platform); if (!f) return null;
+  if (platform !== 'win32') { // a GUI app's PATH may lack node, so the cli.js behind npm's symlink runs with a found node
+    let real = f; try { real = fs.realpathSync(f); } catch {}
+    if (!/\.m?js$/.test(real)) return native(f); // the SDK runs only .js/.mjs (and TS) as scripts
+    const node = which('node', pathStr, platform); return node ? { cmd: node, pre: [real], sdk: real } : native(f);
+  }
+  const l = resolveLaunch(f, platform, undefined, pathStr);
+  return l ? { ...l, sdk: l.pre[0] || l.cmd } : null;
 }
+// SDK options for a found install: an entry script runs with the node that was found next to it or on PATH.
+export const claudeSdkOptions = c => (c ? { pathToClaudeCodeExecutable: c.sdk, ...(c.pre.length && { executable: c.cmd }) } : {});

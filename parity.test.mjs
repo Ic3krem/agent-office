@@ -126,8 +126,8 @@ test('server wiring: no home-made approval rules, Claude Code settings for Tiro,
   assert.doesNotMatch(boss, /^\s{4}(settingSources|strictMcpConfig|tools|model|effort|permissionMode):/m, 'Tiro does not override settings, tools, model, effort or mode');
   assert.match(boss, /allowedTools: \['request_hire'.*\]\.map\(t => 'mcp__office__' \+ t\)/, 'only our own office tools are pre-allowed');
   assert.doesNotMatch(boss, /permissionMode/);
-  assert.match(s, /LIMITS_OPTS = \{ settingSources: \[\]/);
-  assert.equal((s.match(/LIMITS_OPTS/g) || []).length, 2, 'the isolated options are used for the plan-limit probe and nothing else');
+  assert.match(s, /limitsOpts = \(\) => \(\{ settingSources: \[\]/); // a function: Claude Code may be found again later
+  assert.equal((s.match(/limitsOpts/g) || []).length, 2, 'the isolated options are used for the plan-limit probe and nothing else');
   assert.doesNotMatch(s, /ASK_WAIT_MS/, 'no timeout that decides for the user');
   assert.match(s, /case '\/api\/manager': return json\(res, 400/);
   assert.doesNotMatch(s, /permissionDecision: 'allow'/, 'our hooks never approve anything (the hire gate only denies or adjusts input)');

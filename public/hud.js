@@ -177,19 +177,38 @@
     draw();
   } };
   // Settings -> Claude (office): sign-in state, sign in/out in a terminal, or an API key kept by the desktop app.
+  // Not installed or not signed in: plain steps that stay on screen, each command with a Copy button.
   P.claude = { title: 'Claude', build(el) {
+    let timer = null, polls = 0, last = '', busy = false;
+    const copy = t => h('div', { class: 'hud-row' }, h('code', null, t), btn('Copy', () => root.navigator.clipboard.writeText(t).then(() => say('Copied')).catch(fail), { 'aria-label': 'Copy ' + t }));
+    const step = t => h('div', { class: 'hud-dim' }, t);
+    // After Sign in: ask again every 3 s for up to 2 min; stops when signed in or the panel closes.
+    const poll = () => { clearInterval(timer); polls = 0; timer = setInterval(() => { if (!el.isConnected || ++polls > 40) clearInterval(timer); else if (!busy) refresh(); }, 3000); }; // auth status may take 5 s: skip a tick
     const draw = (c, k) => {
       const A = D() && D().auth, s = c && c.status, M = { subscription: 'Claude account (subscription)', console: 'Console (API billing)', other: 'signed in' };
-      const run = p => p.then(r => { if (r && r.copy) say('Run this in a terminal: ' + r.copy); return refresh(); }).catch(fail);
+      const run = (p, wait) => p.then(r => { if (r && r.copy) say('Run this in a terminal: ' + r.copy); if (wait && r && (r.ok || r.copy !== undefined)) poll(); return refresh(); }).catch(fail);
+      const steps = !c ? null : !c.found ? h('div', { 'data-claude-steps': 'install', style: 'display:flex;flex-direction:column;gap:6px' }, sect('Install Claude Code'),
+        step('Windows (PowerShell):'), copy(c.installers.windows), step('macOS or Linux (Terminal):'), copy(c.installers.unix),
+        step('Or with npm:'), copy('npm install -g @anthropic-ai/claude-code'), step('Then click Refresh.'))
+        : !s.loggedIn ? h('div', { 'data-claude-steps': 'signin', style: 'display:flex;flex-direction:column;gap:6px' }, sect('How to sign in'),
+          s.unknown && step('Could not read the sign-in state. Update Claude Code, then click Refresh:'), s.unknown && copy('claude update'),
+          A && step('1. Click Sign in. A terminal window opens and your browser shows the Claude sign-in page.'), A && step('2. Finish signing in in the browser.'),
+          A && step('3. Come back here; this panel updates by itself (or click Refresh).'),
+          step((A ? 'If no window opened, open' : 'Open') + ' a terminal (PowerShell on Windows, Terminal on macOS) and run:'), copy('claude auth login')) : null;
       el.replaceChildren(h('h2', null, 'Claude'),
-        !c ? h('div', { class: 'hud-dim' }, 'Checking…') : !c.found ? h('div', { class: 'hud-item' }, 'Claude Code not found. Install it: ', h('code', null, c.install)) :
+        !c ? h('div', { class: 'hud-dim' }, 'Checking…') : !c.found ? h('div', { class: 'hud-item', 'data-claude-status': 'missing' }, 'Claude Code not found on this computer.') :
           h('div', { class: 'hud-item', 'data-claude-status': s.loggedIn ? 'in' : 'out' }, s.loggedIn ? 'Signed in · ' + M[s.method] + (s.email ? ' · ' + s.email : '') + (s.expires ? ' · until ' + new Date(s.expires).toLocaleDateString() : '') : 'Not signed in'),
+        steps,
         c && h('div', { class: 'hud-dim' }, 'TiroAgents uses: ' + (c.using === 'key' ? 'API key (' + c.keyHint + ')' : 'your Claude account')),
-        A ? h('div', { class: 'hud-row' }, btn('Sign in', () => run(A.login('claude'))), btn('Sign in with Console', () => run(A.login('claude-console'))), btn('Sign out', () => run(A.logout()))) : h('div', { class: 'hud-dim' }, 'Sign in and out from the TiroAgents app.'),
+        A ? h('div', { class: 'hud-row' }, c && c.found && btn('Sign in', () => run(A.login('claude'), true)), c && c.found && btn('Sign in with Console', () => run(A.login('claude-console'), true)), c && c.found && btn('Sign out', () => run(A.logout())), btn('Refresh', () => refresh())) : h('div', { class: 'hud-row' }, btn('Refresh', () => refresh()), h('span', { class: 'hud-dim' }, 'Sign in and out from the TiroAgents app.')),
         A && sect('Use'), A && k && h('div', { class: 'hud-row' }, btn('Claude account', () => run(A.setMode('account')), { 'aria-pressed': String(k.mode === 'account') }), btn('API key', () => run(A.setMode('key')), { 'aria-pressed': String(k.mode === 'key'), disabled: !k.set })),
         A && k && (k.available ? h('div', { class: 'hud-row' }, k.set ? h('span', { class: 'hud-dim' }, 'key set · ends ' + k.hint) : null, btn(k.set ? 'Replace key' : 'Set API key…', () => run(A.setKey())), k.set && btn('Remove key', () => run(A.removeKey()))) : h('div', { class: 'hud-dim' }, k.reason)));
     };
-    const refresh = () => Promise.all([root.fetch('/api/claude?refresh=1').then(r => r.json()).catch(() => null), D() && D().auth ? D().auth.keyState().catch(() => null) : null]).then(([c, k]) => { if (el.isConnected) draw(c, k); });
+    // Redraw only when something changed, so polling does not move keyboard focus.
+    const refresh = () => (busy = true, Promise.all([root.fetch('/api/claude?refresh=1').then(r => r.json()).catch(() => null), D() && D().auth ? D().auth.keyState().catch(() => null) : null]).then(([c, k]) => {
+      if (c && c.status && c.status.loggedIn) clearInterval(timer);
+      const key = JSON.stringify([c, k]); if (el.isConnected && key !== last) { last = key; draw(c, k); }
+    }).finally(() => { busy = false; }));
     draw(null, null); refresh();
   } };
 

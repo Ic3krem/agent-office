@@ -50,6 +50,8 @@ test('parseClaudeStatus reads the JSON and never keeps more than it shows', () =
   assert.equal(parseClaudeStatus(JSON.stringify({ loggedIn: true, authMethod: 'console' })).method, 'console');
   assert.equal(parseClaudeStatus(JSON.stringify({ loggedIn: true, authMethod: 'apiKey' })).method, 'console');
   assert.equal(parseClaudeStatus('nope').loggedIn, false);
+  assert.equal(parseClaudeStatus('nope').unknown, true, 'not JSON (an old Claude Code without `auth`): the panel says to update');
+  assert.equal(parseClaudeStatus(JSON.stringify({ loggedIn: false })).unknown, undefined);
   assert.equal(parseClaudeStatus(JSON.stringify({ loggedIn: false })).loggedIn, false);
 });
 
@@ -57,9 +59,18 @@ test('LOGIN args are fixed', () => {
   assert.deepEqual(LOGIN, { codex: ['login'], gemini: [], opencode: ['auth', 'login'], claude: ['auth', 'login'], 'claude-console': ['auth', 'login', '--console'] });
 });
 
-test('terminalPlan: Windows starts a console window, no shell flag, args as given', () => {
-  const p = terminalPlan('win32', { cmd: 'C:\\Tools\\node.exe', pre: ['C:\\npm\\codex.js'] }, ['login'], { comspec: 'C:\\Windows\\System32\\cmd.exe' });
-  assert.deepEqual(p, { cmd: 'C:\\Windows\\System32\\cmd.exe', args: ['/d', '/c', 'start', '', 'C:\\Tools\\node.exe', 'C:\\npm\\codex.js', 'login'] });
+test('terminalPlan: Windows opens a titled console that stays open (pause) after the login exits; paths with spaces quoted', () => {
+  const p = terminalPlan('win32', { cmd: 'C:\\Program Files\\nodejs\\node.exe', pre: ['C:\\npm\\codex.js'] }, ['login'], { comspec: 'C:\\Windows\\System32\\cmd.exe' });
+  assert.deepEqual(p, { cmd: 'C:\\Windows\\System32\\cmd.exe', verbatim: true,
+    args: ['/d /c start "TiroAgents sign-in" "C:\\Windows\\System32\\cmd.exe" /d /c ""C:\\Program Files\\nodejs\\node.exe" "C:\\npm\\codex.js" "login" & pause"'] });
+});
+
+test('terminalPlan: Windows falls back to a command to copy when a path has a character cmd would expand', () => {
+  assert.deepEqual(terminalPlan('win32', { cmd: 'C:\\Users\\a%PATH%b\\claude.exe', pre: [] }, ['auth', 'login'], { copyAs: 'claude auth login' }), { copy: 'claude auth login' });
+  // cmd metacharacters: the outer cmd /c sees the paths outside quotes (R&D would run "D\..." as a second command, ^ is dropped)
+  for (const u of ['R&D', 'a^b', 'a!b', 'a|b', 'a<b', 'a>b'])
+    assert.deepEqual(terminalPlan('win32', { cmd: 'C:\\Users\\' + u + '\\.local\\bin\\claude.exe', pre: [] }, ['auth', 'login'], { copyAs: 'claude auth login' }), { copy: 'claude auth login' }, u);
+  assert.equal(terminalPlan('win32', { cmd: 'C:\\Program Files (x86)\\x\\claude.exe', pre: [] }, ['auth', 'login']).verbatim, true, 'spaces and brackets still open the window');
 });
 
 test('terminalPlan: no launch or no terminal means a command to copy', () => {

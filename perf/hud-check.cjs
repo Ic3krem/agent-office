@@ -126,6 +126,16 @@ app.whenReady().then(async () => {
     check('office ' + p + ' pill opens its panel', !!(await until(() => B.js(`!!document.querySelector('[data-hud-panel=${p}]')`))));
   }
   check('the Claude panel shows a status line', !!(await until(() => B.js(`!!document.querySelector('[data-claude-status]') || /not found/.test(document.querySelector('[data-hud-panel=claude]').textContent)`))));
+  // The steps render (stubbed /api/claude, so the result does not depend on this PC's Claude Code).
+  const stub = async v => { const r = await B.js(`(() => { try { Hud.close(); window.__f = window.__f || window.fetch; window.fetch = (u, o) => String(u).includes('/api/claude') ? Promise.resolve(new Response(${JSON.stringify(JSON.stringify(v))})) : window.__f(u, o); Hud.toggle('claude'); return 'ok'; } catch (e) { return 'ERR ' + e.message; } })()`); if (r !== 'ok') console.log('stub: ' + r); };
+  const stepsOk = kind => until(() => B.js(`(() => { const p = document.querySelector('[data-hud-panel=claude]'), s = p && p.querySelector('[data-claude-steps=${kind}]'); return !!s && [...s.querySelectorAll('button')].some(b => b.textContent === 'Copy') && [...p.querySelectorAll('button')].some(b => b.textContent === 'Refresh') && s.textContent; })()`));
+  await stub({ found: true, status: { loggedIn: false, method: '', email: '', expires: '' }, using: 'account', installers: {} });
+  const sin = await stepsOk('signin');
+  check('Claude panel, not signed in: steps with claude auth login, Copy and Refresh', !!sin && /claude auth login/.test(sin), sin);
+  await stub({ found: false, install: 'npm install -g @anthropic-ai/claude-code', installers: { windows: 'irm x | iex', unix: 'curl y | bash' }, status: { loggedIn: false }, using: 'account' });
+  const ins = await stepsOk('install');
+  check('Claude panel, not installed: Install Claude Code with a command per OS, Copy and Refresh', !!ins && /Install Claude Code/.test(ins) && /irm x \| iex/.test(ins) && /curl y \| bash/.test(ins) && /npm install -g/.test(ins), ins);
+  await B.js(`window.fetch = window.__f; Hud.close()`);
   await B.load('/#build');
   check('/#build opens Build mode', !!(await until(() => B.js(`document.body.classList.contains('ao-building')`))));
 
