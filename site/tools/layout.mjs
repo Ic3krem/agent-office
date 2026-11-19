@@ -66,7 +66,32 @@ export function picture(root, name, alt, { loading = 'lazy', priority = false, c
   return `<picture><source type="image/avif" srcset="${set('avif')}" sizes="${sizes}"><source type="image/webp" srcset="${set('webp')}" sizes="${sizes}">${img}</picture>`;
 }
 
-export function layout({ root, title, desc, nav, main, scripts = [], modules = [], bodyClass = '' }) {
+// Search and sharing: canonical URL, Open Graph / Twitter card with the shared preview image, optional JSON-LD.
+// page = the file's path from the site root ('index.html', 'docs/install.html'); index pages get their folder URL.
+export const pageUrl = page => config.baseUrl + String(page || '').replace(/(^|\/)index\.html$/, '$1');
+export const OG_IMAGE = { path: 'assets/img/og-card.png', width: 1200, height: 630, alt: 'TiroAgents: a pixel office with Tiro, an orange cube-crab, and Claude Code agents at their desks' };
+function seoHead({ root, title, desc, page, jsonLd }) {
+  const url = pageUrl(page), img = config.baseUrl + OG_IMAGE.path;
+  const ld = jsonLd ? `\n<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : '';
+  return `<link rel="canonical" href="${esc(url)}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TiroAgents">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="${esc(url)}">
+<meta property="og:image" content="${esc(img)}">
+<meta property="og:image:width" content="${OG_IMAGE.width}">
+<meta property="og:image:height" content="${OG_IMAGE.height}">
+<meta property="og:image:alt" content="${esc(OG_IMAGE.alt)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="twitter:image" content="${esc(img)}">
+<link rel="apple-touch-icon" href="${root}assets/apple-touch-icon.png">${ld}`;
+}
+
+export function layout({ root, title, desc, nav, main, scripts = [], modules = [], bodyClass = '', page = 'index.html', jsonLd = null }) {
   const link = (href, label, key, cls = '') => `<a href="${root}${href}"${nav === key ? ' aria-current="page"' : ''}${cls ? ` class="${cls}"` : ''}>${label}</a>`;
   const allScripts = ['common.js', ...scripts];
   return `<!doctype html>
@@ -82,6 +107,7 @@ export function layout({ root, title, desc, nav, main, scripts = [], modules = [
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="icon" href="${root}assets/favicon.svg" type="image/svg+xml">
+${seoHead({ root, title, desc, page, jsonLd })}
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="${root}releases.xml">
 <link rel="stylesheet" href="${root}assets/fonts/fonts.css">
 <link rel="stylesheet" href="${root}assets/site.css">

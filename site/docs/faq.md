@@ -1,6 +1,6 @@
 # FAQ
 
-Short answers.
+Short answers to common questions about TiroAgents: tokens, hiring, your data and installing.
 
 (TiroAgents v2.1.0, 2026-11-20)
 

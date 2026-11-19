@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ic3krem.github.io/agent-office/sitemap.xml

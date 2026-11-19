@@ -12,9 +12,9 @@
 
 ### Get started
 
-- [Requirements](https://ic3krem.github.io/agent-office/docs/requirements.md): What you need before installing.
+- [Requirements](https://ic3krem.github.io/agent-office/docs/requirements.md): What you need before installing TiroAgents: a supported system and Claude Code, signed in.
 - [Install and verify](https://ic3krem.github.io/agent-office/docs/install.md): Install TiroAgents on Windows, macOS or Linux and check the download.
-- [First task with Tiro](https://ic3krem.github.io/agent-office/docs/first-task.md): Open the office and give Tiro its first goal.
+- [First task with Tiro](https://ic3krem.github.io/agent-office/docs/first-task.md): Open the office and give Tiro its first goal, then approve the hire and read the report.
 - [Update](https://ic3krem.github.io/agent-office/docs/update.md): Check for and install a new version from the island.
 - [Uninstall](https://ic3krem.github.io/agent-office/docs/uninstall.md): Remove the app and decide what to do with your data.
 
@@ -22,7 +22,7 @@
 
 - [The dashboard and the office](https://ic3krem.github.io/agent-office/docs/office.md): The panels, the world, the objects and the agent history.
 - [Hiring and approvals](https://ic3krem.github.io/agent-office/docs/approvals.md): The strict hiring gate and Claude Code tool approvals.
-- [The team](https://ic3krem.github.io/agent-office/docs/team.md): Eight specialists, renaming and SOPs.
+- [The team](https://ic3krem.github.io/agent-office/docs/team.md): Tiro's eight specialists, how to rename them, and the SOPs that guide their work.
 - [Agents and memory](https://ic3krem.github.io/agent-office/docs/agents-and-memory.md): The team, the hiring gate and per-agent memory and history.
 - [Goals, reports and the vault](https://ic3krem.github.io/agent-office/docs/goals-and-reports.md): The Today board, reports with PDF and Excel export, and the memory corkboard.
 - [The island, Tiro and the tray](https://ic3krem.github.io/agent-office/docs/island.md): The notch-style overlay, the desktop character, the tray menu and keyboard use.
@@ -39,9 +39,9 @@
 ### Reference
 
 - [Configuration](https://ic3krem.github.io/agent-office/docs/configuration.md): Preferences, environment variables, settings files, the scheduler job and the terminal bridge.
-- [Troubleshooting](https://ic3krem.github.io/agent-office/docs/troubleshooting.md): Windows warnings and common problems.
-- [FAQ](https://ic3krem.github.io/agent-office/docs/faq.md): Short answers.
-- [API reference](https://ic3krem.github.io/agent-office/docs/api.md): The local HTTP API the dashboard and island use.
+- [Troubleshooting](https://ic3krem.github.io/agent-office/docs/troubleshooting.md): Windows install warnings and fixes for common problems with TiroAgents.
+- [FAQ](https://ic3krem.github.io/agent-office/docs/faq.md): Short answers to common questions about TiroAgents: tokens, hiring, your data and installing.
+- [API reference](https://ic3krem.github.io/agent-office/docs/api.md): The local HTTP API that the TiroAgents dashboard and the island use, route by route.
 - [Full user guide](https://ic3krem.github.io/agent-office/docs/guide.md): Every panel, the island, the tray, settings files and the API table.
 
 ## Optional

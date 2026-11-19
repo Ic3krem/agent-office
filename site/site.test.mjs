@@ -49,9 +49,9 @@ test('remote hosts: only claude.com and the public release URLs appear in pages;
   const okHref = new Set([release.url, release.releaseUrl]);
   for (const f of html) {
     const t = rd(f);
-    for (const m of t.matchAll(/\s(?:href|src)="(https?:\/\/[^"]*)"/g)) assert.ok(/^https:\/\/claude\.com\//.test(m[1]) || okHref.has(m[1].replace(/&amp;/g, '&')) || /^https:\/\/github\.com\/Ic3krem\/agent-office(\/|$)/.test(m[1]) || (edge && m[1].startsWith(edge + '/dl/')), `${rel(f)} links to ${m[1]}`); // the project's own repository (open source), or the download counter
-    assert.doesNotMatch(t, /<link[^>]+href="https?:/i);
-    assert.doesNotMatch(t, /<script(?![^>]*\ssrc=")[^>]*>/i, rel(f) + ' inline script');
+    for (const m of t.matchAll(/\s(?:href|src)="(https?:\/\/[^"]*)"/g)) assert.ok(/^https:\/\/claude\.com\//.test(m[1]) || okHref.has(m[1].replace(/&amp;/g, '&')) || /^https:\/\/github\.com\/Ic3krem\/agent-office(\/|$)/.test(m[1]) || (edge && m[1].startsWith(edge + '/dl/')) || m[1].startsWith(config.baseUrl), `${rel(f)} links to ${m[1]}`); // the project's own repository (open source), or the download counter
+    assert.doesNotMatch(t, /<link(?![^>]*rel="canonical")[^>]+href="https?:/i); // only the canonical URL is absolute
+    assert.doesNotMatch(t, /<script(?![^>]*\ssrc=")(?![^>]*type="application\/ld\+json")[^>]*>/i, rel(f) + ' inline script'); // JSON-LD is data, never run
     assert.doesNotMatch(t, /<style[\s>]/i); assert.doesNotMatch(t, /\sstyle="/i); assert.doesNotMatch(t, /\son[a-z]+="/i);
     assert.match(t, /name="referrer" content="no-referrer"/);
   }
@@ -360,4 +360,29 @@ test('privacy text follows edge.origin', () => {
   if (edge) { assert.match(p, /id="counter"/); assert.match(p, /keyed hash/); assert.match(p, /never stored/); }
   else { assert.doesNotMatch(p, /id="counter"/); assert.match(p, /go straight to the files on GitHub/); }
   assert.match(rs('tools/pages.mjs'), /keyed hash of your IP address/);
+});
+
+test('SEO: every page has a canonical URL, Open Graph and Twitter tags; sitemap lists every page; home has app + FAQ structured data', () => {
+  const base = config.baseUrl;
+  const htmlPages = [];
+  const walk = d => { for (const f of fs.readdirSync(path.join(SITE, d), { withFileTypes: true })) { const rel = d ? d + '/' + f.name : f.name;
+    if (f.isDirectory()) { if (!['assets', 'tools', 'edge', 'docs-internal', 'node_modules'].includes(f.name)) walk(rel); } else if (f.name.endsWith('.html')) htmlPages.push(rel); } };
+  walk('');
+  const sitemap = rs('sitemap.xml');
+  for (const p of htmlPages) {
+    const h = rs(p), url = base + p.replace(/(^|\/)index\.html$/, '$1');
+    assert.ok(h.includes(`<link rel="canonical" href="${url}">`), p + ' canonical');
+    for (const tag of ['og:title', 'og:description', 'og:url', 'og:image', 'og:image:alt']) assert.match(h, new RegExp(`<meta property="${tag}" content="[^"]+">`), p + ' ' + tag);
+    assert.match(h, /<meta name="twitter:card" content="summary_large_image">/, p);
+    assert.ok(sitemap.includes(`<loc>${url}</loc>`), p + ' in sitemap');
+    const t = h.match(/<title>([^<]*)<\/title>/)[1], d = h.match(/<meta name="description" content="([^"]*)">/)[1];
+    assert.ok(t.length <= 70, p + ' title under 70: ' + t); assert.ok(d.length >= 50 && d.length <= 170, p + ' description 50-170: ' + d.length);
+  }
+  assert.ok(fs.existsSync(path.join(SITE, 'assets/img/og-card.png')) && fs.existsSync(path.join(SITE, 'assets/apple-touch-icon.png')));
+  assert.match(rs('robots.txt'), /Sitemap: https:\/\/\S+sitemap\.xml/);
+  const ld = JSON.parse(rs('index.html').match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  const types = ld['@graph'].map(x => x['@type']);
+  assert.deepEqual(types, ['SoftwareApplication', 'WebSite', 'FAQPage']);
+  assert.equal(ld['@graph'][0].softwareVersion, release.version);
+  assert.ok(ld['@graph'][2].mainEntity.length >= 4 && ld['@graph'][2].mainEntity.every(q => !/[<>]/.test(q.acceptedAnswer.text)));
 });

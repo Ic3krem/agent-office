@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Windows warnings and common problems.
+Windows install warnings and fixes for common problems with TiroAgents.
 
 (TiroAgents v2.1.0, 2026-11-20)
 

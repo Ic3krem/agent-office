@@ -52,7 +52,7 @@ ${PLATFORM_ASSETS.map(([key, , name, kind]) => `<tr><td>${name}</td><td><a href=
 <p>To hear about new releases, subscribe to the <a href="releases.xml">releases feed (Atom)</a>. See also <a href="docs/install.html">Install and verify</a>, <a href="docs/update.html">Update</a> and <a href="docs/uninstall.html">Uninstall</a>.</p>
 </div>
 </main>`;
-  return layout({ root: '', title: 'Download - TiroAgents', desc: 'Download TiroAgents for Windows, macOS or Linux, check its SHA-256 and follow the install steps.', nav: 'download', main, scripts: ['release.js'] });
+  return layout({ root: '', title: 'Download - TiroAgents', desc: 'Download TiroAgents for Windows, macOS or Linux, check its SHA-256 and follow the install steps.', nav: 'download', page: 'download.html', main, scripts: ['release.js'] });
 }
 
 export function quickstartPage() {
@@ -78,7 +78,7 @@ ${pageHead('Quickstart', 'From download to your first finished task. About ten m
 <div class="cta-row">${dlButton()}<a class="btn quiet" href="download.html#platforms">Every file</a></div>
 </div>
 </main>`;
-  return layout({ root: '', title: 'Quickstart - TiroAgents', desc: 'Install TiroAgents and finish your first task with Tiro in about ten minutes.', nav: 'quickstart', main, scripts: ['release.js'] });
+  return layout({ root: '', title: 'Quickstart - TiroAgents', desc: 'Install TiroAgents and finish your first task with Tiro in about ten minutes.', nav: 'quickstart', page: 'quickstart.html', main, scripts: ['release.js'] });
 }
 
 export function statsPage() {
@@ -106,7 +106,7 @@ ${ph ? '<div class="notice"><p><strong>No snapshot yet.</strong> The first sched
 <p>Who is responsible for this page and how to reach them are on the <a href="privacy.html">privacy page</a>.</p>
 </div>
 </main>`;
-  return layout({ root: '', title: 'Download statistics - TiroAgents', desc: 'Installer downloads per release and platform, from GitHub\'s own counts.', nav: 'stats', main });
+  return layout({ root: '', title: 'Download statistics - TiroAgents', desc: 'Installer downloads per release and platform, from GitHub\'s own counts.', nav: 'stats', page: 'stats.html', main });
 }
 
 export function privacyPage() {
@@ -142,5 +142,5 @@ ${edge ? `<h2 id="counter">The download counter</h2>
 <p class="meta">Content Security Policy of every page of this site: <code>${esc(buildCsp())}</code></p>
 </div>
 </main>`;
-  return layout({ root: '', title: 'Privacy - TiroAgents', desc: 'This site sets no cookies. What it loads, who is responsible and how long data is kept.', nav: 'privacy', main });
+  return layout({ root: '', title: 'Privacy - TiroAgents', desc: 'This site sets no cookies. What it loads, who is responsible and how long data is kept.', nav: 'privacy', page: 'privacy.html', main });
 }

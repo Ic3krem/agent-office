@@ -1,6 +1,6 @@
 # The team
 
-Eight specialists, renaming and SOPs.
+Tiro's eight specialists, how to rename them, and the SOPs that guide their work.
 
 (TiroAgents v2.1.0, 2026-11-20)
 

@@ -1,6 +1,6 @@
 # API reference
 
-The local HTTP API the dashboard and island use.
+The local HTTP API that the TiroAgents dashboard and the island use, route by route.
 
 (TiroAgents v2.1.0, 2026-11-20)
 

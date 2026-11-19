@@ -1,6 +1,6 @@
 # Requirements
 
-What you need before installing.
+What you need before installing TiroAgents: a supported system and Claude Code, signed in.
 
 (TiroAgents v2.1.0, 2026-11-20)
 

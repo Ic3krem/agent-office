@@ -1,6 +1,6 @@
 # First task with Tiro
 
-Open the office and give Tiro its first goal.
+Open the office and give Tiro its first goal, then approve the hire and read the report.
 
 (TiroAgents v2.1.0, 2026-11-20)
 

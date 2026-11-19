@@ -3,7 +3,7 @@
 // Re-run after editing README.md, docs/*.md, CHANGELOG.md, release.json, stats.json or config.json.
 import fs from 'node:fs';
 import path from 'node:path';
-import { layout, esc, picture, release, config, SITE } from './layout.mjs';
+import { layout, esc, picture, release, config, SITE, pageUrl } from './layout.mjs';
 import { renderMd, slugify } from './md.mjs';
 import { homePage } from './home.mjs';
 import { downloadPage, quickstartPage, statsPage, privacyPage } from './pages.mjs';
@@ -64,16 +64,16 @@ Switches are stored in \`~/.claude/agent-office/switches.json\`. See [Configurat
 // ---------- information architecture ----------
 const GROUPS = [
   { name: 'Get started', pages: [
-    { slug: 'requirements', title: 'Requirements', lead: 'What you need before installing.', src: [hand(requirementsMd)] },
+    { slug: 'requirements', title: 'Requirements', lead: 'What you need before installing TiroAgents: a supported system and Claude Code, signed in.', src: [hand(requirementsMd)] },
     { slug: 'install', title: 'Install and verify', lead: 'Install TiroAgents on Windows, macOS or Linux and check the download.', src: [{ md: installMd, shift: -1 }] },
-    { slug: 'first-task', title: 'First task with Tiro', lead: 'Open the office and give Tiro its first goal.', src: [section(GUIDE, 'Starting', { keepHeading: true }), section(GUIDE, 'Giving work', { keepHeading: true })] },
+    { slug: 'first-task', title: 'First task with Tiro', lead: 'Open the office and give Tiro its first goal, then approve the hire and read the report.', src: [section(GUIDE, 'Starting', { keepHeading: true }), section(GUIDE, 'Giving work', { keepHeading: true })] },
     { slug: 'update', title: 'Update', lead: 'Check for and install a new version from the island.', src: [section(README, 'Update')] },
     { slug: 'uninstall', title: 'Uninstall', lead: 'Remove the app and decide what to do with your data.', src: [section(README, 'Uninstall')] },
   ] },
   { name: 'Using the office', pages: [
     { slug: 'office', title: 'The dashboard and the office', lead: 'The panels, the world, the objects and the agent history.', src: [section(GUIDE, 'The dashboard', { keepHeading: true }), section(GUIDE, 'The office', { keepHeading: true }), section(GUIDE, 'Agent history', { keepHeading: true })] },
     { slug: 'approvals', title: 'Hiring and approvals', lead: 'The strict hiring gate and Claude Code tool approvals.', src: [section(GUIDE, 'Approvals')] },
-    { slug: 'team', title: 'The team', lead: 'Eight specialists, renaming and SOPs.', src: [section(GUIDE, 'The team')] },
+    { slug: 'team', title: 'The team', lead: 'Tiro\x27s eight specialists, how to rename them, and the SOPs that guide their work.', src: [section(GUIDE, 'The team')] },
     { slug: 'agents-and-memory', title: 'Agents and memory', lead: 'The team, the hiring gate and per-agent memory and history.', src: [body(AGENTS)] },
     { slug: 'goals-and-reports', title: 'Goals, reports and the vault', lead: 'The Today board, reports with PDF and Excel export, and the memory corkboard.', src: [section(GUIDE, 'Goals, Today and Reports')] },
     { slug: 'island', title: 'The island, Tiro and the tray', lead: 'The notch-style overlay, the desktop character, the tray menu and keyboard use.', src: [section(GUIDE, 'The island', { keepHeading: true }), section(GUIDE, 'Tiro on your desktop', { keepHeading: true }), section(GUIDE, 'Tray', { keepHeading: true }), section(GUIDE, 'Keyboard and accessibility', { keepHeading: true })] },
@@ -88,9 +88,9 @@ const GROUPS = [
   ] },
   { name: 'Reference', pages: [
     { slug: 'configuration', title: 'Configuration', lead: 'Preferences, environment variables, settings files, the scheduler job and the terminal bridge.', src: [section(README, 'Configuration'), section(GUIDE, 'Settings files', { keepHeading: true })] },
-    { slug: 'troubleshooting', title: 'Troubleshooting', lead: 'Windows warnings and common problems.', src: [hand(smartAppMd), section(GUIDE, 'Troubleshooting', { keepHeading: true })] },
-    { slug: 'faq', title: 'FAQ', lead: 'Short answers.', src: [section(GUIDE, 'FAQ')] },
-    { slug: 'api', title: 'API reference', lead: 'The local HTTP API the dashboard and island use.', src: [section(GUIDE, 'API reference')] },
+    { slug: 'troubleshooting', title: 'Troubleshooting', lead: 'Windows install warnings and fixes for common problems with TiroAgents.', src: [hand(smartAppMd), section(GUIDE, 'Troubleshooting', { keepHeading: true })] },
+    { slug: 'faq', title: 'FAQ', lead: 'Short answers to common questions about TiroAgents: tokens, hiring, your data and installing.', src: [section(GUIDE, 'FAQ')] },
+    { slug: 'api', title: 'API reference', lead: 'The local HTTP API that the TiroAgents dashboard and the island use, route by route.', src: [section(GUIDE, 'API reference')] },
     { slug: 'guide', title: 'Full user guide', lead: 'Every panel, the island, the tray, settings files and the API table.', src: [body(GUIDE)] },
   ] },
 ];
@@ -144,6 +144,13 @@ function sidebar(current) {
 </aside>`;
 }
 
+// Breadcrumbs for search results: Home > Docs > page.
+function docLd(slug, title, lead, group) {
+  const items = [['TiroAgents', 'index.html'], ['Docs', 'docs/index.html']];
+  if (slug !== 'index') items.push([title, `docs/${slug}.html`]);
+  return { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items.map(([name, p], i) => ({ '@type': 'ListItem', position: i + 1, name, item: pageUrl(p) })) };
+}
+
 function docPage(slug, title, lead, htmlBody, tocItems, group) {
   const i = ORDER.findIndex(o => o.slug === slug);
   const prev = ORDER[i - 1], next = ORDER[i + 1];
@@ -151,7 +158,7 @@ function docPage(slug, title, lead, htmlBody, tocItems, group) {
   const tocHtml = toc.length > 1 ? `<nav class="page-toc" aria-label="On this page"><h2>On this page</h2><ul>${toc.map(h => `<li><a href="#${h.id}">${esc(h.text)}</a></li>`).join('')}</ul></nav>` : '';
   const pn = `<nav class="prev-next" aria-label="Previous and next page">${prev ? `<a class="prev" href="${prev.href}"><span>Previous</span>${esc(prev.title)}</a>` : '<span></span>'}${next ? `<a class="next" href="${next.href}"><span>Next</span>${esc(next.title)}</a>` : '<span></span>'}</nav>`;
   return layout({
-    root: '../', title: (slug === 'index' ? 'Documentation' : title) + ' - TiroAgents docs', desc: lead, nav: 'docs', scripts: ['search.js'],
+    root: '../', title: (slug === 'index' ? 'Documentation' : title) + ' - TiroAgents docs', desc: lead, nav: 'docs', scripts: ['search.js'], page: 'docs/' + slug + '.html', jsonLd: docLd(slug, title, lead, group),
     main: `<div class="wrap docs-layout">${sidebar(slug)}<main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a>${group ? ' / ' + esc(group) : ''}${slug === 'index' ? '' : ' / ' + esc(title)}</p><h1>${esc(title)}</h1><p class="lead">${esc(lead)}</p><p class="meta">${stamp}</p>${htmlBody}${slug === 'index' ? '' : pn}</main>${tocHtml}</div>`,
   });
 }
@@ -186,7 +193,7 @@ const clMd = CHANGELOG.replace(/^# .*\n+/, '').replace(/`docs\/permissions\.md`/
   const ctx = { picture: (h, a) => '', link: h => (h.startsWith('docs/') || /^https:\/\/claude\.com\//.test(h) ? h : null) };
   const { html, ids } = renderMd(clMd, ctx);
   write('changelog.html', layout({
-    root: '', title: 'Changelog - TiroAgents', desc: 'What changed in each version of TiroAgents (Agent Office before 2.0).', nav: 'changelog',
+    root: '', title: 'Changelog - TiroAgents', desc: 'What changed in each version of TiroAgents (Agent Office before 2.0).', nav: 'changelog', page: 'changelog.html',
     main: `<div class="wrap page"><main id="main" class="doc changelog"><h1>Changelog</h1><p class="meta">Subscribe with the <a href="releases.xml">Atom feed</a>.</p>${html}</main></div>`,
   }));
   searchIndex.push({ t: 'Changelog', u: 'changelog.html', x: plain(html).slice(0, 600) });
@@ -200,6 +207,24 @@ write('stats.html', statsPage());
 write('privacy.html', privacyPage());
 searchIndex.push({ t: 'Quickstart', u: 'quickstart.html', x: 'Install Claude Code, download and verify, install, give Tiro a task, approve the hire, read the report.' });
 write('search-index.json', JSON.stringify(searchIndex));
+
+// sitemap.xml + robots.txt: every HTML page, newest release date as lastmod. A project site's robots.txt is not read at
+// the host root, so the sitemap is also linked from robots.txt for hosts that do, and is submitted in Search Console.
+{
+  const pages = [];
+  const walk = d => { for (const f of fs.readdirSync(path.join(SITE, d), { withFileTypes: true })) { const rel = d ? d + '/' + f.name : f.name;
+    if (f.isDirectory()) { if (!['assets', 'tools', 'edge', 'docs-internal', 'node_modules'].includes(f.name)) walk(rel); } else if (f.name.endsWith('.html')) pages.push(rel); } };
+  walk('');
+  const prio = p => (p === 'index.html' ? '1.0' : ['download.html', 'quickstart.html', 'docs/index.html'].includes(p) ? '0.8' : '0.5');
+  pages.sort((a, b) => prio(b) - prio(a) || a.localeCompare(b));
+  const urls = pages.map(p => `  <url><loc>${esc(pageUrl(p))}</loc><lastmod>${release.date}</lastmod><priority>${prio(p)}</priority></url>`);
+  write('sitemap.xml', ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', ...urls, '</urlset>', ''].join(String.fromCharCode(10)));
+  write('robots.txt', `User-agent: *
+Allow: /
+
+Sitemap: ${pageUrl('sitemap.xml')}
+`);
+}
 
 // llms.txt
 {

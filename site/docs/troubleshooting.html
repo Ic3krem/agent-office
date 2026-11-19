@@ -9,8 +9,25 @@
 <meta name="theme-color" content="#f2f5fb" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#10142a" media="(prefers-color-scheme: dark)">
 <title>Troubleshooting - TiroAgents docs</title>
-<meta name="description" content="Windows warnings and common problems.">
+<meta name="description" content="Windows install warnings and fixes for common problems with TiroAgents.">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ic3krem.github.io/agent-office/docs/troubleshooting.html">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TiroAgents">
+<meta property="og:title" content="Troubleshooting - TiroAgents docs">
+<meta property="og:description" content="Windows install warnings and fixes for common problems with TiroAgents.">
+<meta property="og:url" content="https://ic3krem.github.io/agent-office/docs/troubleshooting.html">
+<meta property="og:image" content="https://ic3krem.github.io/agent-office/assets/img/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="TiroAgents: a pixel office with Tiro, an orange cube-crab, and Claude Code agents at their desks">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Troubleshooting - TiroAgents docs">
+<meta name="twitter:description" content="Windows install warnings and fixes for common problems with TiroAgents.">
+<meta name="twitter:image" content="https://ic3krem.github.io/agent-office/assets/img/og-card.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"TiroAgents","item":"https://ic3krem.github.io/agent-office/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://ic3krem.github.io/agent-office/docs/"},{"@type":"ListItem","position":3,"name":"Troubleshooting","item":"https://ic3krem.github.io/agent-office/docs/troubleshooting.html"}]}</script>
 <link rel="alternate" type="application/atom+xml" title="TiroAgents releases" href="../releases.xml">
 <link rel="stylesheet" href="../assets/fonts/fonts.css">
 <link rel="stylesheet" href="../assets/site.css">
@@ -33,7 +50,7 @@
 <div class="wrap docs-layout"><aside class="docs-side" aria-label="Documentation">
 <div role="search" class="doc-search"><label for="doc-search">Search the docs</label><input id="doc-search" type="search" autocomplete="off" placeholder="Search"><p id="doc-search-status" class="meta" role="status" aria-live="polite"></p><ul id="doc-results"></ul></div>
 <nav aria-label="Docs sections"><ul class="top"><li><a href="index.html">Overview</a></li></ul><h2>Get started</h2><ul><li><a href="requirements.html">Requirements</a></li><li><a href="install.html">Install and verify</a></li><li><a href="first-task.html">First task with Tiro</a></li><li><a href="update.html">Update</a></li><li><a href="uninstall.html">Uninstall</a></li></ul><h2>Using the office</h2><ul><li><a href="office.html">The dashboard and the office</a></li><li><a href="approvals.html">Hiring and approvals</a></li><li><a href="team.html">The team</a></li><li><a href="agents-and-memory.html">Agents and memory</a></li><li><a href="goals-and-reports.html">Goals, reports and the vault</a></li><li><a href="island.html">The island, Tiro and the tray</a></li><li><a href="party.html">Party and the meeting room</a></li><li><a href="scheduler.html">Scheduler</a></li></ul><h2>Safety</h2><ul><li><a href="permissions.html">Permissions and Claude Code parity</a></li><li><a href="security.html">Security model</a></li><li><a href="security-guard.html">Security Guard</a></li><li><a href="breaker-box.html">Breaker box and subscription guard</a></li></ul><h2>Reference</h2><ul><li><a href="configuration.html">Configuration</a></li><li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a></li><li><a href="faq.html">FAQ</a></li><li><a href="api.html">API reference</a></li><li><a href="guide.html">Full user guide</a></li><li><a href="../changelog.html">Changelog</a></li></ul></nav>
-</aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Reference / Troubleshooting</p><h1>Troubleshooting</h1><p class="lead">Windows warnings and common problems.</p><p class="meta">Written for v2.1.0 &middot; updated 2026-11-20</p><h2 id="smartscreen-and-smart-app-control">SmartScreen and Smart App Control</h2>
+</aside><main id="main" class="doc"><p class="meta"><a href="index.html">Docs</a> / Reference / Troubleshooting</p><h1>Troubleshooting</h1><p class="lead">Windows install warnings and fixes for common problems with TiroAgents.</p><p class="meta">Written for v2.1.0 &middot; updated 2026-11-20</p><h2 id="smartscreen-and-smart-app-control">SmartScreen and Smart App Control</h2>
 <p>The installer is not code-signed. Compare its SHA-256 with the one on the <a href="../download.html#verify">download page</a> before you run it.</p>
 <ul><li><strong>SmartScreen</strong> may show &quot;Windows protected your PC&quot;. If the SHA-256 matches, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</li><li><strong>Smart App Control (Windows 11)</strong> can block an unsigned installer and offer no Run anyway option. It is a Windows setting under Windows Security, App and browser control, Smart App Control settings. Turning it off can be permanent on some Windows 11 versions, so decide deliberately. If you cannot accept that, do not install the unsigned build.</li></ul>
 <h2 id="troubleshooting">Troubleshooting</h2>

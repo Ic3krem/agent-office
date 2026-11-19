@@ -1,4 +1,4 @@
-import { layout, esc, picture, release, readJson, edgeOrigin, dlHref, OS_MAIN, OS_NAME } from './layout.mjs';
+import { layout, esc, picture, release, readJson, edgeOrigin, dlHref, OS_MAIN, OS_NAME, pageUrl, OG_IMAGE } from './layout.mjs';
 
 export const fmtSize = n => (typeof n === 'number' && n > 0 ? (n / 1048576).toFixed(1) + ' MB' : '-');
 const OTHERS = { windows: 'macOS and Linux', macos: 'Windows and Linux', linux: 'Windows and macOS' };
@@ -127,5 +127,19 @@ ${osButtons()}
 <p class="small">Also: <a href="${esc(dlHref('mac-x64'))}">macOS for Intel</a> · <a href="${esc(dlHref('linux-deb'))}">Linux .deb</a> · <a href="download.html#verify">Check the download</a></p>
 </div>
 </div></section>`;
-  return layout({ root: '', title: 'TiroAgents - watch your Claude Code agents work', desc: 'Tiro, an orange cube-crab office manager, hires specialist Claude Code agents with your approval. The office spends no tokens. Windows, macOS and Linux.', nav: 'home', main, scripts: ['release.js'], modules: ['home.js'], bodyClass: 'home' });
+  const title = 'TiroAgents: a pixel office desktop app for Claude Code agents';
+  const desc = 'Free, open-source app for Windows, macOS and Linux. See your Claude Code agents work in a pixel office, approve every hire and read their reports. No extra tokens.';
+  const strip = h => String(h).replace(/<[^>]+>/g, '');
+  // Structured data: the app itself (name, platforms, price, version, downloads) and the FAQ shown on the page.
+  const jsonLd = { '@context': 'https://schema.org', '@graph': [
+    { '@type': 'SoftwareApplication', '@id': pageUrl('index.html') + '#app', name: 'TiroAgents', applicationCategory: 'DeveloperApplication', operatingSystem: 'Windows 10, Windows 11, macOS, Linux',
+      description: desc, url: pageUrl('index.html'), image: pageUrl(OG_IMAGE.path), screenshot: pageUrl('assets/img/hero.png'),
+      softwareVersion: release.version, datePublished: release.date, license: 'https://www.apache.org/licenses/LICENSE-2.0', isAccessibleForFree: true,
+      downloadUrl: pageUrl('download.html'), softwareRequirements: 'Claude Code, signed in',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      author: { '@type': 'Person', name: 'Ic3krem', url: 'https://github.com/Ic3krem' } },
+    { '@type': 'WebSite', '@id': pageUrl('index.html') + '#site', name: 'TiroAgents', url: pageUrl('index.html') },
+    { '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: strip(a) } })) },
+  ] };
+  return layout({ root: '', title, desc, nav: 'home', page: 'index.html', jsonLd, main, scripts: ['release.js'], modules: ['home.js'], bodyClass: 'home' });
 }
