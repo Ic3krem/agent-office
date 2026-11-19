@@ -123,7 +123,9 @@ test('home downloads section: numbers and labels only; land-only map while edge.
   assert.doesNotMatch(h, /sample|placeholder|as of \d/i);
   assert.match(sec, new RegExp(`data-edge="${edge}"`));
   const js_ = rs('assets/home.js');
-  assert.match(js_, /if \(\/\^https:/, 'towers only once an https counter origin is set');
+  assert.match(js_, /if \(towers && \/\^https:/, 'towers only once an https counter origin is set');
+  assert.match(js_, /getJson\(new URL\('\.\.\/stats\.json', import\.meta\.url\)\)\.then\(fillCounts\)/, 'the numbers come from GitHub counts (stats.json), never from the counter');
+  assert.doesNotMatch(js_, /edge \+ '\/stats'\)\.then\(s => \{ if \(!fillCounts/, 'the counter never sets the numbers');
   assert.match(js_, /prefers-reduced-motion: reduce/); assert.match(js_, /IntersectionObserver/);
   assert.doesNotMatch(js_, /innerHTML|insertAdjacentHTML/);
 });

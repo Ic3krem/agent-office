@@ -232,8 +232,10 @@ const box = document.getElementById('dl-map');
 if (box) {
   const towers = worldMap(box, document.getElementById('mapc'));
   const edge = box.dataset.edge || '';
-  if (/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(edge)) {
-    getJson(edge + '/stats').then(s => { if (!fillCounts(s)) throw new Error('shape'); if (towers && s.byRegion && typeof s.byRegion === 'object') towers(s.byRegion); })
-      .catch(() => getJson(new URL('../stats.json', import.meta.url)).then(fillCounts).catch(() => {}));
+  // The numbers come from GitHub's own counts (stats.json, refreshed by the Pages workflow): every download lands there,
+  // including the ones that pass through the counter. The counter only adds where they came from (the towers).
+  getJson(new URL('../stats.json', import.meta.url)).then(fillCounts).catch(() => {});
+  if (towers && /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(edge)) {
+    getJson(edge + '/stats').then(s => { if (s && s.byRegion && typeof s.byRegion === 'object') towers(s.byRegion); }).catch(() => {});
   }
 }
